@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: #F4F5F7;
+    color: #4B5563;
+  }
+
+  /* Evitar zoom en inputs en iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Scrollbar sutil */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #F4F5F7; }
+  ::-webkit-scrollbar-thumb { background: #9CA3AF; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6B7280; }
+}
+
+@layer utilities {
+  /* Safe area para dispositivos con notch */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
