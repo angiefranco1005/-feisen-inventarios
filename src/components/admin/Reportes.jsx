@@ -4,7 +4,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { formatCOP, formatNumero, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import { exportarStockExcel, exportarMovimientosExcel } from '../../utils/exportExcel'
 import Spinner from '../shared/Spinner'
-import { BarChart2, Download, Package, ArrowUpDown, AlertTriangle } from 'lucide-react'
+import { BarChart2, Download, Package, ArrowUpDown, AlertTriangle, RotateCcw } from 'lucide-react'
+import Modal from '../shared/Modal'
+import Alerta from '../shared/Alerta'
 
 const TABS_ADMIN = [
   { key: 'stock',       label: 'Stock actual',  icon: Package },
@@ -23,6 +25,9 @@ export default function Reportes() {
   const [filtroFecha, setFiltroFecha] = useState({ desde: '', hasta: '' })
   const [filtroBodega, setFiltroBodega] = useState('')
   const [bodegas, setBodegas] = useState([])
+  const [confirmRevertir, setConfirmRevertir] = useState(null)
+  const [revirtiendoId, setRevirtiendoId] = useState(null)
+  const [msgReversion, setMsgReversion] = useState(null)
 
   useEffect(() => {
     supabase.from('bodegas').select('*').eq('activo', true).order('nombre').then(({ data }) => setBodegas(data || []))
@@ -59,6 +64,20 @@ export default function Reportes() {
 
     setDatos(data)
     setCargando(false)
+  }
+
+  async function revertir(m) {
+    setRevirtiendoId(m.id)
+    setMsgReversion(null)
+    const { error } = await supabase.rpc('fn_revertir_movimiento', { mov_id: m.id })
+    setRevirtiendoId(null)
+    setConfirmRevertir(null)
+    if (error) {
+      setMsgReversion({ tipo: 'error', texto: 'Error al revertir: ' + error.message })
+      return
+    }
+    setMsgReversion({ tipo: 'exito', texto: `Movimiento revertido. El stock fue ajustado.` })
+    cargar()
   }
 
   // Valorización total para tab valor
@@ -197,51 +216,98 @@ export default function Reportes() {
 
           {/* TAB MOVIMIENTOS */}
           {tab === 'movimientos' && (
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {datos.length === 0 ? (
-                <div className="text-center py-16 text-feisen-gris-medio">
-                  <ArrowUpDown size={40} className="mx-auto mb-3 opacity-30" />
-                  <p>No hay movimientos en el período seleccionado.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-feisen-gris">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Fecha</th>
-                        <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Tipo</th>
-                        <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
-                        <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Cantidad</th>
-                        {esAdmin && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Valor COP</th>}
-                        <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden lg:table-cell">Usuario</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {datos.map(m => (
-                        <tr key={m.id} className="hover:bg-feisen-gris/50">
-                          <td className="px-4 py-3 text-xs text-feisen-gris-medio whitespace-nowrap">{formatFechaHora(m.created_at)}</td>
-                          <td className="px-4 py-3">
-                            <span className="text-xs bg-feisen-gris px-2 py-1 rounded-full font-medium">
-                              {TIPOS_MOVIMIENTO[m.tipo] || m.tipo}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 font-medium text-feisen-gris-oscuro">{m.items?.nombre}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
-                            {formatNumero(m.cantidad)} {m.items?.unidad_medida}
-                          </td>
-                          {esAdmin && (
-                            <td className="px-4 py-3 text-right text-feisen-gris-oscuro hidden md:table-cell">
-                              {formatCOP((m.cantidad || 0) * (m.precio_costo_snapshot || 0))}
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-feisen-gris-medio text-xs hidden lg:table-cell">{m.profiles?.nombre}</td>
+            <div className="space-y-3">
+              {msgReversion && <Alerta tipo={msgReversion.tipo} mensaje={msgReversion.texto} />}
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                {datos.length === 0 ? (
+                  <div className="text-center py-16 text-feisen-gris-medio">
+                    <ArrowUpDown size={40} className="mx-auto mb-3 opacity-30" />
+                    <p>No hay movimientos en el período seleccionado.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-feisen-gris">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Fecha</th>
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Tipo</th>
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
+                          <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Cantidad</th>
+                          {esAdmin && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Valor COP</th>}
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden lg:table-cell">Usuario</th>
+                          {esAdmin && <th className="px-4 py-3"></th>}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {datos.map(m => (
+                          <tr key={m.id} className={`hover:bg-feisen-gris/50 ${m.revertido ? 'opacity-50 bg-gray-50' : ''}`}>
+                            <td className="px-4 py-3 text-xs text-feisen-gris-medio whitespace-nowrap">{formatFechaHora(m.created_at)}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs bg-feisen-gris px-2 py-1 rounded-full font-medium w-fit">
+                                  {TIPOS_MOVIMIENTO[m.tipo] || m.tipo}
+                                </span>
+                                {m.revertido && (
+                                  <span className="text-xs bg-red-100 text-feisen-rojo px-2 py-0.5 rounded-full font-medium w-fit">
+                                    Revertido
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className={`px-4 py-3 font-medium text-feisen-gris-oscuro ${m.revertido ? 'line-through' : ''}`}>{m.items?.nombre}</td>
+                            <td className={`px-4 py-3 text-right font-semibold ${m.revertido ? 'text-feisen-gris-medio line-through' : 'text-feisen-azul'}`}>
+                              {formatNumero(m.cantidad)} {m.items?.unidad_medida}
+                            </td>
+                            {esAdmin && (
+                              <td className="px-4 py-3 text-right text-feisen-gris-oscuro hidden md:table-cell">
+                                {formatCOP((m.cantidad || 0) * (m.precio_costo_snapshot || 0))}
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-feisen-gris-medio text-xs hidden lg:table-cell">{m.profiles?.nombre}</td>
+                            {esAdmin && (
+                              <td className="px-4 py-3">
+                                {!m.revertido && (
+                                  <button
+                                    onClick={() => { setMsgReversion(null); setConfirmRevertir(m) }}
+                                    className="p-1.5 text-gray-400 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Revertir movimiento">
+                                    <RotateCcw size={15} />
+                                  </button>
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+
+          {/* Modal confirmación revertir */}
+          {confirmRevertir && (
+            <Modal titulo="Revertir movimiento" onCerrar={() => setConfirmRevertir(null)}>
+              <div className="space-y-4">
+                <Alerta tipo="alerta" mensaje={`¿Revertir este movimiento de "${confirmRevertir.items?.nombre}"? El stock se ajustará automáticamente y el movimiento quedará marcado como revertido.`} />
+                <div className="bg-feisen-gris rounded-xl p-4 text-sm space-y-1">
+                  <p><span className="font-medium">Tipo:</span> {TIPOS_MOVIMIENTO[confirmRevertir.tipo] || confirmRevertir.tipo}</p>
+                  <p><span className="font-medium">Cantidad:</span> {formatNumero(confirmRevertir.cantidad)} {confirmRevertir.items?.unidad_medida}</p>
+                  <p><span className="font-medium">Fecha:</span> {formatFechaHora(confirmRevertir.created_at)}</p>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setConfirmRevertir(null)}
+                    className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                    Cancelar
+                  </button>
+                  <button onClick={() => revertir(confirmRevertir)} disabled={revirtiendoId === confirmRevertir.id}
+                    className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                    {revirtiendoId === confirmRevertir.id ? 'Revirtiendo...' : 'Sí, revertir'}
+                  </button>
+                </div>
+              </div>
+            </Modal>
           )}
         </>
       )}
