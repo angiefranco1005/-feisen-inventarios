@@ -5,7 +5,7 @@ import { formatCOP, formatNumero, CENTROS_COSTO, UNIDADES_MEDIDA } from '../../u
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Upload, AlertTriangle, Package } from 'lucide-react'
+import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Upload, AlertTriangle, Package, Trash2 } from 'lucide-react'
 
 export default function GestionItems() {
   const { perfil } = useAuth()
@@ -18,6 +18,7 @@ export default function GestionItems() {
   const [itemEditando, setItemEditando] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [subiendo, setSubiendo] = useState(false)
+  const [confirmEliminar, setConfirmEliminar] = useState(null)
 
   const FORM_INICIAL = {
     nombre: '', categoria_id: '', unidad_medida: 'unidad',
@@ -93,6 +94,24 @@ export default function GestionItems() {
     if (error) { setMensaje({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); return }
     setMensaje({ tipo: 'exito', texto: itemEditando ? 'Producto actualizado.' : 'Producto creado.' })
     setModalAbierto(false)
+    cargar()
+  }
+
+  async function eliminar(item) {
+    const { count: countStock } = await supabase
+      .from('stock').select('*', { count: 'exact', head: true }).eq('item_id', item.id)
+    const { count: countMov } = await supabase
+      .from('movimientos').select('*', { count: 'exact', head: true }).eq('item_id', item.id)
+
+    if (countStock > 0 || countMov > 0) {
+      setMensaje({ tipo: 'error', texto: `"${item.nombre}" tiene stock o movimientos registrados. Desactívalo en lugar de eliminarlo.` })
+      setConfirmEliminar(null)
+      return
+    }
+    const { error } = await supabase.from('items').delete().eq('id', item.id)
+    setConfirmEliminar(null)
+    if (error) { setMensaje({ tipo: 'error', texto: 'Error al eliminar: ' + error.message }); return }
+    setMensaje({ tipo: 'exito', texto: `"${item.nombre}" eliminado.` })
     cargar()
   }
 
@@ -199,6 +218,12 @@ export default function GestionItems() {
                           className={`p-1.5 rounded-lg transition-colors ${item.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                           {item.activo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                         </button>
+                        {esAdmin && (
+                          <button onClick={() => { setMensaje(null); setConfirmEliminar(item) }}
+                            className="p-1.5 text-gray-400 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -208,6 +233,25 @@ export default function GestionItems() {
           </div>
         )}
       </div>
+
+      {/* MODAL confirmar eliminar */}
+      {confirmEliminar && (
+        <Modal titulo="Eliminar producto" onCerrar={() => setConfirmEliminar(null)}>
+          <div className="space-y-4">
+            <Alerta tipo="alerta" mensaje={`¿Eliminar "${confirmEliminar.nombre}"? Esta acción no se puede deshacer. Si tiene stock o movimientos, no se permitirá.`} />
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmEliminar(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                Cancelar
+              </button>
+              <button onClick={() => eliminar(confirmEliminar)}
+                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* MODAL nuevo / editar */}
       {modalAbierto && (
