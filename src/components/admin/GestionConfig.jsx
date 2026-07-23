@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Warehouse, Tag, Users } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Warehouse, Tag, Users, Trash2, AlertTriangle } from 'lucide-react'
 import { CENTROS_COSTO } from '../../utils/formatters'
 
 function SeccionBodegas() {
@@ -13,6 +13,7 @@ function SeccionBodegas() {
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState({ nombre: '', descripcion: '' })
   const [msg, setMsg] = useState(null)
+  const [confirmEliminar, setConfirmEliminar] = useState(null) // bodega a eliminar
 
   useEffect(() => { cargar() }, [])
 
@@ -47,6 +48,33 @@ function SeccionBodegas() {
     cargar()
   }
 
+  async function eliminar(b) {
+    // Verificar si tiene stock o movimientos asociados
+    const { count: countStock } = await supabase
+      .from('stock')
+      .select('*', { count: 'exact', head: true })
+      .eq('bodega_id', b.id)
+    const { count: countMov } = await supabase
+      .from('movimientos')
+      .select('*', { count: 'exact', head: true })
+      .or(`bodega_origen_id.eq.${b.id},bodega_destino_id.eq.${b.id}`)
+
+    if (countStock > 0 || countMov > 0) {
+      setMsg({ tipo: 'error', texto: `No se puede eliminar "${b.nombre}" porque tiene stock o movimientos registrados. Desactívala en su lugar.` })
+      setConfirmEliminar(null)
+      return
+    }
+
+    const { error } = await supabase.from('bodegas').delete().eq('id', b.id)
+    setConfirmEliminar(null)
+    if (error) {
+      setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message })
+      return
+    }
+    setMsg({ tipo: 'exito', texto: `Almacén "${b.nombre}" eliminado.` })
+    cargar()
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -72,11 +100,38 @@ function SeccionBodegas() {
                 <button onClick={() => toggle(b)} className={`p-1 rounded-lg ${b.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                   {b.activo ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
                 </button>
+                <button onClick={() => { setMsg(null); setConfirmEliminar(b) }} className="p-1 text-gray-400 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
+                  <Trash2 size={15} />
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
+      {confirmEliminar && (
+        <Modal titulo="Eliminar almacén" onCerrar={() => setConfirmEliminar(null)}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-red-50 border border-feisen-rojo rounded-xl p-4">
+              <AlertTriangle size={20} className="text-feisen-rojo mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-feisen-gris-oscuro">¿Eliminar <span className="font-bold">"{confirmEliminar.nombre}"</span>?</p>
+                <p className="text-xs text-feisen-gris-medio mt-1">Esta acción no se puede deshacer. Si tiene stock o movimientos registrados, no se permitirá la eliminación.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmEliminar(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                Cancelar
+              </button>
+              <button onClick={() => eliminar(confirmEliminar)}
+                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity">
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {modal && (
         <Modal titulo={editando ? 'Editar bodega' : 'Nueva bodega'} onCerrar={() => setModal(false)}>
           <form onSubmit={guardar} className="space-y-4">
