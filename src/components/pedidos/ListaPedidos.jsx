@@ -5,11 +5,11 @@ import { formatFechaHora } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, CheckCircle, Clock, Trash2, Package } from 'lucide-react'
+import { Plus, CheckCircle, Truck, Package, Trash2 } from 'lucide-react'
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'm³', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto']
 
-function ItemRow({ item, onChange, onRemove, index }) {
+function ItemRow({ item, onChange, onRemove, index, total }) {
   return (
     <div className="flex gap-2 items-start">
       <div className="flex-1">
@@ -29,10 +29,12 @@ function ItemRow({ item, onChange, onRemove, index }) {
           {UNIDADES.map(u => <option key={u}>{u}</option>)}
         </select>
       </div>
-      <button type="button" onClick={() => onRemove(index)}
-        className="p-2 text-gray-400 hover:text-feisen-rojo rounded-lg mt-0.5">
-        <Trash2 size={16} />
-      </button>
+      {total > 1 && (
+        <button type="button" onClick={() => onRemove(index)}
+          className="p-2 text-gray-400 hover:text-feisen-rojo rounded-lg mt-0.5">
+          <Trash2 size={16} />
+        </button>
+      )}
     </div>
   )
 }
@@ -47,34 +49,20 @@ function NuevoPedidoModal({ onCerrar, onCreado, perfil }) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [campo]: valor } : it))
   }
 
-  function agregarItem() {
-    setItems(prev => [...prev, { descripcion: '', cantidad: '', unidad: 'und' }])
-  }
-
-  function eliminarItem(idx) {
-    if (items.length === 1) return
-    setItems(prev => prev.filter((_, i) => i !== idx))
-  }
-
   async function crear(e) {
     e.preventDefault()
     setGuardando(true); setMsg(null)
-
     const { data: pedido, error } = await supabase.from('pedidos').insert({
       solicitante_id: perfil.id,
       solicitante_nombre: perfil.nombre,
       area: perfil.almacen || perfil.rol,
       observaciones: observaciones || null,
     }).select().single()
-
     if (error) { setMsg({ tipo: 'error', texto: error.message }); setGuardando(false); return }
-
-    const { error: errItems } = await supabase.from('pedido_items').insert(
+    await supabase.from('pedido_items').insert(
       items.map(it => ({ pedido_id: pedido.id, descripcion: it.descripcion, cantidad: parseFloat(it.cantidad), unidad: it.unidad }))
     )
-
     setGuardando(false)
-    if (errItems) { setMsg({ tipo: 'error', texto: errItems.message }); return }
     onCreado()
   }
 
@@ -82,35 +70,31 @@ function NuevoPedidoModal({ onCerrar, onCreado, perfil }) {
     <Modal titulo="Nuevo pedido de materia prima" onCerrar={onCerrar}>
       <form onSubmit={crear} className="space-y-4">
         {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-
         <div>
-          <label className="text-sm font-semibold text-feisen-gris-oscuro block mb-2">
-            Materiales solicitados *
-          </label>
+          <label className="text-sm font-semibold text-feisen-gris-oscuro block mb-2">Materiales solicitados *</label>
           <div className="space-y-2">
             <div className="flex gap-2 text-xs text-feisen-gris-medio font-medium px-0.5">
               <span className="flex-1">Descripción</span>
               <span className="w-24">Cantidad</span>
               <span className="w-24">Unidad</span>
-              <span className="w-8"></span>
             </div>
             {items.map((it, i) => (
-              <ItemRow key={i} item={it} index={i} onChange={actualizarItem} onRemove={eliminarItem} />
+              <ItemRow key={i} item={it} index={i} total={items.length}
+                onChange={actualizarItem}
+                onRemove={idx => setItems(prev => prev.filter((_, j) => j !== idx))} />
             ))}
           </div>
-          <button type="button" onClick={agregarItem}
+          <button type="button" onClick={() => setItems(prev => [...prev, { descripcion: '', cantidad: '', unidad: 'und' }])}
             className="mt-2 flex items-center gap-1 text-feisen-azul text-sm font-medium hover:underline">
             <Plus size={15} /> Agregar otro material
           </button>
         </div>
-
         <div>
           <label className="text-sm font-semibold text-feisen-gris-oscuro block mb-1">Observaciones</label>
           <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={2}
             placeholder="Urgencia, especificaciones, para qué proyecto..."
             className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
-
         <div className="flex gap-3 pt-1">
           <button type="button" onClick={onCerrar}
             className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
@@ -124,12 +108,77 @@ function NuevoPedidoModal({ onCerrar, onCreado, perfil }) {
   )
 }
 
+function ModalTransito({ pedido, onCerrar, onGuardado, perfil }) {
+  const [numeroOc, setNumeroOc] = useState('')
+  const [fechaEstimada, setFechaEstimada] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  async function guardar(e) {
+    e.preventDefault()
+    if (!fechaEstimada) { setMsg({ tipo: 'error', texto: 'La fecha estimada de llegada es obligatoria.' }); return }
+    setGuardando(true)
+    const { error } = await supabase.from('pedidos').update({
+      estado: 'en_transito',
+      numero_oc: numeroOc || null,
+      fecha_estimada_llegada: fechaEstimada,
+      registrado_transito_por: perfil.nombre,
+      fecha_transito: new Date().toISOString(),
+    }).eq('id', pedido.id)
+    setGuardando(false)
+    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
+    onGuardado()
+  }
+
+  return (
+    <Modal titulo={`Registrar en tránsito — PED-${String(pedido.numero).padStart(4, '0')}`} onCerrar={onCerrar}>
+      <form onSubmit={guardar} className="space-y-4">
+        {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+        <Alerta tipo="info" mensaje="Completa la información de la orden de compra enviada al proveedor." />
+        <div>
+          <label className="text-sm font-semibold text-feisen-gris-oscuro block mb-1">N° Orden de compra</label>
+          <input value={numeroOc} onChange={e => setNumeroOc(e.target.value)}
+            placeholder="Ej: OC-2026-0042 (opcional)"
+            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-feisen-gris-oscuro block mb-1">Fecha estimada de llegada *</label>
+          <input required type="date" value={fechaEstimada} onChange={e => setFechaEstimada(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onCerrar}
+            className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+          <button type="submit" disabled={guardando}
+            className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+            {guardando ? 'Guardando...' : '🚚 Registrar en tránsito'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+const ESTADO_CONFIG = {
+  pendiente:   { label: '⏳ Pendiente',   badge: 'bg-amber-100 text-amber-700',   border: 'border-amber-400' },
+  en_transito: { label: '🚚 En tránsito', badge: 'bg-blue-100 text-feisen-azul',  border: 'border-feisen-azul' },
+  recibido:    { label: '✓ Recibido',     badge: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-500' },
+}
+
+function formatFecha(fecha) {
+  if (!fecha) return ''
+  const [y, m, d] = fecha.split('-')
+  return `${d}/${m}/${y}`
+}
+
 export default function ListaPedidos() {
   const { perfil } = useAuth()
   const [pedidos, setPedidos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtro, setFiltro] = useState('pendiente')
   const [modalNuevo, setModalNuevo] = useState(false)
+  const [modalTransito, setModalTransito] = useState(null)
   const [msg, setMsg] = useState(null)
 
   useEffect(() => { cargar() }, [])
@@ -144,6 +193,11 @@ export default function ListaPedidos() {
     setCargando(false)
   }
 
+  function notificar(texto) {
+    setMsg({ tipo: 'exito', texto })
+    setTimeout(() => setMsg(null), 3000)
+  }
+
   async function marcarRecibido(pedido) {
     const { error } = await supabase.from('pedidos').update({
       estado: 'recibido',
@@ -151,10 +205,16 @@ export default function ListaPedidos() {
       recibido_por: perfil.nombre,
     }).eq('id', pedido.id)
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
-    setMsg({ tipo: 'exito', texto: `Pedido PED-${String(pedido.numero).padStart(4, '0')} marcado como recibido.` })
+    notificar(`PED-${String(pedido.numero).padStart(4, '0')} marcado como recibido ✓`)
     cargar()
-    setTimeout(() => setMsg(null), 3000)
   }
+
+  const TABS = [
+    { val: 'pendiente',   label: 'Pendientes' },
+    { val: 'en_transito', label: 'En tránsito' },
+    { val: 'recibido',    label: 'Recibidos' },
+    { val: 'todos',       label: 'Todos' },
+  ]
 
   const pedidosFiltrados = filtro === 'todos' ? pedidos : pedidos.filter(p => p.estado === filtro)
 
@@ -170,18 +230,18 @@ export default function ListaPedidos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      {/* Filtros */}
-      <div className="flex gap-2">
-        {[['pendiente', 'Pendientes'], ['recibido', 'Recibidos'], ['todos', 'Todos']].map(([val, label]) => (
-          <button key={val} onClick={() => setFiltro(val)}
-            className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors border
-              ${filtro === val ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-gris-oscuro border-gray-200 hover:border-feisen-azul'}`}>
-            {label}
-            <span className="ml-1.5 text-xs opacity-70">
-              ({val === 'todos' ? pedidos.length : pedidos.filter(p => p.estado === val).length})
-            </span>
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {TABS.map(({ val, label }) => {
+          const count = val === 'todos' ? pedidos.length : pedidos.filter(p => p.estado === val).length
+          return (
+            <button key={val} onClick={() => setFiltro(val)}
+              className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors border
+                ${filtro === val ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-gris-oscuro border-gray-200 hover:border-feisen-azul'}`}>
+              {label} <span className="ml-1 opacity-70 text-xs">({count})</span>
+            </button>
+          )
+        })}
       </div>
 
       {cargando ? <Spinner texto="Cargando pedidos..." /> : (
@@ -189,60 +249,86 @@ export default function ListaPedidos() {
           {pedidosFiltrados.length === 0 ? (
             <div className="text-center py-16 text-feisen-gris-medio bg-white rounded-2xl shadow-sm">
               <Package size={40} className="mx-auto mb-3 opacity-30" />
-              <p>No hay pedidos {filtro === 'pendiente' ? 'pendientes' : filtro === 'recibido' ? 'recibidos' : ''}.</p>
+              <p>No hay pedidos en esta categoría.</p>
             </div>
-          ) : pedidosFiltrados.map(p => (
-            <div key={p.id} className={`bg-white rounded-2xl shadow-sm p-5 space-y-3 border-l-4 ${p.estado === 'recibido' ? 'border-emerald-500' : 'border-amber-400'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-feisen-gris-oscuro">
-                      PED-{String(p.numero).padStart(4, '0')}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${p.estado === 'recibido' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {p.estado === 'recibido' ? '✓ Recibido' : '⏳ Pendiente'}
-                    </span>
+          ) : pedidosFiltrados.map(p => {
+            const cfg = ESTADO_CONFIG[p.estado] || ESTADO_CONFIG.pendiente
+            return (
+              <div key={p.id} className={`bg-white rounded-2xl shadow-sm p-5 space-y-3 border-l-4 ${cfg.border}`}>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-feisen-gris-oscuro">
+                        PED-{String(p.numero).padStart(4, '0')}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.badge}`}>
+                        {cfg.label}
+                      </span>
+                    </div>
+                    <p className="text-sm text-feisen-gris-medio mt-0.5">
+                      {p.solicitante_nombre} · {formatFechaHora(p.fecha_solicitud)}
+                    </p>
                   </div>
-                  <p className="text-sm text-feisen-gris-medio mt-0.5">
-                    {p.solicitante_nombre} · {formatFechaHora(p.fecha_solicitud)}
-                  </p>
+
+                  <div className="flex gap-2 flex-shrink-0">
+                    {p.estado === 'pendiente' && (
+                      <button onClick={() => setModalTransito(p)}
+                        className="flex items-center gap-1.5 text-sm bg-feisen-azul text-white px-3 py-1.5 rounded-xl hover:opacity-90 transition-opacity font-medium">
+                        <Truck size={15} /> Registrar en tránsito
+                      </button>
+                    )}
+                    {p.estado === 'en_transito' && (
+                      <button onClick={() => marcarRecibido(p)}
+                        className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-xl hover:bg-emerald-700 transition-colors font-medium">
+                        <CheckCircle size={15} /> Marcar recibido
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {p.estado === 'pendiente' && (
-                  <button onClick={() => marcarRecibido(p)}
-                    className="flex items-center gap-1.5 text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-xl hover:bg-emerald-700 transition-colors font-medium flex-shrink-0">
-                    <CheckCircle size={15} /> Marcar recibido
-                  </button>
+
+                {/* Items */}
+                <div className="bg-feisen-gris rounded-xl p-3 space-y-1.5">
+                  {p.pedido_items?.map((it, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-feisen-gris-oscuro">{it.descripcion}</span>
+                      <span className="font-semibold text-feisen-azul ml-4 flex-shrink-0">{it.cantidad} {it.unidad}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {p.observaciones && (
+                  <p className="text-sm text-feisen-gris-medio italic">💬 {p.observaciones}</p>
+                )}
+
+                {/* Info tránsito */}
+                {(p.estado === 'en_transito' || p.estado === 'recibido') && (
+                  <div className="text-xs text-feisen-gris-medio space-y-0.5 border-t pt-2">
+                    {p.numero_oc && <p>🧾 OC: <span className="font-semibold text-feisen-gris-oscuro">{p.numero_oc}</span></p>}
+                    {p.fecha_estimada_llegada && <p>📅 Llegada estimada: <span className="font-semibold text-feisen-gris-oscuro">{formatFecha(p.fecha_estimada_llegada)}</span></p>}
+                    {p.registrado_transito_por && <p>Registrado por {p.registrado_transito_por} · {formatFechaHora(p.fecha_transito)}</p>}
+                  </div>
+                )}
+
+                {p.estado === 'recibido' && p.recibido_por && (
+                  <p className="text-xs text-emerald-600 border-t pt-2">
+                    ✓ Recibido por {p.recibido_por} · {formatFechaHora(p.fecha_recibido)}
+                  </p>
                 )}
               </div>
-
-              {/* Items */}
-              <div className="bg-feisen-gris rounded-xl p-3 space-y-1.5">
-                {p.pedido_items?.map((it, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-feisen-gris-oscuro">{it.descripcion}</span>
-                    <span className="font-semibold text-feisen-azul ml-4 flex-shrink-0">{it.cantidad} {it.unidad}</span>
-                  </div>
-                ))}
-              </div>
-
-              {p.observaciones && (
-                <p className="text-sm text-feisen-gris-medio italic">💬 {p.observaciones}</p>
-              )}
-
-              {p.estado === 'recibido' && p.recibido_por && (
-                <p className="text-xs text-emerald-600">Recibido por {p.recibido_por} · {formatFechaHora(p.fecha_recibido)}</p>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
       {modalNuevo && (
-        <NuevoPedidoModal
-          perfil={perfil}
-          onCerrar={() => setModalNuevo(false)}
-          onCreado={() => { setModalNuevo(false); cargar(); setMsg({ tipo: 'exito', texto: 'Pedido enviado a compras.' }); setTimeout(() => setMsg(null), 3000) }}
-        />
+        <NuevoPedidoModal perfil={perfil} onCerrar={() => setModalNuevo(false)}
+          onCreado={() => { setModalNuevo(false); cargar(); notificar('Pedido enviado a compras.') }} />
+      )}
+
+      {modalTransito && (
+        <ModalTransito pedido={modalTransito} perfil={perfil}
+          onCerrar={() => setModalTransito(null)}
+          onGuardado={() => { setModalTransito(null); cargar(); notificar(`PED-${String(modalTransito.numero).padStart(4, '0')} registrado en tránsito 🚚`) }} />
       )}
     </div>
   )
