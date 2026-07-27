@@ -229,6 +229,7 @@ export default function Reportes() {
                     <table className="w-full text-sm">
                       <thead className="bg-feisen-gris">
                         <tr>
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">#</th>
                           <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Fecha</th>
                           <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Tipo</th>
                           <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
@@ -241,6 +242,9 @@ export default function Reportes() {
                       <tbody className="divide-y divide-gray-100">
                         {datos.map(m => (
                           <tr key={m.id} className={`hover:bg-feisen-gris/50 ${m.revertido ? 'opacity-50 bg-gray-50' : ''}`}>
+                            <td className="px-4 py-3 text-xs font-mono font-bold text-feisen-gris-medio whitespace-nowrap">
+                              {m.numero ? `MOV-${String(m.numero).padStart(4, '0')}` : '—'}
+                            </td>
                             <td className="px-4 py-3 text-xs text-feisen-gris-medio whitespace-nowrap">{formatFechaHora(m.created_at)}</td>
                             <td className="px-4 py-3">
                               <div className="flex flex-col gap-1">
@@ -290,7 +294,7 @@ export default function Reportes() {
           {confirmRevertir && (
             <Modal titulo="Revertir movimiento" onCerrar={() => setConfirmRevertir(null)}>
               <div className="space-y-4">
-                <Alerta tipo="alerta" mensaje={`¿Revertir este movimiento de "${confirmRevertir.items?.nombre}"? El stock se ajustará automáticamente y el movimiento quedará marcado como revertido.`} />
+                <Alerta tipo="alerta" mensaje={`¿Revertir ${confirmRevertir.numero ? `MOV-${String(confirmRevertir.numero).padStart(4, '0')}` : 'este movimiento'} de "${confirmRevertir.items?.nombre}"? El stock se ajustará automáticamente y el movimiento quedará marcado como revertido.`} />
                 <div className="bg-feisen-gris rounded-xl p-4 text-sm space-y-1">
                   <p><span className="font-medium">Tipo:</span> {TIPOS_MOVIMIENTO[confirmRevertir.tipo] || confirmRevertir.tipo}</p>
                   <p><span className="font-medium">Cantidad:</span> {formatNumero(confirmRevertir.cantidad)} {confirmRevertir.items?.unidad_medida}</p>
