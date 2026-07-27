@@ -1,10 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, Package, ArrowUpDown, BarChart2,
-  Settings, LogOut, Menu, X, ChevronRight
+  Settings, LogOut, Menu, X, ChevronRight, KeyRound
 } from 'lucide-react'
 import { useState } from 'react'
+import Modal from './Modal'
+import Alerta from './Alerta'
 
 // Navegación por rol
 const NAV_ADMIN = [
@@ -51,6 +54,29 @@ export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [menuAbierto, setMenuAbierto] = useState(false)
+  const [modalPassword, setModalPassword] = useState(false)
+  const [formPwd, setFormPwd] = useState({ nueva: '', confirmar: '' })
+  const [msgPwd, setMsgPwd] = useState(null)
+  const [guardandoPwd, setGuardandoPwd] = useState(false)
+
+  async function cambiarPassword(e) {
+    e.preventDefault()
+    if (formPwd.nueva !== formPwd.confirmar) {
+      setMsgPwd({ tipo: 'error', texto: 'Las contraseñas no coinciden.' })
+      return
+    }
+    if (formPwd.nueva.length < 6) {
+      setMsgPwd({ tipo: 'error', texto: 'La contraseña debe tener al menos 6 caracteres.' })
+      return
+    }
+    setGuardandoPwd(true)
+    const { error } = await supabase.auth.updateUser({ password: formPwd.nueva })
+    setGuardandoPwd(false)
+    if (error) { setMsgPwd({ tipo: 'error', texto: error.message }); return }
+    setMsgPwd({ tipo: 'exito', texto: '¡Contraseña actualizada!' })
+    setFormPwd({ nueva: '', confirmar: '' })
+    setTimeout(() => { setModalPassword(false); setMsgPwd(null) }, 1500)
+  }
 
   const navItems = esAdmin ? NAV_ADMIN
     : esBodeguero ? NAV_BODEGUERO
@@ -116,6 +142,13 @@ export default function Layout({ children }) {
             </div>
           </div>
           <button
+            onClick={() => { setFormPwd({ nueva: '', confirmar: '' }); setMsgPwd(null); setModalPassword(true) }}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-feisen-gris-oscuro hover:bg-feisen-gris transition-colors text-sm font-medium mb-1"
+          >
+            <KeyRound size={16} />
+            Cambiar contraseña
+          </button>
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-feisen-rojo hover:bg-red-50 transition-colors text-sm font-medium"
           >
@@ -154,6 +187,13 @@ export default function Layout({ children }) {
           <div className="border-t pt-4">
             <p className="px-2 font-semibold text-feisen-gris-oscuro mb-1">{perfil?.nombre}</p>
             <button
+              onClick={() => { setMenuAbierto(false); setFormPwd({ nueva: '', confirmar: '' }); setMsgPwd(null); setModalPassword(true) }}
+              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-feisen-gris-oscuro hover:bg-feisen-gris font-medium mt-2"
+            >
+              <KeyRound size={18} />
+              Cambiar contraseña
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-feisen-rojo bg-red-50 font-medium mt-2"
             >
@@ -168,6 +208,37 @@ export default function Layout({ children }) {
       <main className="flex-1 p-4 lg:p-8 pb-24 lg:pb-8">
         {children}
       </main>
+
+      {/* MODAL CAMBIAR CONTRASEÑA */}
+      {modalPassword && (
+        <Modal titulo="Cambiar contraseña" onCerrar={() => setModalPassword(false)}>
+          <form onSubmit={cambiarPassword} className="space-y-4">
+            {msgPwd && <Alerta tipo={msgPwd.tipo} mensaje={msgPwd.texto} />}
+            <div>
+              <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Nueva contraseña *</label>
+              <input required type="password" minLength={6} value={formPwd.nueva}
+                onChange={e => setFormPwd(f => ({ ...f, nueva: e.target.value }))}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Confirmar contraseña *</label>
+              <input required type="password" minLength={6} value={formPwd.confirmar}
+                onChange={e => setFormPwd(f => ({ ...f, confirmar: e.target.value }))}
+                placeholder="Repite la contraseña"
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModalPassword(false)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+              <button type="submit" disabled={guardandoPwd}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {guardandoPwd ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* BARRA INFERIOR MÓVIL (solo roles no-operario con más ítems) */}
       {!perfil?.rol || perfil.rol !== 'OPERARIO' ? (
