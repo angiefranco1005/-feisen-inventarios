@@ -160,8 +160,12 @@ function SeccionBodegas() {
 
 function SeccionUsuarios() {
   const [usuarios, setUsuarios] = useState([])
+  const [bodegas, setBodegas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [modal, setModal] = useState(false)
+  const [modalEditar, setModalEditar] = useState(false)
+  const [usuarioEditando, setUsuarioEditando] = useState(null)
+  const [formEditar, setFormEditar] = useState({ rol: '', almacen: '' })
   const [form, setForm] = useState({ email: '', password: '', nombre: '', rol: 'OPERARIO', almacen: '' })
   const [msg, setMsg] = useState(null)
   const [guardando, setGuardando] = useState(false)
@@ -173,17 +177,38 @@ function SeccionUsuarios() {
 
   async function cargar() {
     setCargando(true)
-    const { data } = await supabase.from('profiles').select('*').order('nombre')
-    setUsuarios(data || [])
+    const [{ data: perfiles }, { data: bods }] = await Promise.all([
+      supabase.from('profiles').select('*').order('nombre'),
+      supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
+    ])
+    setUsuarios(perfiles || [])
+    setBodegas(bods || [])
     setCargando(false)
+  }
+
+  function abrirEditar(u) {
+    setUsuarioEditando(u)
+    setFormEditar({ rol: u.rol, almacen: u.almacen || '' })
+    setMsg(null)
+    setModalEditar(true)
+  }
+
+  async function guardarEdicion(e) {
+    e.preventDefault()
+    setGuardando(true)
+    const { error } = await supabase.from('profiles')
+      .update({ rol: formEditar.rol, almacen: formEditar.almacen || null })
+      .eq('id', usuarioEditando.id)
+    setGuardando(false)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); return }
+    setMsg({ tipo: 'exito', texto: 'Usuario actualizado.' })
+    setModalEditar(false)
+    cargar()
   }
 
   async function crearUsuario(e) {
     e.preventDefault()
     setGuardando(true); setMsg(null)
-    // Crear usuario en Supabase Auth (requiere función Edge o Admin API)
-    // Para un entorno de producción, usa una Edge Function con service_role key
-    // Aquí mostramos cómo hacerlo via la API de admin
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crear-usuario`, {
       method: 'POST',
       headers: {
@@ -239,14 +264,54 @@ function SeccionUsuarios() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => toggleUsuario(u)}
-                className={`p-1 rounded-lg ${u.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                {u.activo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-              </button>
+              <div className="flex gap-1">
+                <button onClick={() => abrirEditar(u)} className="p-1 text-feisen-azul hover:bg-blue-50 rounded-lg" title="Editar rol y bodega">
+                  <Edit2 size={15} />
+                </button>
+                <button onClick={() => toggleUsuario(u)}
+                  className={`p-1 rounded-lg ${u.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
+                  {u.activo ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* MODAL EDITAR ROL Y BODEGA */}
+      {modalEditar && usuarioEditando && (
+        <Modal titulo={`Editar: ${usuarioEditando.nombre}`} onCerrar={() => setModalEditar(false)}>
+          <form onSubmit={guardarEdicion} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Rol *</label>
+              <select required value={formEditar.rol} onChange={e => setFormEditar(f => ({ ...f, rol: e.target.value, almacen: '' }))}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                {ROLES.map(r => <option key={r} value={r}>{ROLES_LABEL[r]}</option>)}
+              </select>
+            </div>
+            {formEditar.rol !== 'ADMIN' && (
+              <div>
+                <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega asignada</label>
+                <select value={formEditar.almacen} onChange={e => setFormEditar(f => ({ ...f, almacen: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  <option value="">Sin bodega asignada</option>
+                  {bodegas.map(b => <option key={b.id} value={b.nombre}>{b.nombre}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModalEditar(false)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+              <button type="submit" disabled={guardando}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {guardando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* MODAL CREAR USUARIO */}
       {modal && (
         <Modal titulo="Nuevo usuario" onCerrar={() => setModal(false)}>
           <form onSubmit={crearUsuario} className="space-y-4">
@@ -276,11 +341,11 @@ function SeccionUsuarios() {
             </div>
             {form.rol !== 'ADMIN' && (
               <div>
-                <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Almacén asignado *</label>
-                <select required value={form.almacen} onChange={e => setForm(f => ({ ...f, almacen: e.target.value }))}
+                <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega asignada</label>
+                <select value={form.almacen} onChange={e => setForm(f => ({ ...f, almacen: e.target.value }))}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-                  <option value="">Selecciona un almacén...</option>
-                  {CENTROS_COSTO.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="">Sin bodega asignada</option>
+                  {bodegas.map(b => <option key={b.id} value={b.nombre}>{b.nombre}</option>)}
                 </select>
               </div>
             )}
