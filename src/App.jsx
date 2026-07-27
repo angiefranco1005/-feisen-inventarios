@@ -20,6 +20,9 @@ import DashboardJefeArea from './components/jefe_area/Dashboard'
 // OPERARIO
 import DashboardOperario from './components/operario/Dashboard'
 
+// CONSULTOR
+import DashboardConsultor from './components/consultor/Dashboard'
+
 // Movimientos (compartido)
 import RegistrarMovimiento from './components/movimientos/RegistrarMovimiento'
 
@@ -38,6 +41,7 @@ function RedirectDashboard() {
   if (perfil?.rol === 'OPERARIO') return <DashboardOperario />
   if (perfil?.rol === 'BODEGUERO') return <DashboardBodeguero />
   if (perfil?.rol === 'JEFE_AREA') return <DashboardJefeArea />
+  if (perfil?.rol === 'CONSULTOR') return <DashboardConsultor />
   return <DashboardAdmin />
 }
 
@@ -52,6 +56,15 @@ function AppRoutes() {
   const { session, perfil, cargando } = useAuth()
 
   if (cargando) return <div className="min-h-screen flex items-center justify-center bg-feisen-gris"><Spinner /></div>
+
+  // Consultor: solo ve su dashboard
+  if (session && perfil?.rol === 'CONSULTOR') {
+    return (
+      <Routes>
+        <Route path="*" element={<Layout><DashboardConsultor /></Layout>} />
+      </Routes>
+    )
+  }
 
   // Operario tiene su propia pantalla sin Layout
   if (session && perfil?.rol === 'OPERARIO') {
