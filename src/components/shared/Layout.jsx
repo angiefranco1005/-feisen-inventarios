@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, Package, ArrowUpDown, BarChart2,
-  Settings, LogOut, Menu, X, ChevronRight, KeyRound
+  Settings, LogOut, Menu, X, ChevronRight, KeyRound, ShoppingCart
 } from 'lucide-react'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -15,6 +15,7 @@ const NAV_ADMIN = [
   { to: '/items',     icon: Package,         label: 'Productos' },
   { to: '/movimientos', icon: ArrowUpDown,   label: 'Movimientos' },
   { to: '/reportes',  icon: BarChart2,        label: 'Reportes' },
+  { to: '/pedidos',   icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/config',    icon: Settings,         label: 'Configuración' },
 ]
 
@@ -28,6 +29,7 @@ const NAV_JEFE = [
   { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
   { to: '/movimientos', icon: ArrowUpDown,    label: 'Movimientos' },
   { to: '/reportes',   icon: BarChart2,        label: 'Reportes' },
+  { to: '/pedidos',    icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 const NAV_OPERARIO = [

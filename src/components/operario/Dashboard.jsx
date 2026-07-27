@@ -3,7 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFechaHora, CENTROS_COSTO } from '../../utils/formatters'
 import Alerta from '../shared/Alerta'
-import { CheckCircle, Search, LogOut } from 'lucide-react'
+import { CheckCircle, Search, LogOut, Trash2 } from 'lucide-react'
+
+const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto']
 
 // Pantalla OPERARIO: máximo 2 acciones, formulario de máximo 4 campos, botones enormes
 export default function DashboardOperario() {
@@ -19,6 +21,13 @@ export default function DashboardOperario() {
   const [guardando, setGuardando] = useState(false)
   const [exito, setExito] = useState(false)
   const [error, setError] = useState('')
+
+  // Pedidos
+  const [pedidoItems, setPedidoItems] = useState([{ descripcion: '', cantidad: '', unidad: 'und' }])
+  const [pedidoObs, setPedidoObs] = useState('')
+  const [guardandoPedido, setGuardandoPedido] = useState(false)
+  const [exitoPedido, setExitoPedido] = useState(false)
+  const [errorPedido, setErrorPedido] = useState('')
 
   useEffect(() => {
     async function cargar() {
@@ -87,6 +96,29 @@ export default function DashboardOperario() {
     cargarHistorial()
   }
 
+  async function enviarPedido(e) {
+    e.preventDefault()
+    setErrorPedido(''); setGuardandoPedido(true)
+    const { data: pedido, error: err } = await supabase.from('pedidos').insert({
+      solicitante_id: perfil.id,
+      solicitante_nombre: perfil.nombre,
+      area: perfil.almacen || 'Operario',
+      observaciones: pedidoObs || null,
+    }).select().single()
+    if (err) { setErrorPedido('Error al enviar. Intenta de nuevo.'); setGuardandoPedido(false); return }
+    await supabase.from('pedido_items').insert(
+      pedidoItems.map(it => ({ pedido_id: pedido.id, descripcion: it.descripcion, cantidad: parseFloat(it.cantidad), unidad: it.unidad }))
+    )
+    setGuardandoPedido(false)
+    setExitoPedido(true)
+    setTimeout(() => {
+      setExitoPedido(false)
+      setVista('inicio')
+      setPedidoItems([{ descripcion: '', cantidad: '', unidad: 'und' }])
+      setPedidoObs('')
+    }, 3000)
+  }
+
   // ---- VISTA INICIO ----
   if (vista === 'inicio') {
     return (
@@ -117,6 +149,85 @@ export default function DashboardOperario() {
             <span className="text-4xl">📋</span>
             Ver mi historial
           </button>
+
+          <button onClick={() => setVista('pedido')}
+            className="w-full bg-feisen-azul text-white rounded-2xl py-7 text-xl font-bold shadow-lg hover:opacity-90 transition-opacity flex flex-col items-center gap-2">
+            <span className="text-4xl">🛒</span>
+            Pedir materia prima
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- VISTA PEDIDO ----
+  if (vista === 'pedido') {
+    return (
+      <div className="min-h-screen bg-feisen-gris">
+        <div className="bg-feisen-azul px-5 pt-8 pb-6 text-white">
+          <button onClick={() => setVista('inicio')} className="text-blue-200 text-sm mb-3">← Volver</button>
+          <h1 className="text-2xl font-bold">Pedir materia prima</h1>
+          <p className="text-blue-200 text-sm">Tu solicitud llegará al depto. de compras</p>
+        </div>
+        <div className="px-4 pt-5 pb-10">
+          {exitoPedido ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <CheckCircle size={72} className="text-emerald-500 mb-4" />
+              <h2 className="text-2xl font-bold text-feisen-gris-oscuro mb-2">¡Pedido enviado!</h2>
+              <p className="text-feisen-gris-medio">Compras recibirá tu solicitud.</p>
+            </div>
+          ) : (
+            <form onSubmit={enviarPedido} className="space-y-4">
+              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+                <p className="font-bold text-feisen-gris-oscuro">¿Qué necesitas?</p>
+                {pedidoItems.map((it, i) => (
+                  <div key={i} className="space-y-2 border-b pb-3 last:border-0 last:pb-0">
+                    <input required value={it.descripcion}
+                      onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, descripcion: e.target.value } : x))}
+                      placeholder="Nombre del material"
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                    <div className="flex gap-2">
+                      <input required type="number" min="0.001" step="any" value={it.cantidad}
+                        onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))}
+                        placeholder="Cantidad"
+                        className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                      <select value={it.unidad}
+                        onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, unidad: e.target.value } : x))}
+                        className="w-28 border border-gray-300 rounded-xl px-2 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                        {UNIDADES.map(u => <option key={u}>{u}</option>)}
+                      </select>
+                      {pedidoItems.length > 1 && (
+                        <button type="button"
+                          onClick={() => setPedidoItems(prev => prev.filter((_, j) => j !== i))}
+                          className="p-3 text-feisen-rojo bg-red-50 rounded-xl">
+                          <Trash2 size={20} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button type="button"
+                  onClick={() => setPedidoItems(prev => [...prev, { descripcion: '', cantidad: '', unidad: 'und' }])}
+                  className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl font-medium text-sm">
+                  + Agregar otro material
+                </button>
+              </div>
+
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <p className="font-bold text-feisen-gris-oscuro mb-2">Observaciones (opcional)</p>
+                <textarea value={pedidoObs} onChange={e => setPedidoObs(e.target.value)} rows={3}
+                  placeholder="Urgencia, detalles, para qué proyecto..."
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              </div>
+
+              {errorPedido && <Alerta tipo="error" mensaje={errorPedido} />}
+
+              <button type="submit" disabled={guardandoPedido}
+                className="w-full bg-feisen-azul text-white rounded-2xl py-5 text-xl font-bold shadow-lg hover:opacity-90 transition-opacity disabled:opacity-60">
+                {guardandoPedido ? 'Enviando...' : '📨 Enviar pedido'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     )

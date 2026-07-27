@@ -23,6 +23,9 @@ import DashboardOperario from './components/operario/Dashboard'
 // CONSULTOR
 import DashboardConsultor from './components/consultor/Dashboard'
 
+// PEDIDOS
+import ListaPedidos from './components/pedidos/ListaPedidos'
+
 // Movimientos (compartido)
 import RegistrarMovimiento from './components/movimientos/RegistrarMovimiento'
 
@@ -90,6 +93,8 @@ function AppRoutes() {
       <Route path="/movimientos/nuevo" element={<RutaProtegida><Layout><RegistrarMovimiento /></Layout></RutaProtegida>} />
 
       <Route path="/reportes" element={<RutaProtegida><Layout><ReportesRol /></Layout></RutaProtegida>} />
+
+      <Route path="/pedidos" element={<RutaProtegida><Layout><ListaPedidos /></Layout></RutaProtegida>} />
 
       <Route path="/config" element={<RutaProtegida><Layout><GestionConfig /></Layout></RutaProtegida>} />
 
