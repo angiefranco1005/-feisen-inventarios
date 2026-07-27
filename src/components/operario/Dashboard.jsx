@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFechaHora, CENTROS_COSTO } from '../../utils/formatters'
 import Alerta from '../shared/Alerta'
-import { CheckCircle, Search, LogOut, Trash2 } from 'lucide-react'
+import { CheckCircle, Search, LogOut, Trash2, Package } from 'lucide-react'
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto']
 
@@ -23,11 +23,12 @@ export default function DashboardOperario() {
   const [error, setError] = useState('')
 
   // Pedidos
-  const [pedidoItems, setPedidoItems] = useState([{ descripcion: '', cantidad: '', unidad: 'und' }])
+  const [pedidoItems, setPedidoItems] = useState([{ descripcion: '', cantidad: '', unidad: 'und', busqueda: '' }])
   const [pedidoObs, setPedidoObs] = useState('')
   const [guardandoPedido, setGuardandoPedido] = useState(false)
   const [exitoPedido, setExitoPedido] = useState(false)
   const [errorPedido, setErrorPedido] = useState('')
+  const [dropdownAbierto, setDropdownAbierto] = useState(null)
 
   useEffect(() => {
     async function cargar() {
@@ -180,12 +181,33 @@ export default function DashboardOperario() {
             <form onSubmit={enviarPedido} className="space-y-4">
               <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
                 <p className="font-bold text-feisen-gris-oscuro">¿Qué necesitas?</p>
-                {pedidoItems.map((it, i) => (
+                {pedidoItems.map((it, i) => {
+                  const filtrados = (it.busqueda || '').trim().length > 0
+                    ? items.filter(p => p.nombre.toLowerCase().includes(it.busqueda.toLowerCase()))
+                    : items
+                  return (
                   <div key={i} className="space-y-2 border-b pb-3 last:border-0 last:pb-0">
-                    <input required value={it.descripcion}
-                      onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, descripcion: e.target.value } : x))}
-                      placeholder="Nombre del material"
-                      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio" />
+                      <input required value={it.busqueda || ''}
+                        onChange={e => { setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, busqueda: e.target.value, descripcion: e.target.value } : x)); setDropdownAbierto(i) }}
+                        onFocus={() => setDropdownAbierto(i)}
+                        onBlur={() => setTimeout(() => setDropdownAbierto(null), 150)}
+                        placeholder="Buscar producto..."
+                        className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                      {dropdownAbierto === i && filtrados.length > 0 && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                          {filtrados.slice(0, 15).map(p => (
+                            <button key={p.id} type="button"
+                              onMouseDown={() => { setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, descripcion: p.nombre, busqueda: p.nombre, unidad: p.unidad_medida } : x)); setDropdownAbierto(null) }}
+                              className="w-full text-left px-4 py-3 hover:bg-feisen-gris border-b last:border-0 flex items-center justify-between">
+                              <span className="font-medium text-feisen-gris-oscuro">{p.nombre}</span>
+                              <span className="text-sm text-feisen-gris-medio">{p.unidad_medida}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <input required type="number" min="0.001" step="any" value={it.cantidad}
                         onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))}
@@ -205,9 +227,9 @@ export default function DashboardOperario() {
                       )}
                     </div>
                   </div>
-                ))}
+                )})}
                 <button type="button"
-                  onClick={() => setPedidoItems(prev => [...prev, { descripcion: '', cantidad: '', unidad: 'und' }])}
+                  onClick={() => setPedidoItems(prev => [...prev, { descripcion: '', cantidad: '', unidad: 'und', busqueda: '' }])}
                   className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl font-medium text-sm">
                   + Agregar otro material
                 </button>

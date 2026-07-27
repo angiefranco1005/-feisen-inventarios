@@ -5,18 +5,65 @@ import { formatFechaHora } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, CheckCircle, Truck, Package, Trash2 } from 'lucide-react'
+import { Plus, CheckCircle, Truck, Package, Trash2, Search } from 'lucide-react'
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'm³', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto']
 
-function ItemRow({ item, onChange, onRemove, index, total }) {
+function ProductoSelector({ value, unidad, onSelect, productos }) {
+  const [busqueda, setBusqueda] = useState(value || '')
+  const [abierto, setAbierto] = useState(false)
+
+  const filtrados = busqueda.trim().length > 0
+    ? productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    : productos
+
+  function seleccionar(p) {
+    setBusqueda(p.nombre)
+    setAbierto(false)
+    onSelect(p.nombre, p.unidad_medida)
+  }
+
+  return (
+    <div className="relative flex-1">
+      <div className="relative">
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-feisen-gris-medio" />
+        <input
+          required
+          value={busqueda}
+          onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onSelect('', unidad) }}
+          onFocus={() => setAbierto(true)}
+          onBlur={() => setTimeout(() => setAbierto(false), 150)}
+          placeholder="Buscar producto..."
+          className="w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        />
+      </div>
+      {abierto && filtrados.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+          {filtrados.slice(0, 20).map(p => (
+            <button key={p.id} type="button" onMouseDown={() => seleccionar(p)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-feisen-gris border-b last:border-0 flex items-center justify-between">
+              <span className="text-feisen-gris-oscuro font-medium">{p.nombre}</span>
+              <span className="text-xs text-feisen-gris-medio ml-2">{p.unidad_medida}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ItemRow({ item, onChange, onRemove, index, total, productos }) {
   return (
     <div className="flex gap-2 items-start">
-      <div className="flex-1">
-        <input required value={item.descripcion} onChange={e => onChange(index, 'descripcion', e.target.value)}
-          placeholder="Descripción del material"
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-      </div>
+      <ProductoSelector
+        value={item.descripcion}
+        unidad={item.unidad}
+        productos={productos}
+        onSelect={(nombre, unidad) => {
+          onChange(index, 'descripcion', nombre)
+          if (unidad) onChange(index, 'unidad', unidad)
+        }}
+      />
       <div className="w-24">
         <input required type="number" min="0.001" step="any" value={item.cantidad}
           onChange={e => onChange(index, 'cantidad', e.target.value)}
@@ -44,6 +91,12 @@ function NuevoPedidoModal({ onCerrar, onCreado, perfil }) {
   const [observaciones, setObservaciones] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [productos, setProductos] = useState([])
+
+  useEffect(() => {
+    supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre')
+      .then(({ data }) => setProductos(data || []))
+  }, [])
 
   function actualizarItem(idx, campo, valor) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [campo]: valor } : it))
@@ -80,6 +133,7 @@ function NuevoPedidoModal({ onCerrar, onCreado, perfil }) {
             </div>
             {items.map((it, i) => (
               <ItemRow key={i} item={it} index={i} total={items.length}
+                productos={productos}
                 onChange={actualizarItem}
                 onRemove={idx => setItems(prev => prev.filter((_, j) => j !== idx))} />
             ))}
