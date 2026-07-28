@@ -235,6 +235,8 @@ export default function Reportes() {
                           <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
                           <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Cantidad</th>
                           {esAdmin && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Valor COP</th>}
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden lg:table-cell">N° OF</th>
+                          <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden lg:table-cell">Serial motor</th>
                           <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden lg:table-cell">Usuario</th>
                           {esAdmin && <th className="px-4 py-3"></th>}
                         </tr>
@@ -267,6 +269,12 @@ export default function Reportes() {
                                 {formatCOP((m.cantidad || 0) * (m.precio_costo_snapshot || 0))}
                               </td>
                             )}
+                            <td className="px-4 py-3 text-xs hidden lg:table-cell">
+                              {m.numero_of ? <span className="font-mono font-medium text-feisen-gris-oscuro">{m.numero_of}</span> : <span className="text-feisen-gris-medio">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-xs hidden lg:table-cell">
+                              {m.serial_motor ? <span className="font-mono font-medium text-feisen-gris-oscuro">{m.serial_motor}</span> : <span className="text-feisen-gris-medio">—</span>}
+                            </td>
                             <td className="px-4 py-3 text-feisen-gris-medio text-xs hidden lg:table-cell">{m.profiles?.nombre}</td>
                             {esAdmin && (
                               <td className="px-4 py-3">

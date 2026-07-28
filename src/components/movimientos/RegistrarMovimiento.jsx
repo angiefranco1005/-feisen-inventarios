@@ -43,6 +43,8 @@ export default function RegistrarMovimiento() {
     centro_costo: esAdmin ? 'Almacén' : almacenFijo,
     destino: '',
     referencia: '',
+    numero_of: '',
+    serial_motor: '',
   })
 
   useEffect(() => {
@@ -111,6 +113,8 @@ export default function RegistrarMovimiento() {
       destino: form.tipo === 'salida' ? form.destino : null,
       usuario_id: perfil.id,
       referencia: form.referencia || null,
+      numero_of: form.numero_of || null,
+      serial_motor: form.serial_motor || null,
       motivo: null,
       proveedor: null,
       cliente: null,
@@ -253,9 +257,23 @@ export default function RegistrarMovimiento() {
           </div>
         )}
 
+        {/* N° OF */}
+        <div>
+          <Label>N° Orden de Fabricación (opcional)</Label>
+          <Input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
+            placeholder="Ej: OF-2026-0042" />
+        </div>
+
+        {/* Serial del motor */}
+        <div>
+          <Label>Serial del motor (opcional)</Label>
+          <Input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
+            placeholder="Ej: MTR-00123" />
+        </div>
+
         {/* Referencia opcional */}
         <div>
-          <Label>Referencia / Orden (opcional)</Label>
+          <Label>Referencia / Observación (opcional)</Label>
           <Input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
             placeholder="Ej: OP-2026-001" />
         </div>
