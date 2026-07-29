@@ -104,29 +104,35 @@ function SeccionBodegas() {
 // ─── SECCIÓN CATEGORÍAS ───────────────────────────────────────────────────────
 function SeccionCategorias() {
   const [cats,     setCats]     = useState([])
+  const [bodegas,  setBodegas]  = useState([])
   const [cargando, setCargando] = useState(true)
   const [modal,    setModal]    = useState(false)
   const [editando, setEditando] = useState(null)
-  const [form,     setForm]     = useState({ nombre: '' })
+  const [form,     setForm]     = useState({ nombre: '', bodega_id: '' })
   const [msg,      setMsg]      = useState(null)
 
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setCargando(true)
-    const { data } = await supabase.from('categorias').select('*').order('nombre')
-    setCats(data || [])
+    const [{ data: cs }, { data: bs }] = await Promise.all([
+      supabase.from('categorias').select('*, bodegas(nombre)').order('nombre'),
+      supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
+    ])
+    setCats(cs || [])
+    setBodegas(bs || [])
     setCargando(false)
   }
 
   function abrir(c = null) {
     setEditando(c)
-    setForm(c ? { nombre: c.nombre } : { nombre: '' })
+    setForm(c ? { nombre: c.nombre, bodega_id: c.bodega_id || '' } : { nombre: '', bodega_id: bodegas[0]?.id || '' })
     setMsg(null); setModal(true)
   }
 
   async function guardar(e) {
     e.preventDefault(); setMsg(null)
+    if (!form.bodega_id) { setMsg({ tipo: 'error', texto: 'Selecciona una bodega.' }); return }
     let error
     if (editando) ({ error } = await supabase.from('categorias').update(form).eq('id', editando.id))
     else          ({ error } = await supabase.from('categorias').insert(form))
@@ -142,6 +148,12 @@ function SeccionCategorias() {
 
   if (cargando) return <Spinner />
 
+  // Agrupar por bodega
+  const porBodega = bodegas.map(b => ({
+    bodega: b,
+    cats: cats.filter(c => c.bodega_id === b.id),
+  }))
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -152,14 +164,22 @@ function SeccionCategorias() {
         </button>
       </div>
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-      <div className="space-y-2">
-        {cats.map(c => (
-          <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-            <p className="font-medium text-gray-800 text-sm">{c.nombre}</p>
-            <div className="flex gap-2">
-              <button onClick={() => abrir(c)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-              <button onClick={() => eliminar(c)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-            </div>
+      <div className="space-y-4">
+        {porBodega.map(({ bodega, cats: cs }) => (
+          <div key={bodega.id}>
+            <p className="text-xs font-semibold text-feisen-azul uppercase tracking-wide mb-2">{bodega.nombre}</p>
+            {cs.length === 0
+              ? <p className="text-xs text-gray-400 pl-2">Sin categorías</p>
+              : cs.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 mb-1.5">
+                  <p className="font-medium text-gray-800 text-sm">{c.nombre}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => abrir(c)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
+                    <button onClick={() => eliminar(c)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              ))
+            }
           </div>
         ))}
         {cats.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No hay categorías aún.</p>}
@@ -167,9 +187,18 @@ function SeccionCategorias() {
       {modal && (
         <Modal titulo={editando ? 'Editar categoría' : 'Nueva categoría'} onCerrar={() => setModal(false)}>
           <form onSubmit={guardar} className="space-y-4">
+            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
+              <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                <option value="">Selecciona bodega</option>
+                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select>
+            </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={e => setForm({ nombre: e.target.value })}
+              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Motores" />
             </div>

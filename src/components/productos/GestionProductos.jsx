@@ -35,6 +35,7 @@ export default function GestionProductos() {
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
+    // cats incluye bodega_id para filtrar por bodega en el formulario
     setItems(it || [])
     setCategorias(cats || [])
     setBodegas(bods || [])
@@ -258,7 +259,8 @@ export default function GestionProductos() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
-                <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
+                <select required value={form.bodega_id}
+                  onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value, categoria_id: '' }))}
                   className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   <option value="">Selecciona</option>
                   {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -267,9 +269,10 @@ export default function GestionProductos() {
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Categoría</label>
                 <select value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+                  disabled={!form.bodega_id}>
                   <option value="">Sin categoría</option>
-                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {categorias.filter(c => c.bodega_id === form.bodega_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
             </div>
