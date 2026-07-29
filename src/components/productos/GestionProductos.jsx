@@ -16,10 +16,11 @@ export default function GestionProductos() {
   const [categorias, setCategorias] = useState([])
   const [bodegas,    setBodegas]    = useState([])
   const [cargando,   setCargando]   = useState(true)
-  const [busqueda,       setBusqueda]       = useState('')
-  const [filtroBodega,   setFiltroBodega]   = useState('')
-  const [filtroCategoria,setFiltroCategoria]= useState('')
-  const [msg,            setMsg]            = useState(null)
+  const [busqueda,        setBusqueda]        = useState('')
+  const [filtroBodega,    setFiltroBodega]    = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [filtroStockBajo, setFiltroStockBajo] = useState(false)
+  const [msg,             setMsg]             = useState(null)
   const [modal,      setModal]      = useState(false)
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
@@ -33,7 +34,7 @@ export default function GestionProductos() {
   async function cargar() {
     setCargando(true)
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre)').order('nombre'),
+      supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)').order('nombre'),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
@@ -130,12 +131,24 @@ export default function GestionProductos() {
     cargar()
   }
 
+  function getStock(item) {
+    return item.stock?.[0]?.cantidad_actual ?? null
+  }
+
+  function stockBajo(item) {
+    const cant = getStock(item)
+    return item.stock_minimo > 0 && cant !== null && cant <= item.stock_minimo
+  }
+
   const filtrados = items.filter(i => {
-    const matchNombre   = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    const matchBodega   = !filtroBodega    || i.bodega_id    === filtroBodega
-    const matchCategoria= !filtroCategoria || i.categoria_id === filtroCategoria
-    return matchNombre && matchBodega && matchCategoria
+    const matchNombre    = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const matchBodega    = !filtroBodega    || i.bodega_id    === filtroBodega
+    const matchCategoria = !filtroCategoria || i.categoria_id === filtroCategoria
+    const matchStockBajo = !filtroStockBajo || stockBajo(i)
+    return matchNombre && matchBodega && matchCategoria && matchStockBajo
   })
+
+  const totalStockBajo = items.filter(stockBajo).length
 
   // Categorías filtradas por bodega seleccionada (para el select de filtro)
   const categoriasFiltroBodega = filtroBodega
@@ -157,6 +170,20 @@ export default function GestionProductos() {
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+      {totalStockBajo > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
+          <p className="text-sm text-amber-800 font-medium">
+            {totalStockBajo} producto{totalStockBajo > 1 ? 's' : ''} por debajo del stock mínimo
+          </p>
+          <button onClick={() => setFiltroStockBajo(v => !v)}
+            className={`ml-auto text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
+              ${filtroStockBajo ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}>
+            {filtroStockBajo ? 'Ver todos' : 'Ver alertas'}
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -210,8 +237,18 @@ export default function GestionProductos() {
                             </div>
                         }
                         <div>
-                          <p className="font-medium text-gray-800">{item.nombre}</p>
-                          <p className="text-xs text-gray-400">{item.unidad_medida}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-gray-800">{item.nombre}</p>
+                            {stockBajo(item) && <AlertTriangle size={13} className="text-amber-500 flex-shrink-0" title="Stock bajo mínimo" />}
+                          </div>
+                          <p className="text-xs text-gray-400">
+                            {item.unidad_medida}
+                            {getStock(item) !== null && (
+                              <span className={`ml-2 font-medium ${stockBajo(item) ? 'text-amber-500' : 'text-gray-400'}`}>
+                                · Stock: {getStock(item)} {stockBajo(item) ? `(mín. ${item.stock_minimo})` : ''}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </td>
