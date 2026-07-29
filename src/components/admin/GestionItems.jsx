@@ -11,6 +11,7 @@ export default function GestionItems() {
   const { perfil } = useAuth()
   const esAdmin = perfil?.rol === 'ADMIN'
   const puedeCrear = perfil?.rol === 'ADMIN' || perfil?.rol === 'LOGISTICA'
+  const verPrecios = perfil?.rol === 'ADMIN'
   const [items, setItems] = useState([])
   const [categorias, setCategorias] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -168,7 +169,7 @@ export default function GestionItems() {
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden sm:table-cell">Categoría</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Almacén</th>
-                  {puedeCrear && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
+                  {verPrecios && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Estado</th>
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Acciones</th>
                 </tr>
@@ -199,7 +200,7 @@ export default function GestionItems() {
                         {item.bodegas?.nombre || item.centro_costo || '—'}
                       </span>
                     </td>
-                    {puedeCrear && (
+                    {verPrecios && (
                       <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
                         {item.precio_costo > 0
                           ? formatCOP(item.precio_costo)
@@ -298,8 +299,8 @@ export default function GestionItems() {
               </select>
             </div>
 
-            <div className={`grid gap-3 ${puedeCrear ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {puedeCrear && (
+            <div className={`grid gap-3 ${verPrecios ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {verPrecios && (
                 <div>
                   <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Precio de costo (COP)</label>
                   <input type="number" min="0" step="1" value={form.precio_costo}

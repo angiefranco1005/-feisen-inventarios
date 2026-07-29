@@ -19,19 +19,6 @@ const NAV_ADMIN = [
   { to: '/config',    icon: Settings,         label: 'Configuración' },
 ]
 
-const NAV_BODEGUERO = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos', icon: ArrowUpDown,    label: 'Movimientos' },
-  { to: '/reportes',   icon: BarChart2,        label: 'Reportes' },
-]
-
-const NAV_JEFE = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos', icon: ArrowUpDown,    label: 'Movimientos' },
-  { to: '/reportes',   icon: BarChart2,        label: 'Reportes' },
-  { to: '/pedidos',    icon: ShoppingCart,     label: 'Pedidos' },
-]
-
 const NAV_LOGISTICA = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Inicio' },
   { to: '/items',       icon: Package,         label: 'Productos' },
@@ -40,35 +27,20 @@ const NAV_LOGISTICA = [
   { to: '/pedidos',     icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
-const NAV_OPERARIO = [
-  { to: '/salida',    icon: ArrowUpDown,     label: 'Registrar salida' },
-  { to: '/historial', icon: BarChart2,        label: 'Mi historial' },
-]
-
 const BADGE_COLOR = {
-  ADMIN:       'bg-feisen-rojo text-white',
-  BODEGUERO:   'bg-feisen-azul text-white',
-  JEFE_AREA:   'bg-amber-500 text-white',
-  OPERARIO:    'bg-emerald-600 text-white',
-  LOGISTICA:   'bg-purple-600 text-white',
-  ALMACENISTA: 'bg-cyan-600 text-white',
-  COMERCIAL:   'bg-pink-600 text-white',
-  CONSULTOR:   'bg-gray-500 text-white',
+  ADMIN:     'bg-feisen-rojo text-white',
+  LOGISTICA: 'bg-feisen-azul text-white',
+  CONSULTOR: 'bg-gray-500 text-white',
 }
 
 const BADGE_LABEL = {
-  ADMIN:       'Admin',
-  BODEGUERO:   'Bodeguero',
-  JEFE_AREA:   'Jefe de Área',
-  OPERARIO:    'Operario',
-  LOGISTICA:   'Logística',
-  ALMACENISTA: 'Almacenista',
-  COMERCIAL:   'Comercial',
-  CONSULTOR:   'Consultor',
+  ADMIN:     'Admin',
+  LOGISTICA: 'Logística',
+  CONSULTOR: 'Consultor',
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esBodeguero, esJefeArea } = useAuth()
+  const { perfil, logout, esAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -97,10 +69,8 @@ export default function Layout({ children }) {
   }
 
   const navItems = esAdmin ? NAV_ADMIN
-    : esBodeguero ? NAV_BODEGUERO
     : perfil?.rol === 'LOGISTICA' ? NAV_LOGISTICA
-    : esJefeArea  ? NAV_JEFE
-    : NAV_OPERARIO
+    : NAV_ADMIN
 
   async function handleLogout() {
     await logout()
@@ -260,7 +230,7 @@ export default function Layout({ children }) {
       )}
 
       {/* BARRA INFERIOR MÓVIL (solo roles no-operario con más ítems) */}
-      {!perfil?.rol || perfil.rol !== 'OPERARIO' ? (
+      {perfil?.rol ? (
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-20">
           {navItems.slice(0, 4).map(item => {
             const activo = location.pathname === item.to

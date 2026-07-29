@@ -11,14 +11,8 @@ import GestionItems from './components/admin/GestionItems'
 import GestionConfig from './components/admin/GestionConfig'
 import Reportes from './components/admin/Reportes'
 
-// BODEGUERO
-import DashboardBodeguero from './components/bodeguero/Dashboard'
-
-// JEFE_AREA
-import DashboardJefeArea from './components/jefe_area/Dashboard'
-
-// OPERARIO
-import DashboardOperario from './components/operario/Dashboard'
+// LOGISTICA (reutiliza dashboard de jefe)
+import DashboardLogistica from './components/jefe_area/Dashboard'
 
 // CONSULTOR
 import DashboardConsultor from './components/consultor/Dashboard'
@@ -37,21 +31,8 @@ function RutaProtegida({ children }) {
   return children
 }
 
-// Redirige al dashboard correcto según el rol
-function RedirectDashboard() {
-  const { perfil, cargando } = useAuth()
-  if (cargando) return <Spinner />
-  if (perfil?.rol === 'OPERARIO') return <DashboardOperario />
-  if (perfil?.rol === 'BODEGUERO') return <DashboardBodeguero />
-  if (perfil?.rol === 'JEFE_AREA') return <DashboardJefeArea />
-  if (perfil?.rol === 'CONSULTOR') return <DashboardConsultor />
-  return <DashboardAdmin />
-}
-
 // Reportes según rol
 function ReportesRol() {
-  const { perfil } = useAuth()
-  if (perfil?.rol === 'OPERARIO') return <Navigate to="/dashboard" replace />
   return <Reportes />
 }
 
@@ -60,7 +41,7 @@ function AppRoutes() {
 
   if (cargando) return <div className="min-h-screen flex items-center justify-center bg-feisen-gris"><Spinner /></div>
 
-  // Consultor: solo ve su dashboard
+  // CONSULTOR: solo ve stock
   if (session && perfil?.rol === 'CONSULTOR') {
     return (
       <Routes>
@@ -74,24 +55,14 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Layout><DashboardJefeArea /></Layout>} />
-        <Route path="/" element={<Layout><DashboardJefeArea /></Layout>} />
+        <Route path="/dashboard" element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/" element={<Layout><DashboardLogistica /></Layout>} />
         <Route path="/items" element={<Layout><GestionItems /></Layout>} />
-        <Route path="/items/nuevo" element={<Layout><GestionItems /></Layout>} />
         <Route path="/movimientos" element={<Layout><Reportes /></Layout>} />
         <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
         <Route path="/reportes" element={<Layout><Reportes /></Layout>} />
         <Route path="/pedidos" element={<Layout><ListaPedidos /></Layout>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // Operario tiene su propia pantalla sin Layout
-  if (session && perfil?.rol === 'OPERARIO') {
-    return (
-      <Routes>
-        <Route path="*" element={<DashboardOperario />} />
       </Routes>
     )
   }
