@@ -12,7 +12,7 @@ const TIPOS_POR_ROL = {
   ADMIN:     ['entrada', 'salida'],
   BODEGUERO: ['entrada', 'salida'],
   JEFE_AREA: ['entrada', 'salida'],
-  LOGISTICA: ['entrada'],
+  LOGISTICA: ['entrada', 'salida'],
   OPERARIO:  ['salida'],
 }
 

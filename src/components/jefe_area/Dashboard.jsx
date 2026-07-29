@@ -35,11 +35,16 @@ export default function DashboardJefeArea() {
       </div>
 
       {esLogistica ? (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Link to="/movimientos/nuevo"
             className="bg-feisen-azul text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
             <PackagePlus size={28} className="mx-auto mb-2" />
             Registro de entrada
+          </Link>
+          <Link to="/movimientos/nuevo?tipo=salida"
+            className="bg-feisen-rojo text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
+            <ArrowUpDown size={28} className="mx-auto mb-2" />
+            Salida a producción
           </Link>
         </div>
       ) : (
