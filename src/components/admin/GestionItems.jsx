@@ -10,6 +10,7 @@ import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Upload, AlertTriangle, Pa
 export default function GestionItems() {
   const { perfil } = useAuth()
   const esAdmin = perfil?.rol === 'ADMIN'
+  const puedeCrear = perfil?.rol === 'ADMIN' || perfil?.rol === 'LOGISTICA'
   const [items, setItems] = useState([])
   const [categorias, setCategorias] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -161,7 +162,7 @@ export default function GestionItems() {
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden sm:table-cell">Categoría</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Centro Costo</th>
-                  {esAdmin && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
+                  {puedeCrear && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Estado</th>
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Acciones</th>
                 </tr>
@@ -192,7 +193,7 @@ export default function GestionItems() {
                         {item.centro_costo}
                       </span>
                     </td>
-                    {esAdmin && (
+                    {puedeCrear && (
                       <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
                         {item.precio_costo > 0
                           ? formatCOP(item.precio_costo)
@@ -290,11 +291,11 @@ export default function GestionItems() {
               </select>
             </div>
 
-            <div className={`grid gap-3 ${esAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {esAdmin && (
+            <div className={`grid gap-3 ${puedeCrear ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {puedeCrear && (
                 <div>
-                  <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Precio de costo (COP) *</label>
-                  <input required type="number" min="0" step="1" value={form.precio_costo}
+                  <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Precio de costo (COP)</label>
+                  <input type="number" min="0" step="1" value={form.precio_costo}
                     onChange={e => setForm(f => ({ ...f, precio_costo: e.target.value }))}
                     className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                     placeholder="0" />
