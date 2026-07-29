@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { formatCOP, formatNumero, CENTROS_COSTO, UNIDADES_MEDIDA } from '../../utils/formatters'
+import { formatCOP, formatNumero, UNIDADES_MEDIDA } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
@@ -21,9 +21,11 @@ export default function GestionItems() {
   const [subiendo, setSubiendo] = useState(false)
   const [confirmEliminar, setConfirmEliminar] = useState(null)
 
+  const [bodegas, setBodegas] = useState([])
+
   const FORM_INICIAL = {
-    nombre: '', categoria_id: '', unidad_medida: 'unidad',
-    centro_costo: 'Almacén', precio_costo: '', stock_minimo: '0', foto_url: ''
+    nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad',
+    precio_costo: '', stock_minimo: '0', foto_url: ''
   }
   const [form, setForm] = useState(FORM_INICIAL)
 
@@ -31,12 +33,14 @@ export default function GestionItems() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data: itemsData }, { data: cats }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre)').order('nombre'),
-      supabase.from('categorias').select('*').order('nombre')
+    const [{ data: itemsData }, { data: cats }, { data: bods }] = await Promise.all([
+      supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre'),
+      supabase.from('categorias').select('*').order('nombre'),
+      supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
     ])
     setItems(itemsData || [])
     setCategorias(cats || [])
+    setBodegas(bods || [])
     setCargando(false)
   }
 
@@ -51,8 +55,8 @@ export default function GestionItems() {
     setForm({
       nombre: item.nombre,
       categoria_id: item.categoria_id || '',
+      bodega_id: item.bodega_id || '',
       unidad_medida: item.unidad_medida,
-      centro_costo: item.centro_costo,
       precio_costo: item.precio_costo,
       stock_minimo: item.stock_minimo,
       foto_url: item.foto_url || ''
@@ -76,11 +80,13 @@ export default function GestionItems() {
   async function guardar(e) {
     e.preventDefault()
     setMensaje(null)
+    const bodegaSeleccionada = bodegas.find(b => b.id === form.bodega_id)
     const payload = {
       nombre: form.nombre.trim(),
       categoria_id: form.categoria_id || null,
+      bodega_id: form.bodega_id || null,
+      centro_costo: bodegaSeleccionada?.nombre || '',
       unidad_medida: form.unidad_medida,
-      centro_costo: form.centro_costo,
       precio_costo: parseFloat(form.precio_costo) || 0,
       stock_minimo: parseFloat(form.stock_minimo) || 0,
       foto_url: form.foto_url || null,
@@ -161,7 +167,7 @@ export default function GestionItems() {
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden sm:table-cell">Categoría</th>
-                  <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Centro Costo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Almacén</th>
                   {puedeCrear && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Estado</th>
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Acciones</th>
@@ -190,7 +196,7 @@ export default function GestionItems() {
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className="text-xs bg-feisen-gris px-2 py-1 rounded-full text-feisen-gris-oscuro">
-                        {item.centro_costo}
+                        {item.bodegas?.nombre || item.centro_costo || '—'}
                       </span>
                     </td>
                     {puedeCrear && (
@@ -285,9 +291,10 @@ export default function GestionItems() {
 
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Almacén *</label>
-              <select required value={form.centro_costo} onChange={e => setForm(f => ({ ...f, centro_costo: e.target.value }))}
+              <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                {CENTROS_COSTO.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="">Selecciona un almacén</option>
+                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
               </select>
             </div>
 
