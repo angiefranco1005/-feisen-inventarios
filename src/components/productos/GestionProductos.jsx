@@ -16,8 +16,10 @@ export default function GestionProductos() {
   const [categorias, setCategorias] = useState([])
   const [bodegas,    setBodegas]    = useState([])
   const [cargando,   setCargando]   = useState(true)
-  const [busqueda,   setBusqueda]   = useState('')
-  const [msg,        setMsg]        = useState(null)
+  const [busqueda,       setBusqueda]       = useState('')
+  const [filtroBodega,   setFiltroBodega]   = useState('')
+  const [filtroCategoria,setFiltroCategoria]= useState('')
+  const [msg,            setMsg]            = useState(null)
   const [modal,      setModal]      = useState(false)
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
@@ -128,7 +130,17 @@ export default function GestionProductos() {
     cargar()
   }
 
-  const filtrados = items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+  const filtrados = items.filter(i => {
+    const matchNombre   = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const matchBodega   = !filtroBodega    || i.bodega_id    === filtroBodega
+    const matchCategoria= !filtroCategoria || i.categoria_id === filtroCategoria
+    return matchNombre && matchBodega && matchCategoria
+  })
+
+  // Categorías filtradas por bodega seleccionada (para el select de filtro)
+  const categoriasFiltroBodega = filtroBodega
+    ? categorias.filter(c => c.bodega_id === filtroBodega)
+    : categorias
 
   if (cargando) return <Spinner texto="Cargando productos..." />
 
@@ -146,11 +158,25 @@ export default function GestionProductos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      <div className="relative">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar producto..."
-          className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar producto..."
+            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
+        </div>
+        <select value={filtroBodega}
+          onChange={e => { setFiltroBodega(e.target.value); setFiltroCategoria('') }}
+          className="border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-600">
+          <option value="">Todas las bodegas</option>
+          {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+        </select>
+        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+          className="border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-600"
+          disabled={categoriasFiltroBodega.length === 0}>
+          <option value="">Todas las categorías</option>
+          {categoriasFiltroBodega.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
