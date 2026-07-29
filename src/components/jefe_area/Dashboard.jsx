@@ -4,10 +4,11 @@ import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, MoveRight } from 'lucide-react'
+import { ArrowUpDown, MoveRight, PackagePlus } from 'lucide-react'
 
 export default function DashboardJefeArea() {
   const { perfil } = useAuth()
+  const esLogistica = perfil?.rol === 'LOGISTICA'
   const [movRecientes, setMovRecientes] = useState([])
   const [cargando, setCargando] = useState(true)
 
@@ -30,21 +31,31 @@ export default function DashboardJefeArea() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]}</h1>
-        <p className="text-feisen-gris-medio text-sm mt-1">Jefe de área</p>
+        <p className="text-feisen-gris-medio text-sm mt-1">{esLogistica ? 'Logística' : 'Jefe de área'}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Link to="/movimientos/nuevo?tipo=salida_produccion"
-          className="bg-feisen-rojo text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
-          <ArrowUpDown size={28} className="mx-auto mb-2" />
-          Salida a producción
-        </Link>
-        <Link to="/movimientos/nuevo?tipo=traslado"
-          className="bg-feisen-azul text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
-          <MoveRight size={28} className="mx-auto mb-2" />
-          Traslado entre bodegas
-        </Link>
-      </div>
+      {esLogistica ? (
+        <div className="grid grid-cols-1 gap-3">
+          <Link to="/movimientos/nuevo"
+            className="bg-feisen-azul text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
+            <PackagePlus size={28} className="mx-auto mb-2" />
+            Registro de entrada
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <Link to="/movimientos/nuevo?tipo=salida_produccion"
+            className="bg-feisen-rojo text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
+            <ArrowUpDown size={28} className="mx-auto mb-2" />
+            Salida a producción
+          </Link>
+          <Link to="/movimientos/nuevo?tipo=traslado"
+            className="bg-feisen-azul text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
+            <MoveRight size={28} className="mx-auto mb-2" />
+            Traslado entre bodegas
+          </Link>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b">
