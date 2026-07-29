@@ -30,12 +30,15 @@ export default function GestionProductos() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data: it }, { data: cats }, { data: bods }] = await Promise.all([
+    const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
       supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre'),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
-    // cats incluye bodega_id para filtrar por bodega en el formulario
+    if (e1 || e2 || e3) {
+      const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
+      setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
+    }
     setItems(it || [])
     setCategorias(cats || [])
     setBodegas(bods || [])
