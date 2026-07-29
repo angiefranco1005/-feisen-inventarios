@@ -44,7 +44,7 @@ export default function DashboardJefeArea() {
           <Link to="/movimientos/nuevo?tipo=salida"
             className="bg-feisen-rojo text-white rounded-2xl p-5 text-center font-bold text-base hover:opacity-90 transition-opacity">
             <ArrowUpDown size={28} className="mx-auto mb-2" />
-            Salida a producción
+            Registro de salida
           </Link>
         </div>
       ) : (
