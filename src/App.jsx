@@ -69,6 +69,24 @@ function AppRoutes() {
     )
   }
 
+  // LOGISTICA: dashboard + productos + movimientos + reportes + pedidos
+  if (session && perfil?.rol === 'LOGISTICA') {
+    return (
+      <Routes>
+        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Layout><DashboardJefeArea /></Layout>} />
+        <Route path="/" element={<Layout><DashboardJefeArea /></Layout>} />
+        <Route path="/items" element={<Layout><GestionItems /></Layout>} />
+        <Route path="/items/nuevo" element={<Layout><GestionItems /></Layout>} />
+        <Route path="/movimientos" element={<Layout><Reportes /></Layout>} />
+        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
+        <Route path="/reportes" element={<Layout><Reportes /></Layout>} />
+        <Route path="/pedidos" element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    )
+  }
+
   // Operario tiene su propia pantalla sin Layout
   if (session && perfil?.rol === 'OPERARIO') {
     return (

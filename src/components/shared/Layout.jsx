@@ -32,23 +32,39 @@ const NAV_JEFE = [
   { to: '/pedidos',    icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+const NAV_LOGISTICA = [
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/items',       icon: Package,         label: 'Productos' },
+  { to: '/movimientos', icon: ArrowUpDown,      label: 'Movimientos' },
+  { to: '/reportes',    icon: BarChart2,        label: 'Reportes' },
+  { to: '/pedidos',     icon: ShoppingCart,     label: 'Pedidos' },
+]
+
 const NAV_OPERARIO = [
   { to: '/salida',    icon: ArrowUpDown,     label: 'Registrar salida' },
   { to: '/historial', icon: BarChart2,        label: 'Mi historial' },
 ]
 
 const BADGE_COLOR = {
-  ADMIN:     'bg-feisen-rojo text-white',
-  BODEGUERO: 'bg-feisen-azul text-white',
-  JEFE_AREA: 'bg-amber-500 text-white',
-  OPERARIO:  'bg-emerald-600 text-white',
+  ADMIN:       'bg-feisen-rojo text-white',
+  BODEGUERO:   'bg-feisen-azul text-white',
+  JEFE_AREA:   'bg-amber-500 text-white',
+  OPERARIO:    'bg-emerald-600 text-white',
+  LOGISTICA:   'bg-purple-600 text-white',
+  ALMACENISTA: 'bg-cyan-600 text-white',
+  COMERCIAL:   'bg-pink-600 text-white',
+  CONSULTOR:   'bg-gray-500 text-white',
 }
 
 const BADGE_LABEL = {
-  ADMIN:     'Admin',
-  BODEGUERO: 'Bodeguero',
-  JEFE_AREA: 'Jefe de Área',
-  OPERARIO:  'Operario',
+  ADMIN:       'Admin',
+  BODEGUERO:   'Bodeguero',
+  JEFE_AREA:   'Jefe de Área',
+  OPERARIO:    'Operario',
+  LOGISTICA:   'Logística',
+  ALMACENISTA: 'Almacenista',
+  COMERCIAL:   'Comercial',
+  CONSULTOR:   'Consultor',
 }
 
 export default function Layout({ children }) {
@@ -82,6 +98,7 @@ export default function Layout({ children }) {
 
   const navItems = esAdmin ? NAV_ADMIN
     : esBodeguero ? NAV_BODEGUERO
+    : perfil?.rol === 'LOGISTICA' ? NAV_LOGISTICA
     : esJefeArea  ? NAV_JEFE
     : NAV_OPERARIO
 

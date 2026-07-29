@@ -170,8 +170,8 @@ function SeccionUsuarios() {
   const [msg, setMsg] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
-  const ROLES = ['ADMIN', 'JEFE_AREA', 'OPERARIO', 'CONSULTOR']
-  const ROLES_LABEL = { ADMIN: 'Administrador', JEFE_AREA: 'Jefe de Área', OPERARIO: 'Operario', CONSULTOR: 'Consultor' }
+  const ROLES = ['ADMIN', 'LOGISTICA', 'JEFE_AREA', 'ALMACENISTA', 'COMERCIAL', 'OPERARIO', 'CONSULTOR']
+  const ROLES_LABEL = { ADMIN: 'Administrador', LOGISTICA: 'Logística', JEFE_AREA: 'Jefe de Área', ALMACENISTA: 'Almacenista', COMERCIAL: 'Comercial', OPERARIO: 'Operario', CONSULTOR: 'Consultor' }
 
   useEffect(() => { cargar() }, [])
 
@@ -230,11 +230,14 @@ function SeccionUsuarios() {
   }
 
   const BADGE = {
-    ADMIN: 'bg-feisen-rojo text-white',
-    BODEGUERO: 'bg-feisen-azul text-white',
-    JEFE_AREA: 'bg-amber-500 text-white',
-    OPERARIO: 'bg-emerald-600 text-white',
-    CONSULTOR: 'bg-gray-500 text-white'
+    ADMIN:       'bg-feisen-rojo text-white',
+    BODEGUERO:   'bg-feisen-azul text-white',
+    JEFE_AREA:   'bg-amber-500 text-white',
+    OPERARIO:    'bg-emerald-600 text-white',
+    CONSULTOR:   'bg-gray-500 text-white',
+    LOGISTICA:   'bg-purple-600 text-white',
+    ALMACENISTA: 'bg-cyan-600 text-white',
+    COMERCIAL:   'bg-pink-600 text-white',
   }
 
   return (
