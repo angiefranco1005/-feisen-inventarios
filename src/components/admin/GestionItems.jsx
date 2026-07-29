@@ -168,7 +168,7 @@ export default function GestionItems() {
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro">Producto</th>
                   <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden sm:table-cell">Categoría</th>
-                  <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Almacén</th>
+                  <th className="text-left px-4 py-3 font-semibold text-feisen-gris-oscuro hidden md:table-cell">Bodega</th>
                   {verPrecios && <th className="text-right px-4 py-3 font-semibold text-feisen-gris-oscuro">Precio Costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Estado</th>
                   <th className="text-center px-4 py-3 font-semibold text-feisen-gris-oscuro">Acciones</th>
@@ -291,7 +291,7 @@ export default function GestionItems() {
             </div>
 
             <div>
-              <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Almacén *</label>
+              <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega *</label>
               <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                 <option value="">Selecciona un almacén</option>
