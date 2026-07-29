@@ -31,7 +31,7 @@ export default function GestionProductos() {
   async function cargar() {
     setCargando(true)
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre'),
+      supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre)').order('nombre'),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
