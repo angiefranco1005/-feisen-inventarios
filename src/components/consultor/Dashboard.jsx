@@ -15,7 +15,7 @@ export default function DashboardConsultor() {
     async function cargar() {
       const { data } = await supabase
         .from('stock')
-        .select('cantidad, items(nombre, unidad_medida, categorias(nombre)), bodegas(nombre)')
+        .select('cantidad_actual, items(nombre, unidad_medida, categorias(nombre)), bodegas(nombre)')
         .order('items(nombre)')
       setStock(data || [])
       setCargando(false)
@@ -84,7 +84,7 @@ export default function DashboardConsultor() {
                     <td className="px-5 py-3 font-medium text-gray-800">{s.items?.nombre}</td>
                     <td className="px-5 py-3 text-gray-400 hidden sm:table-cell">{s.items?.categorias?.nombre || '—'}</td>
                     <td className="px-5 py-3 text-right font-bold text-feisen-azul">
-                      {s.cantidad} <span className="text-xs font-normal text-gray-400">{s.items?.unidad_medida}</span>
+                      {s.cantidad_actual} <span className="text-xs font-normal text-gray-400">{s.items?.unidad_medida}</span>
                     </td>
                   </tr>
                 ))}
