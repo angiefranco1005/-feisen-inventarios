@@ -12,6 +12,7 @@ const TIPOS_POR_ROL = {
   ADMIN:     ['entrada', 'salida'],
   BODEGUERO: ['entrada', 'salida'],
   JEFE_AREA: ['entrada', 'salida'],
+  LOGISTICA: ['entrada'],
   OPERARIO:  ['salida'],
 }
 
@@ -33,6 +34,7 @@ export default function RegistrarMovimiento() {
 
   const tiposDisponibles = TIPOS_POR_ROL[perfil?.rol] || []
   const esAdmin = perfil?.rol === 'ADMIN'
+  const esLogistica = perfil?.rol === 'LOGISTICA'
   const almacenFijo = !esAdmin ? (perfil?.almacen || '') : ''
 
   const [form, setForm] = useState({
@@ -169,7 +171,9 @@ export default function RegistrarMovimiento() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-feisen-azul mb-6">Registrar movimiento</h1>
+      <h1 className="text-2xl font-bold text-feisen-azul mb-6">
+        {esLogistica ? 'Registro de entrada' : 'Registrar movimiento'}
+      </h1>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Tipo de movimiento */}
@@ -282,7 +286,7 @@ export default function RegistrarMovimiento() {
 
         <button type="submit" disabled={guardando}
           className="w-full bg-feisen-azul text-white rounded-2xl py-4 text-lg font-bold hover:bg-feisen-azul-claro transition-colors disabled:opacity-60 mt-2">
-          {guardando ? 'Registrando...' : 'Registrar movimiento'}
+          {guardando ? 'Registrando...' : esLogistica ? 'Registrar entrada' : 'Registrar movimiento'}
         </button>
       </form>
     </div>
