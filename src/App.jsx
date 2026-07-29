@@ -5,44 +5,41 @@ import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Layout from './components/shared/Layout'
 import Spinner from './components/shared/Spinner'
 
-// ADMIN
-import DashboardAdmin from './components/admin/Dashboard'
-import GestionItems from './components/admin/GestionItems'
-import GestionConfig from './components/admin/GestionConfig'
-import Reportes from './components/admin/Reportes'
-
-// LOGISTICA (reutiliza dashboard de jefe)
-import DashboardLogistica from './components/jefe_area/Dashboard'
-
-// CONSULTOR
+import DashboardAdmin     from './components/admin/Dashboard'
+import DashboardLogistica from './components/logistica/Dashboard'
 import DashboardConsultor from './components/consultor/Dashboard'
-
-// PEDIDOS
-import ListaPedidos from './components/pedidos/ListaPedidos'
-
-// Movimientos (compartido)
+import GestionProductos   from './components/productos/GestionProductos'
 import RegistrarMovimiento from './components/movimientos/RegistrarMovimiento'
+import Historial          from './components/movimientos/Historial'
+import ListaPedidos       from './components/pedidos/ListaPedidos'
+import GestionConfig      from './components/config/GestionConfig'
 
-// Componente que protege rutas y redirige según rol
-function RutaProtegida({ children }) {
-  const { session, cargando } = useAuth()
-  if (cargando) return <div className="min-h-screen flex items-center justify-center"><Spinner /></div>
-  if (!session) return <Navigate to="/login" replace />
-  return children
-}
-
-// Reportes según rol
-function ReportesRol() {
-  return <Reportes />
+function Cargando() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Spinner />
+    </div>
+  )
 }
 
 function AppRoutes() {
   const { session, perfil, cargando } = useAuth()
 
-  if (cargando) return <div className="min-h-screen flex items-center justify-center bg-feisen-gris"><Spinner /></div>
+  if (cargando) return <Cargando />
 
-  // CONSULTOR: solo ve stock
-  if (session && perfil?.rol === 'CONSULTOR') {
+  // Sin sesión → Login
+  if (!session) {
+    return (
+      <Routes>
+        <Route path="/login"          element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="*"               element={<Navigate to="/login" replace />} />
+      </Routes>
+    )
+  }
+
+  // CONSULTOR → solo ve su dashboard
+  if (esRol(perfil, 'CONSULTOR')) {
     return (
       <Routes>
         <Route path="*" element={<Layout><DashboardConsultor /></Layout>} />
@@ -50,46 +47,38 @@ function AppRoutes() {
     )
   }
 
-  // LOGISTICA: dashboard + productos + movimientos + reportes + pedidos
-  if (session && perfil?.rol === 'LOGISTICA') {
+  // LOGISTICA
+  if (esRol(perfil, 'LOGISTICA')) {
     return (
       <Routes>
-        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/" element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/items" element={<Layout><GestionItems /></Layout>} />
-        <Route path="/movimientos" element={<Layout><Reportes /></Layout>} />
+        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
         <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
-        <Route path="/reportes" element={<Layout><Reportes /></Layout>} />
-        <Route path="/pedidos" element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
       </Routes>
     )
   }
 
+  // ADMIN (y cualquier otro)
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-      <Route path="/" element={<RutaProtegida><Layout><DashboardAdmin /></Layout></RutaProtegida>} />
-      <Route path="/dashboard" element={<RutaProtegida><Layout><DashboardAdmin /></Layout></RutaProtegida>} />
-
-      <Route path="/items" element={<RutaProtegida><Layout><GestionItems /></Layout></RutaProtegida>} />
-      <Route path="/items/nuevo" element={<RutaProtegida><Layout><GestionItems /></Layout></RutaProtegida>} />
-
-      <Route path="/movimientos" element={<RutaProtegida><Layout><ReportesRol /></Layout></RutaProtegida>} />
-      <Route path="/movimientos/nuevo" element={<RutaProtegida><Layout><RegistrarMovimiento /></Layout></RutaProtegida>} />
-
-      <Route path="/reportes" element={<RutaProtegida><Layout><ReportesRol /></Layout></RutaProtegida>} />
-
-      <Route path="/pedidos" element={<RutaProtegida><Layout><ListaPedidos /></Layout></RutaProtegida>} />
-
-      <Route path="/config" element={<RutaProtegida><Layout><GestionConfig /></Layout></RutaProtegida>} />
-
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/"                  element={<Layout><DashboardAdmin /></Layout>} />
+      <Route path="/dashboard"         element={<Layout><DashboardAdmin /></Layout>} />
+      <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
+      <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
+      <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
+      <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+      <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
+      <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
+}
+
+function esRol(perfil, rol) {
+  return perfil?.rol === rol
 }
 
 export default function App() {

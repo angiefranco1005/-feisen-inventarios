@@ -2,233 +2,204 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { CENTROS_COSTO, TIPOS_MOVIMIENTO } from '../../utils/formatters'
+import { CheckCircle, Search } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
-import { CheckCircle, Search } from 'lucide-react'
 
-// Tipos de movimiento permitidos por rol
-const TIPOS_POR_ROL = {
+const TIPOS = {
   ADMIN:     ['entrada', 'salida'],
-  BODEGUERO: ['entrada', 'salida'],
-  JEFE_AREA: ['entrada', 'salida'],
   LOGISTICA: ['entrada', 'salida'],
-  OPERARIO:  ['salida'],
 }
 
+const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
+const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
+
 export default function RegistrarMovimiento() {
-  const { perfil } = useAuth()
+  const { perfil, esAdmin } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const tipoInicial = searchParams.get('tipo') || ''
 
-  const [bodegas, setBodegas] = useState([])
-  const [items, setItems] = useState([])
-  const [itemsFiltrados, setItemsFiltrados] = useState([])
-  const [busquedaItem, setBusquedaItem] = useState('')
-  const [mostrarLista, setMostrarLista] = useState(false)
-  const [cargando, setCargando] = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [exito, setExito] = useState(false)
-  const [error, setError] = useState('')
+  const tiposDisponibles = TIPOS[perfil?.rol] || []
 
-  const tiposDisponibles = TIPOS_POR_ROL[perfil?.rol] || []
-  const esAdmin = perfil?.rol === 'ADMIN'
-  const esLogistica = perfil?.rol === 'LOGISTICA'
-  const almacenFijo = !esAdmin ? (perfil?.almacen || '') : ''
+  const [bodegas,       setBodegas]       = useState([])
+  const [items,         setItems]         = useState([])
+  const [itemsFiltrados,setItemsFiltrados]= useState([])
+  const [busqueda,      setBusqueda]      = useState('')
+  const [mostrarLista,  setMostrarLista]  = useState(false)
+  const [cargando,      setCargando]      = useState(true)
+  const [guardando,     setGuardando]     = useState(false)
+  const [exito,         setExito]         = useState(false)
+  const [error,         setError]         = useState('')
 
   const [form, setForm] = useState({
-    tipo: tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || ''),
-    item_id: '',
-    item_nombre: '',
-    cantidad: '',
-    centro_costo: esAdmin ? 'Almacén' : almacenFijo,
-    destino: '',
-    referencia: '',
-    numero_of: '',
+    tipo:         tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || 'entrada'),
+    item_id:      '',
+    item_nombre:  '',
+    cantidad:     '',
+    bodega_id:    '',
+    destino:      '',
+    referencia:   '',
+    numero_of:    '',
     serial_motor: '',
   })
 
   useEffect(() => {
     async function cargar() {
-      const [{ data: bod }, { data: it }] = await Promise.all([
+      const [{ data: bods }, { data: its }] = await Promise.all([
         supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-        supabase.from('items').select('id, nombre, unidad_medida, centro_costo, precio_costo').eq('activo', true).order('nombre')
+        supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre'),
       ])
-      setBodegas(bod || [])
-      setItems(it || [])
-      setItemsFiltrados(it || [])
+      setBodegas(bods || [])
+      setItems(its || [])
+      setItemsFiltrados(its || [])
+      // Pre-seleccionar bodega si solo hay una
+      if (bods?.length === 1) setForm(f => ({ ...f, bodega_id: bods[0].id }))
       setCargando(false)
     }
     cargar()
   }, [])
 
   useEffect(() => {
-    if (busquedaItem.length === 0) {
-      setItemsFiltrados(items)
-    } else {
-      setItemsFiltrados(items.filter(i => i.nombre.toLowerCase().includes(busquedaItem.toLowerCase())))
-    }
-  }, [busquedaItem, items])
+    setItemsFiltrados(
+      busqueda.trim()
+        ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+        : items
+    )
+  }, [busqueda, items])
 
   function seleccionarItem(item) {
-    setForm(f => ({
-      ...f,
-      item_id: item.id,
-      item_nombre: item.nombre,
-      centro_costo: item.centro_costo || f.centro_costo
-    }))
-    setBusquedaItem(item.nombre)
+    setForm(f => ({ ...f, item_id: item.id, item_nombre: item.nombre, bodega_id: item.bodega_id || f.bodega_id }))
+    setBusqueda(item.nombre)
     setMostrarLista(false)
   }
-
-  function setTipo(tipo) {
-    setForm(f => ({ ...f, tipo, bodega_origen_id: '', bodega_destino_id: '' }))
-  }
-
-  const DESTINOS_SALIDA = ['Producción y ensamble', 'Venta externa']
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError(''); setGuardando(true)
 
-    if (!form.item_id) { setError('Debes seleccionar un producto.'); setGuardando(false); return }
-
+    if (!form.item_id)  { setError('Selecciona un producto.'); setGuardando(false); return }
+    if (!form.bodega_id){ setError('Selecciona una bodega.'); setGuardando(false); return }
     const cantidad = parseFloat(form.cantidad)
     if (!cantidad || cantidad <= 0) { setError('La cantidad debe ser mayor a cero.'); setGuardando(false); return }
+    if (form.tipo === 'salida' && !form.destino) { setError('Selecciona el destino.'); setGuardando(false); return }
 
-    // Obtener precio_costo snapshot del ítem seleccionado
     const item = items.find(i => i.id === form.item_id)
-
-    if (form.tipo === 'salida' && !form.destino) {
-      setError('Debes seleccionar el destino de la salida.'); setGuardando(false); return
-    }
-
     const payload = {
-      tipo: form.tipo,
-      item_id: form.item_id,
-      bodega_origen_id: null,
-      bodega_destino_id: null,
+      tipo:                   form.tipo,
+      item_id:                form.item_id,
+      bodega_origen_id:       form.tipo === 'salida'  ? form.bodega_id : null,
+      bodega_destino_id:      form.tipo === 'entrada' ? form.bodega_id : null,
       cantidad,
-      precio_costo_snapshot: item?.precio_costo || 0,
-      centro_costo: form.centro_costo,
-      destino: form.tipo === 'salida' ? form.destino : null,
-      usuario_id: perfil.id,
-      referencia: form.referencia || null,
-      numero_of: form.numero_of || null,
-      serial_motor: form.serial_motor || null,
-      motivo: null,
-      proveedor: null,
-      cliente: null,
+      precio_costo_snapshot:  item?.precio_costo || 0,
+      centro_costo:           bodegas.find(b => b.id === form.bodega_id)?.nombre || '',
+      destino:                form.tipo === 'salida' ? form.destino : null,
+      usuario_id:             perfil.id,
+      referencia:             form.referencia   || null,
+      numero_of:              form.numero_of    || null,
+      serial_motor:           form.serial_motor || null,
+      motivo: null, proveedor: null, cliente: null,
     }
 
     const { error: err } = await supabase.from('movimientos').insert(payload)
     setGuardando(false)
-    if (err) { setError('Error al registrar: ' + err.message); return }
+    if (err) { setError('Error: ' + err.message); return }
     setExito(true)
     setTimeout(() => {
       setExito(false)
-      setForm(f => ({ ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '', motivo: '', proveedor: '', cliente: '' }))
-      setBusquedaItem('')
+      setForm(f => ({ ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '', numero_of: '', serial_motor: '', destino: '' }))
+      setBusqueda('')
     }, 2500)
   }
 
   if (cargando) return <Spinner texto="Cargando formulario..." />
 
-  if (!esAdmin && !almacenFijo) {
-    return (
-      <div className="max-w-xl mx-auto mt-16 text-center p-8 bg-white rounded-2xl shadow-sm">
-        <div className="text-amber-500 text-5xl mb-4">⚠️</div>
-        <h2 className="text-xl font-bold text-feisen-gris-oscuro mb-2">Sin almacén asignado</h2>
-        <p className="text-feisen-gris-medio text-sm">No puedes registrar movimientos hasta que el administrador te asigne un almacén.</p>
-      </div>
-    )
-  }
+  if (exito) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
+      <CheckCircle size={64} className="text-green-500 mb-4" />
+      <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Movimiento registrado!</h2>
+      <p className="text-gray-500">El inventario fue actualizado.</p>
+    </div>
+  )
 
-  if (exito) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-        <CheckCircle size={64} className="text-emerald-500 mb-4" />
-        <h2 className="text-2xl font-bold text-feisen-gris-oscuro mb-2">¡Movimiento registrado!</h2>
-        <p className="text-feisen-gris-medio">El inventario fue actualizado correctamente.</p>
-      </div>
-    )
-  }
-
-  const Label = ({ children }) => (
-    <label className="block text-sm font-medium text-feisen-gris-oscuro mb-1">{children}</label>
-  )
-  const Input = ({ ...props }) => (
-    <input {...props}
-      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-  )
-  const Select = ({ children, ...props }) => (
-    <select {...props}
-      className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-      {children}
-    </select>
-  )
+  const esEntrada = form.tipo === 'entrada'
+  const titulo    = esAdmin ? 'Registrar movimiento' : (esEntrada ? 'Registro de entrada' : 'Registro de salida')
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-feisen-azul mb-6">
-        {esLogistica ? 'Registro de entrada' : 'Registrar movimiento'}
-      </h1>
+      <h1 className="text-2xl font-bold text-feisen-azul mb-6">{titulo}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Tipo de movimiento */}
+
+        {/* Tipo */}
         {tiposDisponibles.length > 1 && (
           <div>
-            <Label>Tipo de movimiento *</Label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de movimiento *</label>
             <div className="grid grid-cols-2 gap-2">
               {tiposDisponibles.map(t => (
-                <button key={t} type="button" onClick={() => setTipo(t)}
-                  className={`px-3 py-3 rounded-xl text-sm font-medium border transition-colors text-left
-                    ${form.tipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-gris-oscuro border-gray-300 hover:bg-feisen-gris'}`}>
-                  {TIPOS_MOVIMIENTO[t]}
+                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, tipo: t, destino: '' }))}
+                  className={`px-3 py-3 rounded-xl text-sm font-semibold border transition-colors
+                    ${form.tipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                  {TIPO_LABEL[t]}
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Búsqueda de producto */}
+        {/* Producto */}
         <div className="relative">
-          <Label>Producto *</Label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Producto *</label>
           <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio z-10" />
-            <input
-              value={busquedaItem}
-              onChange={e => { setBusquedaItem(e.target.value); setMostrarLista(true); setForm(f => ({ ...f, item_id: '' })) }}
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
+            <input value={busqueda}
+              onChange={e => { setBusqueda(e.target.value); setMostrarLista(true); setForm(f => ({ ...f, item_id: '' })) }}
               onFocus={() => setMostrarLista(true)}
-              placeholder="Escribe para buscar el producto..."
-              className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-            />
+              placeholder="Escribe para buscar..."
+              className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           {mostrarLista && itemsFiltrados.length > 0 && (
             <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
               {itemsFiltrados.slice(0, 20).map(item => (
                 <button key={item.id} type="button" onClick={() => seleccionarItem(item)}
-                  className="w-full text-left px-4 py-3 hover:bg-feisen-gris transition-colors flex items-center gap-3 border-b last:border-0">
-                  <div>
-                    <p className="font-medium text-feisen-gris-oscuro text-sm">{item.nombre}</p>
-                    <p className="text-xs text-feisen-gris-medio">{item.unidad_medida} · {item.centro_costo}</p>
-                  </div>
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b last:border-0 flex justify-between items-center">
+                  <span className="font-medium text-gray-800">{item.nombre}</span>
+                  <span className="text-xs text-gray-400">{item.unidad_medida}</span>
                 </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Destino (solo para salidas) */}
+        {/* Bodega */}
+        {bodegas.length > 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Bodega *</label>
+            <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+              <option value="">Selecciona bodega</option>
+              {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
+          </div>
+        )}
+        {bodegas.length === 1 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Bodega</label>
+            <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-700 font-medium">
+              {bodegas[0].nombre}
+            </div>
+          </div>
+        )}
+
+        {/* Destino (solo salidas) */}
         {form.tipo === 'salida' && (
           <div>
-            <Label>Destino *</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {DESTINOS_SALIDA.map(d => (
+            <label className="block text-sm font-medium text-gray-700 mb-2">Destino *</label>
+            <div className="grid grid-cols-1 gap-2">
+              {DESTINOS.map(d => (
                 <button key={d} type="button" onClick={() => setForm(f => ({ ...f, destino: d }))}
-                  className={`px-3 py-3 rounded-xl text-sm font-medium border transition-colors text-left
-                    ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-gris-oscuro border-gray-300 hover:bg-feisen-gris'}`}>
+                  className={`px-4 py-3 rounded-xl text-sm font-medium border text-left transition-colors
+                    ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                   {d}
                 </button>
               ))}
@@ -238,55 +209,42 @@ export default function RegistrarMovimiento() {
 
         {/* Cantidad */}
         <div>
-          <Label>Cantidad *</Label>
-          <Input required type="number" min="0.001" step="0.001" value={form.cantidad}
+          <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
+          <input required type="number" min="0.001" step="0.001" value={form.cantidad}
             onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-            placeholder="0" />
+            placeholder="0"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
-
-        {/* Almacén */}
-        {esAdmin ? (
-          <div>
-            <Label>Almacén *</Label>
-            <Select required value={form.centro_costo} onChange={e => setForm(f => ({ ...f, centro_costo: e.target.value }))}>
-              {CENTROS_COSTO.map(c => <option key={c} value={c}>{c}</option>)}
-            </Select>
-          </div>
-        ) : (
-          <div>
-            <Label>Almacén</Label>
-            <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base bg-feisen-gris text-feisen-gris-oscuro font-medium">
-              {almacenFijo || <span className="text-amber-500 text-sm">Sin almacén asignado — contacta al administrador</span>}
-            </div>
-          </div>
-        )}
 
         {/* N° OF */}
         <div>
-          <Label>N° Orden de Fabricación (opcional)</Label>
-          <Input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
-            placeholder="Ej: OF-2026-0042" />
+          <label className="block text-sm font-medium text-gray-700 mb-2">N° Orden de Fabricación (opcional)</label>
+          <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
+            placeholder="Ej: 8465"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
 
-        {/* Serial del motor */}
+        {/* Serial motor */}
         <div>
-          <Label>Serial del motor (opcional)</Label>
-          <Input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
-            placeholder="Ej: MTR-00123" />
+          <label className="block text-sm font-medium text-gray-700 mb-2">Serial del motor (opcional)</label>
+          <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
+            placeholder="Ej: 215325060196"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
 
-        {/* Referencia opcional */}
+        {/* Referencia */}
         <div>
-          <Label>Referencia / Observación (opcional)</Label>
-          <Input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
-            placeholder="Ej: OP-2026-001" />
+          <label className="block text-sm font-medium text-gray-700 mb-2">Referencia / Observación (opcional)</label>
+          <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+            placeholder="Ej: Factura 001"
+            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
 
         {error && <Alerta tipo="error" mensaje={error} />}
 
         <button type="submit" disabled={guardando}
-          className="w-full bg-feisen-azul text-white rounded-2xl py-4 text-lg font-bold hover:bg-feisen-azul-claro transition-colors disabled:opacity-60 mt-2">
-          {guardando ? 'Registrando...' : esLogistica ? 'Registrar entrada' : 'Registrar movimiento'}
+          className="w-full bg-feisen-azul text-white rounded-2xl py-4 text-base font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
+          {guardando ? 'Registrando...' : esEntrada ? 'Registrar entrada' : 'Registrar salida'}
         </button>
       </form>
     </div>
