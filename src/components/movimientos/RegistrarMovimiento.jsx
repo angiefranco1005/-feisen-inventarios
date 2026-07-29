@@ -101,6 +101,9 @@ export default function RegistrarMovimiento() {
       motivo: null, proveedor: null, cliente: null,
     }
 
+    const { count } = await supabase.from('movimientos').select('*', { count: 'exact', head: true })
+    payload.numero = `MOV-${String((count || 0) + 1).padStart(4, '0')}`
+
     const { error: err } = await supabase.from('movimientos').insert(payload)
     setGuardando(false)
     if (err) { setError('Error: ' + err.message); return }
