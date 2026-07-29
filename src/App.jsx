@@ -72,8 +72,8 @@ function AppRoutes() {
       <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-      <Route path="/" element={<RutaProtegida><Layout><RedirectDashboard /></Layout></RutaProtegida>} />
-      <Route path="/dashboard" element={<RutaProtegida><Layout><RedirectDashboard /></Layout></RutaProtegida>} />
+      <Route path="/" element={<RutaProtegida><Layout><DashboardAdmin /></Layout></RutaProtegida>} />
+      <Route path="/dashboard" element={<RutaProtegida><Layout><DashboardAdmin /></Layout></RutaProtegida>} />
 
       <Route path="/items" element={<RutaProtegida><Layout><GestionItems /></Layout></RutaProtegida>} />
       <Route path="/items/nuevo" element={<RutaProtegida><Layout><GestionItems /></Layout></RutaProtegida>} />
