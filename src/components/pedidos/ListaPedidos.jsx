@@ -59,9 +59,9 @@ export default function ListaPedidos() {
   const [msg,       setMsg]       = useState(null)
 
   // Modales
-  const [modalNuevo,         setModalNuevo]         = useState(false)
-  const [modalTransito,      setModalTransito]       = useState(null)
-  const [pedidoRecienRecibido, setPedidoRecienRecibido] = useState(null)
+  const [modalNuevo,           setModalNuevo]           = useState(false)
+  const [modalTransito,        setModalTransito]         = useState(null)
+  const [confirmandoRecibido,  setConfirmandoRecibido]   = useState(null)
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
@@ -133,10 +133,10 @@ useEffect(() => { cargar() }, [])
     cargar()
   }
 
-  async function marcarRecibido(pedido) {
+  async function marcarRecibido(pedido, conEntrada = false) {
     await supabase.from('pedidos').update({ estado: 'recibido', fecha_recibido: new Date().toISOString() }).eq('id', pedido.id)
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
-    setPedidoRecienRecibido(pedido.id)
+    if (conEntrada) navigate('/movimientos/nuevo', { state: { pedido_id: pedido.id, pedido_numero: pedido.numero } })
   }
 
   async function eliminarPedido(pedido) {
@@ -152,22 +152,6 @@ useEffect(() => { cargar() }, [])
   return (
     <div className="max-w-4xl mx-auto space-y-5">
 
-      {/* Banner fijo sugerencia entrada */}
-      {pedidoRecienRecibido && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[999] w-[90vw] max-w-md bg-white border-2 border-green-400 rounded-2xl shadow-2xl px-5 py-4 flex items-center justify-between gap-4">
-          <p className="text-sm font-semibold text-green-700">✅ ¿Registrar entrada de almacén?</p>
-          <div className="flex gap-2 flex-shrink-0">
-            <button onClick={() => setPedidoRecienRecibido(null)}
-              className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">
-              Después
-            </button>
-            <button onClick={() => { const id = pedidoRecienRecibido; setPedidoRecienRecibido(null); navigate('/movimientos/nuevo', { state: { pedido_id: id } }) }}
-              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
-              Sí, registrar
-            </button>
-          </div>
-        </div>
-      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
         <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setModalNuevo(true) }}
@@ -220,10 +204,24 @@ useEffect(() => { cargar() }, [])
                     </button>
                   )}
                   {p.estado === 'en_transito' && esAdmin && (
-                    <button onClick={() => marcarRecibido(p)}
-                      className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
-                      Recibido
-                    </button>
+                    confirmandoRecibido === p.id ? (
+                      <div className="flex gap-1.5 items-center">
+                        <span className="text-xs text-gray-500 hidden sm:block">¿Entrada?</span>
+                        <button onClick={() => { setConfirmandoRecibido(null); marcarRecibido(p, true) }}
+                          className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
+                          Sí
+                        </button>
+                        <button onClick={() => { setConfirmandoRecibido(null); marcarRecibido(p, false) }}
+                          className="text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmandoRecibido(p.id)}
+                        className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
+                        Recibido
+                      </button>
+                    )
                   )}
                   {esAdmin && (
                     <button onClick={() => eliminarPedido(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
