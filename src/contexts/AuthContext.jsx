@@ -6,7 +6,8 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session,           setSession]           = useState(null)
   const [perfil,            setPerfil]            = useState(null)
-  const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = todas (admin)
+  const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = ve todo (ADMIN + LOGISTICA)
+  const [bodegasOperacion,  setBodegasOperacion]  = useState(null) // null = opera en todo (solo ADMIN)
   const [cargando,          setCargando]          = useState(true)
 
   useEffect(() => {
@@ -19,7 +20,7 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session) cargarPerfil(session.user.id)
-      else { setPerfil(null); setBodegasPermitidas(null); setCargando(false) }
+      else { setPerfil(null); setBodegasPermitidas(null); setBodegasOperacion(null); setCargando(false) }
     })
 
     return () => subscription.unsubscribe()
@@ -31,8 +32,12 @@ export function AuthProvider({ children }) {
       supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', userId),
     ])
     setPerfil(p)
-    // Admin ve todo (null = sin restricción). Otros: array de IDs permitidos.
-    setBodegasPermitidas(p?.rol === 'ADMIN' ? null : (pb || []).map(r => r.bodega_id))
+    const bids = (pb || []).map(r => r.bodega_id)
+    // Ver stock: ADMIN y LOGISTICA ven todo; el resto solo sus bodegas asignadas
+    const puedeVerTodo = p?.rol === 'ADMIN' || p?.rol === 'LOGISTICA'
+    setBodegasPermitidas(puedeVerTodo ? null : bids)
+    // Operar (crear movimientos / pedidos): solo ADMIN opera en todo; el resto solo sus bodegas
+    setBodegasOperacion(p?.rol === 'ADMIN' ? null : bids)
     setCargando(false)
   }
 
@@ -56,6 +61,7 @@ export function AuthProvider({ children }) {
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esConsultor,
       bodegasPermitidas,
+      bodegasOperacion,
     }}>
       {children}
     </AuthContext.Provider>

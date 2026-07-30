@@ -11,7 +11,7 @@ const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
 const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
 
 export default function RegistrarMovimiento() {
-  const { perfil, esAdmin } = useAuth()
+  const { perfil, esAdmin, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
   const location          = useLocation()
   const tipoInicial       = searchParams.get('tipo') || ''
@@ -49,9 +49,16 @@ export default function RegistrarMovimiento() {
 
   useEffect(() => {
     async function cargar() {
+      let bodegasQ = supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
+      let itemsQ   = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre')
+      if (bodegasOperacion) {
+        bodegasQ = bodegasQ.in('id', bodegasOperacion)
+        itemsQ   = itemsQ.in('bodega_id', bodegasOperacion)
+      }
+
       const [{ data: bods }, { data: its }, { data: peds }] = await Promise.all([
-        supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-        supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre'),
+        bodegasQ,
+        itemsQ,
         supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito', 'recibido']).order('created_at', { ascending: false }).limit(50),
       ])
       setBodegas(bods || [])
