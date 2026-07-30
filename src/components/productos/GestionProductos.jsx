@@ -21,8 +21,6 @@ export default function GestionProductos() {
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStockBajo, setFiltroStockBajo] = useState(false)
   const [msg,             setMsg]             = useState(null)
-  const [preciosTemp,     setPreciosTemp]     = useState({})   // item_id → valor string
-  const [guardandoPrecio, setGuardandoPrecio] = useState({})   // item_id → bool
   const [modal,      setModal]      = useState(false)
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
@@ -158,24 +156,6 @@ export default function GestionProductos() {
     return item.stock_minimo > 0 && cant !== null && cant <= item.stock_minimo
   }
 
-  async function guardarPrecioInline(item) {
-    const precio = parseFloat(preciosTemp[item.id])
-    if (!precio || precio <= 0) return
-    setGuardandoPrecio(g => ({ ...g, [item.id]: true }))
-    const { error } = await supabase.from('items')
-      .update({ precio_costo: precio, updated_at: new Date().toISOString() })
-      .eq('id', item.id)
-    setGuardandoPrecio(g => ({ ...g, [item.id]: false }))
-    if (!error) {
-      setPreciosTemp(p => { const c = { ...p }; delete c[item.id]; return c })
-      cargar()
-    } else {
-      setMsg({ tipo: 'error', texto: 'Error al guardar precio: ' + error.message })
-    }
-  }
-
-  const sinPrecio = items.filter(i => !i.precio_costo || i.precio_costo === 0)
-
   const filtrados = items.filter(i => {
     const matchNombre    = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
     const matchBodega    = !filtroBodega    || i.bodega_id    === filtroBodega
@@ -221,45 +201,6 @@ export default function GestionProductos() {
         </div>
       )}
 
-      {/* ── Productos sin precio (solo ALMACENISTA y ADMIN) ── */}
-      {(esAdmin || perfil?.rol === 'ALMACENISTA') && sinPrecio.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-2xl overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-orange-200">
-            <AlertTriangle size={18} className="text-orange-500 flex-shrink-0" />
-            <p className="text-sm font-semibold text-orange-800">
-              {sinPrecio.length} producto{sinPrecio.length > 1 ? 's' : ''} sin precio de costo — completa los precios
-            </p>
-          </div>
-          <div className="divide-y divide-orange-100">
-            {sinPrecio.map(item => (
-              <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{item.nombre}</p>
-                  <p className="text-xs text-gray-400">{item.bodegas?.nombre} · {item.unidad_medida}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-gray-400">$</span>
-                  <input
-                    type="number" min="0" step="0.01"
-                    placeholder="0,00"
-                    value={preciosTemp[item.id] ?? ''}
-                    onChange={e => setPreciosTemp(p => ({ ...p, [item.id]: e.target.value }))}
-                    onKeyDown={e => e.key === 'Enter' && guardarPrecioInline(item)}
-                    className="w-28 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  />
-                  <button
-                    onClick={() => guardarPrecioInline(item)}
-                    disabled={!preciosTemp[item.id] || guardandoPrecio[item.id]}
-                    className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90 disabled:opacity-40 transition-opacity">
-                    {guardandoPrecio[item.id] ? '...' : 'Guardar'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -296,7 +237,7 @@ export default function GestionProductos() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Categoría</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-500">Stock</th>
-                  {esAdmin && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
+                  {(esAdmin || perfil?.rol === 'ALMACENISTA') && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Estado</th>
                   {puedeEditar && <th className="text-center px-4 py-3 font-semibold text-gray-500">Acciones</th>}
                 </tr>
@@ -352,7 +293,7 @@ export default function GestionProductos() {
                         </div>
                       )}
                     </td>
-                    {esAdmin && (
+                    {(esAdmin || perfil?.rol === 'ALMACENISTA') && (
                       <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
                         {item.precio_costo > 0
                           ? `$${Number(item.precio_costo).toLocaleString('es-CO')}`
