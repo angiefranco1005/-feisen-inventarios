@@ -120,6 +120,8 @@ export default function ListaPedidos() {
   // Modales
   const [modalNuevo,    setModalNuevo]    = useState(false)
   const [modalTransito, setModalTransito] = useState(null)
+  const [modalRecibido, setModalRecibido] = useState(null) // { pedido, conEntrada }
+  const [cantRec,       setCantRec]       = useState({})
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
@@ -191,10 +193,39 @@ useEffect(() => { cargar() }, [])
     cargar()
   }
 
-  async function marcarRecibido(pedido, conEntrada = false) {
-    await supabase.from('pedidos').update({ estado: 'recibido', fecha_recibido: new Date().toISOString() }).eq('id', pedido.id)
+  function iniciarRecibido(pedido, conEntrada) {
+    const inicial = {}
+    pedido.pedido_items?.forEach(it => { inicial[it.id] = String(it.cantidad) })
+    setCantRec(inicial)
+    setModalRecibido({ pedido, conEntrada })
+  }
+
+  async function confirmarRecibido() {
+    const { pedido, conEntrada } = modalRecibido
+    // Guardar cantidad_recibida por ítem
+    await Promise.all(
+      (pedido.pedido_items || []).map(it =>
+        supabase.from('pedido_items')
+          .update({ cantidad_recibida: parseFloat(cantRec[it.id]) || 0 })
+          .eq('id', it.id)
+      )
+    )
+    // Marcar pedido como recibido
+    await supabase.from('pedidos')
+      .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
+      .eq('id', pedido.id)
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
-    if (conEntrada) navigate('/movimientos/nuevo', { state: { pedido_id: pedido.id, pedido_numero: pedido.numero } })
+    setModalRecibido(null)
+    if (conEntrada) {
+      const primerItem = pedido.pedido_items?.[0]
+      navigate('/movimientos/nuevo', {
+        state: {
+          pedido_id: pedido.id,
+          pedido_numero: pedido.numero,
+          cantidad_sugerida: parseFloat(cantRec[primerItem?.id]) || undefined,
+        }
+      })
+    }
   }
 
   async function eliminarPedido(pedido) {
@@ -245,7 +276,7 @@ useEffect(() => { cargar() }, [])
             esAdmin={esAdmin}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={eliminarPedido}
-            onRecibido={marcarRecibido}
+            onRecibido={iniciarRecibido}
           />
         ))}
       </div>
@@ -301,7 +332,49 @@ useEffect(() => { cargar() }, [])
         </Modal>
       )}
 
-{/* MODAL EN TRÁNSITO */}
+{/* MODAL CONFIRMAR RECEPCIÓN */}
+      {modalRecibido && (
+        <Modal
+          titulo={`Recepción — ${modalRecibido.pedido.numero}`}
+          onCerrar={() => setModalRecibido(null)}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">Ingresa la cantidad que llegó realmente de cada ítem.</p>
+            {modalRecibido.pedido.pedido_items?.map(it => (
+              <div key={it.id} className="flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{it.descripcion}</p>
+                  <p className="text-xs text-gray-400">Pedido: {it.cantidad} {it.unidad}</p>
+                </div>
+                <div className="w-28 flex-shrink-0">
+                  <label className="text-xs text-gray-500 block mb-1">Recibido</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number" min="0" step="0.001"
+                      value={cantRec[it.id] ?? ''}
+                      onChange={e => setCantRec(r => ({ ...r, [it.id]: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                    />
+                    <span className="text-xs text-gray-400">{it.unidad}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setModalRecibido(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmarRecibido}
+                className="flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">
+                {modalRecibido.conEntrada ? '✅ Recibido + Entrada' : '✅ Confirmar recibido'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL EN TRÁNSITO */}
       {modalTransito && (
         <Modal titulo="Marcar en tránsito" onCerrar={() => setModalTransito(null)}>
           <form onSubmit={marcarTransito} className="space-y-4">

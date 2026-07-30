@@ -29,13 +29,14 @@ export default function RegistrarMovimiento() {
   const [exito,          setExito]          = useState(false)
   const [error,          setError]          = useState('')
 
-  const pedidoDesdeNav = location.state?.pedido_id || ''
+  const pedidoDesdeNav    = location.state?.pedido_id        || ''
+  const cantidadDesdeNav  = location.state?.cantidad_sugerida || ''
 
   const [form, setForm] = useState({
     tipo:              tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || 'entrada'),
     item_id:           '',
     item_nombre:       '',
-    cantidad:          '',
+    cantidad:          cantidadDesdeNav ? String(cantidadDesdeNav) : '',
     bodega_id:         '',
     destino:           '',
     referencia:        '',
