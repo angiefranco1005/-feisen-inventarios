@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Search, ArrowUpDown, RotateCcw } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2 } from 'lucide-react'
 
 const TIPO_CONFIG = {
   entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
@@ -19,9 +19,11 @@ export default function Historial() {
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroTipo,   setFiltroTipo]   = useState('todos')
   const [filtroItem,   setFiltroItem]   = useState('')
-  const [confirmRevert,setConfirmRevert]= useState(null)
-  const [revirtiendo,  setRevirtiendo]  = useState(false)
-  const [msg,          setMsg]          = useState(null)
+  const [confirmRevert,  setConfirmRevert]  = useState(null)
+  const [revirtiendo,    setRevirtiendo]    = useState(false)
+  const [confirmDelete,  setConfirmDelete]  = useState(null)
+  const [eliminando,     setEliminando]     = useState(false)
+  const [msg,            setMsg]            = useState(null)
 
   useEffect(() => { cargar() }, [])
 
@@ -78,6 +80,55 @@ export default function Historial() {
 
     setRevirtiendo(false)
     setConfirmRevert(null)
+    cargar()
+  }
+
+  async function eliminarMovimiento(m) {
+    setEliminando(true)
+    setMsg(null)
+
+    // 1. Buscar la bodega por centro_costo (igual que el trigger fn_actualizar_stock)
+    const { data: bodegas } = await supabase
+      .from('bodegas')
+      .select('id')
+      .ilike('nombre', m.centro_costo || '')
+      .limit(1)
+    const bodegaId = bodegas?.[0]?.id
+
+    // 2. Revertir efecto en stock
+    if (bodegaId && m.item_id) {
+      const { data: stockRow } = await supabase
+        .from('stock')
+        .select('id, cantidad_actual')
+        .eq('item_id', m.item_id)
+        .eq('bodega_id', bodegaId)
+        .single()
+
+      if (stockRow) {
+        let nueva
+        if (m.tipo === 'entrada') {
+          nueva = Math.max(0, stockRow.cantidad_actual - m.cantidad)
+        } else {
+          nueva = stockRow.cantidad_actual + m.cantidad
+        }
+        await supabase.from('stock').update({ cantidad_actual: nueva }).eq('id', stockRow.id)
+      }
+    }
+
+    // 3. Desvincular pedido si aplica
+    if (m.pedido_id) {
+      await supabase.from('movimientos').update({ pedido_id: null }).eq('id', m.id)
+    }
+
+    // 4. Eliminar el movimiento
+    const { error } = await supabase.from('movimientos').delete().eq('id', m.id)
+    if (error) {
+      setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message })
+      setEliminando(false); return
+    }
+
+    setEliminando(false)
+    setConfirmDelete(null)
     cargar()
   }
 
@@ -201,13 +252,20 @@ export default function Historial() {
                       </td>
                       {esAdmin && (
                         <td className="px-4 py-3 text-center">
-                          {!estaRevertido && !esReversion && (
-                            <button onClick={() => setConfirmRevert(m)}
+                          <div className="flex items-center justify-center gap-1">
+                            {!estaRevertido && !esReversion && (
+                              <button onClick={() => setConfirmRevert(m)}
+                                className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
+                                title="Revertir movimiento">
+                                <RotateCcw size={14} />
+                              </button>
+                            )}
+                            <button onClick={() => setConfirmDelete(m)}
                               className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
-                              title="Revertir movimiento">
-                              <RotateCcw size={14} />
+                              title="Eliminar movimiento">
+                              <Trash2 size={14} />
                             </button>
-                          )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -219,6 +277,32 @@ export default function Historial() {
         )}
       </div>
       <p className="text-xs text-gray-400 text-right">Mostrando últimos 200 movimientos</p>
+
+      {/* Modal confirmación eliminación */}
+      {confirmDelete && (
+        <Modal titulo="Eliminar movimiento" onCerrar={() => setConfirmDelete(null)}>
+          <div className="space-y-4">
+            <Alerta tipo="alerta" mensaje={
+              `¿Eliminar ${confirmDelete.numero || 'este movimiento'}? El stock se ajustará automáticamente para reflejar la eliminación.`
+            } />
+            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1">
+              <p><span className="text-gray-500">Tipo:</span> <span className="font-medium capitalize">{confirmDelete.tipo}</span></p>
+              <p><span className="text-gray-500">Producto:</span> <span className="font-medium">{confirmDelete.items?.nombre}</span></p>
+              <p><span className="text-gray-500">Cantidad:</span> <span className="font-medium">{confirmDelete.cantidad} {confirmDelete.items?.unidad_medida}</span></p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDelete(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={() => eliminarMovimiento(confirmDelete)} disabled={eliminando}
+                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Modal confirmación reversión */}
       {confirmRevert && (
