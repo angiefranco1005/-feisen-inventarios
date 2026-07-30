@@ -71,6 +71,8 @@ export default function RegistrarMovimientoAlmacenista() {
   // ── Estado ENTRADA ──
   const [proveedor,  setProveedor]  = useState('')
   const [productos,  setProductos]  = useState([{ ...PROD0 }])
+  const [pedidos,    setPedidos]    = useState([])
+  const [pedidoId,   setPedidoId]   = useState('')
 
   // ── Estado SALIDA ──
   const [sProductos, setSProductos] = useState([{ ...PROD0 }])
@@ -80,14 +82,17 @@ export default function RegistrarMovimientoAlmacenista() {
   useEffect(() => {
     async function cargar() {
       if (!bodegasOperacion?.[0]) { setCargando(false); return }
-      const [{ data: bod }, { data: its }] = await Promise.all([
+      const [{ data: bod }, { data: its }, { data: peds }] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('id', bodegasOperacion[0]).single(),
         supabase.from('items')
           .select('id, nombre, unidad_medida, bodega_id, precio_costo')
           .eq('bodega_id', bodegasOperacion[0]).eq('activo', true).order('nombre'),
+        supabase.from('pedidos').select('id, numero, estado')
+          .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
       ])
       setBodega(bod)
       setItems(its || [])
+      setPedidos(peds || [])
       setCargando(false)
     }
     cargar()
@@ -127,7 +132,7 @@ export default function RegistrarMovimientoAlmacenista() {
       centro_costo:          bodega.nombre,
       usuario_id:            perfil.id,
       proveedor:             proveedor.trim(),
-      pedido_id:             null, foto_remision_url: null, destino: null,
+      pedido_id:             pedidoId || null, foto_remision_url: null, destino: null,
       numero_of:             null, serial_motor:     null, referencia:    null,
       motivo:                null, cliente:          null,
     }))
@@ -141,6 +146,7 @@ export default function RegistrarMovimientoAlmacenista() {
       setExito(false)
       setProveedor('')
       setProductos([{ ...PROD0 }])
+      setPedidoId('')
     }, 2000)
   }
 
@@ -254,6 +260,26 @@ export default function RegistrarMovimientoAlmacenista() {
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             />
           </div>
+
+          {/* Pedido (opcional) */}
+          {pedidos.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <select
+                value={pedidoId}
+                onChange={e => setPedidoId(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                <option value="">Sin pedido asociado</option>
+                {pedidos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Productos */}
           <div>
