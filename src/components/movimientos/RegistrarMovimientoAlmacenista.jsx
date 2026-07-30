@@ -114,40 +114,42 @@ export default function RegistrarMovimientoAlmacenista() {
     e.preventDefault()
     setError('')
     const validos = productos.filter(p => p.item_id && parseFloat(p.cantidad) > 0)
-    if (!proveedor.trim())     { setError('Ingresa el nombre del proveedor.'); return }
-    if (validos.length === 0)  { setError('Agrega al menos un producto con cantidad.'); return }
-    if (!bodega)               { setError('No tienes bodega asignada. Contacta al administrador.'); return }
+    if (!proveedor.trim())    { setError('Ingresa el nombre del proveedor.'); return }
+    if (validos.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
+    if (!bodega)              { setError('No tienes bodega asignada. Contacta al administrador.'); return }
 
     setGuardando(true)
-    const numero = await generarNumero('REC')
-
-    const payloads = validos.map(p => ({
-      numero,
-      tipo:                  'entrada',
-      item_id:               p.item_id,
-      bodega_destino_id:     bodega.id,
-      bodega_origen_id:      null,
-      cantidad:              parseFloat(p.cantidad),
-      precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
-      centro_costo:          bodega.nombre,
-      usuario_id:            perfil.id,
-      proveedor:             proveedor.trim(),
-      pedido_id:             pedidoId || null, foto_remision_url: null, destino: null,
-      numero_of:             null, serial_motor:     null, referencia:    null,
-      motivo:                null, cliente:          null,
-    }))
-
-    const { error: err } = await supabase.from('movimientos').insert(payloads)
-    setGuardando(false)
-    if (err) { setError('Error al guardar: ' + err.message); return }
-
-    setExito(true)
-    setTimeout(() => {
-      setExito(false)
-      setProveedor('')
-      setProductos([{ ...PROD0 }])
-      setPedidoId('')
-    }, 2000)
+    try {
+      const numero = await generarNumero('REC')
+      const payloads = validos.map(p => ({
+        numero,
+        tipo:                  'entrada',
+        item_id:               p.item_id,
+        bodega_destino_id:     bodega.id,
+        bodega_origen_id:      null,
+        cantidad:              parseFloat(p.cantidad),
+        precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+        centro_costo:          bodega.nombre,
+        usuario_id:            perfil.id,
+        proveedor:             proveedor.trim(),
+        pedido_id:             pedidoId || null,
+        foto_remision_url: null, destino: null,
+        numero_of: null, serial_motor: null, referencia: null, motivo: null, cliente: null,
+      }))
+      const { error: err } = await supabase.from('movimientos').insert(payloads)
+      if (err) { setError('Error al guardar: ' + err.message); return }
+      setExito(true)
+      setTimeout(() => {
+        setExito(false)
+        setProveedor('')
+        setProductos([{ ...PROD0 }])
+        setPedidoId('')
+      }, 2000)
+    } catch (err) {
+      setError('Error inesperado: ' + err.message)
+    } finally {
+      setGuardando(false)
+    }
   }
 
   // ── SUBMIT SALIDA ──
@@ -155,40 +157,42 @@ export default function RegistrarMovimientoAlmacenista() {
     e.preventDefault()
     setError('')
     const validos = sProductos.filter(p => p.item_id && parseFloat(p.cantidad) > 0)
-    if (!receptor.trim())   { setError('Ingresa el nombre de quien recibe.'); return }
+    if (!receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
     if (validos.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
-    if (!bodega)            { setError('No tienes bodega asignada.'); return }
+    if (!bodega)              { setError('No tienes bodega asignada.'); return }
 
     setGuardando(true)
-    const numero = await generarNumero('SAL')
-
-    const payloads = validos.map(p => ({
-      numero,
-      tipo:                  'salida',
-      item_id:               p.item_id,
-      bodega_origen_id:      bodega.id,
-      bodega_destino_id:     null,
-      cantidad:              parseFloat(p.cantidad),
-      precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
-      centro_costo:          bodega.nombre,
-      usuario_id:            perfil.id,
-      cliente:               receptor.trim(),
-      referencia:            notas.trim() || null,
-      destino:               null, proveedor: null, pedido_id: null, foto_remision_url: null,
-      numero_of:             null, serial_motor: null, motivo: null,
-    }))
-
-    const { error: err } = await supabase.from('movimientos').insert(payloads)
-    setGuardando(false)
-    if (err) { setError('Error al guardar: ' + err.message); return }
-
-    setExito(true)
-    setTimeout(() => {
-      setExito(false)
-      setSProductos([{ ...PROD0 }])
-      setReceptor('')
-      setNotas('')
-    }, 2000)
+    try {
+      const numero = await generarNumero('SAL')
+      const payloads = validos.map(p => ({
+        numero,
+        tipo:                  'salida',
+        item_id:               p.item_id,
+        bodega_origen_id:      bodega.id,
+        bodega_destino_id:     null,
+        cantidad:              parseFloat(p.cantidad),
+        precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+        centro_costo:          bodega.nombre,
+        usuario_id:            perfil.id,
+        cliente:               receptor.trim(),
+        referencia:            notas.trim() || null,
+        destino:               null, proveedor: null, pedido_id: null, foto_remision_url: null,
+        numero_of:             null, serial_motor: null, motivo: null,
+      }))
+      const { error: err } = await supabase.from('movimientos').insert(payloads)
+      if (err) { setError('Error al guardar: ' + err.message); return }
+      setExito(true)
+      setTimeout(() => {
+        setExito(false)
+        setSProductos([{ ...PROD0 }])
+        setReceptor('')
+        setNotas('')
+      }, 2000)
+    } catch (err) {
+      setError('Error inesperado: ' + err.message)
+    } finally {
+      setGuardando(false)
+    }
   }
 
   // ── Helpers líneas producto (entrada) ──
