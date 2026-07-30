@@ -15,7 +15,7 @@ const ESTADO_CONFIG = {
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
-function TarjetaPedido({ p, esAdmin, puedeGestionar, onTransito, onEliminar, onRecibido }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, onEliminar, onRecibido }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
 
@@ -33,13 +33,13 @@ function TarjetaPedido({ p, esAdmin, puedeGestionar, onTransito, onEliminar, onR
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
-          {p.estado === 'pendiente' && puedeGestionar && (
+          {p.estado === 'pendiente' && puedeTransito && (
             <button onClick={() => onTransito(p)}
               className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
               En tránsito
             </button>
           )}
-          {p.estado === 'en_transito' && puedeGestionar && (
+          {p.estado === 'en_transito' && puedeRecibir && (
             <>
               <button onClick={() => onRecibido(p, true)}
                 className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium">
@@ -109,7 +109,7 @@ function SelectorProducto({ value, onSelect, productos }) {
 }
 
 export default function ListaPedidos() {
-  const { perfil, esAdmin, esLogistica, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
@@ -283,7 +283,8 @@ useEffect(() => { cargar() }, [])
             key={p.id}
             p={p}
             esAdmin={esAdmin}
-            puedeGestionar={esAdmin || esLogistica}
+            puedeTransito={esAdmin || esLogistica}
+            puedeRecibir={esAdmin || esAlmacenista || (esLogistica && p.usuario_id === perfil?.id)}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onRecibido={iniciarRecibido}
