@@ -122,6 +122,7 @@ export default function ListaPedidos() {
   const [modalTransito, setModalTransito] = useState(null)
   const [modalRecibido, setModalRecibido] = useState(null) // { pedido, conEntrada }
   const [cantRec,       setCantRec]       = useState({})
+  const [confirmElim,   setConfirmElim]   = useState(null) // pedido a eliminar
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
@@ -232,8 +233,13 @@ useEffect(() => { cargar() }, [])
   }
 
   async function eliminarPedido(pedido) {
+    setMsg(null)
+    // Desvincular movimientos que apunten a este pedido (FK constraint)
+    await supabase.from('movimientos').update({ pedido_id: null }).eq('pedido_id', pedido.id)
     await supabase.from('pedido_items').delete().eq('pedido_id', pedido.id)
-    await supabase.from('pedidos').delete().eq('id', pedido.id)
+    const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message }); setConfirmElim(null); return }
+    setConfirmElim(null)
     cargar()
   }
 
@@ -279,7 +285,7 @@ useEffect(() => { cargar() }, [])
             esAdmin={esAdmin}
             puedeGestionar={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
-            onEliminar={eliminarPedido}
+            onEliminar={ped => setConfirmElim(ped)}
             onRecibido={iniciarRecibido}
           />
         ))}
@@ -400,6 +406,21 @@ useEffect(() => { cargar() }, [])
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Confirmar</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* MODAL CONFIRMAR ELIMINACIÓN */}
+      {confirmElim && (
+        <Modal titulo="Eliminar pedido" onCerrar={() => setConfirmElim(null)}>
+          <div className="space-y-4">
+            <Alerta tipo="alerta" mensaje={`¿Eliminar ${confirmElim.numero}? Esta acción no se puede deshacer. Los movimientos vinculados quedarán sin pedido asociado.`} />
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmElim(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button onClick={() => eliminarPedido(confirmElim)}
+                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold">Sí, eliminar</button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
