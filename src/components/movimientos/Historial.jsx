@@ -63,7 +63,7 @@ export default function Historial() {
       usuario_id:            perfil.id,
       referencia:            `REVERSIÓN ${m.numero || m.id}`,
       revertido:             false,
-      revertido_en:          m.id,
+      revertido_en:          new Date().toISOString(),
       numero,
     }
 
@@ -74,25 +74,7 @@ export default function Historial() {
     const { error: e2 } = await supabase.from('movimientos').update({ revertido: true }).eq('id', m.id)
     if (e2) { setMsg({ tipo: 'error', texto: 'Error al marcar revertido: ' + e2.message }); setRevirtiendo(false); return }
 
-    // Ajustar stock manualmente
-    const bodega_stock = m.tipo === 'entrada' ? m.bodega_destino_id : m.bodega_origen_id
-    if (bodega_stock) {
-      const { data: stockRow } = await supabase.from('stock')
-        .select('cantidad_actual')
-        .eq('item_id', m.item_id)
-        .eq('bodega_id', bodega_stock)
-        .single()
-
-      if (stockRow) {
-        const nueva = m.tipo === 'entrada'
-          ? stockRow.cantidad_actual - m.cantidad
-          : stockRow.cantidad_actual + m.cantidad
-        await supabase.from('stock')
-          .update({ cantidad_actual: Math.max(0, nueva) })
-          .eq('item_id', m.item_id)
-          .eq('bodega_id', bodega_stock)
-      }
-    }
+    // El trigger fn_actualizar_stock ajusta el stock automáticamente al insertar el contramovimiento
 
     setRevirtiendo(false)
     setConfirmRevert(null)
