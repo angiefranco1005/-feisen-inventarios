@@ -25,11 +25,14 @@ export default function GestionProductos() {
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
   const [subiendo,   setSubiendo]   = useState(false)
+  const [pagina,     setPagina]     = useState(1)
+  const POR_PAGINA = 20
 
   const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '' }
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
+  useEffect(() => { setPagina(1) }, [busqueda, filtroBodega, filtroCategoria, filtroStockBajo])
 
   async function cargar() {
     setCargando(true)
@@ -164,6 +167,10 @@ export default function GestionProductos() {
     return matchNombre && matchBodega && matchCategoria && matchStockBajo
   })
 
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  const paginaActual = Math.min(pagina, totalPaginas)
+  const paginados    = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
+
   const totalStockBajo = items.filter(stockBajo).length
 
   // Categorías filtradas por bodega seleccionada (para el select de filtro)
@@ -243,7 +250,7 @@ export default function GestionProductos() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtrados.map(item => (
+                {paginados.map(item => (
                   <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${!item.activo ? 'opacity-40' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -330,6 +337,42 @@ export default function GestionProductos() {
           </div>
         )}
       </div>
+
+      {/* PAGINACIÓN */}
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-sm text-gray-400">
+            {(paginaActual - 1) * POR_PAGINA + 1}–{Math.min(paginaActual * POR_PAGINA, filtrados.length)} de {filtrados.length} productos
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+              ← Anterior
+            </button>
+            {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPaginas || Math.abs(n - paginaActual) <= 1)
+              .reduce((acc, n, idx, arr) => {
+                if (idx > 0 && n - arr[idx - 1] > 1) acc.push('…')
+                acc.push(n)
+                return acc
+              }, [])
+              .map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="px-2 text-gray-400 text-sm">…</span>
+                  : <button key={n} onClick={() => setPagina(n)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
+                        ${paginaActual === n ? 'bg-feisen-azul text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      {n}
+                    </button>
+              )
+            }
+            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL ELIMINAR */}
       {confirm && (
