@@ -1,7 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles } from 'lucide-react'
+import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
@@ -50,6 +51,7 @@ export default function Layout({ children }) {
 
   const navItems = esAdmin ? NAV_ADMIN : esLogistica ? NAV_LOGISTICA : esAlmacenista ? NAV_ALMACENISTA : []
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
+  const { hayActualizacion, actualizar } = useUpdateAvailable()
 
   async function handleLogout() {
     await logout()
@@ -123,6 +125,10 @@ export default function Layout({ children }) {
             className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-medium transition-colors">
             <KeyRound size={16} /> Cambiar contraseña
           </button>
+          <button onClick={actualizar}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-medium transition-colors">
+            <RefreshCw size={16} /> Actualizar app
+          </button>
           <button onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-feisen-rojo hover:bg-red-50 text-sm font-medium transition-colors">
             <LogOut size={16} /> Cerrar sesión
@@ -185,6 +191,23 @@ export default function Layout({ children }) {
           )
         })}
       </nav>
+
+      {/* BANNER NUEVA VERSIÓN */}
+      {hayActualizacion && (
+        <div className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-sm">
+          <div className="bg-feisen-azul text-white rounded-2xl shadow-2xl px-5 py-4 flex items-center gap-4">
+            <Sparkles size={22} className="flex-shrink-0 text-yellow-300" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">¡Nueva versión disponible!</p>
+              <p className="text-xs text-blue-200 mt-0.5">Actualiza para ver los últimos cambios.</p>
+            </div>
+            <button onClick={actualizar}
+              className="flex-shrink-0 bg-white text-feisen-azul text-xs font-bold px-3 py-1.5 rounded-xl hover:bg-blue-50 transition-colors">
+              Actualizar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* MODAL CONTRASEÑA */}
       {modalPwd && (
