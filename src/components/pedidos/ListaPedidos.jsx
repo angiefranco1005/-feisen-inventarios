@@ -137,7 +137,7 @@ export default function ListaPedidos() {
 
   async function marcarRecibido(pedido) {
     await supabase.from('pedidos').update({ estado: 'recibido', fecha_recibido: new Date().toISOString() }).eq('id', pedido.id)
-    await cargar()
+    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
     setSugerirEntrada(pedido)
   }
 
