@@ -2,58 +2,58 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { CheckCircle, Search } from 'lucide-react'
+import { CheckCircle, Search, Upload, FileImage } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 
-const TIPOS = {
-  ADMIN:     ['entrada', 'salida'],
-  LOGISTICA: ['entrada', 'salida'],
-}
-
+const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
 const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
 
 export default function RegistrarMovimiento() {
   const { perfil, esAdmin } = useAuth()
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const tipoInicial = searchParams.get('tipo') || ''
+  const tipoInicial       = searchParams.get('tipo') || ''
+  const tiposDisponibles  = TIPOS[perfil?.rol] || []
 
-  const tiposDisponibles = TIPOS[perfil?.rol] || []
-
-  const [bodegas,       setBodegas]       = useState([])
-  const [items,         setItems]         = useState([])
-  const [itemsFiltrados,setItemsFiltrados]= useState([])
-  const [busqueda,      setBusqueda]      = useState('')
-  const [mostrarLista,  setMostrarLista]  = useState(false)
-  const [cargando,      setCargando]      = useState(true)
-  const [guardando,     setGuardando]     = useState(false)
-  const [exito,         setExito]         = useState(false)
-  const [error,         setError]         = useState('')
+  const [bodegas,        setBodegas]        = useState([])
+  const [items,          setItems]          = useState([])
+  const [pedidos,        setPedidos]        = useState([])
+  const [itemsFiltrados, setItemsFiltrados] = useState([])
+  const [busqueda,       setBusqueda]       = useState('')
+  const [mostrarLista,   setMostrarLista]   = useState(false)
+  const [cargando,       setCargando]       = useState(true)
+  const [guardando,      setGuardando]      = useState(false)
+  const [subiendo,       setSubiendo]       = useState(false)
+  const [exito,          setExito]          = useState(false)
+  const [error,          setError]          = useState('')
 
   const [form, setForm] = useState({
-    tipo:         tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || 'entrada'),
-    item_id:      '',
-    item_nombre:  '',
-    cantidad:     '',
-    bodega_id:    '',
-    destino:      '',
-    referencia:   '',
-    numero_of:    '',
-    serial_motor: '',
+    tipo:              tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || 'entrada'),
+    item_id:           '',
+    item_nombre:       '',
+    cantidad:          '',
+    bodega_id:         '',
+    destino:           '',
+    referencia:        '',
+    numero_of:         '',
+    serial_motor:      '',
+    proveedor:         '',
+    pedido_id:         '',
+    foto_remision_url: '',
   })
 
   useEffect(() => {
     async function cargar() {
-      const [{ data: bods }, { data: its }] = await Promise.all([
+      const [{ data: bods }, { data: its }, { data: peds }] = await Promise.all([
         supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
         supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre'),
+        supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }),
       ])
       setBodegas(bods || [])
       setItems(its || [])
       setItemsFiltrados(its || [])
-      // Pre-seleccionar bodega si solo hay una
+      setPedidos(peds || [])
       if (bods?.length === 1) setForm(f => ({ ...f, bodega_id: bods[0].id }))
       setCargando(false)
     }
@@ -74,35 +74,55 @@ export default function RegistrarMovimiento() {
     setMostrarLista(false)
   }
 
+  async function subirRemision(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSubiendo(true)
+    const ext  = file.name.split('.').pop()
+    const path = `remision_${Date.now()}.${ext}`
+    const { error: uploadErr } = await supabase.storage.from('remisiones').upload(path, file)
+    if (uploadErr) { setError('Error al subir imagen.'); setSubiendo(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('remisiones').getPublicUrl(path)
+    setForm(f => ({ ...f, foto_remision_url: publicUrl }))
+    setSubiendo(false)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError(''); setGuardando(true)
 
-    if (!form.item_id)  { setError('Selecciona un producto.'); setGuardando(false); return }
-    if (!form.bodega_id){ setError('Selecciona una bodega.'); setGuardando(false); return }
+    if (!form.item_id)   { setError('Selecciona un producto.'); setGuardando(false); return }
+    if (!form.bodega_id) { setError('Selecciona una bodega.');  setGuardando(false); return }
     const cantidad = parseFloat(form.cantidad)
     if (!cantidad || cantidad <= 0) { setError('La cantidad debe ser mayor a cero.'); setGuardando(false); return }
     if (form.tipo === 'salida' && !form.destino) { setError('Selecciona el destino.'); setGuardando(false); return }
 
     const item = items.find(i => i.id === form.item_id)
-    const payload = {
-      tipo:                   form.tipo,
-      item_id:                form.item_id,
-      bodega_origen_id:       form.tipo === 'salida'  ? form.bodega_id : null,
-      bodega_destino_id:      form.tipo === 'entrada' ? form.bodega_id : null,
-      cantidad,
-      precio_costo_snapshot:  item?.precio_costo || 0,
-      centro_costo:           bodegas.find(b => b.id === form.bodega_id)?.nombre || '',
-      destino:                form.tipo === 'salida' ? form.destino : null,
-      usuario_id:             perfil.id,
-      referencia:             form.referencia   || null,
-      numero_of:              form.numero_of    || null,
-      serial_motor:           form.serial_motor || null,
-      motivo: null, proveedor: null, cliente: null,
-    }
 
     const { count } = await supabase.from('movimientos').select('*', { count: 'exact', head: true })
-    payload.numero = `MOV-${String((count || 0) + 1).padStart(4, '0')}`
+    const numero = `MOV-${String((count || 0) + 1).padStart(4, '0')}`
+
+    const payload = {
+      numero,
+      tipo:                  form.tipo,
+      item_id:               form.item_id,
+      bodega_origen_id:      form.tipo === 'salida'  ? form.bodega_id : null,
+      bodega_destino_id:     form.tipo === 'entrada' ? form.bodega_id : null,
+      cantidad,
+      precio_costo_snapshot: item?.precio_costo || 0,
+      centro_costo:          bodegas.find(b => b.id === form.bodega_id)?.nombre || '',
+      usuario_id:            perfil.id,
+      // Entrada
+      proveedor:             form.tipo === 'entrada' ? (form.proveedor || null) : null,
+      pedido_id:             form.tipo === 'entrada' ? (form.pedido_id || null) : null,
+      foto_remision_url:     form.tipo === 'entrada' ? (form.foto_remision_url || null) : null,
+      // Salida
+      destino:               form.tipo === 'salida'  ? form.destino       : null,
+      numero_of:             form.tipo === 'salida'  ? (form.numero_of    || null) : null,
+      serial_motor:          form.tipo === 'salida'  ? (form.serial_motor || null) : null,
+      referencia:            form.tipo === 'salida'  ? (form.referencia   || null) : null,
+      motivo: null, cliente: null,
+    }
 
     const { error: err } = await supabase.from('movimientos').insert(payload)
     setGuardando(false)
@@ -110,7 +130,10 @@ export default function RegistrarMovimiento() {
     setExito(true)
     setTimeout(() => {
       setExito(false)
-      setForm(f => ({ ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '', numero_of: '', serial_motor: '', destino: '' }))
+      setForm(f => ({
+        ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '',
+        numero_of: '', serial_motor: '', destino: '', proveedor: '', pedido_id: '', foto_remision_url: '',
+      }))
       setBusqueda('')
     }, 2500)
   }
@@ -174,7 +197,7 @@ export default function RegistrarMovimiento() {
           )}
         </div>
 
-        {/* Bodega */}
+        {/* Bodega (solo si hay más de una) */}
         {bodegas.length > 1 && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Bodega *</label>
@@ -186,66 +209,123 @@ export default function RegistrarMovimiento() {
           </div>
         )}
         {bodegas.length === 1 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Bodega</label>
-            <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-700 font-medium">
-              {bodegas[0].nombre}
-            </div>
+          <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-700 font-medium">
+            📦 {bodegas[0].nombre}
           </div>
         )}
 
-        {/* Destino (solo salidas) */}
-        {form.tipo === 'salida' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Destino *</label>
-            <div className="grid grid-cols-1 gap-2">
-              {DESTINOS.map(d => (
-                <button key={d} type="button" onClick={() => setForm(f => ({ ...f, destino: d }))}
-                  className={`px-4 py-3 rounded-xl text-sm font-medium border text-left transition-colors
-                    ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                  {d}
-                </button>
-              ))}
+        {/* ─── CAMPOS ENTRADA ─── */}
+        {esEntrada && (
+          <>
+            {/* Solicitud de pedido */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Solicitud de pedido (opcional)</label>
+              <select value={form.pedido_id} onChange={e => setForm(f => ({ ...f, pedido_id: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                <option value="">Sin pedido asociado</option>
+                {pedidos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
+
+            {/* Cantidad */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
+              <input required type="number" min="0.001" step="0.001" value={form.cantidad}
+                onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
+                placeholder="0"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+
+            {/* Proveedor */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Proveedor (opcional)</label>
+              <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))}
+                placeholder="Ej: Distribuidora Motors S.A.S."
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+
+            {/* Foto remisión */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Foto de remisión (opcional)</label>
+              {form.foto_remision_url ? (
+                <div className="space-y-2">
+                  <img src={form.foto_remision_url} alt="Remisión" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
+                  <button type="button" onClick={() => setForm(f => ({ ...f, foto_remision_url: '' }))}
+                    className="text-xs text-feisen-rojo hover:underline">Quitar imagen</button>
+                </div>
+              ) : (
+                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-6 text-sm text-gray-400 transition-colors
+                  ${subiendo ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  {subiendo
+                    ? <><FileImage size={24} className="animate-pulse" /><span>Subiendo...</span></>
+                    : <><Upload size={24} /><span>Toca para adjuntar foto de la remisión</span></>
+                  }
+                  <input type="file" accept="image/*" className="hidden" onChange={subirRemision} disabled={subiendo} />
+                </label>
+              )}
+            </div>
+          </>
         )}
 
-        {/* Cantidad */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
-          <input required type="number" min="0.001" step="0.001" value={form.cantidad}
-            onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-            placeholder="0"
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        </div>
+        {/* ─── CAMPOS SALIDA ─── */}
+        {!esEntrada && (
+          <>
+            {/* Destino */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Destino *</label>
+              <div className="space-y-2">
+                {DESTINOS.map(d => (
+                  <button key={d} type="button" onClick={() => setForm(f => ({ ...f, destino: d }))}
+                    className={`w-full px-4 py-3 rounded-xl text-sm font-medium border text-left transition-colors
+                      ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* N° OF */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">N° Orden de Fabricación (opcional)</label>
-          <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
-            placeholder="Ej: 8465"
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        </div>
+            {/* Cantidad */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
+              <input required type="number" min="0.001" step="0.001" value={form.cantidad}
+                onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
+                placeholder="0"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
 
-        {/* Serial motor */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Serial del motor (opcional)</label>
-          <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
-            placeholder="Ej: 215325060196"
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        </div>
+            {/* N° OF */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">N° Orden de Fabricación (opcional)</label>
+              <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
+                placeholder="Ej: 8465"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
 
-        {/* Referencia */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Referencia / Observación (opcional)</label>
-          <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
-            placeholder="Ej: Factura 001"
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        </div>
+            {/* Serial motor */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Serial del motor (opcional)</label>
+              <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
+                placeholder="Ej: 215325060196"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+
+            {/* Referencia */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Referencia / Observación (opcional)</label>
+              <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
+                placeholder="Ej: Factura 001"
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+          </>
+        )}
 
         {error && <Alerta tipo="error" mensaje={error} />}
 
-        <button type="submit" disabled={guardando}
+        <button type="submit" disabled={guardando || subiendo}
           className="w-full bg-feisen-azul text-white rounded-2xl py-4 text-base font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
           {guardando ? 'Registrando...' : esEntrada ? 'Registrar entrada' : 'Registrar salida'}
         </button>

@@ -30,7 +30,7 @@ export default function Historial() {
     const [{ data: movs }, { data: its }] = await Promise.all([
       supabase
         .from('movimientos')
-        .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre)')
+        .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
         .order('created_at', { ascending: false })
         .limit(200),
       supabase.from('items').select('id, nombre').order('nombre'),
@@ -162,7 +162,7 @@ export default function Historial() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">N° OF</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Serial</th>
                   {esAdmin && <th className="text-right px-4 py-3 font-semibold text-gray-500 hidden lg:table-cell">Valor</th>}
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden lg:table-cell">Referencia</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden lg:table-cell">Ref / Proveedor</th>
                   {esAdmin && <th className="px-4 py-3"></th>}
                 </tr>
               </thead>
@@ -201,7 +201,16 @@ export default function Historial() {
                             : '—'}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell">{m.referencia || '—'}</td>
+                      <td className="px-4 py-3 text-xs hidden lg:table-cell">
+                        <p className="text-gray-400">{m.referencia || m.proveedor || '—'}</p>
+                        {m.pedidos?.numero && <p className="text-feisen-azul font-medium">📋 {m.pedidos.numero}</p>}
+                        {m.foto_remision_url && (
+                          <a href={m.foto_remision_url} target="_blank" rel="noreferrer"
+                            className="text-feisen-azul hover:underline flex items-center gap-1 mt-0.5">
+                            🖼 Ver remisión
+                          </a>
+                        )}
+                      </td>
                       {esAdmin && (
                         <td className="px-4 py-3 text-center">
                           {!estaRevertido && !esReversion && (
