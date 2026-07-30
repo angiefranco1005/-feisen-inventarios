@@ -236,8 +236,9 @@ export default function GestionProductos() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-500">Producto</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Categoría</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-500">Stock</th>
                   {esAdmin && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
-                  <th className="text-center px-4 py-3 font-semibold text-gray-500">Estado</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Estado</th>
                   {puedeEditar && <th className="text-center px-4 py-3 font-semibold text-gray-500">Acciones</th>}
                 </tr>
               </thead>
@@ -253,18 +254,8 @@ export default function GestionProductos() {
                             </div>
                         }
                         <div>
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-medium text-gray-800">{item.nombre}</p>
-                            {stockBajo(item) && <AlertTriangle size={13} className="text-amber-500 flex-shrink-0" title="Stock bajo mínimo" />}
-                          </div>
-                          <p className="text-xs text-gray-400">
-                            {item.unidad_medida}
-                            {getStock(item) !== null && (
-                              <span className={`ml-2 font-medium ${stockBajo(item) ? 'text-amber-500' : 'text-gray-400'}`}>
-                                · Stock: {getStock(item)} {stockBajo(item) ? `(mín. ${item.stock_minimo})` : ''}
-                              </span>
-                            )}
-                          </p>
+                          <p className="font-medium text-gray-800">{item.nombre}</p>
+                          <p className="text-xs text-gray-400">{item.unidad_medida}</p>
                         </div>
                       </div>
                     </td>
@@ -274,6 +265,34 @@ export default function GestionProductos() {
                         {item.bodegas?.nombre || '—'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {getStock(item) === null ? (
+                        <span className="text-gray-300 text-sm">—</span>
+                      ) : getStock(item) === 0 ? (
+                        <div>
+                          <span className="inline-block bg-red-100 text-red-600 font-bold text-base px-3 py-1 rounded-xl">0</span>
+                          <p className="text-xs text-red-400 mt-0.5">Sin stock</p>
+                        </div>
+                      ) : stockBajo(item) ? (
+                        <div>
+                          <span className="inline-block bg-amber-100 text-amber-700 font-bold text-base px-3 py-1 rounded-xl">
+                            {getStock(item)}
+                          </span>
+                          <p className="text-xs text-amber-500 mt-0.5 flex items-center justify-center gap-0.5">
+                            <AlertTriangle size={10} /> mín. {item.stock_minimo}
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="inline-block bg-green-100 text-green-700 font-bold text-base px-3 py-1 rounded-xl">
+                            {getStock(item)}
+                          </span>
+                          {item.stock_minimo > 0 && (
+                            <p className="text-xs text-gray-300 mt-0.5">mín. {item.stock_minimo}</p>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     {esAdmin && (
                       <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
                         {item.precio_costo > 0
@@ -282,7 +301,7 @@ export default function GestionProductos() {
                         }
                       </td>
                     )}
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-center hidden sm:table-cell">
                       <span className={`text-xs px-2 py-1 rounded-full font-medium ${item.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {item.activo ? 'Activo' : 'Inactivo'}
                       </span>
