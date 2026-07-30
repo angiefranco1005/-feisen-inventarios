@@ -87,49 +87,36 @@ export default function Historial() {
     setEliminando(true)
     setMsg(null)
 
-    // 1. Buscar la bodega por centro_costo (igual que el trigger fn_actualizar_stock)
-    const { data: bodegas } = await supabase
-      .from('bodegas')
-      .select('id')
-      .ilike('nombre', m.centro_costo || '')
-      .limit(1)
-    const bodegaId = bodegas?.[0]?.id
+    // 1. Buscar bodega por centro_costo
+    const { data: bodegasData } = await supabase
+      .from('bodegas').select('id').ilike('nombre', m.centro_costo || '').limit(1)
+    const bodegaId = bodegasData?.[0]?.id
 
-    // 2. Revertir efecto en stock
+    // 2. Revertir stock
     if (bodegaId && m.item_id) {
       const { data: stockRow } = await supabase
-        .from('stock')
-        .select('id, cantidad_actual')
-        .eq('item_id', m.item_id)
-        .eq('bodega_id', bodegaId)
-        .single()
-
+        .from('stock').select('id, cantidad_actual')
+        .eq('item_id', m.item_id).eq('bodega_id', bodegaId).maybeSingle()
       if (stockRow) {
-        let nueva
-        if (m.tipo === 'entrada') {
-          nueva = Math.max(0, stockRow.cantidad_actual - m.cantidad)
-        } else {
-          nueva = stockRow.cantidad_actual + m.cantidad
-        }
+        const nueva = m.tipo === 'entrada'
+          ? Math.max(0, stockRow.cantidad_actual - m.cantidad)
+          : stockRow.cantidad_actual + m.cantidad
         await supabase.from('stock').update({ cantidad_actual: nueva }).eq('id', stockRow.id)
       }
     }
 
-    // 3. Desvincular pedido si aplica
-    if (m.pedido_id) {
-      await supabase.from('movimientos').update({ pedido_id: null }).eq('id', m.id)
-    }
-
-    // 4. Eliminar el movimiento
+    // 3. Eliminar
     const { error } = await supabase.from('movimientos').delete().eq('id', m.id)
     if (error) {
       setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message })
-      setEliminando(false); return
+      setEliminando(false)
+      return
     }
 
-    setEliminando(false)
+    // Quitar de la lista inmediatamente sin esperar cargar()
+    setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
     setConfirmDelete(null)
-    cargar()
+    setEliminando(false)
   }
 
   const filtrados = movimientos.filter(m => {
