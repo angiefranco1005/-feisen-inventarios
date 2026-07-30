@@ -9,7 +9,8 @@ import DashboardAdmin     from './components/admin/Dashboard'
 import DashboardLogistica from './components/logistica/Dashboard'
 import DashboardConsultor from './components/consultor/Dashboard'
 import GestionProductos   from './components/productos/GestionProductos'
-import RegistrarMovimiento from './components/movimientos/RegistrarMovimiento'
+import RegistrarMovimiento           from './components/movimientos/RegistrarMovimiento'
+import RegistrarMovimientoAlmacenista from './components/movimientos/RegistrarMovimientoAlmacenista'
 import Historial          from './components/movimientos/Historial'
 import ListaPedidos       from './components/pedidos/ListaPedidos'
 import GestionConfig      from './components/config/GestionConfig'
@@ -47,14 +48,29 @@ function AppRoutes() {
     )
   }
 
-  // LOGISTICA y ALMACENISTA — mismo conjunto de rutas
-  if (esRol(perfil, 'LOGISTICA') || esRol(perfil, 'ALMACENISTA')) {
+  // LOGISTICA
+  if (esRol(perfil, 'LOGISTICA')) {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
         <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
         <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
         <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
+        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    )
+  }
+
+  // ALMACENISTA
+  if (esRol(perfil, 'ALMACENISTA')) {
+    return (
+      <Routes>
+        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
+        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
         <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
         <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
