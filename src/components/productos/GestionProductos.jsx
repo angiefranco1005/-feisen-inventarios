@@ -9,8 +9,9 @@ import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTri
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
 export default function GestionProductos() {
-  const { perfil, esAdmin, bodegasPermitidas } = useAuth()
+  const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
   const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA'
+  const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])
   const [categorias, setCategorias] = useState([])
@@ -328,7 +329,7 @@ export default function GestionProductos() {
                           <button onClick={() => toggleActivo(item)} className={`p-1.5 rounded-lg ${item.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                             {item.activo ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
                           </button>
-                          {esAdmin && (
+                          {puedeBorrar(item) && (
                             <button onClick={() => { setMsg(null); setConfirm(item) }} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
                               <Trash2 size={15} />
                             </button>
