@@ -33,8 +33,8 @@ export function AuthProvider({ children }) {
     ])
     setPerfil(p)
     const bids = (pb || []).map(r => r.bodega_id)
-    // Ver stock: ADMIN y LOGISTICA ven todo; el resto solo sus bodegas asignadas
-    const puedeVerTodo = p?.rol === 'ADMIN' || p?.rol === 'LOGISTICA'
+    // Ver stock: solo ADMIN ve todo; el resto solo sus bodegas asignadas
+    const puedeVerTodo = p?.rol === 'ADMIN'
     setBodegasPermitidas(puedeVerTodo ? null : bids)
     // Operar (crear movimientos / pedidos): solo ADMIN opera en todo; el resto solo sus bodegas
     setBodegasOperacion(p?.rol === 'ADMIN' ? null : bids)
