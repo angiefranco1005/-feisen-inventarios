@@ -444,7 +444,7 @@ export default function GestionProductos() {
               </div>
             </div>
 
-            {esAdmin && (
+            {(esAdmin || perfil?.rol === 'ALMACENISTA') && (
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Precio de costo (COP)</label>
                 <input type="number" min="0" step="1" value={form.precio_costo}
