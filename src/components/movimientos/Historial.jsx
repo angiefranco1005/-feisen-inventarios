@@ -156,6 +156,7 @@ export default function Historial() {
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500">N° Mov</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500">Fecha</th>
+                  {esAdmin && <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Quién</th>}
                   <th className="text-left px-4 py-3 font-semibold text-gray-500">Tipo</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500">Producto</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-500">Cantidad</th>
@@ -184,6 +185,11 @@ export default function Historial() {
                         {new Date(m.created_at).toLocaleDateString('es-CO')}<br />
                         <span className="text-gray-400">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
                       </td>
+                      {esAdmin && (
+                        <td className="px-4 py-3 hidden sm:table-cell">
+                          <p className="text-xs font-medium text-gray-700">{m.profiles?.nombre?.split(' ')[0]}</p>
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${tc.color}`}>{tc.label}</span>
                         {bod && <p className="text-xs text-gray-400 mt-0.5">{bod}</p>}
