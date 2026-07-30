@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabase'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [perfil, setPerfil] = useState(null)
-  const [cargando, setCargando] = useState(true)
+  const [session,           setSession]           = useState(null)
+  const [perfil,            setPerfil]            = useState(null)
+  const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = todas (admin)
+  const [cargando,          setCargando]          = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -18,19 +19,20 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       if (session) cargarPerfil(session.user.id)
-      else { setPerfil(null); setCargando(false) }
+      else { setPerfil(null); setBodegasPermitidas(null); setCargando(false) }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   async function cargarPerfil(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setPerfil(data)
+    const [{ data: p }, { data: pb }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).single(),
+      supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', userId),
+    ])
+    setPerfil(p)
+    // Admin ve todo (null = sin restricción). Otros: array de IDs permitidos.
+    setBodegasPermitidas(p?.rol === 'ADMIN' ? null : (pb || []).map(r => r.bodega_id))
     setCargando(false)
   }
 
@@ -51,7 +53,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
-      esAdmin, esLogistica, esConsultor
+      esAdmin, esLogistica, esConsultor,
+      bodegasPermitidas,
     }}>
       {children}
     </AuthContext.Provider>

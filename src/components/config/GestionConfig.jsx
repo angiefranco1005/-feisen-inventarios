@@ -215,43 +215,68 @@ function SeccionCategorias() {
 
 // ─── SECCIÓN USUARIOS ─────────────────────────────────────────────────────────
 function SeccionUsuarios() {
-  const [usuarios,  setUsuarios]  = useState([])
-  const [cargando,  setCargando]  = useState(true)
-  const [modal,     setModal]     = useState(false)
-  const [editando,  setEditando]  = useState(null)
-  const [form,      setForm]      = useState({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
-  const [msg,       setMsg]       = useState(null)
-  const [guardando, setGuardando] = useState(false)
+  const [usuarios,      setUsuarios]      = useState([])
+  const [todasBodegas,  setTodasBodegas]  = useState([])
+  const [cargando,      setCargando]      = useState(true)
+  const [modal,         setModal]         = useState(false)
+  const [editando,      setEditando]      = useState(null)
+  const [form,          setForm]          = useState({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
+  const [bodegasSelec,  setBodegasSelec]  = useState([]) // IDs de bodegas asignadas al usuario en edición
+  const [msg,           setMsg]           = useState(null)
+  const [guardando,     setGuardando]     = useState(false)
 
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setCargando(true)
-    const { data } = await supabase.from('profiles').select('*').order('nombre')
-    setUsuarios(data || [])
+    const [{ data: us }, { data: bs }] = await Promise.all([
+      supabase.from('profiles').select('*').order('nombre'),
+      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+    ])
+    setUsuarios(us || [])
+    setTodasBodegas(bs || [])
     setCargando(false)
   }
 
   function abrirNuevo() {
     setEditando(null)
     setForm({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
+    setBodegasSelec([])
     setMsg(null); setModal(true)
   }
 
-  function abrirEditar(u) {
+  async function abrirEditar(u) {
     setEditando(u)
     setForm({ email: '', password: '', nombre: u.nombre, rol: u.rol })
-    setMsg(null); setModal(true)
+    setMsg(null)
+    // Cargar bodegas actuales del usuario
+    const { data: pb } = await supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', u.id)
+    setBodegasSelec((pb || []).map(r => r.bodega_id))
+    setModal(true)
+  }
+
+  function toggleBodega(id) {
+    setBodegasSelec(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
   }
 
   async function guardar(e) {
     e.preventDefault(); setMsg(null); setGuardando(true)
 
     if (editando) {
-      // Solo actualizar perfil
       const { error } = await supabase.from('profiles').update({ nombre: form.nombre, rol: form.rol }).eq('id', editando.id)
+      if (error) { setMsg({ tipo: 'error', texto: error.message }); setGuardando(false); return }
+
+      // Sincronizar bodegas: borrar las viejas, insertar las nuevas
+      await supabase.from('profile_bodegas').delete().eq('profile_id', editando.id)
+      if (bodegasSelec.length > 0) {
+        await supabase.from('profile_bodegas').insert(
+          bodegasSelec.map(bid => ({ profile_id: editando.id, bodega_id: bid }))
+        )
+      }
+
       setGuardando(false)
-      if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
       setModal(false); cargar(); return
     }
 
@@ -272,6 +297,21 @@ function SeccionUsuarios() {
     setGuardando(false)
   }
 
+  // Mapear bodegas asignadas por usuario (para mostrar en la lista)
+  const [bodegasPorUsuario, setBodegasPorUsuario] = useState({})
+  useEffect(() => {
+    if (usuarios.length === 0 || todasBodegas.length === 0) return
+    supabase.from('profile_bodegas').select('profile_id, bodega_id').then(({ data }) => {
+      const mapa = {}
+      ;(data || []).forEach(r => {
+        if (!mapa[r.profile_id]) mapa[r.profile_id] = []
+        const b = todasBodegas.find(b => b.id === r.bodega_id)
+        if (b) mapa[r.profile_id].push(b.nombre)
+      })
+      setBodegasPorUsuario(mapa)
+    })
+  }, [usuarios, todasBodegas])
+
   if (cargando) return <Spinner />
 
   return (
@@ -285,22 +325,36 @@ function SeccionUsuarios() {
       </div>
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
       <div className="space-y-2">
-        {usuarios.map(u => (
-          <div key={u.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                <span className="font-bold text-feisen-azul text-xs">{u.nombre?.charAt(0)?.toUpperCase()}</span>
+        {usuarios.map(u => {
+          const bodegas = bodegasPorUsuario[u.id] || []
+          return (
+            <div key={u.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                  <span className="font-bold text-feisen-azul text-xs">{u.nombre?.charAt(0)?.toUpperCase()}</span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-800 text-sm">{u.nombre}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[u.rol] || 'bg-gray-200 text-gray-600'}`}>
+                      {ROLES_LABEL[u.rol] || u.rol}
+                    </span>
+                    {u.rol !== 'ADMIN' && (
+                      bodegas.length > 0
+                        ? bodegas.map(nb => (
+                            <span key={nb} className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-feisen-azul border border-blue-100">
+                              {nb}
+                            </span>
+                          ))
+                        : <span className="text-xs text-amber-500">⚠ Sin bodega asignada</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-gray-800 text-sm">{u.nombre}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[u.rol] || 'bg-gray-200 text-gray-600'}`}>
-                  {ROLES_LABEL[u.rol] || u.rol}
-                </span>
-              </div>
+              <button onClick={() => abrirEditar(u)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
             </div>
-            <button onClick={() => abrirEditar(u)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {modal && (
@@ -336,6 +390,32 @@ function SeccionUsuarios() {
                 {ROLES.map(r => <option key={r} value={r}>{ROLES_LABEL[r]}</option>)}
               </select>
             </div>
+
+            {/* Bodegas asignadas — solo aplica para no-admin */}
+            {form.rol !== 'ADMIN' && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Bodegas que puede ver</label>
+                {todasBodegas.length === 0
+                  ? <p className="text-xs text-gray-400">No hay bodegas activas creadas aún.</p>
+                  : (
+                    <div className="space-y-2">
+                      {todasBodegas.map(b => (
+                        <label key={b.id} className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={bodegasSelec.includes(b.id)}
+                            onChange={() => toggleBodega(b.id)}
+                            className="w-4 h-4 accent-feisen-azul rounded"
+                          />
+                          <span className="text-sm text-gray-700">{b.nombre}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )
+                }
+              </div>
+            )}
+
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">

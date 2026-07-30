@@ -9,7 +9,7 @@ import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTri
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
 export default function GestionProductos() {
-  const { perfil, esAdmin } = useAuth()
+  const { perfil, esAdmin, bodegasPermitidas } = useAuth()
   const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA'
 
   const [items,      setItems]      = useState([])
@@ -33,8 +33,18 @@ export default function GestionProductos() {
 
   async function cargar() {
     setCargando(true)
+
+    // Si no es admin y no tiene bodegas asignadas → no ve nada
+    if (!esAdmin && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
+      setItems([]); setCategorias([]); setBodegas([])
+      setCargando(false); return
+    }
+
+    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)').order('nombre')
+    if (!esAdmin && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
+
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)').order('nombre'),
+      itemsQ,
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
@@ -43,8 +53,14 @@ export default function GestionProductos() {
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
     setItems(it || [])
-    setCategorias(cats || [])
-    setBodegas(bods || [])
+    // Para no-admin: filtrar categorías y bodegas visibles
+    if (!esAdmin && bodegasPermitidas) {
+      setCategorias((cats || []).filter(c => bodegasPermitidas.includes(c.bodega_id)))
+      setBodegas((bods || []).filter(b => bodegasPermitidas.includes(b.id)))
+    } else {
+      setCategorias(cats || [])
+      setBodegas(bods || [])
+    }
     setCargando(false)
   }
 
