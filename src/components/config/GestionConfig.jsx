@@ -430,13 +430,36 @@ function SeccionUsuarios() {
 }
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
+const TABS = [
+  { id: 'usuarios',   label: 'Usuarios',   icon: Users    },
+  { id: 'bodegas',    label: 'Bodegas',    icon: Warehouse },
+  { id: 'categorias', label: 'Categorías', icon: Tag      },
+]
+
 export default function GestionConfig() {
+  const [tab, setTab] = useState('usuarios')
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-5">
       <h1 className="text-2xl font-bold text-feisen-azul">Configuración</h1>
-      <SeccionUsuarios />
-      <SeccionBodegas />
-      <SeccionCategorias />
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all
+              ${tab === t.id
+                ? 'bg-white text-feisen-azul shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'}`}>
+            <t.icon size={16} />
+            <span className="hidden sm:inline">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'usuarios'   && <SeccionUsuarios />}
+      {tab === 'bodegas'    && <SeccionBodegas />}
+      {tab === 'categorias' && <SeccionCategorias />}
     </div>
   )
 }
