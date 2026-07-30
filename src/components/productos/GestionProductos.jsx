@@ -21,6 +21,8 @@ export default function GestionProductos() {
   const [filtroCategoria, setFiltroCategoria] = useState('')
   const [filtroStockBajo, setFiltroStockBajo] = useState(false)
   const [msg,             setMsg]             = useState(null)
+  const [preciosTemp,     setPreciosTemp]     = useState({})   // item_id → valor string
+  const [guardandoPrecio, setGuardandoPrecio] = useState({})   // item_id → bool
   const [modal,      setModal]      = useState(false)
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
@@ -109,12 +111,12 @@ export default function GestionProductos() {
       bodega_id:     form.bodega_id     || null,
       centro_costo:  bodega?.nombre     || '',
       unidad_medida: form.unidad_medida,
-      precio_costo:  esAdmin ? (parseFloat(form.precio_costo) || 0) : undefined,
+      precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA') ? (parseFloat(form.precio_costo) || 0) : undefined,
       stock_minimo:  parseFloat(form.stock_minimo) || 0,
       foto_url:      form.foto_url      || null,
       updated_at:    new Date().toISOString(),
     }
-    if (!esAdmin) delete payload.precio_costo
+    if (!esAdmin && perfil?.rol !== 'ALMACENISTA') delete payload.precio_costo
 
     let error
     if (editando) {
@@ -155,6 +157,24 @@ export default function GestionProductos() {
     const cant = getStock(item)
     return item.stock_minimo > 0 && cant !== null && cant <= item.stock_minimo
   }
+
+  async function guardarPrecioInline(item) {
+    const precio = parseFloat(preciosTemp[item.id])
+    if (!precio || precio <= 0) return
+    setGuardandoPrecio(g => ({ ...g, [item.id]: true }))
+    const { error } = await supabase.from('items')
+      .update({ precio_costo: precio, updated_at: new Date().toISOString() })
+      .eq('id', item.id)
+    setGuardandoPrecio(g => ({ ...g, [item.id]: false }))
+    if (!error) {
+      setPreciosTemp(p => { const c = { ...p }; delete c[item.id]; return c })
+      cargar()
+    } else {
+      setMsg({ tipo: 'error', texto: 'Error al guardar precio: ' + error.message })
+    }
+  }
+
+  const sinPrecio = items.filter(i => !i.precio_costo || i.precio_costo === 0)
 
   const filtrados = items.filter(i => {
     const matchNombre    = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
@@ -198,6 +218,45 @@ export default function GestionProductos() {
               ${filtroStockBajo ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}>
             {filtroStockBajo ? 'Ver todos' : 'Ver alertas'}
           </button>
+        </div>
+      )}
+
+      {/* ── Productos sin precio (solo ALMACENISTA y ADMIN) ── */}
+      {(esAdmin || perfil?.rol === 'ALMACENISTA') && sinPrecio.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-orange-200">
+            <AlertTriangle size={18} className="text-orange-500 flex-shrink-0" />
+            <p className="text-sm font-semibold text-orange-800">
+              {sinPrecio.length} producto{sinPrecio.length > 1 ? 's' : ''} sin precio de costo — completa los precios
+            </p>
+          </div>
+          <div className="divide-y divide-orange-100">
+            {sinPrecio.map(item => (
+              <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{item.nombre}</p>
+                  <p className="text-xs text-gray-400">{item.bodegas?.nombre} · {item.unidad_medida}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-400">$</span>
+                  <input
+                    type="number" min="0" step="0.01"
+                    placeholder="0,00"
+                    value={preciosTemp[item.id] ?? ''}
+                    onChange={e => setPreciosTemp(p => ({ ...p, [item.id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && guardarPrecioInline(item)}
+                    className="w-28 border border-orange-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <button
+                    onClick={() => guardarPrecioInline(item)}
+                    disabled={!preciosTemp[item.id] || guardandoPrecio[item.id]}
+                    className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90 disabled:opacity-40 transition-opacity">
+                    {guardandoPrecio[item.id] ? '...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
