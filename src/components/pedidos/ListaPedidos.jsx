@@ -59,8 +59,9 @@ export default function ListaPedidos() {
   const [msg,       setMsg]       = useState(null)
 
   // Modales
-  const [modalNuevo,    setModalNuevo]    = useState(false)
-  const [modalTransito, setModalTransito] = useState(null)
+  const [modalNuevo,         setModalNuevo]         = useState(false)
+  const [modalTransito,      setModalTransito]       = useState(null)
+  const [pedidoRecienRecibido, setPedidoRecienRecibido] = useState(null)
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
@@ -135,8 +136,7 @@ useEffect(() => { cargar() }, [])
   async function marcarRecibido(pedido) {
     await supabase.from('pedidos').update({ estado: 'recibido', fecha_recibido: new Date().toISOString() }).eq('id', pedido.id)
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
-    const ir = window.confirm(`✅ Pedido ${pedido.numero} marcado como recibido.\n\n¿Deseas registrar la entrada de almacén ahora?`)
-    if (ir) navigate('/movimientos/nuevo', { state: { pedido_id: pedido.id, pedido_numero: pedido.numero } })
+    setPedidoRecienRecibido(pedido.id)
   }
 
   async function eliminarPedido(pedido) {
@@ -227,6 +227,23 @@ useEffect(() => { cargar() }, [])
                   ))}
                   {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
                   {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+                </div>
+              )}
+
+              {/* Banner sugerencia entrada */}
+              {p.id === pedidoRecienRecibido && (
+                <div className="border-t border-green-200 bg-green-50 px-5 py-3 flex items-center justify-between gap-3">
+                  <p className="text-sm text-green-700 font-medium">✅ ¿Registrar entrada de almacén?</p>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => setPedidoRecienRecibido(null)}
+                      className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      Después
+                    </button>
+                    <button onClick={() => { setPedidoRecienRecibido(null); navigate('/movimientos/nuevo', { state: { pedido_id: p.id, pedido_numero: p.numero } }) }}
+                      className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
+                      Registrar entrada
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
