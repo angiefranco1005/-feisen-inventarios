@@ -110,10 +110,14 @@ export default function RegistrarMovimiento() {
 
     const item = items.find(i => i.id === form.item_id)
 
+    const iniciales = (perfil?.nombre || 'USR')
+      .trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
+    const prefix = `MOV-${iniciales}-`
     const { data: lastMov } = await supabase
-      .from('movimientos').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle()
-    const lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace('MOV-', ''), 10) : 0
-    const numero = `MOV-${String(lastNum + 1).padStart(4, '0')}`
+      .from('movimientos').select('numero').like('numero', `${prefix}%`)
+      .order('numero', { ascending: false }).limit(1).maybeSingle()
+    const lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
+    const numero = `${prefix}${String(lastNum + 1).padStart(4, '0')}`
 
     const payload = {
       numero,
