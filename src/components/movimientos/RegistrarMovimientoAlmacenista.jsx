@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search } from 'lucide-react'
+import { Plus, Trash2, CheckCircle } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 
@@ -73,8 +73,9 @@ export default function RegistrarMovimientoAlmacenista() {
   const [productos,  setProductos]  = useState([{ ...PROD0 }])
 
   // ── Estado SALIDA ──
-  const [salida, setSalida] = useState({ item_id: '', item_nombre: '', unidad: '', cantidad: '', destino: '' })
-  const [busqSalida, setBusqSalida] = useState('')
+  const [sProductos, setSProductos] = useState([{ ...PROD0 }])
+  const [receptor,   setReceptor]   = useState('')
+  const [notas,      setNotas]      = useState('')
 
   useEffect(() => {
     async function cargar() {
@@ -147,37 +148,40 @@ export default function RegistrarMovimientoAlmacenista() {
   async function handleSalida(e) {
     e.preventDefault()
     setError('')
-    if (!salida.item_id)   { setError('Selecciona un producto.'); return }
-    if (!salida.cantidad || parseFloat(salida.cantidad) <= 0) { setError('La cantidad debe ser mayor a cero.'); return }
-    if (!salida.destino)   { setError('Selecciona el destino.'); return }
-    if (!bodega)           { setError('No tienes bodega asignada.'); return }
+    const validos = sProductos.filter(p => p.item_id && parseFloat(p.cantidad) > 0)
+    if (!receptor.trim())   { setError('Ingresa el nombre de quien recibe.'); return }
+    if (validos.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
+    if (!bodega)            { setError('No tienes bodega asignada.'); return }
 
     setGuardando(true)
-    const numero = await generarNumero('MOV')
+    const numero = await generarNumero('SAL')
 
-    const { error: err } = await supabase.from('movimientos').insert({
+    const payloads = validos.map(p => ({
       numero,
       tipo:                  'salida',
-      item_id:               salida.item_id,
+      item_id:               p.item_id,
       bodega_origen_id:      bodega.id,
       bodega_destino_id:     null,
-      cantidad:              parseFloat(salida.cantidad),
-      precio_costo_snapshot: items.find(i => i.id === salida.item_id)?.precio_costo || 0,
+      cantidad:              parseFloat(p.cantidad),
+      precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
       centro_costo:          bodega.nombre,
       usuario_id:            perfil.id,
-      destino:               salida.destino,
-      proveedor:             null, pedido_id:         null, foto_remision_url: null,
-      numero_of:             null, serial_motor:      null, referencia:        null,
-      motivo:                null, cliente:           null,
-    })
+      cliente:               receptor.trim(),
+      referencia:            notas.trim() || null,
+      destino:               null, proveedor: null, pedido_id: null, foto_remision_url: null,
+      numero_of:             null, serial_motor: null, motivo: null,
+    }))
+
+    const { error: err } = await supabase.from('movimientos').insert(payloads)
     setGuardando(false)
     if (err) { setError('Error al guardar: ' + err.message); return }
 
     setExito(true)
     setTimeout(() => {
       setExito(false)
-      setSalida({ item_id: '', item_nombre: '', unidad: '', cantidad: '', destino: '' })
-      setBusqSalida('')
+      setSProductos([{ ...PROD0 }])
+      setReceptor('')
+      setNotas('')
     }, 2000)
   }
 
@@ -188,6 +192,15 @@ export default function RegistrarMovimientoAlmacenista() {
   function seleccionarProducto(idx, item) {
     if (!item) { actualizarProducto(idx, 'item_id', ''); actualizarProducto(idx, 'item_nombre', ''); actualizarProducto(idx, 'unidad', ''); return }
     setProductos(prev => prev.map((p, i) => i === idx ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida } : p))
+  }
+
+  // ── Helpers líneas producto (salida) ──
+  function actualizarSProducto(idx, campo, valor) {
+    setSProductos(prev => prev.map((p, i) => i === idx ? { ...p, [campo]: valor } : p))
+  }
+  function seleccionarSProducto(idx, item) {
+    if (!item) { actualizarSProducto(idx, 'item_id', ''); actualizarSProducto(idx, 'item_nombre', ''); actualizarSProducto(idx, 'unidad', ''); return }
+    setSProductos(prev => prev.map((p, i) => i === idx ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida } : p))
   }
 
   if (cargando) return <div className="flex justify-center py-20"><Spinner /></div>
@@ -291,56 +304,67 @@ export default function RegistrarMovimientoAlmacenista() {
       {tipo === 'salida' && (
         <form onSubmit={handleSalida} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
-          {/* Producto */}
+          {/* Recibido por */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Producto *</label>
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={busqSalida}
-                onChange={e => { setBusqSalida(e.target.value); if (!e.target.value) setSalida(s => ({ ...s, item_id: '', item_nombre: '', unidad: '' })) }}
-                placeholder="Buscar producto..."
-                className="w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
-              />
-              {busqSalida && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                  {items.filter(i => i.nombre.toLowerCase().includes(busqSalida.toLowerCase())).slice(0, 25).map(i => (
-                    <button key={i.id} type="button"
-                      onMouseDown={() => { setSalida(s => ({ ...s, item_id: i.id, item_nombre: i.nombre, unidad: i.unidad_medida })); setBusqSalida(i.nombre) }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 flex justify-between">
-                      <span className="font-medium text-gray-800">{i.nombre}</span>
-                      <span className="text-xs text-gray-400">{i.unidad_medida}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Cantidad */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Cantidad {salida.unidad && <span className="font-normal text-gray-400">({salida.unidad})</span>} *
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
             <input
-              type="number" min="0.001" step="0.001"
-              value={salida.cantidad}
-              onChange={e => setSalida(s => ({ ...s, cantidad: e.target.value }))}
-              placeholder="0"
+              type="text" required
+              value={receptor}
+              onChange={e => setReceptor(e.target.value)}
+              placeholder="Nombre de quien recibe"
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
             />
           </div>
 
-          {/* Destino */}
+          {/* Productos */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Destino *</label>
-            <select
-              value={salida.destino}
-              onChange={e => setSalida(s => ({ ...s, destino: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-rojo">
-              <option value="">Selecciona destino...</option>
-              {DESTINOS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Productos *</label>
+            <div className="space-y-3">
+              {sProductos.map((prod, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <SelectorItem
+                    value={prod.item_nombre}
+                    items={items}
+                    onSelect={item => seleccionarSProducto(idx, item)}
+                  />
+                  <input
+                    type="number" min="0.001" step="0.001" placeholder="Cant."
+                    value={prod.cantidad}
+                    onChange={e => actualizarSProducto(idx, 'cantidad', e.target.value)}
+                    className="w-24 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                  />
+                  {prod.unidad && (
+                    <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
+                  )}
+                  {sProductos.length > 1 && (
+                    <button type="button"
+                      onClick={() => setSProductos(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1.5 text-gray-300 hover:text-feisen-rojo transition-colors shrink-0">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button"
+              onClick={() => setSProductos(prev => [...prev, { ...PROD0 }])}
+              className="mt-3 flex items-center gap-1.5 text-sm text-feisen-rojo font-medium hover:underline">
+              <Plus size={15} /> Agregar otro producto
+            </button>
+          </div>
+
+          {/* Notas */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Notas <span className="font-normal text-gray-400">(referencias de máquina, observaciones…)</span>
+            </label>
+            <textarea
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+              placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
+              rows={3}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+            />
           </div>
 
           <button type="submit" disabled={guardando}
