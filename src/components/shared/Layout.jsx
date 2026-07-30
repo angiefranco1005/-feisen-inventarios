@@ -86,7 +86,7 @@ export default function Layout({ children }) {
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
 
       {/* SIDEBAR DESKTOP */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white shadow-sm min-h-screen px-4 py-6 border-r border-gray-100">
+      <aside className="hidden lg:flex flex-col w-64 bg-white shadow-sm sticky top-0 h-screen overflow-y-auto px-4 py-6 border-r border-gray-100">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8 px-2">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
