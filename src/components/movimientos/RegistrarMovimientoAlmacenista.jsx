@@ -266,24 +266,22 @@ export default function RegistrarMovimientoAlmacenista() {
           </div>
 
           {/* Pedido (opcional) */}
-          {pedidos.length > 0 && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
-              </label>
-              <select
-                value={pedidoId}
-                onChange={e => setPedidoId(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                <option value="">Sin pedido asociado</option>
-                {pedidos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+              Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
+            <select
+              value={pedidoId}
+              onChange={e => setPedidoId(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+              <option value="">Sin pedido asociado</option>
+              {pedidos.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Productos */}
           <div>
