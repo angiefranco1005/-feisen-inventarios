@@ -151,6 +151,23 @@ useEffect(() => { cargar() }, [])
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
+
+      {/* Banner fijo sugerencia entrada */}
+      {pedidoRecienRecibido && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[999] w-[90vw] max-w-md bg-white border-2 border-green-400 rounded-2xl shadow-2xl px-5 py-4 flex items-center justify-between gap-4">
+          <p className="text-sm font-semibold text-green-700">✅ ¿Registrar entrada de almacén?</p>
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={() => setPedidoRecienRecibido(null)}
+              className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg">
+              Después
+            </button>
+            <button onClick={() => { const id = pedidoRecienRecibido; setPedidoRecienRecibido(null); navigate('/movimientos/nuevo', { state: { pedido_id: id } }) }}
+              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
+              Sí, registrar
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
         <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setModalNuevo(true) }}
@@ -230,22 +247,7 @@ useEffect(() => { cargar() }, [])
                 </div>
               )}
 
-              {/* Banner sugerencia entrada */}
-              {p.id === pedidoRecienRecibido && (
-                <div className="border-t border-green-200 bg-green-50 px-5 py-3 flex items-center justify-between gap-3">
-                  <p className="text-sm text-green-700 font-medium">✅ ¿Registrar entrada de almacén?</p>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => setPedidoRecienRecibido(null)}
-                      className="text-xs text-gray-500 px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      Después
-                    </button>
-                    <button onClick={() => { setPedidoRecienRecibido(null); navigate('/movimientos/nuevo', { state: { pedido_id: p.id, pedido_numero: p.numero } }) }}
-                      className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
-                      Registrar entrada
-                    </button>
-                  </div>
-                </div>
-              )}
+
             </div>
           )
         })}
