@@ -96,7 +96,7 @@ function SelectorProducto({ value, onSelect, productos }) {
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
           {filtrados.slice(0, 20).map(p => (
-            <button key={p.id} type="button" onMouseDown={() => { setBusqueda(p.nombre); setAbierto(false); onSelect(p.nombre, p.unidad_medida) }}
+            <button key={p.id} type="button" onMouseDown={() => { setBusqueda(p.nombre); setAbierto(false); onSelect(p.nombre, p.unidad_medida, p.id) }}
               className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 flex justify-between">
               <span className="font-medium text-gray-800">{p.nombre}</span>
               <span className="text-xs text-gray-400">{p.unidad_medida}</span>
@@ -125,7 +125,7 @@ export default function ListaPedidos() {
   const [confirmElim,   setConfirmElim]   = useState(null) // pedido a eliminar
 
   // Form nuevo pedido
-  const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
+  const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und', item_id: null }
   const [items, setItems]   = useState([{ ...ITEM0 }])
   const [obs,   setObs]     = useState('')
 
@@ -174,6 +174,7 @@ useEffect(() => { cargar() }, [])
         descripcion: i.descripcion,
         cantidad:    parseFloat(i.cantidad),
         unidad:      i.unidad,
+        item_id:     i.item_id || null,
       }))
     )
     if (err2) { setMsg({ tipo: 'error', texto: 'Error en items: ' + err2.message }); return }
@@ -206,7 +207,8 @@ useEffect(() => { cargar() }, [])
 
   async function confirmarRecibido() {
     const { pedido, conEntrada } = modalRecibido
-    // Guardar cantidad_recibida por ítem
+
+    // 1. Guardar cantidad_recibida por ítem
     await Promise.all(
       (pedido.pedido_items || []).map(it =>
         supabase.from('pedido_items')
@@ -214,21 +216,58 @@ useEffect(() => { cargar() }, [])
           .eq('id', it.id)
       )
     )
-    // Marcar pedido como recibido
+
+    // 2. Marcar pedido como recibido
     await supabase.from('pedidos')
       .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
       .eq('id', pedido.id)
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
     setModalRecibido(null)
+
+    // 3. Si "Recibido + Entrada", crear movimientos automáticamente
     if (conEntrada) {
-      const primerItem = pedido.pedido_items?.[0]
-      navigate('/movimientos/nuevo', {
-        state: {
-          pedido_id: pedido.id,
-          pedido_numero: pedido.numero,
-          cantidad_sugerida: parseFloat(cantRec[primerItem?.id]) || undefined,
+      const itemsConId = (pedido.pedido_items || []).filter(it => it.item_id && parseFloat(cantRec[it.id]) > 0)
+      if (itemsConId.length > 0) {
+        const { data: itemsData } = await supabase
+          .from('items')
+          .select('id, bodega_id, precio_costo, bodegas(nombre)')
+          .in('id', itemsConId.map(it => it.item_id))
+        const itemMap = {}
+        itemsData?.forEach(i => { itemMap[i.id] = i })
+
+        const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
+        const prefix = `MOV-${iniciales}-`
+        const { data: lastMov } = await supabase
+          .from('movimientos').select('numero').like('numero', `${prefix}%`)
+          .order('numero', { ascending: false }).limit(1).maybeSingle()
+        let lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
+
+        const payloads = []
+        for (const it of itemsConId) {
+          const info = itemMap[it.item_id]
+          if (!info) continue
+          lastNum++
+          payloads.push({
+            numero:                `${prefix}${String(lastNum).padStart(4, '0')}`,
+            tipo:                  'entrada',
+            item_id:               it.item_id,
+            bodega_destino_id:     info.bodega_id,
+            bodega_origen_id:      null,
+            cantidad:              parseFloat(cantRec[it.id]),
+            precio_costo_snapshot: info.precio_costo || 0,
+            centro_costo:          info.bodegas?.nombre || '',
+            usuario_id:            perfil.id,
+            pedido_id:             pedido.id,
+            proveedor: null, foto_remision_url: null, destino: null,
+            numero_of: null, serial_motor: null, referencia: null, motivo: null, cliente: null,
+          })
         }
-      })
+        if (payloads.length > 0) {
+          const { error } = await supabase.from('movimientos').insert(payloads)
+          if (error) setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al registrar entradas: ' + error.message })
+          else setMsg({ tipo: 'exito', texto: `✅ Recibido + ${payloads.length} entrada(s) registrada(s) automáticamente.` })
+        }
+      }
     }
   }
 
@@ -302,9 +341,9 @@ useEffect(() => { cargar() }, [])
             {items.map((it, idx) => (
               <div key={idx} className="flex gap-2 items-start">
                 <SelectorProducto value={it.descripcion} productos={productos}
-                  onSelect={(nombre, unidad) => {
+                  onSelect={(nombre, unidad, itemId) => {
                     const copia = [...items]
-                    copia[idx] = { ...copia[idx], descripcion: nombre, unidad: unidad || copia[idx].unidad }
+                    copia[idx] = { ...copia[idx], descripcion: nombre, unidad: unidad || copia[idx].unidad, item_id: itemId || null }
                     setItems(copia)
                   }} />
                 <input type="number" min="0.001" step="0.001" placeholder="Cant." value={it.cantidad}
