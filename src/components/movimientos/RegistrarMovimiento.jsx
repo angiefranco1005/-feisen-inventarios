@@ -130,6 +130,13 @@ export default function RegistrarMovimiento() {
     const { error: err } = await supabase.from('movimientos').insert(payload)
     setGuardando(false)
     if (err) { setError('Error: ' + err.message); return }
+
+    // Si la entrada tiene pedido asociado, marcarlo como recibido
+    if (form.tipo === 'entrada' && form.pedido_id) {
+      await supabase.from('pedidos')
+        .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
+        .eq('id', form.pedido_id)
+    }
     setExito(true)
     setTimeout(() => {
       setExito(false)
