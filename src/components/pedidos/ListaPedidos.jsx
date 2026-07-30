@@ -220,7 +220,7 @@ useEffect(() => { cargar() }, [])
     <div className="max-w-4xl mx-auto space-y-5">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
+        <h1 className="text-2xl font-bold text-feisen-azul">Pedidos v2</h1>
         <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setModalNuevo(true) }}
           className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
           <Plus size={18} /> Nuevo pedido
