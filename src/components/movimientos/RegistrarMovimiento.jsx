@@ -81,7 +81,7 @@ export default function RegistrarMovimiento() {
     const ext  = file.name.split('.').pop()
     const path = `remision_${Date.now()}.${ext}`
     const { error: uploadErr } = await supabase.storage.from('remisiones').upload(path, file)
-    if (uploadErr) { setError('Error al subir imagen.'); setSubiendo(false); return }
+    if (uploadErr) { setError('Error al subir imagen: ' + uploadErr.message); setSubiendo(false); return }
     const { data: { publicUrl } } = supabase.storage.from('remisiones').getPublicUrl(path)
     setForm(f => ({ ...f, foto_remision_url: publicUrl }))
     setSubiendo(false)
