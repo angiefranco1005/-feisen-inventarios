@@ -5,7 +5,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: 'bg-amber-100 text-amber-700',  icon: ShoppingCart },
@@ -21,9 +21,16 @@ const PRIORIDAD_CONFIG = {
 
 const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
 
+const HISTORIAL_LABELS = {
+  creado:       '✅ Pedido creado',
+  editado:      '✏️ Pedido editado',
+  en_transito:  '🚚 Marcado en tránsito',
+  recibido:     '📦 Recibido',
+}
+
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, onEliminar, onRecibido }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, onTransito, onEliminar, onRecibido, onEditar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
 
@@ -64,6 +71,16 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, on
               </button>
             </>
           )}
+          {puedeEditar && p.estado === 'pendiente' && (
+            <button onClick={() => onEditar(p)} title="Editar pedido"
+              className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg">
+              <Edit2 size={15} />
+            </button>
+          )}
+          <button onClick={() => onToggleHistorial(p.id)} title="Ver historial"
+            className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
+            <Clock size={15} />
+          </button>
           {esAdmin && (
             <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
               <Trash2 size={15} />
@@ -71,6 +88,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, on
           )}
         </div>
       </div>
+
       {p.pedido_items?.length > 0 && (
         <div className="border-t border-gray-50 px-5 py-3 space-y-1">
           {p.pedido_items.map((it, i) => (
@@ -81,6 +99,33 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, on
           ))}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+        </div>
+      )}
+
+      {historialAbierto && (
+        <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Historial de cambios</p>
+          {!historial ? (
+            <p className="text-xs text-gray-400">Cargando...</p>
+          ) : historial.length === 0 ? (
+            <p className="text-xs text-gray-400">Sin registros aún.</p>
+          ) : (
+            <div className="space-y-3">
+              {historial.map(h => (
+                <div key={h.id} className="flex items-start gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-feisen-azul mt-1.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700">{HISTORIAL_LABELS[h.accion] || h.accion}</p>
+                    {h.detalle && <p className="text-xs text-gray-500 mt-0.5">{h.detalle}</p>}
+                    <p className="text-xs text-gray-300 mt-0.5">
+                      {new Date(h.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
+                      {h.profiles?.nombre ? ` · ${h.profiles.nombre}` : ''}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -137,9 +182,20 @@ export default function ListaPedidos() {
   // Modales
   const [modalNuevo,    setModalNuevo]    = useState(false)
   const [modalTransito, setModalTransito] = useState(null)
-  const [modalRecibido, setModalRecibido] = useState(null) // { pedido, conEntrada }
+  const [modalRecibido, setModalRecibido] = useState(null)
   const [cantRec,       setCantRec]       = useState({})
-  const [confirmElim,   setConfirmElim]   = useState(null) // pedido a eliminar
+  const [confirmElim,   setConfirmElim]   = useState(null)
+  const [modalEditar,   setModalEditar]   = useState(null) // pedido que se edita
+
+  // Form edición
+  const [itemsEdit,     setItemsEdit]     = useState([])
+  const [obsEdit,       setObsEdit]       = useState('')
+  const [prioridadEdit, setPrioridadEdit] = useState('normal')
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+
+  // Historial
+  const [historialOpen, setHistorialOpen] = useState({}) // { pedidoId: bool }
+  const [historialData, setHistorialData] = useState({}) // { pedidoId: [] }
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und', item_id: null }
@@ -198,6 +254,8 @@ useEffect(() => { cargar() }, [])
     )
     if (err2) { setMsg({ tipo: 'error', texto: 'Error en items: ' + err2.message }); return }
 
+    await registrarHistorial(pedido.id, 'creado',
+      itemsValidos.map(i => `${i.descripcion} (${i.cantidad} ${i.unidad})`).join(', '))
     setModalNuevo(false)
     setItems([{ ...ITEM0 }])
     setObs('')
@@ -212,6 +270,7 @@ useEffect(() => { cargar() }, [])
       numero_oc: formTransito.numero_oc,
       fecha_estimada_llegada: formTransito.fecha_estimada || null,
     }).eq('id', modalTransito.id)
+    await registrarHistorial(modalTransito.id, 'en_transito', `OC: ${formTransito.numero_oc}`)
     setModalTransito(null)
     setFormTransito({ numero_oc: '', fecha_estimada: '' })
     cargar()
@@ -240,6 +299,8 @@ useEffect(() => { cargar() }, [])
     await supabase.from('pedidos')
       .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
       .eq('id', pedido.id)
+    await registrarHistorial(pedido.id, 'recibido',
+      conEntrada ? 'Recibido con entrada automática de inventario' : 'Recibido sin entrada de inventario')
     setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
     setModalRecibido(null)
 
@@ -287,6 +348,83 @@ useEffect(() => { cargar() }, [])
           else setMsg({ tipo: 'exito', texto: `✅ Recibido + ${payloads.length} entrada(s) registrada(s) automáticamente.` })
         }
       }
+    }
+  }
+
+  // ── Historial ──────────────────────────────────────────────
+  async function registrarHistorial(pedidoId, accion, detalle) {
+    await supabase.from('pedido_historial').insert({
+      pedido_id: pedidoId, usuario_id: perfil.id, accion, detalle: detalle || null,
+    })
+  }
+
+  async function toggleHistorial(pedidoId) {
+    const abierto = historialOpen[pedidoId]
+    setHistorialOpen(h => ({ ...h, [pedidoId]: !abierto }))
+    if (!abierto && !historialData[pedidoId]) {
+      setHistorialData(h => ({ ...h, [pedidoId]: null })) // null = cargando
+      const { data } = await supabase
+        .from('pedido_historial')
+        .select('*, profiles(nombre)')
+        .eq('pedido_id', pedidoId)
+        .order('created_at', { ascending: false })
+      setHistorialData(h => ({ ...h, [pedidoId]: data || [] }))
+    }
+  }
+
+  // ── Edición ────────────────────────────────────────────────
+  function abrirEditar(pedido) {
+    setItemsEdit((pedido.pedido_items || []).map(it => ({
+      descripcion: it.descripcion,
+      cantidad:    String(it.cantidad),
+      unidad:      it.unidad,
+      item_id:     it.item_id || null,
+    })))
+    setObsEdit(pedido.observaciones || '')
+    setPrioridadEdit(pedido.prioridad || 'normal')
+    setModalEditar(pedido)
+  }
+
+  async function guardarEdicion(e) {
+    e.preventDefault()
+    const validos = itemsEdit.filter(i => i.descripcion && parseFloat(i.cantidad) > 0)
+    if (validos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto.' }); return }
+    if (validos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
+    setGuardandoEdit(true)
+    try {
+      // Actualizar campos del pedido
+      await supabase.from('pedidos').update({
+        observaciones: obsEdit || null,
+        prioridad: prioridadEdit,
+      }).eq('id', modalEditar.id)
+
+      // Reemplazar items
+      await supabase.from('pedido_items').delete().eq('pedido_id', modalEditar.id)
+      await supabase.from('pedido_items').insert(
+        validos.map(i => ({
+          pedido_id:   modalEditar.id,
+          descripcion: i.descripcion,
+          cantidad:    parseFloat(i.cantidad),
+          unidad:      i.unidad,
+          item_id:     i.item_id || null,
+        }))
+      )
+
+      // Armar detalle del cambio
+      const itemsAntes = (modalEditar.pedido_items || []).map(i => `${i.descripcion} (${i.cantidad})`).join(', ')
+      const itemsDespues = validos.map(i => `${i.descripcion} (${i.cantidad})`).join(', ')
+      const detalle = itemsAntes !== itemsDespues
+        ? `Productos: ${itemsDespues}`
+        : `Prioridad/observaciones actualizadas`
+
+      await registrarHistorial(modalEditar.id, 'editado', detalle)
+
+      // Invalidar historial cacheado para que recargue
+      setHistorialData(h => ({ ...h, [modalEditar.id]: undefined }))
+      setModalEditar(null)
+      cargar()
+    } finally {
+      setGuardandoEdit(false)
     }
   }
 
@@ -351,9 +489,14 @@ useEffect(() => { cargar() }, [])
             esAdmin={esAdmin}
             puedeTransito={esAdmin || esLogistica}
             puedeRecibir={esAdmin || esAlmacenista || (esLogistica && p.usuario_id === perfil?.id)}
+            puedeEditar={esAdmin || p.usuario_id === perfil?.id}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onRecibido={iniciarRecibido}
+            onEditar={abrirEditar}
+            onToggleHistorial={toggleHistorial}
+            historialAbierto={!!historialOpen[p.id]}
+            historial={historialData[p.id]}
           />
         ))}
       </div>
@@ -484,6 +627,71 @@ useEffect(() => { cargar() }, [])
                 className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit"
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Confirmar</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* MODAL EDITAR PEDIDO */}
+      {modalEditar && (
+        <Modal titulo={`Editar ${modalEditar.numero}`} onCerrar={() => setModalEditar(null)}>
+          <form onSubmit={guardarEdicion} className="space-y-4">
+            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+            {itemsEdit.map((it, idx) => (
+              <div key={idx} className="flex gap-2 items-start">
+                <SelectorProducto value={it.descripcion} productos={productos}
+                  onSelect={(nombre, unidad, itemId) => {
+                    const c = [...itemsEdit]
+                    c[idx] = { ...c[idx], descripcion: nombre, unidad: unidad || c[idx].unidad, item_id: itemId || null }
+                    setItemsEdit(c)
+                  }} />
+                <input type="number" min="0.001" step="0.001" placeholder="Cant." value={it.cantidad}
+                  onChange={e => { const c = [...itemsEdit]; c[idx].cantidad = e.target.value; setItemsEdit(c) }}
+                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                <select value={it.unidad} onChange={e => { const c = [...itemsEdit]; c[idx].unidad = e.target.value; setItemsEdit(c) }}
+                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                {itemsEdit.length > 1 && (
+                  <button type="button" onClick={() => setItemsEdit(itemsEdit.filter((_, i) => i !== idx))}
+                    className="p-2 text-gray-400 hover:text-feisen-rojo">✕</button>
+                )}
+              </div>
+            ))}
+
+            <button type="button" onClick={() => setItemsEdit([...itemsEdit, { ...ITEM0 }])}
+              className="text-sm text-feisen-azul font-medium flex items-center gap-1 hover:underline">
+              <Plus size={14} /> Agregar otro producto
+            </button>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Prioridad</label>
+              <div className="flex gap-2">
+                {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
+                  <button key={val} type="button" onClick={() => setPrioridadEdit(val)}
+                    className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium border transition-colors
+                      ${prioridadEdit === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
+              <textarea value={obsEdit} onChange={e => setObsEdit(e.target.value)} rows={2}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
+                placeholder="Especificaciones, referencias, etc." />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModalEditar(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="submit" disabled={guardandoEdit}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
+              </button>
             </div>
           </form>
         </Modal>
