@@ -16,13 +16,12 @@ const ESTADO_CONFIG = {
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
 function TarjetaPedido({ p, esAdmin, onTransito, onEliminar, onRecibido }) {
-  const [confirmando, setConfirmando] = useState(false)
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 flex items-center justify-between gap-3">
+      <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <Ico size={20} className={p.estado === 'pendiente' ? 'text-amber-500' : p.estado === 'en_transito' ? 'text-blue-500' : 'text-green-500'} />
           <div>
@@ -32,33 +31,25 @@ function TarjetaPedido({ p, esAdmin, onTransito, onEliminar, onRecibido }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
           {p.estado === 'pendiente' && esAdmin && (
             <button onClick={() => onTransito(p)}
-              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
+              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
               En tránsito
             </button>
           )}
           {p.estado === 'en_transito' && esAdmin && (
-            confirmando ? (
-              <div className="flex gap-1.5 items-center">
-                <span className="text-xs text-gray-600 font-medium">¿Crear entrada?</span>
-                <button onClick={() => { setConfirmando(false); onRecibido(p, true) }}
-                  className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-semibold">
-                  Sí
-                </button>
-                <button onClick={() => { setConfirmando(false); onRecibido(p, false) }}
-                  className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
-                  No
-                </button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmando(true)}
-                className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
-                Recibido
+            <>
+              <button onClick={() => onRecibido(p, true)}
+                className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium">
+                ✅ Recibido + Entrada
               </button>
-            )
+              <button onClick={() => onRecibido(p, false)}
+                className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
+                Solo recibir
+              </button>
+            </>
           )}
           {esAdmin && (
             <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
@@ -220,7 +211,7 @@ useEffect(() => { cargar() }, [])
     <div className="max-w-4xl mx-auto space-y-5">
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-feisen-azul">Pedidos v2</h1>
+        <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
         <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setModalNuevo(true) }}
           className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
           <Plus size={18} /> Nuevo pedido
