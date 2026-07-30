@@ -15,6 +15,74 @@ const ESTADO_CONFIG = {
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
+function TarjetaPedido({ p, esAdmin, onTransito, onEliminar, onRecibido }) {
+  const [confirmando, setConfirmando] = useState(false)
+  const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
+  const Ico = ec.icon
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-5 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Ico size={20} className={p.estado === 'pendiente' ? 'text-amber-500' : p.estado === 'en_transito' ? 'text-blue-500' : 'text-green-500'} />
+          <div>
+            <p className="font-bold text-gray-800">{p.numero}</p>
+            <p className="text-xs text-gray-400">
+              {new Date(p.created_at).toLocaleDateString('es-CO')} · {p.profiles?.nombre}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
+          {p.estado === 'pendiente' && esAdmin && (
+            <button onClick={() => onTransito(p)}
+              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
+              En tránsito
+            </button>
+          )}
+          {p.estado === 'en_transito' && esAdmin && (
+            confirmando ? (
+              <div className="flex gap-1.5 items-center">
+                <span className="text-xs text-gray-600 font-medium">¿Crear entrada?</span>
+                <button onClick={() => { setConfirmando(false); onRecibido(p, true) }}
+                  className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-semibold">
+                  Sí
+                </button>
+                <button onClick={() => { setConfirmando(false); onRecibido(p, false) }}
+                  className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
+                  No
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmando(true)}
+                className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
+                Recibido
+              </button>
+            )
+          )}
+          {esAdmin && (
+            <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
+      </div>
+      {p.pedido_items?.length > 0 && (
+        <div className="border-t border-gray-50 px-5 py-3 space-y-1">
+          {p.pedido_items.map((it, i) => (
+            <div key={i} className="flex justify-between text-sm">
+              <span className="text-gray-600">{it.descripcion}</span>
+              <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
+            </div>
+          ))}
+          {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
+          {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SelectorProducto({ value, onSelect, productos }) {
   const [busqueda, setBusqueda] = useState(value || '')
   const [abierto,  setAbierto]  = useState(false)
@@ -59,9 +127,8 @@ export default function ListaPedidos() {
   const [msg,       setMsg]       = useState(null)
 
   // Modales
-  const [modalNuevo,           setModalNuevo]           = useState(false)
-  const [modalTransito,        setModalTransito]         = useState(null)
-  const [confirmandoRecibido,  setConfirmandoRecibido]   = useState(null)
+  const [modalNuevo,    setModalNuevo]    = useState(false)
+  const [modalTransito, setModalTransito] = useState(null)
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und' }
@@ -180,75 +247,16 @@ useEffect(() => { cargar() }, [])
             <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
             <p>No hay pedidos{filtro !== 'todos' ? ' en este estado' : ''}.</p>
           </div>
-        ) : pedidosFiltrados.map(p => {
-          const ec  = ESTADO_CONFIG[p.estado]
-          const Ico = ec.icon
-          return (
-            <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Ico size={20} className={p.estado === 'pendiente' ? 'text-amber-500' : p.estado === 'en_transito' ? 'text-blue-500' : 'text-green-500'} />
-                  <div>
-                    <p className="font-bold text-gray-800">{p.numero}</p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(p.created_at).toLocaleDateString('es-CO')} · {p.profiles?.nombre}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
-                  {p.estado === 'pendiente' && esAdmin && (
-                    <button onClick={() => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(p) }}
-                      className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
-                      En tránsito
-                    </button>
-                  )}
-                  {p.estado === 'en_transito' && esAdmin && (
-                    confirmandoRecibido === p.id ? (
-                      <div className="flex gap-1.5 items-center">
-                        <span className="text-xs text-gray-500 hidden sm:block">¿Entrada?</span>
-                        <button onClick={() => { setConfirmandoRecibido(null); marcarRecibido(p, true) }}
-                          className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
-                          Sí
-                        </button>
-                        <button onClick={() => { setConfirmandoRecibido(null); marcarRecibido(p, false) }}
-                          className="text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setConfirmandoRecibido(p.id)}
-                        className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:opacity-90">
-                        Recibido
-                      </button>
-                    )
-                  )}
-                  {esAdmin && (
-                    <button onClick={() => eliminarPedido(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Items del pedido */}
-              {p.pedido_items?.length > 0 && (
-                <div className="border-t border-gray-50 px-5 py-3 space-y-1">
-                  {p.pedido_items.map((it, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span className="text-gray-600">{it.descripcion}</span>
-                      <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
-                    </div>
-                  ))}
-                  {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
-                  {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
-                </div>
-              )}
-
-
-            </div>
-          )
-        })}
+        ) : pedidosFiltrados.map(p => (
+          <TarjetaPedido
+            key={p.id}
+            p={p}
+            esAdmin={esAdmin}
+            onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
+            onEliminar={eliminarPedido}
+            onRecibido={marcarRecibido}
+          />
+        ))}
       </div>
 
       {/* MODAL NUEVO PEDIDO */}
