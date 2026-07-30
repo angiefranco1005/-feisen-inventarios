@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, PackagePlus } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: 'bg-amber-100 text-amber-700',  icon: ShoppingCart },
@@ -50,6 +51,7 @@ function SelectorProducto({ value, onSelect, productos }) {
 
 export default function ListaPedidos() {
   const { perfil, esAdmin } = useAuth()
+  const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
   const [cargando,  setCargando]  = useState(true)
@@ -67,6 +69,9 @@ export default function ListaPedidos() {
 
   // Form tránsito
   const [formTransito, setFormTransito] = useState({ numero_oc: '', fecha_estimada: '' })
+
+  // Sugerencia entrada tras recibir
+  const [sugerirEntrada, setSugerirEntrada] = useState(null)
 
   useEffect(() => { cargar() }, [])
 
@@ -133,6 +138,7 @@ export default function ListaPedidos() {
   async function marcarRecibido(pedido) {
     await supabase.from('pedidos').update({ estado: 'recibido', fecha_recibido: new Date().toISOString() }).eq('id', pedido.id)
     cargar()
+    setSugerirEntrada(pedido)
   }
 
   async function eliminarPedido(pedido) {
@@ -278,6 +284,42 @@ export default function ListaPedidos() {
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Crear pedido</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* MODAL SUGERENCIA ENTRADA */}
+      {sugerirEntrada && (
+        <Modal titulo="Pedido recibido ✅" onCerrar={() => setSugerirEntrada(null)}>
+          <div className="space-y-4">
+            <div className="bg-green-50 rounded-xl p-4 text-sm space-y-1">
+              <p className="font-semibold text-green-700">Pedido {sugerirEntrada.numero} marcado como recibido.</p>
+              {sugerirEntrada.pedido_items?.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {sugerirEntrada.pedido_items.map((it, i) => (
+                    <li key={i} className="text-gray-600 flex justify-between">
+                      <span>{it.descripcion}</span>
+                      <span className="font-medium">{it.cantidad} {it.unidad}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="text-sm text-gray-600">¿Quieres registrar la entrada al almacén ahora?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setSugerirEntrada(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Después
+              </button>
+              <button
+                onClick={() => {
+                  setSugerirEntrada(null)
+                  navigate('/movimientos/nuevo', { state: { pedido_id: sugerirEntrada.id, pedido_numero: sugerirEntrada.numero } })
+                }}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90">
+                <PackagePlus size={16} /> Registrar entrada
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

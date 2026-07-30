@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { CheckCircle, Search, Upload, FileImage } from 'lucide-react'
@@ -13,6 +13,7 @@ const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
 export default function RegistrarMovimiento() {
   const { perfil, esAdmin } = useAuth()
   const [searchParams] = useSearchParams()
+  const location          = useLocation()
   const tipoInicial       = searchParams.get('tipo') || ''
   const tiposDisponibles  = TIPOS[perfil?.rol] || []
 
@@ -28,6 +29,8 @@ export default function RegistrarMovimiento() {
   const [exito,          setExito]          = useState(false)
   const [error,          setError]          = useState('')
 
+  const pedidoDesdeNav = location.state?.pedido_id || ''
+
   const [form, setForm] = useState({
     tipo:              tiposDisponibles.includes(tipoInicial) ? tipoInicial : (tiposDisponibles[0] || 'entrada'),
     item_id:           '',
@@ -39,7 +42,7 @@ export default function RegistrarMovimiento() {
     numero_of:         '',
     serial_motor:      '',
     proveedor:         '',
-    pedido_id:         '',
+    pedido_id:         pedidoDesdeNav,
     foto_remision_url: '',
   })
 
@@ -48,7 +51,7 @@ export default function RegistrarMovimiento() {
       const [{ data: bods }, { data: its }, { data: peds }] = await Promise.all([
         supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
         supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre'),
-        supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }),
+        supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito', 'recibido']).order('created_at', { ascending: false }).limit(50),
       ])
       setBodegas(bods || [])
       setItems(its || [])
