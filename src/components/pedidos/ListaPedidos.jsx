@@ -13,6 +13,14 @@ const ESTADO_CONFIG = {
   recibido:     { label: 'Recibido',     color: 'bg-green-100 text-green-700',  icon: CheckCircle  },
 }
 
+const PRIORIDAD_CONFIG = {
+  urgente:       { label: '🔴 Urgente',       color: 'bg-red-100 text-red-700 border border-red-200'     },
+  normal:        { label: '🔵 Normal',         color: 'bg-blue-50 text-blue-700 border border-blue-200'   },
+  puede_esperar: { label: '🟢 Puede esperar',  color: 'bg-green-50 text-green-700 border border-green-200' },
+}
+
+const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
+
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, onEliminar, onRecibido }) {
@@ -33,6 +41,11 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, onTransito, on
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
+          {p.prioridad && PRIORIDAD_CONFIG[p.prioridad] && (
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${PRIORIDAD_CONFIG[p.prioridad].color}`}>
+              {PRIORIDAD_CONFIG[p.prioridad].label}
+            </span>
+          )}
           {p.estado === 'pendiente' && puedeTransito && (
             <button onClick={() => onTransito(p)}
               className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
@@ -130,8 +143,9 @@ export default function ListaPedidos() {
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und', item_id: null }
-  const [items, setItems]   = useState([{ ...ITEM0 }])
-  const [obs,   setObs]     = useState('')
+  const [items,     setItems]     = useState([{ ...ITEM0 }])
+  const [obs,       setObs]       = useState('')
+  const [prioridad, setPrioridad] = useState('normal')
 
   // Form tránsito
   const [formTransito, setFormTransito] = useState({ numero_oc: '', fecha_estimada: '' })
@@ -169,7 +183,7 @@ useEffect(() => { cargar() }, [])
 
     const numero = await generarNumero()
     const { data: pedido, error: err1 } = await supabase.from('pedidos').insert({
-      numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id
+      numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id, prioridad,
     }).select().single()
     if (err1) { setMsg({ tipo: 'error', texto: 'Error: ' + err1.message }); return }
 
@@ -287,7 +301,9 @@ useEffect(() => { cargar() }, [])
     cargar()
   }
 
-  const pedidosFiltrados = pedidos.filter(p => filtro === 'todos' || p.estado === filtro)
+  const pedidosFiltrados = pedidos
+    .filter(p => filtro === 'todos' || p.estado === filtro)
+    .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1))
 
   if (cargando) return <Spinner texto="Cargando pedidos..." />
 
@@ -296,7 +312,7 @@ useEffect(() => { cargar() }, [])
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
-        <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setModalNuevo(true) }}
+        <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setModalNuevo(true) }}
           className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
           <Plus size={18} /> Nuevo pedido
         </button>
@@ -338,7 +354,7 @@ useEffect(() => { cargar() }, [])
 
       {/* MODAL NUEVO PEDIDO */}
       {modalNuevo && (
-        <Modal titulo="Nuevo pedido" onCerrar={() => setModalNuevo(false)}>
+        <Modal titulo="Nuevo pedido" onCerrar={() => { setModalNuevo(false); setPrioridad('normal') }}>
           <form onSubmit={crearPedido} className="space-y-4">
             {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
             <p className="text-sm text-gray-500">Agrega los productos que necesitas solicitar.</p>
@@ -371,10 +387,23 @@ useEffect(() => { cargar() }, [])
             </button>
 
             <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Prioridad</label>
+              <div className="flex gap-2">
+                {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
+                  <button key={val} type="button" onClick={() => setPrioridad(val)}
+                    className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium border transition-colors
+                      ${prioridad === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
-                placeholder="Urgencia, especificaciones, etc." />
+                placeholder="Especificaciones, referencias, etc." />
             </div>
 
             <div className="flex gap-3 pt-1">
