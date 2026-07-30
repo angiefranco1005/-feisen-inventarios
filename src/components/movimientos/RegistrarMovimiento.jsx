@@ -110,8 +110,10 @@ export default function RegistrarMovimiento() {
 
     const item = items.find(i => i.id === form.item_id)
 
-    const { count } = await supabase.from('movimientos').select('*', { count: 'exact', head: true })
-    const numero = `MOV-${String((count || 0) + 1).padStart(4, '0')}`
+    const { data: lastMov } = await supabase
+      .from('movimientos').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle()
+    const lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace('MOV-', ''), 10) : 0
+    const numero = `MOV-${String(lastNum + 1).padStart(4, '0')}`
 
     const payload = {
       numero,
