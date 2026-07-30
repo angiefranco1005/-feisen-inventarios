@@ -5,9 +5,9 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { Plus, Edit2, Trash2, Users, Warehouse, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
 
-const ROLES       = ['ADMIN', 'LOGISTICA', 'CONSULTOR']
-const ROLES_LABEL = { ADMIN: 'Administrador', LOGISTICA: 'Logística', CONSULTOR: 'Consultor' }
-const BADGE       = { ADMIN: 'bg-feisen-rojo text-white', LOGISTICA: 'bg-feisen-azul text-white', CONSULTOR: 'bg-gray-500 text-white' }
+const ROLES       = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'CONSULTOR']
+const ROLES_LABEL = { ADMIN: 'Administrador', LOGISTICA: 'Logística', ALMACENISTA: 'Almacenista', CONSULTOR: 'Consultor' }
+const BADGE       = { ADMIN: 'bg-feisen-rojo text-white', LOGISTICA: 'bg-feisen-azul text-white', ALMACENISTA: 'bg-emerald-600 text-white', CONSULTOR: 'bg-gray-500 text-white' }
 
 // ─── SECCIÓN BODEGAS ──────────────────────────────────────────────────────────
 function SeccionBodegas() {

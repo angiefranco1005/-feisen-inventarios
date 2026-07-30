@@ -47,8 +47,8 @@ function AppRoutes() {
     )
   }
 
-  // LOGISTICA
-  if (esRol(perfil, 'LOGISTICA')) {
+  // LOGISTICA y ALMACENISTA — mismo conjunto de rutas
+  if (esRol(perfil, 'LOGISTICA') || esRol(perfil, 'ALMACENISTA')) {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />

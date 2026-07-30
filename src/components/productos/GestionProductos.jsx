@@ -10,7 +10,7 @@ const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galó
 
 export default function GestionProductos() {
   const { perfil, esAdmin, bodegasPermitidas } = useAuth()
-  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA'
+  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA'
 
   const [items,      setItems]      = useState([])
   const [categorias, setCategorias] = useState([])
