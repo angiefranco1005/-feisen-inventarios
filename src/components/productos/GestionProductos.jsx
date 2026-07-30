@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
@@ -184,12 +184,18 @@ export default function GestionProductos() {
     <div className="max-w-5xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Productos</h1>
-        {puedeEditar && (
-          <button onClick={abrirNuevo}
-            className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90 transition-opacity">
-            <Plus size={18} /> Nuevo producto
+        <div className="flex items-center gap-2">
+          <button onClick={cargar} title="Refrescar"
+            className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+            <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
           </button>
-        )}
+          {puedeEditar && (
+            <button onClick={abrirNuevo}
+              className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90 transition-opacity">
+              <Plus size={18} /> Nuevo producto
+            </button>
+          )}
+        </div>
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}

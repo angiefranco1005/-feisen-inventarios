@@ -5,7 +5,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2 } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: 'bg-amber-100 text-amber-700',  icon: ShoppingCart },
@@ -312,10 +312,16 @@ useEffect(() => { cargar() }, [])
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
-        <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setModalNuevo(true) }}
-          className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
-          <Plus size={18} /> Nuevo pedido
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={cargar} title="Refrescar"
+            className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+            <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setModalNuevo(true) }}
+            className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
+            <Plus size={18} /> Nuevo pedido
+          </button>
+        </div>
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}

@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Search, ArrowUpDown, RotateCcw, Trash2 } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw } from 'lucide-react'
 
 const TIPO_CONFIG = {
   entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
@@ -135,7 +135,13 @@ export default function Historial() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold text-feisen-azul">Historial de movimientos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-feisen-azul">Historial de movimientos</h1>
+        <button onClick={cargar} title="Refrescar"
+          className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+          <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+        </button>
+      </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
