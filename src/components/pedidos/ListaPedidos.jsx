@@ -87,9 +87,13 @@ function SelectorProducto({ value, onSelect, productos }) {
       <div className="relative">
         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
         <input required value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onSelect('', '') }}
+          onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onSelect('', '', null) }}
           onFocus={() => setAbierto(true)}
-          onBlur={() => setTimeout(() => setAbierto(false), 150)}
+          onBlur={() => setTimeout(() => {
+            setAbierto(false)
+            const coincide = productos.some(p => p.nombre === busqueda)
+            if (busqueda && !coincide) { setBusqueda(''); onSelect('', '', null) }
+          }, 150)}
           placeholder="Buscar producto..."
           className="w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
       </div>
@@ -161,6 +165,7 @@ useEffect(() => { cargar() }, [])
     setMsg(null)
     const itemsValidos = items.filter(i => i.descripcion && parseFloat(i.cantidad) > 0)
     if (itemsValidos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto con cantidad.' }); return }
+    if (itemsValidos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
 
     const numero = await generarNumero()
     const { data: pedido, error: err1 } = await supabase.from('pedidos').insert({
