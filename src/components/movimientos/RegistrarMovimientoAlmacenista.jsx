@@ -56,6 +56,47 @@ function SelectorItem({ value, items, onSelect }) {
   )
 }
 
+// ── Input con sugerencias guardadas en localStorage ───────────────────────
+function InputConSugerencias({ value, onChange, placeholder, storageKey, colorRing = 'feisen-azul' }) {
+  const [open, setOpen] = useState(false)
+  const sugerencias = JSON.parse(localStorage.getItem(storageKey) || '[]')
+  const filtradas = value.trim()
+    ? sugerencias.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s.toLowerCase() !== value.toLowerCase())
+    : sugerencias
+
+  return (
+    <div className="relative">
+      <input
+        type="text" required
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className={`w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-${colorRing}`}
+      />
+      {open && filtradas.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+          {filtradas.map((s, i) => (
+            <button key={i} type="button"
+              onMouseDown={() => { onChange(s); setOpen(false) }}
+              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 border-b last:border-0 flex items-center gap-2">
+              <span className="text-gray-300 text-xs">↩</span>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function guardarSugerencia(key, valor) {
+  const existentes = JSON.parse(localStorage.getItem(key) || '[]')
+  const nuevas = [valor, ...existentes.filter(s => s !== valor)].slice(0, 30)
+  localStorage.setItem(key, JSON.stringify(nuevas))
+}
+
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
@@ -138,6 +179,7 @@ export default function RegistrarMovimientoAlmacenista() {
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
+      guardarSugerencia('feisen_proveedores', proveedor.trim())
       setExito(true)
       setTimeout(() => {
         setExito(false)
@@ -181,6 +223,7 @@ export default function RegistrarMovimientoAlmacenista() {
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
+      guardarSugerencia('feisen_receptores', receptor.trim())
       setExito(true)
       setTimeout(() => {
         setExito(false)
@@ -256,12 +299,12 @@ export default function RegistrarMovimientoAlmacenista() {
           {/* Proveedor */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Proveedor *</label>
-            <input
-              type="text" required
+            <InputConSugerencias
               value={proveedor}
-              onChange={e => setProveedor(e.target.value)}
+              onChange={setProveedor}
               placeholder="Nombre del proveedor"
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              storageKey="feisen_proveedores"
+              colorRing="feisen-azul"
             />
           </div>
 
@@ -335,12 +378,12 @@ export default function RegistrarMovimientoAlmacenista() {
           {/* Recibido por */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
-            <input
-              type="text" required
+            <InputConSugerencias
               value={receptor}
-              onChange={e => setReceptor(e.target.value)}
+              onChange={setReceptor}
               placeholder="Nombre de quien recibe"
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+              storageKey="feisen_receptores"
+              colorRing="feisen-rojo"
             />
           </div>
 
