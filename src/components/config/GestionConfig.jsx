@@ -3,11 +3,18 @@ import { supabase } from '../../lib/supabase'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Edit2, Trash2, Users, Warehouse, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, Warehouse, Tag, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
 
-const ROLES       = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'CONSULTOR']
-const ROLES_LABEL = { ADMIN: 'Administrador', LOGISTICA: 'Logística', ALMACENISTA: 'Almacenista', CONSULTOR: 'Consultor' }
-const BADGE       = { ADMIN: 'bg-feisen-rojo text-white', LOGISTICA: 'bg-feisen-azul text-white', ALMACENISTA: 'bg-emerald-600 text-white', CONSULTOR: 'bg-gray-500 text-white' }
+const ROLES_SISTEMA = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'CONSULTOR'] // no se pueden borrar
+const COLORES_ROL = [
+  { label: 'Rojo Feisen',  value: 'bg-feisen-rojo text-white' },
+  { label: 'Azul Feisen',  value: 'bg-feisen-azul text-white' },
+  { label: 'Verde',        value: 'bg-emerald-600 text-white' },
+  { label: 'Naranja',      value: 'bg-orange-600 text-white'  },
+  { label: 'Morado',       value: 'bg-purple-600 text-white'  },
+  { label: 'Amarillo',     value: 'bg-yellow-500 text-white'  },
+  { label: 'Gris',         value: 'bg-gray-500 text-white'    },
+]
 
 // ─── SECCIÓN BODEGAS ──────────────────────────────────────────────────────────
 function SeccionBodegas() {
@@ -213,15 +220,121 @@ function SeccionCategorias() {
   )
 }
 
+// ─── SECCIÓN ROLES ────────────────────────────────────────────────────────────
+function SeccionRoles() {
+  const [roles,    setRoles]    = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [modal,    setModal]    = useState(false)
+  const [form,     setForm]     = useState({ nombre: '', label: '', color: COLORES_ROL[3].value })
+  const [msg,      setMsg]      = useState(null)
+  const [guardando,setGuardando]= useState(false)
+
+  useEffect(() => { cargar() }, [])
+
+  async function cargar() {
+    setCargando(true)
+    const { data } = await supabase.from('roles').select('*').order('created_at')
+    setRoles(data || [])
+    setCargando(false)
+  }
+
+  function abrir() {
+    setForm({ nombre: '', label: '', color: COLORES_ROL[3].value })
+    setMsg(null); setModal(true)
+  }
+
+  async function guardar(e) {
+    e.preventDefault(); setMsg(null); setGuardando(true)
+    const nombre = form.nombre.toUpperCase().replace(/\s+/g, '_')
+    const { error } = await supabase.from('roles').insert({ nombre, label: form.label, color: form.color })
+    if (error) { setMsg({ tipo: 'error', texto: error.message.includes('unique') ? 'Ya existe un rol con ese nombre.' : error.message }); setGuardando(false); return }
+    setModal(false); setGuardando(false); cargar()
+  }
+
+  async function eliminar(r) {
+    const { error } = await supabase.from('roles').delete().eq('id', r.id)
+    if (error) setMsg({ tipo: 'error', texto: 'No se puede eliminar: hay usuarios con este rol.' })
+    else cargar()
+  }
+
+  if (cargando) return <Spinner />
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Shield size={18} className="text-feisen-azul" /> Roles</h2>
+        <button onClick={abrir}
+          className="flex items-center gap-1 bg-feisen-azul text-white px-3 py-1.5 rounded-xl text-sm font-medium hover:opacity-90">
+          <Plus size={15} /> Nuevo
+        </button>
+      </div>
+      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+      <div className="space-y-2">
+        {roles.map(r => (
+          <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+            <div className="flex items-center gap-3">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${r.color}`}>{r.label}</span>
+              <span className="text-xs text-gray-400 font-mono">{r.nombre}</span>
+              {ROLES_SISTEMA.includes(r.nombre) && <span className="text-xs text-gray-300">sistema</span>}
+            </div>
+            {!ROLES_SISTEMA.includes(r.nombre) && (
+              <button onClick={() => eliminar(r)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+            )}
+          </div>
+        ))}
+      </div>
+      {modal && (
+        <Modal titulo="Nuevo rol" onCerrar={() => setModal(false)}>
+          <form onSubmit={guardar} className="space-y-4">
+            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre del rol *</label>
+              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-mono uppercase"
+                placeholder="Ej: JEFE_MECANIZADOS" />
+              <p className="text-xs text-gray-400 mt-1">Se guardará en mayúsculas con guion bajo.</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre visible *</label>
+              <input required value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                placeholder="Ej: Jefe Mecanizados" />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Color de la etiqueta</label>
+              <div className="flex flex-wrap gap-2">
+                {COLORES_ROL.map(c => (
+                  <button key={c.value} type="button"
+                    onClick={() => setForm(f => ({ ...f, color: c.value }))}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border-2 transition-all ${c.value} ${form.color === c.value ? 'border-gray-800 scale-110' : 'border-transparent'}`}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">
+                {guardando ? 'Guardando...' : 'Crear rol'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 // ─── SECCIÓN USUARIOS ─────────────────────────────────────────────────────────
 function SeccionUsuarios() {
   const [usuarios,      setUsuarios]      = useState([])
   const [todasBodegas,  setTodasBodegas]  = useState([])
+  const [todosRoles,    setTodosRoles]    = useState([])
   const [cargando,      setCargando]      = useState(true)
   const [modal,         setModal]         = useState(false)
   const [editando,      setEditando]      = useState(null)
   const [form,          setForm]          = useState({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
-  const [bodegasSelec,  setBodegasSelec]  = useState([]) // IDs de bodegas asignadas al usuario en edición
+  const [bodegasSelec,  setBodegasSelec]  = useState([])
   const [msg,           setMsg]           = useState(null)
   const [guardando,     setGuardando]     = useState(false)
 
@@ -229,12 +342,14 @@ function SeccionUsuarios() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data: us }, { data: bs }] = await Promise.all([
+    const [{ data: us }, { data: bs }, { data: rs }] = await Promise.all([
       supabase.from('profiles').select('*').order('nombre'),
       supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('roles').select('*').order('created_at'),
     ])
     setUsuarios(us || [])
     setTodasBodegas(bs || [])
+    setTodosRoles(rs || [])
     setCargando(false)
   }
 
@@ -336,9 +451,11 @@ function SeccionUsuarios() {
                 <div>
                   <p className="font-medium text-gray-800 text-sm">{u.nombre}</p>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[u.rol] || 'bg-gray-200 text-gray-600'}`}>
-                      {ROLES_LABEL[u.rol] || u.rol}
-                    </span>
+                    {(() => { const r = todosRoles.find(x => x.nombre === u.rol); return (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r?.color || 'bg-gray-200 text-gray-600'}`}>
+                        {r?.label || u.rol}
+                      </span>
+                    )})()}
                     {u.rol !== 'ADMIN' && (
                       bodegas.length > 0
                         ? bodegas.map(nb => (
@@ -387,7 +504,7 @@ function SeccionUsuarios() {
               <label className="text-sm font-medium text-gray-700 block mb-1">Rol *</label>
               <select required value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-                {ROLES.map(r => <option key={r} value={r}>{ROLES_LABEL[r]}</option>)}
+                {todosRoles.map(r => <option key={r.nombre} value={r.nombre}>{r.label}</option>)}
               </select>
             </div>
 
@@ -432,6 +549,7 @@ function SeccionUsuarios() {
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 const TABS = [
   { id: 'usuarios',   label: 'Usuarios',   icon: Users    },
+  { id: 'roles',      label: 'Roles',      icon: Shield   },
   { id: 'bodegas',    label: 'Bodegas',    icon: Warehouse },
   { id: 'categorias', label: 'Categorías', icon: Tag      },
 ]
@@ -458,6 +576,7 @@ export default function GestionConfig() {
       </div>
 
       {tab === 'usuarios'   && <SeccionUsuarios />}
+      {tab === 'roles'      && <SeccionRoles />}
       {tab === 'bodegas'    && <SeccionBodegas />}
       {tab === 'categorias' && <SeccionCategorias />}
     </div>
