@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 
 const DESTINOS = ['Producción y ensamble', 'Venta externa', 'Otro']
-const PROD0    = { item_id: '', item_nombre: '', unidad: '', cantidad: '' }
+const PROD0    = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
 
 // ── Selector de producto con búsqueda ──────────────────────────────────────
 function SelectorItem({ value, items, onSelect }) {
@@ -115,16 +115,18 @@ function agruparProductos(lista) {
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
 
-  const [tipo,     setTipo]     = useState('entrada')
-  const [items,    setItems]    = useState([])
-  const [bodega,   setBodega]   = useState(null)
-  const [cargando, setCargando] = useState(true)
-  const [guardando,setGuardando]= useState(false)
-  const [exito,    setExito]    = useState(false)
-  const [error,    setError]    = useState('')
+  const [tipo,        setTipo]        = useState('entrada')
+  const [tipoEntrada, setTipoEntrada] = useState('compra') // 'compra' | 'produccion'
+  const [items,       setItems]       = useState([])
+  const [bodega,      setBodega]      = useState(null)
+  const [cargando,    setCargando]    = useState(true)
+  const [guardando,   setGuardando]   = useState(false)
+  const [exito,       setExito]       = useState(false)
+  const [error,       setError]       = useState('')
 
   // ── Estado ENTRADA ──
   const [proveedor,  setProveedor]  = useState('')
+  const [colada,     setColada]     = useState('')
   const [productos,  setProductos]  = useState([{ ...PROD0 }])
   const [pedidos,    setPedidos]    = useState([])
   const [pedidoId,   setPedidoId]   = useState('')
@@ -134,13 +136,15 @@ export default function RegistrarMovimientoAlmacenista() {
   const [receptor,   setReceptor]   = useState('')
   const [notas,      setNotas]      = useState('')
 
+  const esFundicion = bodega?.nombre === 'FUNDICIÓN'
+
   useEffect(() => {
     async function cargar() {
       if (!bodegasOperacion?.[0]) { setCargando(false); return }
       const [{ data: bod }, { data: its }, { data: peds }] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('id', bodegasOperacion[0]).single(),
         supabase.from('items')
-          .select('id, nombre, unidad_medida, bodega_id, precio_costo')
+          .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
           .eq('bodega_id', bodegasOperacion[0]).eq('activo', true).order('nombre'),
         supabase.from('pedidos').select('id, numero, estado')
           .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
@@ -168,14 +172,20 @@ export default function RegistrarMovimientoAlmacenista() {
   async function handleEntrada(e) {
     e.preventDefault()
     setError('')
-    if (!proveedor.trim())    { setError('Ingresa el nombre del proveedor.'); return }
-    if (!bodega)              { setError('No tienes bodega asignada. Contacta al administrador.'); return }
+    if (!bodega) { setError('No tienes bodega asignada. Contacta al administrador.'); return }
+
+    const esCompra = !esFundicion || tipoEntrada === 'compra'
+    if (esCompra && !proveedor.trim()) { setError('Ingresa el nombre del proveedor.'); return }
+
     const agrupados = agruparProductos(productos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
     setGuardando(true)
     try {
       const numero = await generarNumero('REC')
+      const proveedorFinal = esCompra ? proveedor.trim() : 'Producción interna'
+      const referenciaFinal = (!esCompra && colada.trim()) ? colada.trim() : null
+
       const payloads = agrupados.map(p => ({
         numero,
         tipo:                  'entrada',
@@ -186,18 +196,20 @@ export default function RegistrarMovimientoAlmacenista() {
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
-        proveedor:             proveedor.trim(),
-        pedido_id:             pedidoId || null,
+        proveedor:             proveedorFinal,
+        pedido_id:             esCompra ? (pedidoId || null) : null,
+        referencia:            referenciaFinal,
         foto_remision_url: null, destino: null,
-        numero_of: null, serial_motor: null, referencia: null, motivo: null, cliente: null,
+        numero_of: null, serial_motor: null, motivo: null, cliente: null,
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
-      guardarSugerencia('feisen_proveedores', proveedor.trim())
+      if (esCompra) guardarSugerencia('feisen_proveedores', proveedor.trim())
       setExito(true)
       setTimeout(() => {
         setExito(false)
         setProveedor('')
+        setColada('')
         setProductos([{ ...PROD0 }])
         setPedidoId('')
       }, 2000)
@@ -257,8 +269,14 @@ export default function RegistrarMovimientoAlmacenista() {
     setProductos(prev => prev.map((p, i) => i === idx ? { ...p, [campo]: valor } : p))
   }
   function seleccionarProducto(idx, item) {
-    if (!item) { actualizarProducto(idx, 'item_id', ''); actualizarProducto(idx, 'item_nombre', ''); actualizarProducto(idx, 'unidad', ''); return }
-    setProductos(prev => prev.map((p, i) => i === idx ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida } : p))
+    if (!item) {
+      setProductos(prev => prev.map((p, i) => i === idx ? { ...PROD0 } : p))
+      return
+    }
+    setProductos(prev => prev.map((p, i) => i === idx
+      ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida, peso_unitario: item.peso_unitario ?? null }
+      : p
+    ))
   }
 
   // ── Helpers líneas producto (salida) ──
@@ -310,62 +328,111 @@ export default function RegistrarMovimientoAlmacenista() {
       {tipo === 'entrada' && (
         <form onSubmit={handleEntrada} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
-          {/* Proveedor */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Proveedor *</label>
-            <InputConSugerencias
-              value={proveedor}
-              onChange={setProveedor}
-              placeholder="Nombre del proveedor"
-              storageKey="feisen_proveedores"
-              colorRing="feisen-azul"
-            />
-          </div>
+          {/* Tipo de entrada — solo para FUNDICIÓN */}
+          {esFundicion && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de entrada *</label>
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                <button type="button"
+                  onClick={() => { setTipoEntrada('compra'); setError('') }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                    ${tipoEntrada === 'compra' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <ShoppingCart size={15} /> Compra — Materia Prima
+                </button>
+                <button type="button"
+                  onClick={() => { setTipoEntrada('produccion'); setError('') }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                    ${tipoEntrada === 'produccion' ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <Flame size={15} /> Producción — Fundida
+                </button>
+              </div>
+            </div>
+          )}
 
-          {/* Pedido (opcional) */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
-            </label>
-            <select
-              value={pedidoId}
-              onChange={e => setPedidoId(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-              <option value="">Sin pedido asociado</option>
-              {pedidos.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Proveedor — solo para compra */}
+          {(!esFundicion || tipoEntrada === 'compra') && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Proveedor *</label>
+              <InputConSugerencias
+                value={proveedor}
+                onChange={setProveedor}
+                placeholder="Nombre del proveedor"
+                storageKey="feisen_proveedores"
+                colorRing="feisen-azul"
+              />
+            </div>
+          )}
+
+          {/* Pedido asociado — solo para compra */}
+          {(!esFundicion || tipoEntrada === 'compra') && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <select
+                value={pedidoId}
+                onChange={e => setPedidoId(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                <option value="">Sin pedido asociado</option>
+                {pedidos.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* N° de colada — solo para produccion */}
+          {esFundicion && tipoEntrada === 'produccion' && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                N° de colada <span className="font-normal text-gray-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={colada}
+                onChange={e => setColada(e.target.value)}
+                placeholder="Ej: C-2026-001"
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+          )}
 
           {/* Productos */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Productos *</label>
             <div className="space-y-3">
               {productos.map((prod, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
-                  <SelectorItem
-                    value={prod.item_nombre}
-                    items={items}
-                    onSelect={item => seleccionarProducto(idx, item)}
-                  />
-                  <input
-                    type="number" min="0.001" step="0.001" placeholder="Cant."
-                    value={prod.cantidad}
-                    onChange={e => actualizarProducto(idx, 'cantidad', e.target.value)}
-                    className="w-24 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                  />
-                  {prod.unidad && (
-                    <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
-                  )}
-                  {productos.length > 1 && (
-                    <button type="button"
-                      onClick={() => setProductos(prev => prev.filter((_, i) => i !== idx))}
-                      className="p-1.5 text-gray-300 hover:text-feisen-rojo transition-colors shrink-0">
-                      <Trash2 size={16} />
-                    </button>
+                <div key={idx}>
+                  <div className="flex gap-2 items-center">
+                    <SelectorItem
+                      value={prod.item_nombre}
+                      items={items}
+                      onSelect={item => seleccionarProducto(idx, item)}
+                    />
+                    <input
+                      type="number" min="0.001" step="0.001" placeholder="Cant."
+                      value={prod.cantidad}
+                      onChange={e => actualizarProducto(idx, 'cantidad', e.target.value)}
+                      className="w-24 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                    />
+                    {prod.unidad && (
+                      <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
+                    )}
+                    {productos.length > 1 && (
+                      <button type="button"
+                        onClick={() => setProductos(prev => prev.filter((_, i) => i !== idx))}
+                        className="p-1.5 text-gray-300 hover:text-feisen-rojo transition-colors shrink-0">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                  {/* Peso total — solo produccion con peso_unitario */}
+                  {esFundicion && tipoEntrada === 'produccion' && prod.peso_unitario && prod.cantidad && parseFloat(prod.cantidad) > 0 && (
+                    <p className="mt-1 ml-1 text-xs text-orange-500 font-medium">
+                      ⚖️ Peso total: {(parseFloat(prod.cantidad) * parseFloat(prod.peso_unitario)).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
+                    </p>
                   )}
                 </div>
               ))}
@@ -379,8 +446,9 @@ export default function RegistrarMovimientoAlmacenista() {
           </div>
 
           <button type="submit" disabled={guardando}
-            className="w-full bg-feisen-azul text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {guardando ? 'Registrando...' : '📥 Registrar entrada'}
+            className={`w-full text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity
+              ${esFundicion && tipoEntrada === 'produccion' ? 'bg-orange-600' : 'bg-feisen-azul'}`}>
+            {guardando ? 'Registrando...' : (esFundicion && tipoEntrada === 'produccion' ? '🔥 Registrar producción' : '📥 Registrar entrada')}
           </button>
         </form>
       )}
