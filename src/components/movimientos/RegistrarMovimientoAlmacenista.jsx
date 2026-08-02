@@ -97,6 +97,20 @@ function guardarSugerencia(key, valor) {
   localStorage.setItem(key, JSON.stringify(nuevas))
 }
 
+// ── Agrupar productos duplicados sumando sus cantidades ───────────────────
+function agruparProductos(lista) {
+  const mapa = {}
+  for (const p of lista) {
+    if (!p.item_id || parseFloat(p.cantidad) <= 0) continue
+    if (mapa[p.item_id]) {
+      mapa[p.item_id].cantidad += parseFloat(p.cantidad)
+    } else {
+      mapa[p.item_id] = { ...p, cantidad: parseFloat(p.cantidad) }
+    }
+  }
+  return Object.values(mapa)
+}
+
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
@@ -154,21 +168,21 @@ export default function RegistrarMovimientoAlmacenista() {
   async function handleEntrada(e) {
     e.preventDefault()
     setError('')
-    const validos = productos.filter(p => p.item_id && parseFloat(p.cantidad) > 0)
     if (!proveedor.trim())    { setError('Ingresa el nombre del proveedor.'); return }
-    if (validos.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
     if (!bodega)              { setError('No tienes bodega asignada. Contacta al administrador.'); return }
+    const agrupados = agruparProductos(productos)
+    if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
     setGuardando(true)
     try {
       const numero = await generarNumero('REC')
-      const payloads = validos.map(p => ({
+      const payloads = agrupados.map(p => ({
         numero,
         tipo:                  'entrada',
         item_id:               p.item_id,
         bodega_destino_id:     bodega.id,
         bodega_origen_id:      null,
-        cantidad:              parseFloat(p.cantidad),
+        cantidad:              p.cantidad,
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
@@ -198,21 +212,21 @@ export default function RegistrarMovimientoAlmacenista() {
   async function handleSalida(e) {
     e.preventDefault()
     setError('')
-    const validos = sProductos.filter(p => p.item_id && parseFloat(p.cantidad) > 0)
     if (!receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
-    if (validos.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
     if (!bodega)              { setError('No tienes bodega asignada.'); return }
+    const agrupados = agruparProductos(sProductos)
+    if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
     setGuardando(true)
     try {
       const numero = await generarNumero('SAL')
-      const payloads = validos.map(p => ({
+      const payloads = agrupados.map(p => ({
         numero,
         tipo:                  'salida',
         item_id:               p.item_id,
         bodega_origen_id:      bodega.id,
         bodega_destino_id:     null,
-        cantidad:              parseFloat(p.cantidad),
+        cantidad:              p.cantidad,
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
