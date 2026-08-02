@@ -29,7 +29,7 @@ export default function GestionProductos() {
   const [pagina,     setPagina]     = useState(1)
   const POR_PAGINA = 20
 
-  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '' }
+  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '', peso_unitario: '' }
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
@@ -85,6 +85,7 @@ export default function GestionProductos() {
       precio_costo:  item.precio_costo  || '',
       stock_minimo:  item.stock_minimo  || '0',
       foto_url:      item.foto_url      || '',
+      peso_unitario: item.peso_unitario ?? '',
     })
     setMsg(null)
     setModal(true)
@@ -107,6 +108,7 @@ export default function GestionProductos() {
     e.preventDefault()
     setMsg(null)
     const bodega = bodegas.find(b => b.id === form.bodega_id)
+    const esFundicion = bodega?.nombre === 'FUNDICIÓN'
     const payload = {
       nombre:        form.nombre.trim(),
       categoria_id:  form.categoria_id  || null,
@@ -116,6 +118,7 @@ export default function GestionProductos() {
       precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA') ? (parseFloat(form.precio_costo) || 0) : undefined,
       stock_minimo:  parseFloat(form.stock_minimo) || 0,
       foto_url:      form.foto_url      || null,
+      peso_unitario: esFundicion ? (parseFloat(form.peso_unitario) || null) : null,
       updated_at:    new Date().toISOString(),
     }
     if (!esAdmin && perfil?.rol !== 'ALMACENISTA') delete payload.precio_costo
@@ -270,6 +273,9 @@ export default function GestionProductos() {
                         <div>
                           <p className="font-medium text-gray-800">{item.nombre}</p>
                           <p className="text-xs text-gray-400">{item.unidad_medida}</p>
+                          {item.peso_unitario && (
+                            <p className="text-xs text-orange-500 font-medium">{Number(item.peso_unitario)} kg/und</p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -444,6 +450,16 @@ export default function GestionProductos() {
                   placeholder="0" />
               </div>
             </div>
+
+            {bodegas.find(b => b.id === form.bodega_id)?.nombre === 'FUNDICIÓN' && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Peso unitario (kg) *</label>
+                <input required type="number" min="0.01" step="0.01" value={form.peso_unitario}
+                  onChange={e => setForm(f => ({ ...f, peso_unitario: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  placeholder="Ej: 13.8" />
+              </div>
+            )}
 
             {(esAdmin || perfil?.rol === 'ALMACENISTA') && (
               <div>
