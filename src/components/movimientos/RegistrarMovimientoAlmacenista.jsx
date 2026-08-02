@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 
-const DESTINOS = ['Producción y ensamble', 'Venta externa', 'Otro']
-const PROD0    = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
+const PROD0 = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
 
 // ── Selector de producto con búsqueda ──────────────────────────────────────
 function SelectorItem({ value, items, onSelect }) {
@@ -111,12 +110,104 @@ function agruparProductos(lista) {
   return Object.values(mapa)
 }
 
+// ── Canvas de firma digital ───────────────────────────────────────────────
+function FirmaCanvas({ onFirma, firmaDataUrl }) {
+  const canvasRef = useRef(null)
+  const dibujando = useRef(false)
+  const tieneTrazos = useRef(false)
+
+  function getPos(e, canvas) {
+    const rect = canvas.getBoundingClientRect()
+    const touch = e.touches?.[0]
+    const clientX = touch ? touch.clientX : e.clientX
+    const clientY = touch ? touch.clientY : e.clientY
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height),
+    }
+  }
+
+  function iniciar(e) {
+    e.preventDefault()
+    dibujando.current = true
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const pos = getPos(e, canvas)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+  }
+
+  function dibujar(e) {
+    e.preventDefault()
+    if (!dibujando.current) return
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const pos = getPos(e, canvas)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.strokeStyle = '#064794'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+    tieneTrazos.current = true
+  }
+
+  function terminar(e) {
+    e.preventDefault()
+    if (!dibujando.current) return
+    dibujando.current = false
+    if (tieneTrazos.current) {
+      const dataUrl = canvasRef.current.toDataURL('image/png')
+      onFirma(dataUrl)
+    }
+  }
+
+  function limpiar() {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    tieneTrazos.current = false
+    onFirma(null)
+  }
+
+  return (
+    <div>
+      <div className={`rounded-xl overflow-hidden border-2 transition-colors ${firmaDataUrl ? 'border-green-400' : 'border-dashed border-gray-300'}`}>
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={160}
+          className="w-full touch-none bg-white block cursor-crosshair"
+          onMouseDown={iniciar}
+          onMouseMove={dibujar}
+          onMouseUp={terminar}
+          onMouseLeave={terminar}
+          onTouchStart={iniciar}
+          onTouchMove={dibujar}
+          onTouchEnd={terminar}
+        />
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        {firmaDataUrl
+          ? <p className="text-xs text-green-600 font-medium">✓ Firma registrada</p>
+          : <p className="text-xs text-gray-400">Firma con el dedo o el mouse</p>
+        }
+        <button type="button" onClick={limpiar}
+          className="text-xs text-gray-400 hover:text-feisen-rojo transition-colors underline">
+          Limpiar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
 
   const [tipo,        setTipo]        = useState('entrada')
-  const [tipoEntrada, setTipoEntrada] = useState('compra') // 'compra' | 'produccion'
+  const [tipoEntrada, setTipoEntrada] = useState('compra')    // 'compra' | 'produccion'
+  const [tipoSalida,  setTipoSalida]  = useState('externa')   // 'externa' | 'interna'
   const [items,       setItems]       = useState([])
   const [bodega,      setBodega]      = useState(null)
   const [cargando,    setCargando]    = useState(true)
@@ -132,9 +223,12 @@ export default function RegistrarMovimientoAlmacenista() {
   const [pedidoId,   setPedidoId]   = useState('')
 
   // ── Estado SALIDA ──
-  const [sProductos, setSProductos] = useState([{ ...PROD0 }])
-  const [receptor,   setReceptor]   = useState('')
-  const [notas,      setNotas]      = useState('')
+  const [sProductos,     setSProductos]     = useState([{ ...PROD0 }])
+  const [receptor,       setReceptor]       = useState('')
+  const [notas,          setNotas]          = useState('')
+  const [destinoInterno, setDestinoInterno] = useState('') // 'Mecanizados' | 'Producción y Ensamble'
+  const [numeroOF,       setNumeroOF]       = useState('')
+  const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
 
   const esFundicion = bodega?.nombre === 'FUNDICIÓN'
 
@@ -183,7 +277,7 @@ export default function RegistrarMovimientoAlmacenista() {
     setGuardando(true)
     try {
       const numero = await generarNumero('REC')
-      const proveedorFinal = esCompra ? proveedor.trim() : 'Producción interna'
+      const proveedorFinal  = esCompra ? proveedor.trim() : 'Producción interna'
       const referenciaFinal = (!esCompra && colada.trim()) ? colada.trim() : null
 
       const payloads = agrupados.map(p => ({
@@ -224,8 +318,14 @@ export default function RegistrarMovimientoAlmacenista() {
   async function handleSalida(e) {
     e.preventDefault()
     setError('')
-    if (!receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
-    if (!bodega)              { setError('No tienes bodega asignada.'); return }
+    if (!bodega) { setError('No tienes bodega asignada.'); return }
+
+    const esInterna = esFundicion && tipoSalida === 'interna'
+
+    if (!esInterna && !receptor.trim()) { setError('Ingresa el nombre de quien recibe.'); return }
+    if (esInterna && !destinoInterno)   { setError('Selecciona el destino interno.'); return }
+    if (esInterna && !firmaDataUrl)     { setError('Se requiere la firma del responsable.'); return }
+
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
@@ -242,20 +342,25 @@ export default function RegistrarMovimientoAlmacenista() {
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
-        cliente:               receptor.trim(),
-        referencia:            notas.trim() || null,
-        destino:               null, proveedor: null, pedido_id: null, foto_remision_url: null,
-        numero_of:             null, serial_motor: null, motivo: null,
+        cliente:               esInterna ? null : receptor.trim(),
+        referencia:            esInterna ? null : (notas.trim() || null),
+        destino:               esInterna ? destinoInterno : null,
+        numero_of:             esInterna ? (numeroOF.trim() || null) : null,
+        foto_remision_url:     esInterna ? firmaDataUrl : null,
+        proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
-      guardarSugerencia('feisen_receptores', receptor.trim())
+      if (!esInterna) guardarSugerencia('feisen_receptores', receptor.trim())
       setExito(true)
       setTimeout(() => {
         setExito(false)
         setSProductos([{ ...PROD0 }])
         setReceptor('')
         setNotas('')
+        setDestinoInterno('')
+        setNumeroOF('')
+        setFirmaDataUrl(null)
       }, 2000)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
@@ -457,19 +562,94 @@ export default function RegistrarMovimientoAlmacenista() {
       {tipo === 'salida' && (
         <form onSubmit={handleSalida} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
-          {/* Recibido por */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
-            <InputConSugerencias
-              value={receptor}
-              onChange={setReceptor}
-              placeholder="Nombre de quien recibe"
-              storageKey="feisen_receptores"
-              colorRing="feisen-rojo"
-            />
-          </div>
+          {/* Tipo de salida — solo para FUNDICIÓN */}
+          {esFundicion && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de salida *</label>
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                <button type="button"
+                  onClick={() => { setTipoSalida('externa'); setError('') }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                    ${tipoSalida === 'externa' ? 'bg-white shadow text-feisen-rojo' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <Factory size={15} /> Venta externa
+                </button>
+                <button type="button"
+                  onClick={() => { setTipoSalida('interna'); setError('') }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                    ${tipoSalida === 'interna' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
+                  <Wrench size={15} /> Transferencia interna
+                </button>
+              </div>
+            </div>
+          )}
 
-          {/* Productos */}
+          {/* ── VENTA EXTERNA ── */}
+          {(!esFundicion || tipoSalida === 'externa') && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
+                <InputConSugerencias
+                  value={receptor}
+                  onChange={setReceptor}
+                  placeholder="Nombre de quien recibe"
+                  storageKey="feisen_receptores"
+                  colorRing="feisen-rojo"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Notas <span className="font-normal text-gray-400">(referencias de máquina, observaciones…)</span>
+                </label>
+                <textarea
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── TRANSFERENCIA INTERNA ── */}
+          {esFundicion && tipoSalida === 'interna' && (
+            <>
+              {/* Destino interno */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Destino *</label>
+                <div className="flex gap-3">
+                  {['Mecanizados', 'Producción y Ensamble'].map(dest => (
+                    <button key={dest} type="button"
+                      onClick={() => setDestinoInterno(dest)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-all
+                        ${destinoInterno === dest
+                          ? 'border-feisen-azul bg-feisen-azul text-white'
+                          : 'border-gray-200 text-gray-500 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                      <Wrench size={15} />
+                      {dest}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* N° OF */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  N° OF <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={numeroOF}
+                  onChange={e => setNumeroOF(e.target.value)}
+                  placeholder="Ej: OF-2026-042"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Productos — siempre visible */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Productos *</label>
             <div className="space-y-3">
@@ -506,19 +686,15 @@ export default function RegistrarMovimientoAlmacenista() {
             </button>
           </div>
 
-          {/* Notas */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Notas <span className="font-normal text-gray-400">(referencias de máquina, observaciones…)</span>
-            </label>
-            <textarea
-              value={notas}
-              onChange={e => setNotas(e.target.value)}
-              placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
-              rows={3}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
-            />
-          </div>
+          {/* Firma — solo transferencia interna */}
+          {esFundicion && tipoSalida === 'interna' && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <PenLine size={15} /> Firma del responsable *
+              </label>
+              <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
+            </div>
+          )}
 
           <button type="submit" disabled={guardando}
             className="w-full bg-feisen-rojo text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
