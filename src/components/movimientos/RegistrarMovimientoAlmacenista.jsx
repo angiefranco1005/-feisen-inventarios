@@ -320,11 +320,13 @@ export default function RegistrarMovimientoAlmacenista() {
     setError('')
     if (!bodega) { setError('No tienes bodega asignada.'); return }
 
-    const esInterna = esFundicion && tipoSalida === 'interna'
+    const esInterna        = esFundicion && tipoSalida === 'interna'
+    const esExternaFundic  = esFundicion && tipoSalida === 'externa'
 
-    if (!esInterna && !receptor.trim()) { setError('Ingresa el nombre de quien recibe.'); return }
-    if (esInterna && !destinoInterno)   { setError('Selecciona el destino interno.'); return }
-    if (esInterna && !firmaDataUrl)     { setError('Se requiere la firma del responsable.'); return }
+    if (!esFundicion && !receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
+    if (esExternaFundic && !numeroOF.trim())  { setError('Ingresa el N° OF.'); return }
+    if (esInterna && !destinoInterno)         { setError('Selecciona el destino interno.'); return }
+    if (esInterna && !firmaDataUrl)           { setError('Se requiere la firma del responsable.'); return }
 
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
@@ -342,10 +344,10 @@ export default function RegistrarMovimientoAlmacenista() {
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
-        cliente:               esInterna ? null : receptor.trim(),
-        referencia:            esInterna ? null : (notas.trim() || null),
+        cliente:               (!esFundicion) ? receptor.trim() : null,
+        referencia:            notas.trim() || null,
         destino:               esInterna ? destinoInterno : null,
-        numero_of:             esInterna ? (numeroOF.trim() || null) : null,
+        numero_of:             esExternaFundic ? numeroOF.trim() : null,
         foto_remision_url:     esInterna ? firmaDataUrl : null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
@@ -583,8 +585,8 @@ export default function RegistrarMovimientoAlmacenista() {
             </div>
           )}
 
-          {/* ── VENTA EXTERNA ── */}
-          {(!esFundicion || tipoSalida === 'externa') && (
+          {/* ── VENTA EXTERNA (no FUNDICIÓN) ── */}
+          {!esFundicion && (
             <>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
@@ -596,7 +598,6 @@ export default function RegistrarMovimientoAlmacenista() {
                   colorRing="feisen-rojo"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                   Notas <span className="font-normal text-gray-400">(referencias de máquina, observaciones…)</span>
@@ -606,6 +607,34 @@ export default function RegistrarMovimientoAlmacenista() {
                   onChange={e => setNotas(e.target.value)}
                   placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
                   rows={3}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── VENTA EXTERNA FUNDICIÓN ── */}
+          {esFundicion && tipoSalida === 'externa' && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">N° OF *</label>
+                <input
+                  type="text"
+                  value={numeroOF}
+                  onChange={e => setNumeroOF(e.target.value)}
+                  placeholder="Ej: OF-2026-042"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Notas <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <textarea
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Observaciones adicionales…"
+                  rows={2}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
                 />
               </div>
@@ -633,19 +662,6 @@ export default function RegistrarMovimientoAlmacenista() {
                 </div>
               </div>
 
-              {/* N° OF */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  N° OF <span className="font-normal text-gray-400">(opcional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={numeroOF}
-                  onChange={e => setNumeroOF(e.target.value)}
-                  placeholder="Ej: OF-2026-042"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                />
-              </div>
             </>
           )}
 

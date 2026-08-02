@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X } from 'lucide-react'
 
 const TIPO_CONFIG = {
   entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
@@ -143,7 +143,8 @@ export default function Historial() {
     }, {})
   )
 
-  const [abierto, setAbierto] = useState(null)
+  const [abierto,    setAbierto]    = useState(null)
+  const [firmaModal, setFirmaModal] = useState(null) // base64 de la firma a visualizar
   const toggleGrupo = (key) => setAbierto(prev => prev === key ? null : key)
 
   if (cargando) return <Spinner texto="Cargando historial..." />
@@ -228,8 +229,13 @@ export default function Historial() {
                     : `${g.lineas.length} productos`}
                 </span>
 
-                {/* Proveedor/receptor */}
-                {proveedor && <span className="text-xs text-gray-400 hidden md:block shrink-0 max-w-32 truncate">{proveedor}</span>}
+                {/* Destino interno / proveedor / receptor */}
+                {primera.destino
+                  ? <span className="text-xs text-feisen-azul font-medium hidden md:block shrink-0 max-w-36 truncate">→ {primera.destino}</span>
+                  : primera.proveedor === 'Producción interna'
+                    ? <span className="text-xs text-orange-500 font-medium hidden md:block shrink-0">🔥 Prod. interna</span>
+                    : proveedor && <span className="text-xs text-gray-400 hidden md:block shrink-0 max-w-32 truncate">{proveedor}</span>
+                }
 
                 {/* Valor total (admin) */}
                 {esAdmin && valorTotal > 0 && (
@@ -253,14 +259,47 @@ export default function Historial() {
                             <p className="text-sm font-medium text-gray-800">{m.items?.nombre}</p>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                               <span className="text-xs text-feisen-azul font-semibold">{m.cantidad} {m.items?.unidad_medida}</span>
-                              {m.numero_of && <span className="text-xs text-gray-400">OF: {m.numero_of}</span>}
+
+                              {/* Destino interno */}
+                              {m.destino && (
+                                <span className="text-xs text-feisen-azul font-medium">→ {m.destino}</span>
+                              )}
+
+                              {/* Producción interna vs proveedor real */}
+                              {m.proveedor === 'Producción interna'
+                                ? <span className="text-xs text-orange-500 font-medium">🔥 Producción interna</span>
+                                : m.proveedor && <span className="text-xs text-gray-400">Proveedor: {m.proveedor}</span>
+                              }
+
+                              {/* Colada (referencia en entradas de producción) */}
+                              {m.referencia && m.proveedor === 'Producción interna' && (
+                                <span className="text-xs text-orange-400">Colada: {m.referencia}</span>
+                              )}
+
+                              {/* Referencia genérica */}
+                              {m.referencia && m.proveedor !== 'Producción interna' && (
+                                <span className="text-xs text-gray-400">{m.referencia}</span>
+                              )}
+
+                              {/* N° OF */}
+                              {m.numero_of && <span className="text-xs text-gray-500 font-medium">OF: {m.numero_of}</span>}
+
                               {m.serial_motor && <span className="text-xs text-gray-400">Serial: {m.serial_motor}</span>}
-                              {m.referencia && <span className="text-xs text-gray-400">{m.referencia}</span>}
                               {m.pedidos?.numero && <span className="text-xs text-feisen-azul">📋 {m.pedidos.numero}</span>}
-                              {m.foto_remision_url && (
+
+                              {/* Firma digital (base64) */}
+                              {m.foto_remision_url?.startsWith('data:image') && (
+                                <button type="button"
+                                  onClick={() => setFirmaModal(m.foto_remision_url)}
+                                  className="text-xs text-feisen-azul hover:underline">✍️ Ver firma</button>
+                              )}
+
+                              {/* Remisión (URL normal) */}
+                              {m.foto_remision_url && !m.foto_remision_url.startsWith('data:image') && (
                                 <a href={m.foto_remision_url} target="_blank" rel="noreferrer"
                                   className="text-xs text-feisen-azul hover:underline">🖼 Ver remisión</a>
                               )}
+
                               {esReversion && <span className="text-xs text-feisen-rojo font-semibold">REVERSIÓN</span>}
                               {esAdmin && m.precio_costo_snapshot > 0 && (
                                 <span className="text-xs text-gray-400">${Number(m.precio_costo_snapshot * m.cantidad).toLocaleString('es-CO')}</span>
@@ -294,6 +333,27 @@ export default function Historial() {
         })}
       </div>
       <p className="text-xs text-gray-400 text-right">Mostrando últimos 1000 movimientos ({grupos.length} registros)</p>
+
+      {/* Modal firma digital */}
+      {firmaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setFirmaModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-feisen-azul text-lg">✍️ Firma del responsable</h3>
+              <button onClick={() => setFirmaModal(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+              <img src={firmaModal} alt="Firma del responsable"
+                className="w-full object-contain max-h-48" />
+            </div>
+            <p className="text-xs text-gray-400 mt-3 text-center">Firma registrada en el momento de la entrega</p>
+          </div>
+        </div>
+      )}
 
       {/* Modal confirmación eliminación */}
       {confirmDelete && (
