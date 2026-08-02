@@ -127,9 +127,24 @@ export default function Historial() {
       m.referencia?.toLowerCase().includes(busqueda.toLowerCase()) ||
       m.serial_motor?.toLowerCase().includes(busqueda.toLowerCase()) ||
       m.numero_of?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.numero?.toLowerCase().includes(busqueda.toLowerCase())
+      m.numero?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      m.proveedor?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      m.cliente?.toLowerCase().includes(busqueda.toLowerCase())
     return matchTipo && matchItem && matchBusqueda
   })
+
+  // Agrupar por número de movimiento
+  const grupos = Object.values(
+    filtrados.reduce((acc, m) => {
+      const key = m.numero || m.id
+      if (!acc[key]) acc[key] = { numero: key, lineas: [], tipo: m.tipo, created_at: m.created_at, usuario: m.profiles?.nombre, revertido: m.revertido }
+      acc[key].lineas.push(m)
+      return acc
+    }, {})
+  )
+
+  const [abierto, setAbierto] = useState(null)
+  const toggleGrupo = (key) => setAbierto(prev => prev === key ? null : key)
 
   if (cargando) return <Spinner texto="Cargando historial..." />
 
@@ -150,7 +165,7 @@ export default function Historial() {
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por N° mov, producto, serial, OF..."
+            placeholder="Buscar por N° mov, producto, proveedor, serial, OF..."
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
         </div>
         <select value={filtroItem} onChange={e => setFiltroItem(e.target.value)}
@@ -169,107 +184,116 @@ export default function Historial() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {filtrados.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
+      <div className="space-y-2">
+        {grupos.length === 0 ? (
+          <div className="bg-white rounded-2xl text-center py-16 text-gray-400 border border-gray-100">
             <ArrowUpDown size={40} className="mx-auto mb-3 opacity-30" />
             <p>No hay movimientos{busqueda ? ' que coincidan' : ''}.</p>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500">N° Mov</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500">Fecha</th>
-                  {esAdmin && <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Quién</th>}
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500">Tipo</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500">Producto</th>
-                  <th className="text-right px-4 py-3 font-semibold text-gray-500">Cantidad</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">N° OF</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Serial</th>
-                  {esAdmin && <th className="text-right px-4 py-3 font-semibold text-gray-500 hidden lg:table-cell">Valor</th>}
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden lg:table-cell">Ref / Proveedor</th>
-                  {esAdmin && <th className="px-4 py-3"></th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtrados.map(m => {
-                  const tc  = TIPO_CONFIG[m.tipo] || { label: m.tipo, color: 'bg-gray-100 text-gray-600' }
-                  const bod = m.tipo === 'entrada' ? m.bodegas_destino?.nombre : m.bodegas_origen?.nombre
-                  const esReversion = !!m.revertido_en
-                  const estaRevertido = m.revertido
+        ) : grupos.map(g => {
+          const tc = TIPO_CONFIG[g.tipo] || { label: g.tipo, color: 'bg-gray-100 text-gray-600' }
+          const estaAbierto = abierto === g.numero
+          const primera = g.lineas[0]
+          const proveedor = primera.proveedor || primera.cliente || primera.referencia || null
+          const valorTotal = esAdmin
+            ? g.lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
+            : 0
 
-                  return (
-                    <tr key={m.id} className={`hover:bg-gray-50 transition-colors ${estaRevertido ? 'opacity-50' : ''}`}>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                        {m.numero || '—'}
-                        {esReversion && <span className="block text-feisen-rojo font-semibold text-xs">REVERSIÓN</span>}
-                        {estaRevertido && <span className="block text-gray-400 text-xs">REVERTIDO</span>}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {new Date(m.created_at).toLocaleDateString('es-CO')}<br />
-                        <span className="text-gray-400">{new Date(m.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
-                      </td>
-                      {esAdmin && (
-                        <td className="px-4 py-3 hidden sm:table-cell">
-                          <p className="text-xs font-medium text-gray-700">{m.profiles?.nombre?.split(' ')[0]}</p>
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${tc.color}`}>{tc.label}</span>
-                        {bod && <p className="text-xs text-gray-400 mt-0.5">{bod}</p>}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{m.items?.nombre}</td>
-                      <td className="px-4 py-3 text-right font-bold text-feisen-azul">
-                        {m.cantidad} <span className="text-xs font-normal text-gray-400">{m.items?.unidad_medida}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell font-mono text-xs">{m.numero_of || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell font-mono text-xs">{m.serial_motor || '—'}</td>
-                      {esAdmin && (
-                        <td className="px-4 py-3 text-right text-gray-600 hidden lg:table-cell text-xs">
-                          {m.precio_costo_snapshot > 0
-                            ? `$${Number(m.precio_costo_snapshot * m.cantidad).toLocaleString('es-CO')}`
-                            : '—'}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-xs hidden lg:table-cell">
-                        <p className="text-gray-400">{m.referencia || m.proveedor || '—'}</p>
-                        {m.pedidos?.numero && <p className="text-feisen-azul font-medium">📋 {m.pedidos.numero}</p>}
-                        {m.foto_remision_url && (
-                          <a href={m.foto_remision_url} target="_blank" rel="noreferrer"
-                            className="text-feisen-azul hover:underline flex items-center gap-1 mt-0.5">
-                            🖼 Ver remisión
-                          </a>
-                        )}
-                      </td>
-                      {esAdmin && (
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {!estaRevertido && !esReversion && (
-                              <button onClick={() => setConfirmRevert(m)}
-                                className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
-                                title="Revertir movimiento">
-                                <RotateCcw size={14} />
-                              </button>
-                            )}
-                            <button onClick={() => setConfirmDelete(m)}
-                              className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
-                              title="Eliminar movimiento">
-                              <Trash2 size={14} />
-                            </button>
+          return (
+            <div key={g.numero} className={`bg-white rounded-2xl border transition-all ${estaAbierto ? 'border-feisen-azul shadow-sm' : 'border-gray-100'} ${g.revertido ? 'opacity-50' : ''}`}>
+              {/* FILA RESUMEN — click para abrir */}
+              <button type="button" onClick={() => toggleGrupo(g.numero)}
+                className="w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-gray-50 rounded-2xl transition-colors">
+                {/* Flecha */}
+                <span className={`text-gray-400 transition-transform shrink-0 ${estaAbierto ? 'rotate-90' : ''}`}>▶</span>
+
+                {/* Número */}
+                <span className="font-mono text-xs text-gray-500 w-28 shrink-0">{g.numero}</span>
+
+                {/* Fecha */}
+                <span className="text-xs text-gray-400 w-20 shrink-0">
+                  {new Date(g.created_at).toLocaleDateString('es-CO')}
+                </span>
+
+                {/* Tipo badge */}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${tc.color}`}>{tc.label}</span>
+
+                {/* Quién */}
+                {esAdmin && <span className="text-xs text-gray-500 hidden sm:block shrink-0 w-24">{primera.profiles?.nombre?.split(' ')[0]}</span>}
+
+                {/* Resumen productos */}
+                <span className="text-sm text-gray-700 font-medium flex-1 truncate">
+                  {g.lineas.length === 1
+                    ? g.lineas[0].items?.nombre
+                    : `${g.lineas.length} productos`}
+                </span>
+
+                {/* Proveedor/receptor */}
+                {proveedor && <span className="text-xs text-gray-400 hidden md:block shrink-0 max-w-32 truncate">{proveedor}</span>}
+
+                {/* Valor total (admin) */}
+                {esAdmin && valorTotal > 0 && (
+                  <span className="text-xs font-semibold text-feisen-azul hidden lg:block shrink-0">
+                    ${valorTotal.toLocaleString('es-CO')}
+                  </span>
+                )}
+
+                {g.revertido && <span className="text-xs text-gray-400 shrink-0">REVERTIDO</span>}
+              </button>
+
+              {/* DETALLE — visible cuando está abierto */}
+              {estaAbierto && (
+                <div className="border-t border-gray-100 px-4 pb-4 pt-2">
+                  <div className="space-y-2">
+                    {g.lineas.map(m => {
+                      const esReversion = !!m.revertido_en
+                      return (
+                        <div key={m.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800">{m.items?.nombre}</p>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                              <span className="text-xs text-feisen-azul font-semibold">{m.cantidad} {m.items?.unidad_medida}</span>
+                              {m.numero_of && <span className="text-xs text-gray-400">OF: {m.numero_of}</span>}
+                              {m.serial_motor && <span className="text-xs text-gray-400">Serial: {m.serial_motor}</span>}
+                              {m.referencia && <span className="text-xs text-gray-400">{m.referencia}</span>}
+                              {m.pedidos?.numero && <span className="text-xs text-feisen-azul">📋 {m.pedidos.numero}</span>}
+                              {m.foto_remision_url && (
+                                <a href={m.foto_remision_url} target="_blank" rel="noreferrer"
+                                  className="text-xs text-feisen-azul hover:underline">🖼 Ver remisión</a>
+                              )}
+                              {esReversion && <span className="text-xs text-feisen-rojo font-semibold">REVERSIÓN</span>}
+                              {esAdmin && m.precio_costo_snapshot > 0 && (
+                                <span className="text-xs text-gray-400">${Number(m.precio_costo_snapshot * m.cantidad).toLocaleString('es-CO')}</span>
+                              )}
+                            </div>
                           </div>
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                          {esAdmin && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!m.revertido && !esReversion && (
+                                <button onClick={() => setConfirmRevert(m)}
+                                  className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Revertir">
+                                  <RotateCcw size={14} />
+                                </button>
+                              )}
+                              <button onClick={() => setConfirmDelete(m)}
+                                className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
-      <p className="text-xs text-gray-400 text-right">Mostrando últimos 200 movimientos</p>
+      <p className="text-xs text-gray-400 text-right">Mostrando últimos 200 movimientos ({grupos.length} registros)</p>
 
       {/* Modal confirmación eliminación */}
       {confirmDelete && (
