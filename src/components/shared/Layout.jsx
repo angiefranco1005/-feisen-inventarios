@@ -32,15 +32,24 @@ const NAV_ALMACENISTA = [
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+const NAV_JEFE_FUNDICION = [
+  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',         icon: Package,         label: 'Productos' },
+  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+]
+
 const BADGE = {
-  ADMIN:       { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
-  LOGISTICA:   { color: 'bg-feisen-azul text-white',   label: 'Logística' },
-  ALMACENISTA: { color: 'bg-emerald-600 text-white',   label: 'Almacenista' },
-  CONSULTOR:   { color: 'bg-gray-500 text-white',      label: 'Consultor' },
+  ADMIN:           { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
+  LOGISTICA:       { color: 'bg-feisen-azul text-white',   label: 'Logística' },
+  ALMACENISTA:     { color: 'bg-emerald-600 text-white',   label: 'Almacenista' },
+  CONSULTOR:       { color: 'bg-gray-500 text-white',      label: 'Consultor' },
+  JEFE_FUNDICION:  { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -49,7 +58,11 @@ export default function Layout({ children }) {
   const [msgPwd,        setMsgPwd]        = useState(null)
   const [guardandoPwd,  setGuardandoPwd]  = useState(false)
 
-  const navItems = esAdmin ? NAV_ADMIN : esLogistica ? NAV_LOGISTICA : esAlmacenista ? NAV_ALMACENISTA : []
+  const navItems = esAdmin ? NAV_ADMIN
+    : esLogistica      ? NAV_LOGISTICA
+    : esAlmacenista    ? NAV_ALMACENISTA
+    : esJefeFundicion  ? NAV_JEFE_FUNDICION
+    : []
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
 
