@@ -34,7 +34,7 @@ export default function Historial() {
         .from('movimientos')
         .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
         .order('created_at', { ascending: false })
-        .limit(200),
+        .limit(1000),
       supabase.from('items').select('id, nombre').order('nombre'),
     ])
     setMovimientos(movs || [])
@@ -293,7 +293,7 @@ export default function Historial() {
           )
         })}
       </div>
-      <p className="text-xs text-gray-400 text-right">Mostrando últimos 200 movimientos ({grupos.length} registros)</p>
+      <p className="text-xs text-gray-400 text-right">Mostrando últimos 1000 movimientos ({grupos.length} registros)</p>
 
       {/* Modal confirmación eliminación */}
       {confirmDelete && (
