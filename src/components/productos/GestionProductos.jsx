@@ -10,7 +10,7 @@ const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galó
 
 export default function GestionProductos() {
   const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
-  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA'
+  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'JEFE_FUNDICION'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])
