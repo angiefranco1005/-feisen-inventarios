@@ -14,6 +14,7 @@ import RegistrarMovimientoAlmacenista from './components/movimientos/RegistrarMo
 import Historial          from './components/movimientos/Historial'
 import ListaPedidos       from './components/pedidos/ListaPedidos'
 import GestionConfig      from './components/config/GestionConfig'
+import CorteInventario    from './components/reportes/CorteInventario'
 
 function Cargando() {
   return (
@@ -103,6 +104,7 @@ function AppRoutes() {
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
       <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
+      <Route path="/reportes/corte"   element={<Layout><CorteInventario /></Layout>} />
       <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
