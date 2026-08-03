@@ -29,7 +29,7 @@ export default function GestionProductos() {
   const [pagina,     setPagina]     = useState(1)
   const POR_PAGINA = 20
 
-  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '', peso_unitario: '' }
+  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0' }
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
@@ -78,14 +78,15 @@ export default function GestionProductos() {
   function abrirEditar(item) {
     setEditando(item)
     setForm({
-      nombre:        item.nombre,
-      categoria_id:  item.categoria_id  || '',
-      bodega_id:     item.bodega_id     || '',
-      unidad_medida: item.unidad_medida,
-      precio_costo:  item.precio_costo  || '',
-      stock_minimo:  item.stock_minimo  || '0',
-      foto_url:      item.foto_url      || '',
-      peso_unitario: item.peso_unitario ?? '',
+      nombre:           item.nombre,
+      categoria_id:     item.categoria_id  || '',
+      bodega_id:        item.bodega_id     || '',
+      unidad_medida:    item.unidad_medida,
+      precio_costo:     item.precio_costo  || '',
+      stock_minimo:     item.stock_minimo  || '0',
+      foto_url:         item.foto_url      || '',
+      peso_unitario:    item.peso_unitario ?? '',
+      cantidad_inicial: '0',
     })
     setMsg(null)
     setModal(true)
@@ -126,10 +127,21 @@ export default function GestionProductos() {
     let error
     if (editando) {
       ({ error } = await supabase.from('items').update(payload).eq('id', editando.id))
+      if (error) { setMsg({ tipo: 'error', texto: 'Error: ' + error.message }); return }
     } else {
-      ({ error } = await supabase.from('items').insert(payload))
+      const { data: newItem, error: e1 } = await supabase.from('items').insert(payload).select('id').single()
+      if (e1) { setMsg({ tipo: 'error', texto: 'Error: ' + e1.message }); return }
+
+      // Stock inicial (solo si la bodega está definida)
+      if (newItem?.id && form.bodega_id) {
+        const cantInicial = parseFloat(form.cantidad_inicial) || 0
+        const { error: e2 } = await supabase.from('stock').upsert(
+          { item_id: newItem.id, bodega_id: form.bodega_id, cantidad_actual: cantInicial },
+          { onConflict: 'item_id,bodega_id' }
+        )
+        if (e2) { setMsg({ tipo: 'error', texto: 'Producto creado pero error al guardar stock: ' + e2.message }); cargar(); return }
+      }
     }
-    if (error) { setMsg({ tipo: 'error', texto: 'Error: ' + error.message }); return }
     setMsg({ tipo: 'exito', texto: editando ? 'Producto actualizado.' : 'Producto creado.' })
     setModal(false)
     cargar()
@@ -450,6 +462,17 @@ export default function GestionProductos() {
                   placeholder="0" />
               </div>
             </div>
+
+            {!editando && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Cantidad inicial en bodega</label>
+                <input type="number" min="0" step="0.001" value={form.cantidad_inicial}
+                  onChange={e => setForm(f => ({ ...f, cantidad_inicial: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  placeholder="0" />
+                <p className="text-xs text-gray-400 mt-1">Puedes dejarlo en 0 y registrar entradas después.</p>
+              </div>
+            )}
 
             {bodegas.find(b => b.id === form.bodega_id)?.nombre === 'FUNDICIÓN' && (
               <div>
