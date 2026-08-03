@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Alerta from '../shared/Alerta'
-import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight } from 'lucide-react'
+import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { exportarCorteInventario } from '../../utils/exportExcel'
 
 const HOY = new Date().toISOString().split('T')[0]
 
@@ -155,6 +156,15 @@ export default function CorteInventario() {
               </p>
             </div>
             <Package size={40} className="text-blue-300 opacity-60 hidden sm:block" />
+          </div>
+
+          {/* Botón descargar */}
+          <div className="flex justify-end">
+            <button
+              onClick={() => exportarCorteInventario(resultado)}
+              className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+              <Download size={16} /> Descargar Excel
+            </button>
           </div>
 
           {/* Filtro */}

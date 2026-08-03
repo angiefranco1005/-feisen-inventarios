@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download } from 'lucide-react'
+import { exportarInventarioActual } from '../../utils/exportExcel'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
@@ -204,6 +205,12 @@ export default function GestionProductos() {
           <button onClick={cargar} title="Refrescar"
             className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
             <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => exportarInventarioActual(filtrados)}
+            title="Descargar Excel"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
+            <Download size={16} /> Excel
           </button>
           {puedeEditar && (
             <button onClick={abrirNuevo}

@@ -44,6 +44,77 @@ export function exportarMovimientosExcel(movimientos, nombreArchivo = 'movimient
   XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
+export function exportarInventarioActual(items, nombreArchivo = 'inventario_feisen') {
+  const filas = items.map(i => ({
+    'Producto':          i.nombre,
+    'Bodega':            i.bodegas?.nombre     || '—',
+    'Categoría':         i.categorias?.nombre  || '—',
+    'Unidad':            i.unidad_medida,
+    'Stock actual':      i.stock?.[0]?.cantidad_actual ?? 0,
+    'Stock mínimo':      i.stock_minimo || 0,
+    'Precio costo (COP)': i.precio_costo || 0,
+    'Valor total (COP)': Math.round((i.stock?.[0]?.cantidad_actual ?? 0) * (i.precio_costo || 0)),
+    'Estado':            i.activo ? 'Activo' : 'Inactivo',
+  }))
+
+  const ws = XLSX.utils.json_to_sheet(filas)
+  ws['!cols'] = [
+    { wch: 35 }, { wch: 20 }, { wch: 20 }, { wch: 10 },
+    { wch: 13 }, { wch: 13 }, { wch: 18 }, { wch: 18 }, { wch: 10 },
+  ]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventario')
+  XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
+export function exportarCorteInventario(resultado) {
+  const wb   = XLSX.utils.book_new()
+  const fecha = resultado.fecha
+
+  // ── Hoja resumen ──
+  const resumen = resultado.bodegas.map(b => ({
+    'Bodega':             b.nombre,
+    'Productos':          b.items.length,
+    'Valor total (COP)':  Math.round(b.total_valor),
+  }))
+  resumen.push({
+    'Bodega':            'TOTAL GENERAL',
+    'Productos':          resultado.total_productos,
+    'Valor total (COP)':  Math.round(resultado.total_general),
+  })
+  const wsR = XLSX.utils.json_to_sheet(resumen)
+  wsR['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }]
+  XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
+
+  // ── Una hoja por bodega ──
+  resultado.bodegas.forEach(b => {
+    const filas = b.items.map(i => ({
+      'Producto':              i.nombre,
+      'Categoría':             i.categoria,
+      'Unidad':                i.unidad,
+      [`Stock al ${fecha}`]:   i.stock_en_fecha,
+      'Stock actual':          i.stock_actual,
+      'Precio costo (COP)':    i.precio || '',
+      'Valor (COP)':           Math.round(i.valor),
+    }))
+    filas.push({
+      'Producto': 'TOTAL', 'Categoría': '', 'Unidad': '',
+      [`Stock al ${fecha}`]: '', 'Stock actual': '',
+      'Precio costo (COP)': '',
+      'Valor (COP)': Math.round(b.total_valor),
+    })
+
+    const ws = XLSX.utils.json_to_sheet(filas)
+    ws['!cols'] = [
+      { wch: 35 }, { wch: 18 }, { wch: 10 },
+      { wch: 14 }, { wch: 13 }, { wch: 18 }, { wch: 18 },
+    ]
+    XLSX.utils.book_append_sheet(wb, ws, b.nombre.substring(0, 31))
+  })
+
+  XLSX.writeFile(wb, `corte_inventario_${fecha}.xlsx`)
+}
+
 export function exportarConsumoExcel(resumen, nombreArchivo = 'consumo_feisen') {
   const wb = XLSX.utils.book_new()
   resumen.forEach(({ centro, filas }) => {
