@@ -205,9 +205,12 @@ function FirmaCanvas({ onFirma, firmaDataUrl }) {
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
 
+  const HOY_COL = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD en hora local
+
   const [tipo,        setTipo]        = useState('entrada')
   const [tipoEntrada, setTipoEntrada] = useState('compra')    // 'compra' | 'produccion'
   const [tipoSalida,  setTipoSalida]  = useState('externa')   // 'externa' | 'interna'
+  const [fechaMov,    setFechaMov]    = useState(HOY_COL)
   const [items,       setItems]       = useState([])
   const [bodega,      setBodega]      = useState(null)
   const [cargando,    setCargando]    = useState(true)
@@ -293,6 +296,7 @@ export default function RegistrarMovimientoAlmacenista() {
         proveedor:             proveedorFinal,
         pedido_id:             esCompra ? (pedidoId || null) : null,
         referencia:            referenciaFinal,
+        fecha_movimiento:      fechaMov || null,
         foto_remision_url: null, destino: null,
         numero_of: null, serial_motor: null, motivo: null, cliente: null,
       }))
@@ -306,6 +310,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setColada('')
         setProductos([{ ...PROD0 }])
         setPedidoId('')
+        setFechaMov(HOY_COL)
       }, 2000)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
@@ -349,6 +354,7 @@ export default function RegistrarMovimientoAlmacenista() {
         destino:               esInterna ? destinoInterno : null,
         numero_of:             esExternaFundic ? numeroOF.trim() : null,
         foto_remision_url:     esInterna ? firmaDataUrl : null,
+        fecha_movimiento:      fechaMov || null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
@@ -363,6 +369,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setDestinoInterno('')
         setNumeroOF('')
         setFirmaDataUrl(null)
+        setFechaMov(HOY_COL)
       }, 2000)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
@@ -419,6 +426,23 @@ export default function RegistrarMovimientoAlmacenista() {
             {t === 'entrada' ? '📥 Entrada' : '📤 Salida'}
           </button>
         ))}
+      </div>
+
+      {/* Fecha del movimiento — compartida entre entrada y salida */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+        <label className="text-sm font-semibold text-gray-700 block mb-1.5">
+          Fecha del movimiento
+        </label>
+        <input
+          type="date"
+          value={fechaMov}
+          max={new Date().toLocaleDateString('en-CA')}
+          onChange={e => setFechaMov(e.target.value)}
+          className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.
+        </p>
       </div>
 
       {exito && (

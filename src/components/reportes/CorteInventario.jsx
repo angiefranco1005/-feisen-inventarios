@@ -34,17 +34,25 @@ export default function CorteInventario() {
           .order('nombre'),
         supabase
           .from('movimientos')
-          .select('item_id, tipo, cantidad')
-          .gt('created_at', cutoffISO),
+          .select('item_id, tipo, cantidad, fecha_movimiento, created_at'),
       ])
 
       if (e1) throw e1
       if (e2) throw e2
 
+      // Filtrar movimientos DESPUÉS de la fecha de corte
+      // Usa fecha_movimiento si existe, de lo contrario created_at
+      const movsDespues = (movs || []).filter(m => {
+        const fechaEfectiva = m.fecha_movimiento
+          ? new Date(`${m.fecha_movimiento}T23:59:59`)
+          : new Date(m.created_at)
+        return fechaEfectiva > new Date(cutoffISO)
+      })
+
       // delta[item_id] = entradas_after - salidas_after
       // stock_en_fecha = stock_actual - delta
       const deltas = {}
-      for (const m of movs || []) {
+      for (const m of movsDespues) {
         if (!m.item_id) continue
         deltas[m.item_id] = (deltas[m.item_id] || 0) + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad)
       }

@@ -213,7 +213,10 @@ export default function Historial() {
 
                 {/* Fecha */}
                 <span className="text-xs text-gray-400 w-20 shrink-0">
-                  {new Date(g.created_at).toLocaleDateString('es-CO')}
+                  {primera.fecha_movimiento
+                    ? new Date(primera.fecha_movimiento + 'T12:00:00').toLocaleDateString('es-CO')
+                    : new Date(g.created_at).toLocaleDateString('es-CO')
+                  }
                 </span>
 
                 {/* Tipo badge */}
