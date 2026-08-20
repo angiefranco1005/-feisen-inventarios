@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = ve todo (ADMIN + LOGISTICA)
   const [bodegasOperacion,  setBodegasOperacion]  = useState(null) // null = opera en todo (solo ADMIN)
   const [cargando,          setCargando]          = useState(true)
+  const [rolPreview,        setRolPreview]        = useState(null) // null = sin modo vista
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -50,17 +51,20 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  const esAdmin          = perfil?.rol === 'ADMIN'
-  const esLogistica      = perfil?.rol === 'LOGISTICA'
-  const esAlmacenista    = perfil?.rol === 'ALMACENISTA'
-  const esConsultor      = perfil?.rol === 'CONSULTOR'
-  const esJefeFundicion  = perfil?.rol === 'JEFE_FUNDICION'
+  const esAdminReal      = perfil?.rol === 'ADMIN'
+  const rolEfectivo      = rolPreview || perfil?.rol
+  const esAdmin          = rolEfectivo === 'ADMIN'
+  const esLogistica      = rolEfectivo === 'LOGISTICA'
+  const esAlmacenista    = rolEfectivo === 'ALMACENISTA'
+  const esConsultor      = rolEfectivo === 'CONSULTOR'
+  const esJefeFundicion  = rolEfectivo === 'JEFE_FUNDICION'
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esConsultor, esJefeFundicion,
+      esAdminReal, rolPreview, setRolPreview,
       bodegasPermitidas,
       bodegasOperacion,
     }}>

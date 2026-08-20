@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -50,7 +50,7 @@ const BADGE = {
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -120,6 +120,32 @@ export default function Layout({ children }) {
           {navItems.map(item => <NavLink key={item.to} item={item} />)}
         </nav>
 
+        {/* Ver como (solo admin real) */}
+        {esAdminReal && (
+          <div className="border-t pt-4 mt-2 pb-1">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2 flex items-center gap-1.5">
+              <Eye size={12} /> Vista previa
+            </p>
+            <select
+              value={rolPreview || ''}
+              onChange={e => setRolPreview(e.target.value || null)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+            >
+              <option value="">Mi vista (Admin)</option>
+              <option value="LOGISTICA">Ver como Logística</option>
+              <option value="ALMACENISTA">Ver como Almacenista</option>
+              <option value="CONSULTOR">Ver como Consultor</option>
+              <option value="JEFE_FUNDICION">Ver como Jefe Fundición</option>
+            </select>
+            {rolPreview && (
+              <button onClick={() => setRolPreview(null)}
+                className="w-full mt-1.5 text-xs text-feisen-rojo hover:underline text-center">
+                Salir del modo vista
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Perfil */}
         <div className="border-t pt-4 mt-4 space-y-1">
           <div className="flex items-center gap-3 px-2 mb-3">
@@ -188,6 +214,21 @@ export default function Layout({ children }) {
 
       {/* CONTENIDO */}
       <main className="flex-1 p-4 lg:p-8 pb-24 lg:pb-8">
+        {rolPreview && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Eye size={16} className="text-amber-600 flex-shrink-0" />
+              <p className="text-sm font-semibold text-amber-800">
+                Modo vista: <span className="text-amber-900">{BADGE[rolPreview]?.label || rolPreview}</span>
+              </p>
+              <span className="text-xs text-amber-600">— Estás viendo la app como lo vería este perfil</span>
+            </div>
+            <button onClick={() => setRolPreview(null)}
+              className="text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+              Salir
+            </button>
+          </div>
+        )}
         {children}
       </main>
 
