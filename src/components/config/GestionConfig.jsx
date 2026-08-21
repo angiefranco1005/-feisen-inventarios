@@ -54,6 +54,13 @@ function SeccionBodegas() {
     cargar()
   }
 
+  async function eliminar(b) {
+    if (!window.confirm(`¿Eliminar la bodega "${b.nombre}"? Solo es posible si no tiene productos ni movimientos asociados.`)) return
+    const { error } = await supabase.from('bodegas').delete().eq('id', b.id)
+    if (error) setMsg({ tipo: 'error', texto: 'No se puede eliminar: tiene productos, stock o movimientos asociados.' })
+    else cargar()
+  }
+
   if (cargando) return <Spinner />
 
   return (
@@ -78,6 +85,7 @@ function SeccionBodegas() {
               <button onClick={() => toggle(b)} className={`p-1.5 rounded-lg ${b.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                 {b.activo ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
               </button>
+              <button onClick={() => eliminar(b)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
             </div>
           </div>
         ))}
