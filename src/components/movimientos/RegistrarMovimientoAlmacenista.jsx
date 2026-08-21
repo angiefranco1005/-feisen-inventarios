@@ -229,26 +229,29 @@ export default function RegistrarMovimientoAlmacenista() {
   const [sProductos,     setSProductos]     = useState([{ ...PROD0 }])
   const [receptor,       setReceptor]       = useState('')
   const [notas,          setNotas]          = useState('')
-  const [destinoInterno, setDestinoInterno] = useState('') // 'Mecanizados' | 'Producción y Ensamble'
+  const [destinoBodegaId,setDestinoBodegaId]= useState('') // ID de bodega destino (transferencia interna)
   const [numeroOF,       setNumeroOF]       = useState('')
   const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
+  const [todasBodegas,   setTodasBodegas]   = useState([])
 
   const esFundicion = bodega?.nombre === 'FUNDICIÓN'
 
   useEffect(() => {
     async function cargar() {
       if (!bodegasOperacion?.[0]) { setCargando(false); return }
-      const [{ data: bod }, { data: its }, { data: peds }] = await Promise.all([
+      const [{ data: bod }, { data: its }, { data: peds }, { data: bods }] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('id', bodegasOperacion[0]).single(),
         supabase.from('items')
           .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
           .eq('bodega_id', bodegasOperacion[0]).eq('activo', true).order('nombre'),
         supabase.from('pedidos').select('id, numero, estado')
           .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+        supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
       ])
       setBodega(bod)
       setItems(its || [])
       setPedidos(peds || [])
+      setTodasBodegas((bods || []).filter(b => b.id !== bodegasOperacion[0]))
       setCargando(false)
     }
     cargar()
@@ -330,11 +333,13 @@ export default function RegistrarMovimientoAlmacenista() {
 
     if (!esFundicion && !receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
     if (esExternaFundic && !numeroOF.trim())  { setError('Ingresa el N° OF.'); return }
-    if (esInterna && !destinoInterno)         { setError('Selecciona el destino interno.'); return }
+    if (esInterna && !destinoBodegaId)        { setError('Selecciona el destino interno.'); return }
     if (esInterna && !firmaDataUrl)           { setError('Se requiere la firma del responsable.'); return }
 
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
+
+    const destNombre = esInterna ? (todasBodegas.find(b => b.id === destinoBodegaId)?.nombre || '') : null
 
     setGuardando(true)
     try {
@@ -344,14 +349,14 @@ export default function RegistrarMovimientoAlmacenista() {
         tipo:                  'salida',
         item_id:               p.item_id,
         bodega_origen_id:      bodega.id,
-        bodega_destino_id:     null,
+        bodega_destino_id:     esInterna ? destinoBodegaId : null,
         cantidad:              p.cantidad,
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
         cliente:               (!esFundicion) ? receptor.trim() : null,
         referencia:            notas.trim() || null,
-        destino:               esInterna ? destinoInterno : null,
+        destino:               destNombre,
         numero_of:             esExternaFundic ? numeroOF.trim() : null,
         foto_remision_url:     esInterna ? firmaDataUrl : null,
         fecha_movimiento:      fechaMov || null,
@@ -359,6 +364,32 @@ export default function RegistrarMovimientoAlmacenista() {
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
+
+      // ── Transferencia interna: crear entrada automática en bodega destino ──
+      if (esInterna && destinoBodegaId) {
+        const numeroRec = await generarNumero('REC')
+        const entradas = agrupados.map(p => ({
+          numero:                numeroRec,
+          tipo:                  'entrada',
+          item_id:               p.item_id,
+          bodega_destino_id:     destinoBodegaId,
+          bodega_origen_id:      bodega.id,
+          cantidad:              p.cantidad,
+          precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+          centro_costo:          destNombre,
+          usuario_id:            perfil.id,
+          referencia:            `Transferencia desde ${bodega.nombre}`,
+          fecha_movimiento:      fechaMov || null,
+          proveedor: null, pedido_id: null, destino: null, numero_of: null,
+          serial_motor: null, motivo: null, cliente: null, foto_remision_url: null,
+        }))
+        const { error: errEnt } = await supabase.from('movimientos').insert(entradas)
+        if (errEnt) {
+          setError(`Salida registrada (${numero}), pero error al crear la entrada automática en ${destNombre}: ` + errEnt.message)
+          return
+        }
+      }
+
       if (!esInterna) guardarSugerencia('feisen_receptores', receptor.trim())
       setExito(true)
       setTimeout(() => {
@@ -366,7 +397,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setSProductos([{ ...PROD0 }])
         setReceptor('')
         setNotas('')
-        setDestinoInterno('')
+        setDestinoBodegaId('')
         setNumeroOF('')
         setFirmaDataUrl(null)
         setFechaMov(HOY_COL)
@@ -671,21 +702,25 @@ export default function RegistrarMovimientoAlmacenista() {
               {/* Destino interno */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Destino *</label>
-                <div className="flex gap-3">
-                  {['Mecanizados', 'Producción y Ensamble'].map(dest => (
-                    <button key={dest} type="button"
-                      onClick={() => setDestinoInterno(dest)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-all
-                        ${destinoInterno === dest
+                <div className="flex flex-wrap gap-2">
+                  {todasBodegas.map(b => (
+                    <button key={b.id} type="button"
+                      onClick={() => setDestinoBodegaId(b.id)}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-all
+                        ${destinoBodegaId === b.id
                           ? 'border-feisen-azul bg-feisen-azul text-white'
                           : 'border-gray-200 text-gray-500 hover:border-feisen-azul hover:text-feisen-azul'}`}>
                       <Wrench size={15} />
-                      {dest}
+                      {b.nombre}
                     </button>
                   ))}
                 </div>
+                {destinoBodegaId && (
+                  <p className="mt-1.5 text-xs text-feisen-azul font-medium">
+                    → Se creará una entrada automática en <strong>{todasBodegas.find(b => b.id === destinoBodegaId)?.nombre}</strong>
+                  </p>
+                )}
               </div>
-
             </>
           )}
 
