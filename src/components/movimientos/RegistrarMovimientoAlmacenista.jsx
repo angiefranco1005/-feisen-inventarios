@@ -234,7 +234,7 @@ export default function RegistrarMovimientoAlmacenista() {
   const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
   const [todasBodegas,   setTodasBodegas]   = useState([])
 
-  const esFundicion = bodega?.nombre === 'FUNDICIÓN'
+  const esFundicion = bodega?.nombre?.includes('FUNDICIÓN')
 
   useEffect(() => {
     async function cargar() {
