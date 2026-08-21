@@ -239,7 +239,7 @@ export default function RegistrarMovimientoAlmacenista() {
   useEffect(() => {
     async function cargar() {
       if (!bodegasOperacion?.[0]) { setCargando(false); return }
-      const [{ data: bod }, { data: its }, { data: peds }, { data: bods }] = await Promise.all([
+      const [{ data: bod }, { data: ownItems }, { data: peds }, { data: bods }, { data: stockRows }] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('id', bodegasOperacion[0]).single(),
         supabase.from('items')
           .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
@@ -247,9 +247,24 @@ export default function RegistrarMovimientoAlmacenista() {
         supabase.from('pedidos').select('id, numero, estado')
           .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
         supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+        // Items de otras bodegas que tienen stock aquí (ej: FUNDICIÓN → MECANIZADOS)
+        supabase.from('stock').select('item_id').eq('bodega_id', bodegasOperacion[0]).gt('cantidad_actual', 0),
       ])
+
+      // Combinar items propios + items de otras bodegas con stock aquí
+      const ownIds = new Set((ownItems || []).map(i => i.id))
+      const extraIds = (stockRows || []).map(r => r.item_id).filter(id => !ownIds.has(id))
+      let extraItems = []
+      if (extraIds.length > 0) {
+        const { data: ext } = await supabase.from('items')
+          .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
+          .in('id', extraIds).eq('activo', true)
+        extraItems = ext || []
+      }
+      const todosItems = [...(ownItems || []), ...extraItems].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
       setBodega(bod)
-      setItems(its || [])
+      setItems(todosItems)
       setPedidos(peds || [])
       setTodasBodegas((bods || []).filter(b => b.id !== bodegasOperacion[0]))
       setCargando(false)
