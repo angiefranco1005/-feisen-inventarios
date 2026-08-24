@@ -233,8 +233,13 @@ export default function RegistrarMovimientoAlmacenista() {
   const [numeroOF,       setNumeroOF]       = useState('')
   const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
   const [todasBodegas,   setTodasBodegas]   = useState([])
+  // ── Estado salida MECANIZADOS ──
+  const [tipoSalidaMec,  setTipoSalidaMec]  = useState('externa')   // 'externa' | 'produccion'
+  const [numeroOrden,    setNumeroOrden]    = useState('')
+  const [colaborador,    setColaborador]    = useState('')
 
-  const esFundicion = bodega?.nombre?.includes('FUNDICIÓN')
+  const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
+  const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
 
   useEffect(() => {
     async function cargar() {
@@ -346,10 +351,12 @@ export default function RegistrarMovimientoAlmacenista() {
     const esInterna        = esFundicion && tipoSalida === 'interna'
     const esExternaFundic  = esFundicion && tipoSalida === 'externa'
 
-    if (!esFundicion && !receptor.trim())     { setError('Ingresa el nombre de quien recibe.'); return }
-    if (esExternaFundic && !numeroOF.trim())  { setError('Ingresa el N° OF.'); return }
-    if (esInterna && !destinoBodegaId)        { setError('Selecciona el destino interno.'); return }
-    if (esInterna && !firmaDataUrl)           { setError('Se requiere la firma del responsable.'); return }
+    if (!esFundicion && !esMecanizados && !receptor.trim())                           { setError('Ingresa el nombre de quien recibe.'); return }
+    if (esExternaFundic && !numeroOF.trim())                                          { setError('Ingresa el N° OF.'); return }
+    if (esInterna && !destinoBodegaId)                                                { setError('Selecciona el destino interno.'); return }
+    if (esInterna && !firmaDataUrl)                                                   { setError('Se requiere la firma del responsable.'); return }
+    if (esMecanizados && tipoSalidaMec === 'externa' && !numeroOrden.trim())          { setError('Ingresa el N° de orden.'); return }
+    if (esMecanizados && tipoSalidaMec === 'produccion' && !colaborador.trim())       { setError('Ingresa el colaborador que recibe.'); return }
 
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
@@ -369,10 +376,13 @@ export default function RegistrarMovimientoAlmacenista() {
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
         usuario_id:            perfil.id,
-        cliente:               (!esFundicion) ? receptor.trim() : null,
+        cliente:               esMecanizados && tipoSalidaMec === 'produccion'
+                                 ? colaborador.trim()
+                                 : (!esFundicion && !esMecanizados ? receptor.trim() : null),
         referencia:            notas.trim() || null,
-        destino:               destNombre,
-        numero_of:             esExternaFundic ? numeroOF.trim() : null,
+        destino:               esMecanizados && tipoSalidaMec === 'produccion' ? 'Producción interna' : destNombre,
+        numero_of:             esExternaFundic ? numeroOF.trim()
+                                 : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
         foto_remision_url:     esInterna ? firmaDataUrl : null,
         fecha_movimiento:      fechaMov || null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
@@ -405,7 +415,7 @@ export default function RegistrarMovimientoAlmacenista() {
         }
       }
 
-      if (!esInterna) guardarSugerencia('feisen_receptores', receptor.trim())
+      if (!esInterna && !esMecanizados) guardarSugerencia('feisen_receptores', receptor.trim())
       setExito(true)
       setTimeout(() => {
         setExito(false)
@@ -415,6 +425,9 @@ export default function RegistrarMovimientoAlmacenista() {
         setDestinoBodegaId('')
         setNumeroOF('')
         setFirmaDataUrl(null)
+        setNumeroOrden('')
+        setColaborador('')
+        setTipoSalidaMec('externa')
         setFechaMov(HOY_COL)
       }, 2000)
     } catch (err) {
@@ -655,8 +668,70 @@ export default function RegistrarMovimientoAlmacenista() {
             </div>
           )}
 
-          {/* ── VENTA EXTERNA (no FUNDICIÓN) ── */}
-          {!esFundicion && (
+          {/* ── SALIDA MECANIZADOS ── */}
+          {esMecanizados && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de salida *</label>
+                <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+                  <button type="button"
+                    onClick={() => { setTipoSalidaMec('externa'); setError('') }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                      ${tipoSalidaMec === 'externa' ? 'bg-white shadow text-feisen-rojo' : 'text-gray-500 hover:text-gray-700'}`}>
+                    🏭 Cliente externo
+                  </button>
+                  <button type="button"
+                    onClick={() => { setTipoSalidaMec('produccion'); setError('') }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
+                      ${tipoSalidaMec === 'produccion' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
+                    ⚙️ Producción interna
+                  </button>
+                </div>
+              </div>
+
+              {tipoSalidaMec === 'externa' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">N° de orden *</label>
+                  <input
+                    type="text"
+                    value={numeroOrden}
+                    onChange={e => setNumeroOrden(e.target.value)}
+                    placeholder="Ej: ORD-2026-001"
+                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                  />
+                </div>
+              )}
+
+              {tipoSalidaMec === 'produccion' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
+                  <InputConSugerencias
+                    value={colaborador}
+                    onChange={setColaborador}
+                    placeholder="Nombre del colaborador"
+                    storageKey="feisen_colaboradores"
+                    colorRing="feisen-azul"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Notas <span className="font-normal text-gray-400">(opcional)</span>
+                </label>
+                <textarea
+                  value={notas}
+                  onChange={e => setNotas(e.target.value)}
+                  placeholder="Observaciones adicionales…"
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── SALIDA ESTÁNDAR (no FUNDICIÓN, no MECANIZADOS) ── */}
+          {!esFundicion && !esMecanizados && (
             <>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
