@@ -237,6 +237,7 @@ export default function RegistrarMovimientoAlmacenista() {
   const [tipoSalidaMec,  setTipoSalidaMec]  = useState('externa')   // 'externa' | 'produccion'
   const [numeroOrden,    setNumeroOrden]    = useState('')
   const [colaborador,    setColaborador]    = useState('')
+  const [firmaReceptorUrl, setFirmaReceptorUrl] = useState(null)
 
   const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
@@ -357,6 +358,7 @@ export default function RegistrarMovimientoAlmacenista() {
     if (!firmaDataUrl)                                                                { setError('Se requiere la firma del responsable.'); return }
     if (esMecanizados && tipoSalidaMec === 'externa' && !numeroOrden.trim())          { setError('Ingresa el N° de orden.'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !colaborador.trim())       { setError('Ingresa el colaborador que recibe.'); return }
+    if (esMecanizados && tipoSalidaMec === 'produccion' && !firmaReceptorUrl)         { setError('Se requiere la firma del colaborador que recibe.'); return }
 
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
@@ -384,6 +386,7 @@ export default function RegistrarMovimientoAlmacenista() {
         numero_of:             esExternaFundic ? numeroOF.trim()
                                  : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
         foto_remision_url:     firmaDataUrl,
+        firma_receptor_url:    (esMecanizados && tipoSalidaMec === 'produccion') ? firmaReceptorUrl : null,
         fecha_movimiento:      fechaMov || null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
@@ -425,6 +428,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setDestinoBodegaId('')
         setNumeroOF('')
         setFirmaDataUrl(null)
+        setFirmaReceptorUrl(null)
         setNumeroOrden('')
         setColaborador('')
         setTipoSalidaMec('externa')
@@ -703,16 +707,24 @@ export default function RegistrarMovimientoAlmacenista() {
               )}
 
               {tipoSalidaMec === 'produccion' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
-                  <InputConSugerencias
-                    value={colaborador}
-                    onChange={setColaborador}
-                    placeholder="Nombre del colaborador"
-                    storageKey="feisen_colaboradores"
-                    colorRing="feisen-azul"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
+                    <InputConSugerencias
+                      value={colaborador}
+                      onChange={setColaborador}
+                      placeholder="Nombre del colaborador"
+                      storageKey="feisen_colaboradores"
+                      colorRing="feisen-azul"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <PenLine size={15} /> Firma del colaborador que recibe *
+                    </label>
+                    <FirmaCanvas onFirma={setFirmaReceptorUrl} firmaDataUrl={firmaReceptorUrl} />
+                  </div>
+                </>
               )}
 
               <div>
