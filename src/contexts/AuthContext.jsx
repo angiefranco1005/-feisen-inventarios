@@ -51,19 +51,20 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  const esAdminReal      = perfil?.rol === 'ADMIN'
-  const rolEfectivo      = rolPreview || perfil?.rol
-  const esAdmin          = rolEfectivo === 'ADMIN'
-  const esLogistica      = rolEfectivo === 'LOGISTICA'
-  const esAlmacenista    = rolEfectivo === 'ALMACENISTA'
-  const esConsultor      = rolEfectivo === 'CONSULTOR'
-  const esJefeFundicion  = rolEfectivo === 'JEFE_FUNDICION'
+  const esAdminReal        = perfil?.rol === 'ADMIN'
+  const rolEfectivo        = rolPreview || perfil?.rol
+  const esAdmin            = rolEfectivo === 'ADMIN'
+  const esLogistica        = rolEfectivo === 'LOGISTICA'
+  const esAlmacenista      = rolEfectivo === 'ALMACENISTA'
+  const esConsultor        = rolEfectivo === 'CONSULTOR'
+  const esJefeFundicion    = rolEfectivo === 'JEFE_FUNDICION'
+  const esJefeMecanizados  = rolEfectivo === 'JEFE_MECANIZADOS'
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
-      esAdmin, esLogistica, esAlmacenista, esConsultor, esJefeFundicion,
+      esAdmin, esLogistica, esAlmacenista, esConsultor, esJefeFundicion, esJefeMecanizados,
       esAdminReal, rolPreview, setRolPreview,
       bodegasPermitidas,
       bodegasOperacion,

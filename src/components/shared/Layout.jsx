@@ -41,16 +41,25 @@ const NAV_JEFE_FUNDICION = [
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+const NAV_JEFE_MECANIZADOS = [
+  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',         icon: Package,         label: 'Productos' },
+  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+]
+
 const BADGE = {
-  ADMIN:           { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
-  LOGISTICA:       { color: 'bg-feisen-azul text-white',   label: 'Logística' },
-  ALMACENISTA:     { color: 'bg-emerald-600 text-white',   label: 'Almacenista' },
-  CONSULTOR:       { color: 'bg-gray-500 text-white',      label: 'Consultor' },
-  JEFE_FUNDICION:  { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
+  ADMIN:             { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
+  LOGISTICA:         { color: 'bg-feisen-azul text-white',   label: 'Logística' },
+  ALMACENISTA:       { color: 'bg-emerald-600 text-white',   label: 'Almacenista' },
+  CONSULTOR:         { color: 'bg-gray-500 text-white',      label: 'Consultor' },
+  JEFE_FUNDICION:    { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
+  JEFE_MECANIZADOS:  { color: 'bg-purple-600 text-white',    label: 'Jefe Mecanizados' },
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion, esJefeMecanizados, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -59,10 +68,11 @@ export default function Layout({ children }) {
   const [msgPwd,        setMsgPwd]        = useState(null)
   const [guardandoPwd,  setGuardandoPwd]  = useState(false)
 
-  const navItems = esAdmin ? NAV_ADMIN
-    : esLogistica      ? NAV_LOGISTICA
-    : esAlmacenista    ? NAV_ALMACENISTA
-    : esJefeFundicion  ? NAV_JEFE_FUNDICION
+  const navItems = esAdmin          ? NAV_ADMIN
+    : esLogistica        ? NAV_LOGISTICA
+    : esAlmacenista      ? NAV_ALMACENISTA
+    : esJefeFundicion    ? NAV_JEFE_FUNDICION
+    : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
     : []
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
@@ -136,6 +146,7 @@ export default function Layout({ children }) {
               <option value="ALMACENISTA">Ver como Almacenista</option>
               <option value="CONSULTOR">Ver como Consultor</option>
               <option value="JEFE_FUNDICION">Ver como Jefe Fundición</option>
+              <option value="JEFE_MECANIZADOS">Ver como Jefe Mecanizados</option>
             </select>
             {rolPreview && (
               <button onClick={() => setRolPreview(null)}
