@@ -78,6 +78,38 @@ export default function Historial() {
 
     // El trigger fn_actualizar_stock ajusta el stock automáticamente al insertar el contramovimiento
 
+    // ── Si es transferencia interna, revertir también el movimiento par ──
+    const parQuery = await supabase.from('movimientos')
+      .select('id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, centro_costo, numero')
+      .eq('item_id', m.item_id)
+      .eq('cantidad', m.cantidad)
+      .eq('bodega_origen_id', m.bodega_origen_id || m.bodega_destino_id)
+      .eq('bodega_destino_id', m.bodega_destino_id || m.bodega_origen_id)
+      .neq('tipo', m.tipo)
+      .eq('revertido', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const parMov = parQuery.data
+    if (parMov && m.bodega_destino_id) {
+      const numeroPar = await generarNumero()
+      const contrapar = {
+        tipo:                  parMov.tipo === 'entrada' ? 'salida' : 'entrada',
+        item_id:               parMov.item_id,
+        bodega_origen_id:      parMov.tipo === 'entrada' ? parMov.bodega_destino_id : null,
+        bodega_destino_id:     parMov.tipo === 'salida'  ? parMov.bodega_origen_id  : null,
+        cantidad:              parMov.cantidad,
+        precio_costo_snapshot: parMov.precio_costo_snapshot || 0,
+        centro_costo:          parMov.centro_costo || '',
+        usuario_id:            perfil.id,
+        referencia:            `REVERSIÓN PAR ${parMov.numero || parMov.id}`,
+        numero:                numeroPar,
+      }
+      await supabase.from('movimientos').insert(contrapar)
+      await supabase.from('movimientos').update({ revertido: true }).eq('id', parMov.id)
+    }
+
     setRevirtiendo(false)
     setConfirmRevert(null)
     cargar()
@@ -113,7 +145,38 @@ export default function Historial() {
       return
     }
 
-    // Quitar de la lista inmediatamente sin esperar cargar()
+    // 4. Si es transferencia interna, también eliminar el movimiento par y revertir su stock
+    if (m.bodega_destino_id && m.bodega_origen_id) {
+      const { data: parMov } = await supabase.from('movimientos')
+        .select('id, bodega_destino_id, bodega_origen_id')
+        .eq('item_id', m.item_id)
+        .eq('cantidad', m.cantidad)
+        .eq('bodega_origen_id', m.bodega_origen_id)
+        .eq('bodega_destino_id', m.bodega_destino_id)
+        .neq('tipo', m.tipo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (parMov) {
+        // Revertir stock del par: si era REC (entrada) hay que descontar del destino; si era SAL hay que sumar al origen
+        const esPar_entrada = m.tipo === 'salida' // el par es entrada si el original era salida
+        const bodegaParId   = esPar_entrada ? parMov.bodega_destino_id : parMov.bodega_origen_id
+        if (bodegaParId && m.item_id) {
+          const { data: stockPar } = await supabase.from('stock').select('id, cantidad_actual')
+            .eq('item_id', m.item_id).eq('bodega_id', bodegaParId).maybeSingle()
+          if (stockPar) {
+            const nuevaCantPar = esPar_entrada
+              ? Math.max(0, stockPar.cantidad_actual - m.cantidad)
+              : stockPar.cantidad_actual + m.cantidad
+            await supabase.from('stock').update({ cantidad_actual: nuevaCantPar }).eq('id', stockPar.id)
+          }
+        }
+        await supabase.from('movimientos').delete().eq('id', parMov.id)
+        setMovimientos(prev => prev.filter(mov => mov.id !== parMov.id))
+      }
+    }
+
     setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
     setConfirmDelete(null)
     setEliminando(false)
