@@ -59,7 +59,59 @@ function Stepper({ paso, onBack }) {
   )
 }
 
-// ── Input con sugerencias localStorage ───────────────────────────────────────
+// ── Selector de pieza desde inventario ───────────────────────────────────────
+function SelectorPieza({ value, onChange, items, placeholder }) {
+  const [busqueda, setBusqueda] = useState(value || '')
+  const [abierto,  setAbierto]  = useState(false)
+
+  const filtrados = busqueda.trim()
+    ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    : items
+
+  function elegir(item) {
+    setBusqueda(item.nombre)
+    onChange(item.nombre)
+    setAbierto(false)
+  }
+
+  function handleBlur() {
+    setTimeout(() => {
+      setAbierto(false)
+      // Si lo que escribió no coincide exactamente, limpiar
+      const coincide = items.some(i => i.nombre === busqueda)
+      if (busqueda && !coincide) { setBusqueda(''); onChange('') }
+    }, 150)
+  }
+
+  return (
+    <div className="relative">
+      <input type="text" value={busqueda}
+        onChange={e => { setBusqueda(e.target.value); onChange(''); setAbierto(true) }}
+        onFocus={() => setAbierto(true)}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+      />
+      {abierto && filtrados.length > 0 && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+          {filtrados.slice(0, 40).map(i => (
+            <button key={i.id} type="button" onMouseDown={() => elegir(i)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0">
+              {i.nombre}
+            </button>
+          ))}
+        </div>
+      )}
+      {abierto && busqueda.trim() && filtrados.length === 0 && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-3 py-2 text-sm text-gray-400">
+          Sin resultados
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Input con sugerencias localStorage (para moldeadores) ─────────────────────
 function InputSug({ value, onChange, placeholder, storageKey }) {
   const [mostrar, setMostrar] = useState(false)
   const [sugs,    setSugs]    = useState([])
@@ -419,8 +471,8 @@ export default function CrearOrdenMoldeo() {
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Pieza</label>
-                  <InputSug value={libreItem} onChange={setLibreItem}
-                    placeholder="Nombre de la pieza" storageKey="feisen_piezas_moldeo" />
+                  <SelectorPieza value={libreItem} onChange={setLibreItem}
+                    items={allItems} placeholder="Buscar pieza del inventario…" />
                 </div>
                 <div className="w-28">
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Cantidad</label>
