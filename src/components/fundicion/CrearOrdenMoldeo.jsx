@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft } from 'lucide-react'
+import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
-
 function numOrden(n) {
   return `ORD-MOL-${String(n).padStart(4, '0')}`
 }
 
-// ── Stepper visual ────────────────────────────────────────────────────────────
+// ── Stepper ───────────────────────────────────────────────────────────────────
 function Stepper({ paso, onBack }) {
   const pasos = [
-    { n: 1, label: 'Configurar',       sub: 'Fecha, tipo y máquinas' },
+    { n: 1, label: 'Configurar',       sub: 'Fecha y máquinas' },
     { n: 2, label: 'Revisar y asignar', sub: 'Piezas y moldeadores' },
   ]
   return (
@@ -24,21 +23,15 @@ function Stepper({ paso, onBack }) {
         const completado = paso > p.n
         return (
           <div key={p.n} className="flex items-center flex-1">
-            {/* Paso */}
-            <button
-              type="button"
-              disabled={p.n >= paso}  // solo se puede navegar atrás
-              onClick={() => p.n < paso && onBack()}
+            <button type="button" disabled={p.n >= paso} onClick={() => p.n < paso && onBack()}
               className={`flex items-center gap-3 flex-1 px-4 py-3 rounded-2xl transition-all
-                ${activo    ? 'bg-feisen-azul text-white shadow-md'             : ''}
+                ${activo     ? 'bg-feisen-azul text-white shadow-md' : ''}
                 ${completado ? 'bg-blue-50 text-feisen-azul cursor-pointer hover:bg-blue-100' : ''}
                 ${!activo && !completado ? 'bg-gray-100 text-gray-400 cursor-default' : ''}
-              `}
-            >
-              {/* Círculo número */}
+              `}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                ${activo    ? 'bg-white text-feisen-azul'  : ''}
-                ${completado ? 'bg-feisen-azul text-white'  : ''}
+                ${activo     ? 'bg-white text-feisen-azul' : ''}
+                ${completado ? 'bg-feisen-azul text-white' : ''}
                 ${!activo && !completado ? 'bg-gray-300 text-white' : ''}
               `}>
                 {completado ? '✓' : p.n}
@@ -48,7 +41,6 @@ function Stepper({ paso, onBack }) {
                 <p className={`text-xs leading-tight mt-0.5 ${activo ? 'text-blue-100' : 'opacity-60'}`}>{p.sub}</p>
               </div>
             </button>
-            {/* Conector */}
             {i < pasos.length - 1 && (
               <div className={`h-0.5 w-4 shrink-0 ${paso > p.n ? 'bg-feisen-azul' : 'bg-gray-200'}`} />
             )}
@@ -60,33 +52,32 @@ function Stepper({ paso, onBack }) {
 }
 
 // ── Selector de pieza desde inventario ───────────────────────────────────────
-function SelectorPieza({ value, onChange, items, placeholder }) {
+function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] }) {
   const [busqueda, setBusqueda] = useState(value || '')
   const [abierto,  setAbierto]  = useState(false)
 
-  const filtrados = busqueda.trim()
-    ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    : items
+  const disponibles = items.filter(i => !excluirIds.includes(i.id))
+  const filtrados   = busqueda.trim()
+    ? disponibles.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    : disponibles
 
-  function elegir(item) {
-    setBusqueda(item.nombre)
-    onChange(item.nombre)
-    setAbierto(false)
-  }
+  function elegir(item) { setBusqueda(item.nombre); onChange(item); setAbierto(false) }
 
   function handleBlur() {
     setTimeout(() => {
       setAbierto(false)
-      // Si lo que escribió no coincide exactamente, limpiar
       const coincide = items.some(i => i.nombre === busqueda)
-      if (busqueda && !coincide) { setBusqueda(''); onChange('') }
+      if (busqueda && !coincide) { setBusqueda(''); onChange(null) }
     }, 150)
   }
+
+  // Sync desde afuera si se limpia
+  useEffect(() => { if (!value) setBusqueda('') }, [value])
 
   return (
     <div className="relative">
       <input type="text" value={busqueda}
-        onChange={e => { setBusqueda(e.target.value); onChange(''); setAbierto(true) }}
+        onChange={e => { setBusqueda(e.target.value); onChange(null); setAbierto(true) }}
         onFocus={() => setAbierto(true)}
         onBlur={handleBlur}
         placeholder={placeholder}
@@ -111,7 +102,7 @@ function SelectorPieza({ value, onChange, items, placeholder }) {
   )
 }
 
-// ── Input con sugerencias localStorage (para moldeadores) ─────────────────────
+// ── Input con sugerencias localStorage ───────────────────────────────────────
 function InputSug({ value, onChange, placeholder, storageKey }) {
   const [mostrar, setMostrar] = useState(false)
   const [sugs,    setSugs]    = useState([])
@@ -127,7 +118,6 @@ function InputSug({ value, onChange, placeholder, storageKey }) {
     if (!saved.includes(v.trim()))
       localStorage.setItem(storageKey, JSON.stringify([v.trim(), ...saved].slice(0, 40)))
   }
-
   return (
     <div className="relative">
       <input type="text" value={value} onChange={e => onChange(e.target.value)}
@@ -148,11 +138,10 @@ function InputSug({ value, onChange, placeholder, storageKey }) {
   )
 }
 
-// ── Componente principal ──────────────────────────────────────────────────────
+// ── Principal ─────────────────────────────────────────────────────────────────
 export default function CrearOrdenMoldeo() {
   const { perfil } = useAuth()
 
-  const [tipo,         setTipo]         = useState('maquinas')
   const [fecha,        setFecha]        = useState(hoyCol())
   const [paso,         setPaso]         = useState(1)
 
@@ -160,12 +149,15 @@ export default function CrearOrdenMoldeo() {
   const [allItems,     setAllItems]     = useState([])
   const [fundBodegaId, setFundBodegaId] = useState(null)
 
-  const [cantidades,   setCantidades]   = useState({})
+  const [cantidades,   setCantidades]   = useState({})   // { maqId: número }
   const [calculando,   setCalculando]   = useState(false)
+  const [maqExpandida, setMaqExpandida] = useState(true) // accordion paso 1
 
+  // Piezas en la orden  (BOM + libres juntas)
   const [piezas,       setPiezas]       = useState([])
 
-  const [libreItem,    setLibreItem]    = useState('')
+  // Selector pieza libre
+  const [libreItem,    setLibreItem]    = useState(null)   // objeto item completo
   const [libreCant,    setLibreCant]    = useState('')
 
   const [guardando,    setGuardando]    = useState(false)
@@ -182,9 +174,9 @@ export default function CrearOrdenMoldeo() {
     setMaquinas(maq || [])
     setFundBodegaId(bod?.id || null)
     if (bod?.id) {
-      const { data: fundItems } = await supabase.from('items')
+      const { data: fi } = await supabase.from('items')
         .select('id, nombre, peso_unitario').eq('bodega_id', bod.id).eq('activo', true).order('nombre')
-      setAllItems(fundItems || [])
+      setAllItems(fi || [])
     }
   }
 
@@ -192,82 +184,102 @@ export default function CrearOrdenMoldeo() {
     setCantidades(prev => ({ ...prev, [maqId]: val === '' ? '' : Math.max(0, parseInt(val) || 0) }))
   }
 
-  // Preserva asignaciones existentes al recalcular
-  async function calcularPiezas() {
-    setError('')
-    const seleccionadas = Object.entries(cantidades).filter(([_, c]) => Number(c) > 0)
-    if (seleccionadas.length === 0) { setError('Ingresa cantidad en al menos una máquina.'); return }
+  const hayMaquinas = Object.values(cantidades).some(c => Number(c) > 0)
 
+  // Calcula piezas BOM y pasa al paso 2, preservando libres ya agregadas y moldeadores
+  async function calcularYAvanzar() {
+    setError('')
     setCalculando(true)
     try {
-      const maqIds = seleccionadas.map(([id]) => id)
-      const { data: bom } = await supabase
-        .from('bom_maquina_piezas')
-        .select('maquina_id, item_id, cantidad_por_maquina, items(id, nombre, peso_unitario)')
-        .in('maquina_id', maqIds)
+      let bomPiezas = []
+      if (hayMaquinas) {
+        const maqIds = Object.entries(cantidades).filter(([_, c]) => Number(c) > 0).map(([id]) => id)
+        const { data: bom } = await supabase
+          .from('bom_maquina_piezas')
+          .select('maquina_id, item_id, cantidad_por_maquina, items(id, nombre, peso_unitario)')
+          .in('maquina_id', maqIds)
 
-      // Mapa de piezas ya asignadas (para preservar moldeador al recalcular)
+        const agregado = {}
+        for (const row of (bom || [])) {
+          const cantMaq = Number(cantidades[row.maquina_id]) || 0
+          if (!agregado[row.item_id]) {
+            agregado[row.item_id] = {
+              item_id: row.item_id, nombre: row.items?.nombre || '',
+              peso_unitario: row.items?.peso_unitario || 0,
+              cantidad_planeada: 0, asignado_a: '', origen: 'bom',
+            }
+          }
+          agregado[row.item_id].cantidad_planeada += row.cantidad_por_maquina * cantMaq
+        }
+        bomPiezas = Object.values(agregado)
+      }
+
+      // Preservar moldeadores y piezas libres ya agregadas
       const prevMap = {}
       piezas.forEach(p => { prevMap[p.item_id] = p })
 
-      const agregado = {}
-      for (const row of (bom || [])) {
-        const cantMaq = Number(cantidades[row.maquina_id]) || 0
-        const total   = row.cantidad_por_maquina * cantMaq
-        if (!agregado[row.item_id]) {
-          agregado[row.item_id] = {
-            item_id:           row.item_id,
-            nombre:            row.items?.nombre || '',
-            peso_unitario:     row.items?.peso_unitario || 0,
-            cantidad_planeada: 0,
-            // Preservar moldeador ya asignado
-            asignado_a:        prevMap[row.item_id]?.asignado_a || '',
-            stock_actual:      null,
-          }
-        }
-        agregado[row.item_id].cantidad_planeada += total
-      }
+      const bomIds = new Set(bomPiezas.map(p => p.item_id))
+      const libresExistentes = piezas.filter(p => p.origen === 'libre')
+
+      const nuevasBom = bomPiezas.map(p => ({
+        ...p,
+        asignado_a: prevMap[p.item_id]?.asignado_a || '',
+      }))
+
+      // Unir BOM + libres (sin duplicar)
+      const libresNoEnBom = libresExistentes.filter(p => !bomIds.has(p.item_id))
 
       // Stock actual
-      const itemIds = Object.keys(agregado)
-      if (itemIds.length > 0 && fundBodegaId) {
+      const todasIds = [...nuevasBom, ...libresNoEnBom].map(p => p.item_id)
+      let stockMap = {}
+      if (todasIds.length > 0 && fundBodegaId) {
         const { data: stocks } = await supabase.from('stock')
-          .select('item_id, cantidad_actual').in('item_id', itemIds).eq('bodega_id', fundBodegaId)
-        for (const s of (stocks || [])) {
-          if (agregado[s.item_id]) agregado[s.item_id].stock_actual = s.cantidad_actual ?? 0
-        }
+          .select('item_id, cantidad_actual').in('item_id', todasIds).eq('bodega_id', fundBodegaId)
+        for (const s of (stocks || [])) stockMap[s.item_id] = s.cantidad_actual ?? 0
       }
+      const conStock = p => ({ ...p, stock_actual: stockMap[p.item_id] ?? null })
 
-      setPiezas(Object.values(agregado).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      const merged = [
+        ...nuevasBom.map(conStock),
+        ...libresNoEnBom.map(conStock),
+      ].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
+      setPiezas(merged)
       setPaso(2)
     } finally {
       setCalculando(false)
     }
   }
 
-  function irAtras() {
-    setError('')
-    setPaso(1)
-  }
+  function irAtras() { setError(''); setPaso(1) }
 
-  function agregarLibre() {
+  // Agregar pieza libre desde el panel del paso 2
+  async function agregarLibre() {
     if (!libreItem || !libreCant || Number(libreCant) <= 0) {
       setError('Selecciona una pieza y una cantidad válida.'); return
     }
-    const item = allItems.find(i => i.nombre === libreItem)
-    if (!item) { setError('Pieza no encontrada en el catálogo.'); return }
-    if (piezas.some(p => p.item_id === item.id)) { setError('Esa pieza ya está en la lista.'); return }
+    if (piezas.some(p => p.item_id === libreItem.id)) {
+      setError('Esa pieza ya está en la lista.'); return
+    }
+    // Stock
+    let stockActual = null
+    if (fundBodegaId) {
+      const { data: s } = await supabase.from('stock')
+        .select('cantidad_actual').eq('item_id', libreItem.id).eq('bodega_id', fundBodegaId).single()
+      stockActual = s?.cantidad_actual ?? null
+    }
     setPiezas(prev => [...prev, {
-      item_id: item.id, nombre: item.nombre, peso_unitario: item.peso_unitario || 0,
-      cantidad_planeada: Number(libreCant), asignado_a: '', stock_actual: null,
+      item_id: libreItem.id, nombre: libreItem.nombre,
+      peso_unitario: libreItem.peso_unitario || 0,
+      cantidad_planeada: Number(libreCant),
+      asignado_a: '', origen: 'libre', stock_actual: stockActual,
     }].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
-    setLibreItem(''); setLibreCant(''); setError('')
+    setLibreItem(null); setLibreCant(''); setError('')
   }
 
   function actualizarPieza(item_id, campo, val) {
     setPiezas(prev => prev.map(p => p.item_id === item_id ? { ...p, [campo]: val } : p))
   }
-
   function quitarPieza(item_id) {
     setPiezas(prev => prev.filter(p => p.item_id !== item_id))
   }
@@ -277,12 +289,13 @@ export default function CrearOrdenMoldeo() {
     if (piezas.length === 0) { setError('Sin piezas en la orden.'); return }
     setGuardando(true)
     try {
+      const tipo = hayMaquinas ? 'maquinas' : 'libre'
       const { data: orden, error: err1 } = await supabase.from('ordenes_moldeo')
         .insert({ fecha, tipo, usuario_id: perfil.id })
         .select('id, numero').single()
       if (err1) throw err1
 
-      if (tipo === 'maquinas') {
+      if (hayMaquinas) {
         const maqRows = Object.entries(cantidades)
           .filter(([_, c]) => Number(c) > 0)
           .map(([maquina_id, cantidad_maquinas]) => ({ orden_id: orden.id, maquina_id, cantidad_maquinas }))
@@ -298,7 +311,6 @@ export default function CrearOrdenMoldeo() {
         }))
       )
       if (err2) throw err2
-
       setExito({ numero: orden.numero })
     } catch (e) {
       setError('Error al guardar: ' + e.message)
@@ -308,12 +320,11 @@ export default function CrearOrdenMoldeo() {
   }
 
   function limpiar() {
-    setTipo('maquinas'); setFecha(hoyCol()); setPaso(1)
-    setCantidades({}); setPiezas([]); setLibreItem(''); setLibreCant('')
+    setFecha(hoyCol()); setPaso(1); setCantidades({})
+    setPiezas([]); setLibreItem(null); setLibreCant('')
     setError(''); setExito(null)
   }
 
-  // ── Éxito ──────────────────────────────────────────────────────────────────
   if (exito) {
     return (
       <div className="max-w-xl mx-auto p-4 flex flex-col items-center justify-center gap-5 py-20">
@@ -323,14 +334,13 @@ export default function CrearOrdenMoldeo() {
           <p className="text-feisen-azul font-bold text-2xl mt-2">{numOrden(exito.numero)}</p>
         </div>
         <button onClick={limpiar}
-          className="bg-feisen-rojo text-white rounded-xl px-8 py-3 text-sm font-semibold hover:opacity-90 transition-opacity">
+          className="bg-feisen-rojo text-white rounded-xl px-8 py-3 text-sm font-semibold hover:opacity-90">
           Crear otra orden
         </button>
       </div>
     )
   }
 
-  // ── Resumen de carga por moldeador ─────────────────────────────────────────
   const balanceMoldeadores = piezas.length > 0 ? (() => {
     const por = {}
     piezas.forEach(p => {
@@ -342,10 +352,11 @@ export default function CrearOrdenMoldeo() {
     return por
   })() : null
 
+  const itemsEnOrden = piezas.map(p => p.item_id)
+
   return (
     <div className="max-w-3xl mx-auto p-4 pb-28">
 
-      {/* Header fijo */}
       <div className="flex items-center gap-3 mb-5">
         <div className="bg-blue-100 p-2.5 rounded-xl">
           <ClipboardList size={22} className="text-feisen-azul" />
@@ -353,7 +364,6 @@ export default function CrearOrdenMoldeo() {
         <h1 className="text-xl font-bold text-gray-800">Nueva Orden de Moldeo</h1>
       </div>
 
-      {/* Stepper siempre visible — paso 1 clickeable desde paso 2 */}
       <Stepper paso={paso} onBack={irAtras} />
 
       {error && (
@@ -365,78 +375,77 @@ export default function CrearOrdenMoldeo() {
       {/* ══ PASO 1 ══ */}
       {paso === 1 && (
         <div className="space-y-5">
-          {/* Info general */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Información general</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Fecha *</label>
-                <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tipo de orden</label>
-                <div className="flex rounded-xl overflow-hidden border border-gray-300">
-                  {[['maquinas','Por máquinas'],['libre','Libre']].map(([val, lab]) => (
-                    <button key={val} type="button"
-                      onClick={() => { setTipo(val); setPiezas([]) }}
-                      className={`flex-1 py-2.5 text-sm font-semibold transition-colors
-                        ${tipo === val ? 'bg-feisen-azul text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                      {lab}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+
+          {/* Fecha */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Fecha</h2>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
 
-          {/* Máquinas */}
-          {tipo === 'maquinas' && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
-                Cantidad de máquinas a producir
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                {maquinas.map(m => (
-                  <div key={m.id} className="flex items-center gap-3">
-                    <label className="text-sm text-gray-700 flex-1 leading-tight">{m.nombre}</label>
-                    <input type="number" min="0" step="1"
-                      value={cantidades[m.id] ?? ''}
-                      onChange={e => setCant(m.id, e.target.value)}
-                      placeholder="0"
-                      className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Resumen de lo seleccionado */}
-              {Object.values(cantidades).some(c => Number(c) > 0) && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-500 font-medium mb-2">Seleccionadas:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {maquinas.filter(m => Number(cantidades[m.id]) > 0).map(m => (
-                      <span key={m.id} className="bg-blue-100 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
-                        {Number(cantidades[m.id])} × {m.nombre}
-                      </span>
-                    ))}
-                  </div>
+          {/* Máquinas — accordion */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <button type="button" onClick={() => setMaqExpandida(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-700 text-left">Máquinas a producir</p>
+                  <p className="text-xs text-gray-400 text-left mt-0.5">
+                    {hayMaquinas
+                      ? `${Object.values(cantidades).filter(c=>Number(c)>0).length} máquinas seleccionadas · el BOM se calcula automático`
+                      : 'Opcional — déjalo vacío si la orden es solo de piezas libres'}
+                  </p>
                 </div>
-              )}
-
-              <button onClick={calcularPiezas} disabled={calculando}
-                className="mt-5 w-full bg-feisen-azul text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-                {calculando ? 'Calculando…' : 'Calcular piezas →'}
-              </button>
-            </div>
-          )}
-
-          {tipo === 'libre' && (
-            <button onClick={() => { setPaso(2) }}
-              className="w-full bg-feisen-azul text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 transition-opacity">
-              Continuar → Agregar piezas manualmente
+              </div>
+              <div className="flex items-center gap-2">
+                {hayMaquinas && (
+                  <span className="bg-feisen-azul text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {Object.values(cantidades).filter(c=>Number(c)>0).reduce((s,c)=>s+Number(c),0)} uds
+                  </span>
+                )}
+                {maqExpandida ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+              </div>
             </button>
-          )}
+
+            {maqExpandida && (
+              <div className="px-5 pb-5 border-t border-gray-100">
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  {maquinas.map(m => (
+                    <div key={m.id} className="flex items-center gap-3">
+                      <label className="text-sm text-gray-700 flex-1 leading-tight">{m.nombre}</label>
+                      <input type="number" min="0" step="1"
+                        value={cantidades[m.id] ?? ''}
+                        onChange={e => setCant(m.id, e.target.value)}
+                        placeholder="0"
+                        className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {hayMaquinas && (
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap gap-2">
+                      {maquinas.filter(m => Number(cantidades[m.id]) > 0).map(m => (
+                        <span key={m.id} className="bg-blue-100 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
+                          {Number(cantidades[m.id])} × {m.nombre}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Continuar */}
+          <button onClick={calcularYAvanzar} disabled={calculando}
+            className="w-full bg-feisen-azul text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
+            {calculando
+              ? 'Calculando…'
+              : hayMaquinas
+                ? 'Calcular piezas del BOM →'
+                : 'Continuar → Agregar piezas manualmente'}
+          </button>
         </div>
       )}
 
@@ -444,16 +453,15 @@ export default function CrearOrdenMoldeo() {
       {paso === 2 && (
         <div className="space-y-5">
 
-          {/* Botón atrás prominente */}
           <button onClick={irAtras}
             className="flex items-center gap-2 text-sm font-semibold text-feisen-azul hover:opacity-70 transition-opacity">
             <ArrowLeft size={16} /> Volver a configuración
           </button>
 
-          {/* Resumen de máquinas (solo tipo maquinas) */}
-          {tipo === 'maquinas' && Object.values(cantidades).some(c => Number(c) > 0) && (
+          {/* Chips de máquinas seleccionadas (si aplica) */}
+          {hayMaquinas && (
             <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
-              <p className="text-xs font-bold text-feisen-azul uppercase mb-2">Máquinas seleccionadas</p>
+              <p className="text-xs font-bold text-feisen-azul uppercase mb-2">Máquinas en esta orden</p>
               <div className="flex flex-wrap gap-2">
                 {maquinas.filter(m => Number(cantidades[m.id]) > 0).map(m => (
                   <span key={m.id} className="bg-white border border-blue-200 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
@@ -464,68 +472,90 @@ export default function CrearOrdenMoldeo() {
             </div>
           )}
 
-          {/* Agregar pieza (modo libre) */}
-          {tipo === 'libre' && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Agregar pieza</h2>
-              <div className="flex gap-3 items-end">
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Pieza</label>
-                  <SelectorPieza value={libreItem} onChange={setLibreItem}
-                    items={allItems} placeholder="Buscar pieza del inventario…" />
-                </div>
-                <div className="w-28">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Cantidad</label>
-                  <input type="number" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
-                    placeholder="0"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-                </div>
-                <button onClick={agregarLibre}
-                  className="bg-feisen-azul text-white rounded-lg p-2 hover:opacity-80 transition-opacity">
-                  <Plus size={18} />
-                </button>
+          {/* ── Panel agregar pieza libre ──────────────────────────────── */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
+              Agregar pieza adicional
+            </h2>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Pieza (inventario fundición)</label>
+                <SelectorPieza
+                  value={libreItem?.nombre || ''}
+                  onChange={setLibreItem}
+                  items={allItems}
+                  excluirIds={itemsEnOrden}
+                  placeholder="Buscar pieza…"
+                />
               </div>
+              <div className="w-28">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Cantidad</label>
+                <input type="number" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
+                  placeholder="0"
+                  onKeyDown={e => e.key === 'Enter' && agregarLibre()}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              </div>
+              <button onClick={agregarLibre}
+                className="bg-feisen-azul text-white rounded-lg p-2 hover:opacity-80 transition-opacity">
+                <Plus size={18} />
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* Tabla de piezas */}
+          {/* ── Tabla de piezas ───────────────────────────────────────── */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div>
                 <p className="text-base font-bold text-gray-700">Piezas a moldear</p>
-                <p className="text-sm text-gray-400 mt-0.5">{piezas.length} ítems · Ajusta cantidades y asigna moldeadores</p>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  {piezas.length} ítems
+                  {piezas.some(p=>p.origen==='bom')  && ` · ${piezas.filter(p=>p.origen==='bom').length} del BOM`}
+                  {piezas.some(p=>p.origen==='libre') && ` · ${piezas.filter(p=>p.origen==='libre').length} libres`}
+                </p>
               </div>
-              {tipo === 'maquinas' && (
-                <button onClick={calcularPiezas} disabled={calculando}
+              {hayMaquinas && (
+                <button onClick={calcularYAvanzar} disabled={calculando}
                   className="text-sm font-semibold text-feisen-azul bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors">
-                  {calculando ? '…' : '↻ Recalcular'}
+                  {calculando ? '…' : '↻ Recalcular BOM'}
                 </button>
               )}
             </div>
 
             {piezas.length === 0 ? (
-              <p className="text-center text-gray-400 py-14 text-sm">Sin piezas. Agrega al menos una.</p>
+              <p className="text-center text-gray-400 py-14 text-sm">
+                Sin piezas. Agrega máquinas o piezas libres arriba.
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gray-50 text-xs text-gray-500 font-bold uppercase border-b border-gray-200 tracking-wide">
                       <th className="text-left px-6 py-4">Pieza</th>
+                      <th className="text-center px-3 py-4 w-12">Origen</th>
                       <th className="text-center px-4 py-4 w-36">Cantidad</th>
-                      <th className="text-center px-4 py-4 w-28">Stock actual</th>
+                      <th className="text-center px-4 py-4 w-28">Stock</th>
                       <th className="text-left px-4 py-4">Moldeador</th>
-                      {tipo === 'libre' && <th className="w-10 px-3" />}
+                      <th className="w-10 px-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {piezas.map((p) => (
+                    {piezas.map(p => (
                       <tr key={p.item_id} className="hover:bg-blue-50/30 transition-colors">
                         <td className="px-6 py-4 font-semibold text-gray-800 text-sm leading-snug">{p.nombre}</td>
+                        <td className="px-3 py-4 text-center">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            p.origen === 'bom'
+                              ? 'bg-blue-100 text-feisen-azul'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {p.origen === 'bom' ? 'BOM' : 'Libre'}
+                          </span>
+                        </td>
                         <td className="px-4 py-4 text-center">
                           <input type="number" min="0" step="1"
                             value={p.cantidad_planeada}
                             onChange={e => actualizarPieza(p.item_id, 'cantidad_planeada', e.target.value)}
-                            className="w-24 border-2 border-gray-200 rounded-xl px-2 py-2 text-center text-base font-semibold focus:outline-none focus:border-feisen-azul focus:ring-0"
+                            className="w-24 border-2 border-gray-200 rounded-xl px-2 py-2 text-center text-base font-semibold focus:outline-none focus:border-feisen-azul"
                           />
                         </td>
                         <td className="px-4 py-4 text-center">
@@ -534,9 +564,7 @@ export default function CrearOrdenMoldeo() {
                                 Number(p.stock_actual) < Number(p.cantidad_planeada)
                                   ? 'bg-orange-100 text-orange-600'
                                   : 'bg-green-100 text-green-600'
-                              }`}>
-                                {p.stock_actual}
-                              </span>
+                              }`}>{p.stock_actual}</span>
                             : <span className="text-gray-300 text-sm">—</span>
                           }
                         </td>
@@ -545,14 +573,12 @@ export default function CrearOrdenMoldeo() {
                             onChange={v => actualizarPieza(p.item_id, 'asignado_a', v)}
                             placeholder="Moldeador" storageKey="feisen_moldeadores" />
                         </td>
-                        {tipo === 'libre' && (
-                          <td className="px-3 py-4">
-                            <button onClick={() => quitarPieza(p.item_id)}
-                              className="text-gray-300 hover:text-red-400 transition-colors p-1.5">
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        )}
+                        <td className="px-3 py-4">
+                          <button onClick={() => quitarPieza(p.item_id)}
+                            className="text-gray-300 hover:text-red-400 transition-colors p-1.5">
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -561,7 +587,7 @@ export default function CrearOrdenMoldeo() {
             )}
           </div>
 
-          {/* Balance por moldeador */}
+          {/* Balance moldeadores */}
           {balanceMoldeadores && (
             <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
               <p className="text-xs font-bold text-feisen-azul uppercase tracking-wider mb-3">Carga por moldeador</p>
@@ -572,7 +598,7 @@ export default function CrearOrdenMoldeo() {
                     <div className="text-right">
                       <span className="text-feisen-azul font-bold text-sm">{d.piezas}</span>
                       <span className="text-gray-400 text-xs ml-1">pzas</span>
-                      {d.kg > 0 && <p className="text-xs text-gray-400">{d.kg.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg</p>}
+                      {d.kg > 0 && <p className="text-xs text-gray-400">{d.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</p>}
                     </div>
                   </div>
                 ))}
