@@ -72,7 +72,13 @@ export default function GestionProductos() {
         const { data: ext } = await supabase.from('items')
           .select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)')
           .in('id', extraIds).eq('activo', true)
-        todosItems = [...todosItems, ...(ext || [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+        // Marcar como transferidas: categoría visual "Fundición"
+        const marcadas = (ext || []).map(item => ({
+          ...item,
+          categorias: { nombre: 'Fundición' },
+          categoria_id: '__fundicion__',
+        }))
+        todosItems = [...todosItems, ...marcadas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
       }
     }
 
@@ -212,9 +218,11 @@ export default function GestionProductos() {
   const totalStockBajo = items.filter(stockBajo).length
 
   // Categorías filtradas por bodega seleccionada (para el select de filtro)
-  const categoriasFiltroBodega = filtroBodega
-    ? categorias.filter(c => c.bodega_id === filtroBodega)
-    : categorias
+  const hayTransferidas = items.some(i => i.categoria_id === '__fundicion__')
+  const categoriasFiltroBodega = [
+    ...(filtroBodega ? categorias.filter(c => c.bodega_id === filtroBodega) : categorias),
+    ...(hayTransferidas ? [{ id: '__fundicion__', nombre: 'Fundición' }] : []),
+  ]
 
   if (cargando) return <Spinner texto="Cargando productos..." />
 
