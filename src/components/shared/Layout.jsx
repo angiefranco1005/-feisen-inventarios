@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -39,6 +39,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/fundidas',          icon: Flame,            label: 'Fundidas' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
