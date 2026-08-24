@@ -20,6 +20,7 @@ import ListaFundidas       from './components/fundicion/ListaFundidas'
 import CrearOrdenMoldeo    from './components/fundicion/CrearOrdenMoldeo'
 import ListaOrdenesMoldeo  from './components/fundicion/ListaOrdenesMoldeo'
 import GestionBOM          from './components/fundicion/GestionBOM'
+import InformeNomina       from './components/reportes/InformeNomina'
 
 function Cargando() {
   return (
@@ -99,6 +100,7 @@ function AppRoutes() {
         <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
         <Route path="/moldeo/nueva"      element={<Layout><CrearOrdenMoldeo /></Layout>} />
         <Route path="/moldeo/catalogo"   element={<Layout><GestionBOM /></Layout>} />
+        <Route path="/nomina/fundicion"  element={<Layout><InformeNomina /></Layout>} />
         <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
       </Routes>
     )
@@ -135,6 +137,7 @@ function AppRoutes() {
       <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
       <Route path="/moldeo/nueva"      element={<Layout><CrearOrdenMoldeo /></Layout>} />
       <Route path="/moldeo/catalogo"   element={<Layout><GestionBOM /></Layout>} />
+      <Route path="/nomina/fundicion"  element={<Layout><InformeNomina /></Layout>} />
       <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

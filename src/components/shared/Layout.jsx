@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -16,6 +16,7 @@ const NAV_ADMIN = [
   { to: '/fundidas',          icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',            icon: Layers,           label: 'Moldeo' },
   { to: '/moldeo/catalogo',   icon: Factory,          label: 'BOM' },
+  { to: '/nomina/fundicion',  icon: FileSpreadsheet,  label: 'Nómina' },
   { to: '/reportes/corte',    icon: CalendarDays,     label: 'Corte inv.' },
   { to: '/config',            icon: Settings,         label: 'Configuración' },
 ]
@@ -45,6 +46,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/fundidas',          icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',            icon: Layers,           label: 'Moldeo' },
   { to: '/moldeo/catalogo',   icon: Factory,          label: 'BOM' },
+  { to: '/nomina/fundicion',  icon: FileSpreadsheet,  label: 'Nómina' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
