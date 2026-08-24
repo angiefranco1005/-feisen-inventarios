@@ -11,7 +11,7 @@ const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galó
 
 export default function GestionProductos() {
   const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
-  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'JEFE_FUNDICION'
+  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])
@@ -45,7 +45,7 @@ export default function GestionProductos() {
       setCargando(false); return
     }
 
-    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)').order('nombre')
+    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)').order('nombre')
     if (!esAdmin && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
 
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
@@ -57,7 +57,26 @@ export default function GestionProductos() {
       const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
-    setItems(it || [])
+
+    let todosItems = it || []
+
+    // Para usuarios no-admin con bodega asignada: también mostrar items de otras bodegas con stock aquí
+    if (!esAdmin && bodegasPermitidas && bodegasPermitidas.length > 0) {
+      const ownIds = new Set((it || []).map(i => i.id))
+      const { data: stockRows } = await supabase.from('stock')
+        .select('item_id, cantidad_actual')
+        .in('bodega_id', bodegasPermitidas)
+        .gt('cantidad_actual', 0)
+      const extraIds = (stockRows || []).map(r => r.item_id).filter(id => !ownIds.has(id))
+      if (extraIds.length > 0) {
+        const { data: ext } = await supabase.from('items')
+          .select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)')
+          .in('id', extraIds).eq('activo', true)
+        todosItems = [...todosItems, ...(ext || [])].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      }
+    }
+
+    setItems(todosItems)
     // Para no-admin: filtrar categorías y bodegas visibles
     if (!esAdmin && bodegasPermitidas) {
       setCategorias((cats || []).filter(c => bodegasPermitidas.includes(c.bodega_id)))
@@ -168,7 +187,9 @@ export default function GestionProductos() {
   }
 
   function getStock(item) {
-    return item.stock?.[0]?.cantidad_actual ?? null
+    if (!bodegasPermitidas) return item.stock?.reduce((s, r) => s + (r.cantidad_actual || 0), 0) ?? null
+    const relevante = item.stock?.find(s => bodegasPermitidas.includes(s.bodega_id))
+    return relevante?.cantidad_actual ?? null
   }
 
   function stockBajo(item) {
