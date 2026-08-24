@@ -490,66 +490,66 @@ export default function CrearOrdenMoldeo() {
 
           {/* Tabla de piezas */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div>
-                <p className="text-sm font-bold text-gray-700">Piezas a moldear</p>
-                <p className="text-xs text-gray-400 mt-0.5">{piezas.length} ítems · Puedes ajustar cantidades y asignar moldeadores</p>
+                <p className="text-base font-bold text-gray-700">Piezas a moldear</p>
+                <p className="text-sm text-gray-400 mt-0.5">{piezas.length} ítems · Ajusta cantidades y asigna moldeadores</p>
               </div>
               {tipo === 'maquinas' && (
                 <button onClick={calcularPiezas} disabled={calculando}
-                  className="text-xs font-semibold text-feisen-azul bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors">
+                  className="text-sm font-semibold text-feisen-azul bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors">
                   {calculando ? '…' : '↻ Recalcular'}
                 </button>
               )}
             </div>
 
             {piezas.length === 0 ? (
-              <p className="text-center text-gray-400 py-10 text-sm">Sin piezas. Agrega al menos una.</p>
+              <p className="text-center text-gray-400 py-14 text-sm">Sin piezas. Agrega al menos una.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50 text-xs text-gray-500 font-semibold uppercase border-b border-gray-100">
-                      <th className="text-left px-4 py-3">Pieza</th>
-                      <th className="text-center px-3 py-3 w-28">Cantidad</th>
-                      <th className="text-center px-3 py-3 w-20">Stock</th>
-                      <th className="text-left px-3 py-3">Moldeador</th>
-                      {tipo === 'libre' && <th className="w-8 px-2" />}
+                    <tr className="bg-gray-50 text-xs text-gray-500 font-bold uppercase border-b border-gray-200 tracking-wide">
+                      <th className="text-left px-6 py-4">Pieza</th>
+                      <th className="text-center px-4 py-4 w-36">Cantidad</th>
+                      <th className="text-center px-4 py-4 w-28">Stock actual</th>
+                      <th className="text-left px-4 py-4">Moldeador</th>
+                      {tipo === 'libre' && <th className="w-10 px-3" />}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-100">
                     {piezas.map((p) => (
-                      <tr key={p.item_id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800 leading-tight">{p.nombre}</td>
-                        <td className="px-3 py-3 text-center">
+                      <tr key={p.item_id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-gray-800 text-sm leading-snug">{p.nombre}</td>
+                        <td className="px-4 py-4 text-center">
                           <input type="number" min="0" step="1"
                             value={p.cantidad_planeada}
                             onChange={e => actualizarPieza(p.item_id, 'cantidad_planeada', e.target.value)}
-                            className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                            className="w-24 border-2 border-gray-200 rounded-xl px-2 py-2 text-center text-base font-semibold focus:outline-none focus:border-feisen-azul focus:ring-0"
                           />
                         </td>
-                        <td className="px-3 py-3 text-center">
+                        <td className="px-4 py-4 text-center">
                           {p.stock_actual != null
-                            ? <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            ? <span className={`text-sm font-bold px-3 py-1 rounded-full ${
                                 Number(p.stock_actual) < Number(p.cantidad_planeada)
                                   ? 'bg-orange-100 text-orange-600'
                                   : 'bg-green-100 text-green-600'
                               }`}>
                                 {p.stock_actual}
                               </span>
-                            : <span className="text-gray-300 text-xs">—</span>
+                            : <span className="text-gray-300 text-sm">—</span>
                           }
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-4">
                           <InputSug value={p.asignado_a}
                             onChange={v => actualizarPieza(p.item_id, 'asignado_a', v)}
                             placeholder="Moldeador" storageKey="feisen_moldeadores" />
                         </td>
                         {tipo === 'libre' && (
-                          <td className="px-2 py-3">
+                          <td className="px-3 py-4">
                             <button onClick={() => quitarPieza(p.item_id)}
-                              className="text-gray-300 hover:text-red-400 transition-colors p-1">
-                              <Trash2 size={14} />
+                              className="text-gray-300 hover:text-red-400 transition-colors p-1.5">
+                              <Trash2 size={16} />
                             </button>
                           </td>
                         )}
