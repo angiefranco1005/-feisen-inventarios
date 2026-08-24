@@ -354,7 +354,7 @@ export default function RegistrarMovimientoAlmacenista() {
     if (!esFundicion && !esMecanizados && !receptor.trim())                           { setError('Ingresa el nombre de quien recibe.'); return }
     if (esExternaFundic && !numeroOF.trim())                                          { setError('Ingresa el N° OF.'); return }
     if (esInterna && !destinoBodegaId)                                                { setError('Selecciona el destino interno.'); return }
-    if (esInterna && !firmaDataUrl)                                                   { setError('Se requiere la firma del responsable.'); return }
+    if (!firmaDataUrl)                                                                { setError('Se requiere la firma del responsable.'); return }
     if (esMecanizados && tipoSalidaMec === 'externa' && !numeroOrden.trim())          { setError('Ingresa el N° de orden.'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !colaborador.trim())       { setError('Ingresa el colaborador que recibe.'); return }
 
@@ -383,7 +383,7 @@ export default function RegistrarMovimientoAlmacenista() {
         destino:               esMecanizados && tipoSalidaMec === 'produccion' ? 'Producción interna' : destNombre,
         numero_of:             esExternaFundic ? numeroOF.trim()
                                  : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
-        foto_remision_url:     esInterna ? firmaDataUrl : null,
+        foto_remision_url:     firmaDataUrl,
         fecha_movimiento:      fechaMov || null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
@@ -851,15 +851,13 @@ export default function RegistrarMovimientoAlmacenista() {
             </button>
           </div>
 
-          {/* Firma — solo transferencia interna */}
-          {esFundicion && tipoSalida === 'interna' && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <PenLine size={15} /> Firma del responsable *
-              </label>
-              <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
-            </div>
-          )}
+          {/* Firma — obligatoria para TODAS las salidas */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <PenLine size={15} /> Firma del responsable *
+            </label>
+            <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
+          </div>
 
           <button type="submit" disabled={guardando}
             className="w-full bg-feisen-rojo text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
