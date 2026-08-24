@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine } from 'lucide-react'
 
 const TIPO_CONFIG = {
   entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
@@ -19,11 +19,13 @@ export default function Historial() {
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroTipo,   setFiltroTipo]   = useState('todos')
   const [filtroItem,   setFiltroItem]   = useState('')
-  const [confirmRevert,  setConfirmRevert]  = useState(null)
-  const [revirtiendo,    setRevirtiendo]    = useState(false)
-  const [confirmDelete,  setConfirmDelete]  = useState(null)
-  const [eliminando,     setEliminando]     = useState(false)
-  const [msg,            setMsg]            = useState(null)
+  const [confirmRevert,      setConfirmRevert]      = useState(null)
+  const [revirtiendo,        setRevirtiendo]        = useState(false)
+  const [confirmDelete,      setConfirmDelete]      = useState(null)
+  const [eliminando,         setEliminando]         = useState(false)
+  const [msg,                setMsg]                = useState(null)
+  const [busquedaProducto,   setBusquedaProducto]   = useState('')
+  const [mostrarListaProd,   setMostrarListaProd]   = useState(false)
 
   useEffect(() => { cargar() }, [])
 
@@ -232,11 +234,42 @@ export default function Historial() {
             placeholder="Buscar por N° mov, producto, proveedor, serial, OF..."
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
         </div>
-        <select value={filtroItem} onChange={e => setFiltroItem(e.target.value)}
-          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-600">
-          <option value="">Todos los productos</option>
-          {items.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-        </select>
+        {/* Selector de producto buscable */}
+        <div className="relative w-64 shrink-0">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={busquedaProducto}
+            onChange={e => { setBusquedaProducto(e.target.value); setMostrarListaProd(true); if (!e.target.value) { setFiltroItem(''); } }}
+            onFocus={() => setMostrarListaProd(true)}
+            onBlur={() => setTimeout(() => setMostrarListaProd(false), 150)}
+            placeholder="Filtrar por producto..."
+            className="w-full border border-gray-200 rounded-xl pl-8 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-700"
+          />
+          {busquedaProducto && (
+            <button type="button" onClick={() => { setBusquedaProducto(''); setFiltroItem('') }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+              <X size={14} />
+            </button>
+          )}
+          {mostrarListaProd && (
+            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+              <button type="button" onMouseDown={() => { setFiltroItem(''); setBusquedaProducto(''); setMostrarListaProd(false) }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b">
+                Todos los productos
+              </button>
+              {items
+                .filter(i => !busquedaProducto.trim() || i.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
+                .slice(0, 30)
+                .map(i => (
+                  <button key={i.id} type="button"
+                    onMouseDown={() => { setFiltroItem(i.id); setBusquedaProducto(i.nombre); setMostrarListaProd(false) }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 ${filtroItem === i.id ? 'bg-blue-50 text-feisen-azul font-medium' : 'text-gray-700'}`}>
+                    {i.nombre}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           {['todos', 'entrada', 'salida'].map(t => (
             <button key={t} onClick={() => setFiltroTipo(t)}
@@ -310,6 +343,12 @@ export default function Historial() {
                   </span>
                 )}
 
+                {/* Indicador de firma en transferencias internas */}
+                {g.lineas.some(l => l.foto_remision_url?.startsWith('data:image')) && (
+                  <span title="Transferencia con firma" className="text-feisen-azul shrink-0">
+                    <PenLine size={14} />
+                  </span>
+                )}
                 {g.revertido && <span className="text-xs text-gray-400 shrink-0">REVERTIDO</span>}
               </button>
 
