@@ -12,6 +12,9 @@ function SelectorItem({ value, items, onSelect }) {
   const [busqueda,     setBusqueda]     = useState(value || '')
   const [mostrarLista, setMostrarLista] = useState(false)
 
+  // Sincronizar con el padre cuando se resetea el valor a ''
+  useEffect(() => { setBusqueda(value || '') }, [value])
+
   const filtrados = busqueda.trim()
     ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
     : items
@@ -109,6 +112,16 @@ function FirmaCanvas({ onFirma, firmaDataUrl }) {
   const canvasRef = useRef(null)
   const dibujando = useRef(false)
   const tieneTrazos = useRef(false)
+
+  // Limpiar el canvas cuando el padre resetea firmaDataUrl a null
+  useEffect(() => {
+    if (!firmaDataUrl && canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d')
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+      tieneTrazos.current = false
+      dibujando.current = false
+    }
+  }, [firmaDataUrl])
 
   function getPos(e, canvas) {
     const rect = canvas.getBoundingClientRect()
@@ -410,16 +423,15 @@ export default function RegistrarMovimientoAlmacenista() {
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
       if (esCompra) guardarSugerencia('feisen_proveedores', proveedor.trim())
+      // Resetear formulario inmediatamente
+      setProveedor('')
+      setColada('')
+      setProductos([{ ...PROD0 }])
+      setPedidoId('')
+      setFechaMov(HOY_COL)
+      setFormKey(k => k + 1)
       setExito(true)
-      setTimeout(() => {
-        setExito(false)
-        setProveedor('')
-        setColada('')
-        setProductos([{ ...PROD0 }])
-        setPedidoId('')
-        setFechaMov(HOY_COL)
-        setFormKey(k => k + 1)
-      }, 2000)
+      setTimeout(() => setExito(false), 2500)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
     } finally {
@@ -520,22 +532,21 @@ export default function RegistrarMovimientoAlmacenista() {
       }
 
       if (!esInterna && !esMecanizados) guardarSugerencia('feisen_receptores', receptor.trim())
+      // Resetear formulario inmediatamente
+      setSProductos([{ ...PROD0 }])
+      setReceptor('')
+      setNotas('')
+      setDestinoBodegaId('')
+      setNumeroOF('')
+      setFirmaDataUrl(null)
+      setFirmaReceptorUrl(null)
+      setNumeroOrden('')
+      setColaborador('')
+      setTipoSalidaMec('externa')
+      setFechaMov(HOY_COL)
+      setFormKey(k => k + 1)
       setExito(true)
-      setTimeout(() => {
-        setExito(false)
-        setSProductos([{ ...PROD0 }])
-        setReceptor('')
-        setNotas('')
-        setDestinoBodegaId('')
-        setNumeroOF('')
-        setFirmaDataUrl(null)
-        setFirmaReceptorUrl(null)
-        setNumeroOrden('')
-        setColaborador('')
-        setTipoSalidaMec('externa')
-        setFechaMov(HOY_COL)
-        setFormKey(k => k + 1)
-      }, 2000)
+      setTimeout(() => setExito(false), 2500)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
     } finally {
