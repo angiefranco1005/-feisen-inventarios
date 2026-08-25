@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History, ShoppingCart } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
@@ -275,19 +275,13 @@ export default function GestionProductos() {
                 Revisa el inventario y genera los pedidos necesarios.
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => setFiltroStockBajo(v => !v)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
-                  ${filtroStockBajo
-                    ? 'bg-feisen-azul text-white border-feisen-azul'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                {filtroStockBajo ? 'Ver todos' : 'Filtrar alertas'}
-              </button>
-              <button onClick={() => navigate('/pedidos?nuevo=1')}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium bg-feisen-rojo text-white hover:opacity-90 transition-opacity">
-                <ShoppingCart size={13} /> Crear pedido
-              </button>
-            </div>
+            <button onClick={() => setFiltroStockBajo(v => !v)}
+              className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
+                ${filtroStockBajo
+                  ? 'bg-feisen-azul text-white border-feisen-azul'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+              {filtroStockBajo ? 'Ver todos' : 'Filtrar alertas'}
+            </button>
           </div>
         </div>
       )}
@@ -368,10 +362,6 @@ export default function GestionProductos() {
                             <AlertTriangle size={12} /> 0
                           </span>
                           <p className="text-xs text-red-500 font-semibold">Sin stock</p>
-                          <button onClick={() => navigate('/pedidos?nuevo=1')}
-                            className="flex items-center gap-1 text-xs text-feisen-rojo border border-feisen-rojo rounded-lg px-2 py-0.5 hover:bg-red-50 font-medium mt-0.5">
-                            <ShoppingCart size={10} /> Pedir
-                          </button>
                         </div>
                       ) : stockBajo(item) ? (
                         <div className="flex flex-col items-center gap-1">
@@ -379,10 +369,6 @@ export default function GestionProductos() {
                             <AlertTriangle size={12} /> {getStock(item)}
                           </span>
                           <p className="text-xs text-amber-600 font-semibold">Bajo mínimo ({item.stock_minimo})</p>
-                          <button onClick={() => navigate('/pedidos?nuevo=1')}
-                            className="flex items-center gap-1 text-xs text-amber-700 border border-amber-400 rounded-lg px-2 py-0.5 hover:bg-amber-50 font-medium mt-0.5">
-                            <ShoppingCart size={10} /> Pedir
-                          </button>
                         </div>
                       ) : (
                         <div>
