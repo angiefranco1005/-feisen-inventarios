@@ -15,6 +15,7 @@ import Historial          from './components/movimientos/Historial'
 import ListaPedidos       from './components/pedidos/ListaPedidos'
 import GestionConfig      from './components/config/GestionConfig'
 import CorteInventario    from './components/reportes/CorteInventario'
+import InventarioFisico   from './components/reportes/InventarioFisico'
 import RegistrarFundida    from './components/fundicion/RegistrarFundida'
 import ListaFundidas       from './components/fundicion/ListaFundidas'
 import CrearOrdenMoldeo    from './components/fundicion/CrearOrdenMoldeo'
@@ -133,7 +134,8 @@ function AppRoutes() {
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
       <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
-      <Route path="/reportes/corte"   element={<Layout><CorteInventario /></Layout>} />
+      <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />
+      <Route path="/reportes/inventario-fisico" element={<Layout><InventarioFisico /></Layout>} />
       <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
       <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
       <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />

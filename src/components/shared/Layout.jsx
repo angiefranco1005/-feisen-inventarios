@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -13,8 +13,9 @@ const NAV_ADMIN = [
   { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/reportes/corte',    icon: CalendarDays,     label: 'Corte inv.' },
-  { to: '/config',            icon: Settings,         label: 'Configuración' },
+  { to: '/reportes/corte',              icon: CalendarDays,  label: 'Corte inv.' },
+  { to: '/reportes/inventario-fisico', icon: ClipboardList, label: 'Inv. físico' },
+  { to: '/config',                     icon: Settings,      label: 'Configuración' },
 ]
 
 const NAV_LOGISTICA = [
