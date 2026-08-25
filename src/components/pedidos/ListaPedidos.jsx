@@ -5,7 +5,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:    { label: 'Pendiente',    color: 'bg-amber-100 text-amber-700',  icon: ShoppingCart },
@@ -99,6 +99,15 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, o
           ))}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+          {p.foto_muestra_url && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><ImageIcon size={11} /> Foto de muestra</p>
+              <a href={p.foto_muestra_url} target="_blank" rel="noopener noreferrer">
+                <img src={p.foto_muestra_url} alt="Muestra"
+                  className="max-h-40 rounded-xl border border-gray-200 object-contain bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in" />
+              </a>
+            </div>
+          )}
         </div>
       )}
 
@@ -199,9 +208,15 @@ export default function ListaPedidos() {
 
   // Form nuevo pedido
   const ITEM0  = { descripcion: '', cantidad: '', unidad: 'und', item_id: null }
-  const [items,     setItems]     = useState([{ ...ITEM0 }])
-  const [obs,       setObs]       = useState('')
-  const [prioridad, setPrioridad] = useState('normal')
+  const [items,        setItems]        = useState([{ ...ITEM0 }])
+  const [obs,          setObs]          = useState('')
+  const [prioridad,    setPrioridad]    = useState('normal')
+  const [fotoMuestra,  setFotoMuestra]  = useState('')
+  const [subiendoFoto, setSubiendoFoto] = useState(false)
+
+  // Foto en edición
+  const [fotoMuestraEdit,  setFotoMuestraEdit]  = useState('')
+  const [subiendoFotoEdit, setSubiendoFotoEdit] = useState(false)
 
   // Form tránsito
   const [formTransito, setFormTransito] = useState({ numero_oc: '', fecha_estimada: '' })
@@ -234,6 +249,18 @@ useEffect(() => { cargar() }, [])
     return `PED-${String((count || 0) + 1).padStart(4, '0')}`
   }
 
+  async function subirFoto(file, setUrl, setSubiendo) {
+    if (!file) return
+    setSubiendo(true)
+    const ext  = file.name.split('.').pop()
+    const path = `muestras/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('remisiones').upload(path, file)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al subir foto: ' + error.message }); setSubiendo(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('remisiones').getPublicUrl(path)
+    setUrl(publicUrl)
+    setSubiendo(false)
+  }
+
   async function crearPedido(e) {
     e.preventDefault()
     setMsg(null)
@@ -244,6 +271,7 @@ useEffect(() => { cargar() }, [])
     const numero = await generarNumero()
     const { data: pedido, error: err1 } = await supabase.from('pedidos').insert({
       numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id, prioridad,
+      foto_muestra_url: fotoMuestra || null,
     }).select().single()
     if (err1) { setMsg({ tipo: 'error', texto: 'Error: ' + err1.message }); return }
 
@@ -263,6 +291,7 @@ useEffect(() => { cargar() }, [])
     setModalNuevo(false)
     setItems([{ ...ITEM0 }])
     setObs('')
+    setFotoMuestra('')
     cargar()
   }
 
@@ -386,6 +415,7 @@ useEffect(() => { cargar() }, [])
     })))
     setObsEdit(pedido.observaciones || '')
     setPrioridadEdit(pedido.prioridad || 'normal')
+    setFotoMuestraEdit(pedido.foto_muestra_url || '')
     setModalEditar(pedido)
   }
 
@@ -398,8 +428,9 @@ useEffect(() => { cargar() }, [])
     try {
       // Actualizar campos del pedido
       await supabase.from('pedidos').update({
-        observaciones: obsEdit || null,
-        prioridad: prioridadEdit,
+        observaciones:    obsEdit || null,
+        prioridad:        prioridadEdit,
+        foto_muestra_url: fotoMuestraEdit || null,
       }).eq('id', modalEditar.id)
 
       // Reemplazar items
@@ -459,7 +490,7 @@ useEffect(() => { cargar() }, [])
             className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
             <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
           </button>
-          <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setModalNuevo(true) }}
+          <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra(''); setModalNuevo(true) }}
             className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
             <Plus size={18} /> Nuevo pedido
           </button>
@@ -559,11 +590,35 @@ useEffect(() => { cargar() }, [])
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
+            {/* Foto de muestra */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Foto de muestra (opcional)</label>
+              {fotoMuestra ? (
+                <div className="space-y-2">
+                  <img src={fotoMuestra} alt="Muestra" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
+                  <button type="button" onClick={() => setFotoMuestra('')}
+                    className="flex items-center gap-1 text-xs text-feisen-rojo hover:underline">
+                    <X size={12} /> Quitar foto
+                  </button>
+                </div>
+              ) : (
+                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-5 text-sm text-gray-400 transition-colors
+                  ${subiendoFoto ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  {subiendoFoto
+                    ? <><Upload size={22} className="animate-pulse" /><span>Subiendo...</span></>
+                    : <><Upload size={22} /><span>Adjuntar foto de la muestra o referencia</span></>
+                  }
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => subirFoto(e.target.files?.[0], setFotoMuestra, setSubiendoFoto)} disabled={subiendoFoto} />
+                </label>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalNuevo(false)}
                 className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit"
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Crear pedido</button>
+              <button type="submit" disabled={subiendoFoto}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">Crear pedido</button>
             </div>
           </form>
         </Modal>
@@ -689,10 +744,34 @@ useEffect(() => { cargar() }, [])
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
+            {/* Foto de muestra edición */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Foto de muestra (opcional)</label>
+              {fotoMuestraEdit ? (
+                <div className="space-y-2">
+                  <img src={fotoMuestraEdit} alt="Muestra" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
+                  <button type="button" onClick={() => setFotoMuestraEdit('')}
+                    className="flex items-center gap-1 text-xs text-feisen-rojo hover:underline">
+                    <X size={12} /> Quitar foto
+                  </button>
+                </div>
+              ) : (
+                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-5 text-sm text-gray-400 transition-colors
+                  ${subiendoFotoEdit ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  {subiendoFotoEdit
+                    ? <><Upload size={22} className="animate-pulse" /><span>Subiendo...</span></>
+                    : <><Upload size={22} /><span>Adjuntar foto de muestra o referencia</span></>
+                  }
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => subirFoto(e.target.files?.[0], setFotoMuestraEdit, setSubiendoFotoEdit)} disabled={subiendoFotoEdit} />
+                </label>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalEditar(null)}
                 className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={guardandoEdit}
+              <button type="submit" disabled={guardandoEdit || subiendoFotoEdit}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
                 {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
               </button>
