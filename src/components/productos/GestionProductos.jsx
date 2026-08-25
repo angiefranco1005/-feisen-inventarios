@@ -195,7 +195,7 @@ export default function GestionProductos() {
   }
 
   function getStock(item) {
-    if (!bodegasPermitidas) return item.stock?.reduce((s, r) => s + (r.cantidad_actual || 0), 0) ?? null
+    if (!bodegasPermitidas || esLogistica) return item.stock?.reduce((s, r) => s + (r.cantidad_actual || 0), 0) ?? null
     const relevante = item.stock?.find(s => bodegasPermitidas.includes(s.bodega_id))
     return relevante?.cantidad_actual ?? null
   }
