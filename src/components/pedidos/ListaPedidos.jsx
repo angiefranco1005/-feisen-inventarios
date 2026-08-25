@@ -232,7 +232,7 @@ useEffect(() => { cargar() }, [])
     let pedsQ = supabase.from('pedidos')
       .select('*, pedido_items(*), profiles(nombre)')
       .order('created_at', { ascending: false })
-    if (!verTodo) pedsQ = pedsQ.eq('usuario_id', perfil.id)
+    if (!verTodo) pedsQ = pedsQ.eq('solicitante_id', perfil.id)
 
     const [{ data: peds }, { data: prods }] = await Promise.all([
       pedsQ,
@@ -523,8 +523,8 @@ useEffect(() => { cargar() }, [])
             p={p}
             esAdmin={esAdmin}
             puedeTransito={esAdmin || esLogistica}
-            puedeRecibir={esAdmin || esAlmacenista || (esLogistica && p.usuario_id === perfil?.id)}
-            puedeEditar={esAdmin || p.usuario_id === perfil?.id}
+            puedeRecibir={esAdmin || esAlmacenista || (esLogistica && p.solicitante_id === perfil?.id)}
+            puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onRecibido={iniciarRecibido}
