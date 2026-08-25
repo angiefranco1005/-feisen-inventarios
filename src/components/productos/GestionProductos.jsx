@@ -144,13 +144,13 @@ export default function GestionProductos() {
       bodega_id:     form.bodega_id     || null,
       centro_costo:  bodega?.nombre     || '',
       unidad_medida: form.unidad_medida,
-      precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA') ? (parseFloat(form.precio_costo) || 0) : undefined,
+      precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') ? (parseFloat(form.precio_costo) || 0) : undefined,
       stock_minimo:  parseFloat(form.stock_minimo) || 0,
       foto_url:      form.foto_url      || null,
       peso_unitario: esFundicion ? (parseFloat(form.peso_unitario) || null) : null,
       updated_at:    new Date().toISOString(),
     }
-    if (!esAdmin && perfil?.rol !== 'ALMACENISTA') delete payload.precio_costo
+    if (!esAdmin && perfil?.rol !== 'ALMACENISTA' && perfil?.rol !== 'LOGISTICA') delete payload.precio_costo
 
     let error
     if (editando) {
@@ -304,7 +304,7 @@ export default function GestionProductos() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Categoría</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-500">Stock</th>
-                  {(esAdmin || perfil?.rol === 'ALMACENISTA') && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
+                  {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
                   <th className="text-center px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Estado</th>
                   {puedeEditar && <th className="text-center px-4 py-3 font-semibold text-gray-500">Acciones</th>}
                 </tr>
@@ -363,7 +363,7 @@ export default function GestionProductos() {
                         </div>
                       )}
                     </td>
-                    {(esAdmin || perfil?.rol === 'ALMACENISTA') && (
+                    {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && (
                       <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
                         {item.precio_costo > 0
                           ? `$${Number(item.precio_costo).toLocaleString('es-CO')}`
@@ -526,7 +526,7 @@ export default function GestionProductos() {
               </div>
             )}
 
-            {(esAdmin || perfil?.rol === 'ALMACENISTA') && (
+            {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && (
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Precio de costo (COP)</label>
                 <input type="number" min="0" step="1" value={form.precio_costo}
