@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
@@ -13,6 +14,7 @@ const TIPO_CONFIG = {
 
 export default function Historial() {
   const { perfil, esAdmin } = useAuth()
+  const [searchParams] = useSearchParams()
   const [movimientos,  setMovimientos]  = useState([])
   const [items,        setItems]        = useState([])
   const [cargando,     setCargando]     = useState(true)
@@ -28,6 +30,18 @@ export default function Historial() {
   const [mostrarListaProd,   setMostrarListaProd]   = useState(false)
 
   useEffect(() => { cargar() }, [])
+
+  // Pre-filtrar por item si viene en la URL (?item=<id>)
+  useEffect(() => {
+    const itemId = searchParams.get('item')
+    if (itemId && items.length > 0) {
+      const found = items.find(i => i.id === itemId)
+      if (found) {
+        setFiltroItem(found.id)
+        setBusquedaProducto(found.nombre)
+      }
+    }
+  }, [items, searchParams])
 
   async function cargar() {
     setCargando(true)

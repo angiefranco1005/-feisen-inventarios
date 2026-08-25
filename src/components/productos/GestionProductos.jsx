@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
 export default function GestionProductos() {
+  const navigate = useNavigate()
   const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
   const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
@@ -377,6 +379,10 @@ export default function GestionProductos() {
                     {puedeEditar && (
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          <button onClick={() => navigate(`/movimientos?item=${item.id}`)} title="Ver historial de movimientos"
+                            className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
+                            <History size={15} />
+                          </button>
                           <button onClick={() => abrirEditar(item)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg">
                             <Edit2 size={15} />
                           </button>
