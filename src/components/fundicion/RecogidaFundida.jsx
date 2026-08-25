@@ -303,10 +303,7 @@ export default function RecogidaFundida() {
                             )
                           })}
                         </div>
-                        <button type="button" onClick={() => preRellenar(orden)}
-                          className="mt-2 text-xs text-feisen-azul font-semibold hover:underline">
-                          ↓ Usar avance como cantidad de conformes
-                        </button>
+
                       </div>
                     )}
 
