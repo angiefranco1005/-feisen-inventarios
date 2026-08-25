@@ -108,6 +108,22 @@ export default function RegistrarMovimiento() {
     if (!cantidad || cantidad <= 0) { setError('La cantidad debe ser mayor a cero.'); setGuardando(false); return }
     if (form.tipo === 'salida' && !form.destino) { setError('Selecciona el destino.'); setGuardando(false); return }
 
+    // Validar stock disponible antes de registrar salida
+    if (form.tipo === 'salida') {
+      const { data: stockRow } = await supabase
+        .from('stock')
+        .select('cantidad_actual')
+        .eq('item_id', form.item_id)
+        .eq('bodega_id', form.bodega_id)
+        .maybeSingle()
+      const stockActual = stockRow?.cantidad_actual ?? 0
+      if (stockActual < cantidad) {
+        setError(`Stock insuficiente. Disponible: ${stockActual.toLocaleString('es-CO')} — solicitado: ${cantidad.toLocaleString('es-CO')}`)
+        setGuardando(false)
+        return
+      }
+    }
+
     const item = items.find(i => i.id === form.item_id)
 
     const iniciales = (perfil?.nombre || 'USR')

@@ -366,6 +366,23 @@ export default function RegistrarMovimientoAlmacenista() {
     const destNombre = esInterna ? (todasBodegas.find(b => b.id === destinoBodegaId)?.nombre || '') : null
 
     setGuardando(true)
+
+    // Validar stock suficiente para cada producto antes de guardar
+    for (const p of agrupados) {
+      const { data: stockRow } = await supabase
+        .from('stock')
+        .select('cantidad_actual')
+        .eq('item_id', p.item_id)
+        .eq('bodega_id', bodega.id)
+        .maybeSingle()
+      const stockActual = stockRow?.cantidad_actual ?? 0
+      if (stockActual < p.cantidad) {
+        const itemNombre = items.find(i => i.id === p.item_id)?.nombre || p.item_id
+        setError(`Stock insuficiente para "${itemNombre}". Disponible: ${stockActual.toLocaleString('es-CO')} — solicitado: ${p.cantidad.toLocaleString('es-CO')}`)
+        setGuardando(false)
+        return
+      }
+    }
     try {
       const numero = await generarNumero('SAL')
       const payloads = agrupados.map(p => ({
