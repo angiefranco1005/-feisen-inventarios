@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History, ShoppingCart } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
@@ -205,6 +205,11 @@ export default function GestionProductos() {
     return item.stock_minimo > 0 && cant !== null && cant <= item.stock_minimo
   }
 
+  function sinStock(item) {
+    const cant = getStock(item)
+    return cant !== null && cant === 0
+  }
+
   const filtrados = items.filter(i => {
     const matchNombre    = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
     const matchBodega    = !filtroBodega    || i.bodega_id    === filtroBodega
@@ -217,7 +222,9 @@ export default function GestionProductos() {
   const paginaActual = Math.min(pagina, totalPaginas)
   const paginados    = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
-  const totalStockBajo = items.filter(stockBajo).length
+  const totalStockBajo  = items.filter(i => i.activo && stockBajo(i)).length
+  const totalSinStock   = items.filter(i => i.activo && sinStock(i)).length
+  const totalAlertas    = totalStockBajo + totalSinStock
 
   // Categorías filtradas por bodega seleccionada (para el select de filtro)
   const hayTransferidas = items.some(i => i.categoria_id === '__fundicion__')
@@ -254,17 +261,34 @@ export default function GestionProductos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      {totalStockBajo > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-800 font-medium">
-            {totalStockBajo} producto{totalStockBajo > 1 ? 's' : ''} por debajo del stock mínimo
-          </p>
-          <button onClick={() => setFiltroStockBajo(v => !v)}
-            className={`ml-auto text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
-              ${filtroStockBajo ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'}`}>
-            {filtroStockBajo ? 'Ver todos' : 'Ver alertas'}
-          </button>
+      {totalAlertas > 0 && (
+        <div className={`rounded-xl border px-4 py-3 ${totalSinStock > 0 ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={20} className={`flex-shrink-0 mt-0.5 ${totalSinStock > 0 ? 'text-feisen-rojo' : 'text-amber-500'}`} />
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${totalSinStock > 0 ? 'text-red-800' : 'text-amber-800'}`}>
+                ⚠️ {totalSinStock > 0 && `${totalSinStock} producto${totalSinStock > 1 ? 's' : ''} SIN STOCK`}
+                {totalSinStock > 0 && totalStockBajo > totalSinStock && ' · '}
+                {totalStockBajo > totalSinStock && `${totalStockBajo - totalSinStock} bajo mínimo`}
+              </p>
+              <p className={`text-xs mt-0.5 ${totalSinStock > 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                Revisa el inventario y genera los pedidos necesarios.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => setFiltroStockBajo(v => !v)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
+                  ${filtroStockBajo
+                    ? 'bg-feisen-azul text-white border-feisen-azul'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                {filtroStockBajo ? 'Ver todos' : 'Filtrar alertas'}
+              </button>
+              <button onClick={() => navigate('/pedidos?nuevo=1')}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium bg-feisen-rojo text-white hover:opacity-90 transition-opacity">
+                <ShoppingCart size={13} /> Crear pedido
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -311,7 +335,7 @@ export default function GestionProductos() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {paginados.map(item => (
-                  <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${!item.activo ? 'opacity-40' : ''}`}>
+                  <tr key={item.id} className={`transition-colors ${!item.activo ? 'opacity-40' : sinStock(item) ? 'bg-red-50 hover:bg-red-100' : stockBajo(item) ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {item.foto_url
@@ -338,19 +362,27 @@ export default function GestionProductos() {
                     <td className="px-4 py-3 text-center">
                       {getStock(item) === null ? (
                         <span className="text-gray-300 text-sm">—</span>
-                      ) : getStock(item) === 0 ? (
-                        <div>
-                          <span className="inline-block bg-red-100 text-red-600 font-bold text-base px-3 py-1 rounded-xl">0</span>
-                          <p className="text-xs text-red-400 mt-0.5">Sin stock</p>
+                      ) : sinStock(item) ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="inline-flex items-center gap-1 bg-feisen-rojo text-white font-bold text-sm px-3 py-1 rounded-xl">
+                            <AlertTriangle size={12} /> 0
+                          </span>
+                          <p className="text-xs text-red-500 font-semibold">Sin stock</p>
+                          <button onClick={() => navigate('/pedidos?nuevo=1')}
+                            className="flex items-center gap-1 text-xs text-feisen-rojo border border-feisen-rojo rounded-lg px-2 py-0.5 hover:bg-red-50 font-medium mt-0.5">
+                            <ShoppingCart size={10} /> Pedir
+                          </button>
                         </div>
                       ) : stockBajo(item) ? (
-                        <div>
-                          <span className="inline-block bg-amber-100 text-amber-700 font-bold text-base px-3 py-1 rounded-xl">
-                            {getStock(item)}
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="inline-flex items-center gap-1 bg-amber-500 text-white font-bold text-sm px-3 py-1 rounded-xl">
+                            <AlertTriangle size={12} /> {getStock(item)}
                           </span>
-                          <p className="text-xs text-amber-500 mt-0.5 flex items-center justify-center gap-0.5">
-                            <AlertTriangle size={10} /> mín. {item.stock_minimo}
-                          </p>
+                          <p className="text-xs text-amber-600 font-semibold">Bajo mínimo ({item.stock_minimo})</p>
+                          <button onClick={() => navigate('/pedidos?nuevo=1')}
+                            className="flex items-center gap-1 text-xs text-amber-700 border border-amber-400 rounded-lg px-2 py-0.5 hover:bg-amber-50 font-medium mt-0.5">
+                            <ShoppingCart size={10} /> Pedir
+                          </button>
                         </div>
                       ) : (
                         <div>

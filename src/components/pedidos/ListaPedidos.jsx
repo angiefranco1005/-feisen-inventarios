@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
@@ -221,7 +222,17 @@ export default function ListaPedidos() {
   // Form tránsito
   const [formTransito, setFormTransito] = useState({ numero_oc: '', fecha_estimada: '' })
 
-useEffect(() => { cargar() }, [])
+  const [searchParams] = useSearchParams()
+
+  useEffect(() => { cargar() }, [])
+
+  // Abrir modal nuevo si llega con ?nuevo=1 (desde botón "Crear pedido" en alertas de stock)
+  useEffect(() => {
+    if (searchParams.get('nuevo') === '1') {
+      setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra('')
+      setModalNuevo(true)
+    }
+  }, [searchParams])
 
   async function cargar() {
     setCargando(true)
