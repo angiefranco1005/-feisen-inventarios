@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine, Settings } from 'lucide-react'
@@ -212,10 +213,12 @@ function FirmaCanvas({ onFirma, firmaDataUrl }) {
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion } = useAuth()
+  const [searchParams] = useSearchParams()
 
   const HOY_COL = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD en hora local
 
-  const [tipo,        setTipo]        = useState('salida')
+  const tipoInicial = searchParams.get('tipo') === 'entrada' ? 'entrada' : 'salida'
+  const [tipo,        setTipo]        = useState(tipoInicial)
   const [tipoEntrada, setTipoEntrada] = useState('compra')    // 'compra' | 'produccion'
   const [tipoSalida,  setTipoSalida]  = useState('externa')   // 'externa' | 'interna'
   const [fechaMov,    setFechaMov]    = useState(HOY_COL)

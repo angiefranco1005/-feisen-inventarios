@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -26,32 +26,35 @@ const NAV_LOGISTICA = [
 ]
 
 const NAV_ALMACENISTA = [
-  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/productos',         icon: Package,         label: 'Productos' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',                      icon: Package,         label: 'Productos' },
+  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 const NAV_JEFE_FUNDICION = [
-  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/productos',         icon: Package,         label: 'Productos' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/fundidas',          icon: Flame,            label: 'Fundidas' },
-  { to: '/moldeo',            icon: Layers,           label: 'Moldeo' },
-  { to: '/moldeo/catalogo',   icon: Factory,          label: 'BOM' },
-  { to: '/recogida',          icon: PackageCheck,     label: 'Recogida' },
-  { to: '/nomina/fundicion',  icon: FileSpreadsheet,  label: 'Nómina' },
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',                      icon: Package,         label: 'Productos' },
+  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
+  { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
+  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM' },
+  { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
+  { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
-  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/productos',         icon: Package,         label: 'Productos' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',                      icon: Package,         label: 'Productos' },
+  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 const BADGE = {
@@ -101,7 +104,9 @@ export default function Layout({ children }) {
   }
 
   const NavLink = ({ item }) => {
-    const activo = location.pathname === item.to
+    const activo = item.to.includes('?')
+      ? location.pathname + location.search === item.to
+      : location.pathname === item.to
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
         className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors
