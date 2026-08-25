@@ -81,7 +81,7 @@ export default function InventarioFisico() {
     setCargando(true)
     const [{ data: itemsData }, { data: bodegasData }, { count }] = await Promise.all([
       supabase.from('items')
-        .select('id, nombre, unidad_medida, bodega_id, bodegas!bodega_id(nombre), categorias(nombre), stock(bodega_id, cantidad_actual)')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas!bodega_id(nombre), categorias(nombre), stock(bodega_id, cantidad_actual)')
         .eq('activo', true)
         .order('bodega_id')
         .order('nombre'),
@@ -101,6 +101,7 @@ export default function InventarioFisico() {
         bodega_nombre:   item.bodegas?.nombre || '',
         categoria_nombre: item.categorias?.nombre || '',
         cantidad_sistema: stockEntry?.cantidad_actual ?? 0,
+        precio_costo:     item.precio_costo || 0,
       })
     }
 
@@ -125,8 +126,18 @@ export default function InventarioFisico() {
       ? parseFloat(conteos[i.key])
       : null
     const dif = fis !== null ? fis - i.cantidad_sistema : null
-    return { ...i, cantidad_fisica: fis, diferencia: dif }
+    const valorDif = dif !== null && i.precio_costo > 0 ? dif * i.precio_costo : null
+    return { ...i, cantidad_fisica: fis, diferencia: dif, valor_diferencia: valorDif }
   }), [items, conteos])
+
+  const cop = n => `$${Math.round(n).toLocaleString('es-CO')}`
+
+  const totalSobrante = itemsConCalculo
+    .filter(i => i.valor_diferencia !== null && i.valor_diferencia > 0)
+    .reduce((s, i) => s + i.valor_diferencia, 0)
+  const totalFaltante = itemsConCalculo
+    .filter(i => i.valor_diferencia !== null && i.valor_diferencia < 0)
+    .reduce((s, i) => s + i.valor_diferencia, 0)
 
   const itemsFiltrados = useMemo(() => {
     return itemsConCalculo.filter(i => {
@@ -531,13 +542,14 @@ export default function InventarioFisico() {
                 <th className="text-left px-4 py-2.5 font-semibold text-gray-500 hidden sm:table-cell">Bodega</th>
                 <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Sistema</th>
                 <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Físico</th>
-                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Diferencia</th>
+                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Dif. und.</th>
+                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Valor COP</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {itemsConCalculo
                 .filter(i => i.diferencia !== null && i.diferencia !== 0)
-                .sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia))
+                .sort((a, b) => Math.abs(b.valor_diferencia ?? 0) - Math.abs(a.valor_diferencia ?? 0))
                 .map(item => (
                   <tr key={item.key} className={item.diferencia > 0 ? 'bg-blue-50' : 'bg-red-50'}>
                     <td className="px-4 py-2.5 font-medium text-gray-800">{item.item_nombre}</td>
@@ -547,9 +559,31 @@ export default function InventarioFisico() {
                     <td className={`px-4 py-2.5 text-right font-bold ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
                       {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
                     </td>
+                    <td className={`px-4 py-2.5 text-right font-semibold ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
+                      {item.valor_diferencia === null
+                        ? 'Sin precio'
+                        : item.valor_diferencia > 0
+                          ? `+${cop(item.valor_diferencia)}`
+                          : cop(item.valor_diferencia)}
+                    </td>
                   </tr>
                 ))}
             </tbody>
+            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+              <tr>
+                <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-gray-600">Totales</td>
+                <td className="px-4 py-3 text-right text-sm font-bold text-gray-500">—</td>
+                <td className="px-4 py-3 text-right text-sm">
+                  <div className="flex flex-col items-end gap-0.5">
+                    {totalSobrante > 0 && <span className="text-feisen-azul font-semibold">+{cop(totalSobrante)}</span>}
+                    {totalFaltante < 0 && <span className="text-feisen-rojo font-semibold">{cop(totalFaltante)}</span>}
+                    <span className={`font-bold text-base ${(totalSobrante + totalFaltante) >= 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
+                      Neto: {(totalSobrante + totalFaltante) >= 0 ? '+' : ''}{cop(totalSobrante + totalFaltante)}
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -573,6 +607,7 @@ export default function InventarioFisico() {
                     <th className="text-left px-3 py-2 text-gray-500">Producto</th>
                     <th className="text-right px-3 py-2 text-gray-500">Sistema → Físico</th>
                     <th className="text-right px-3 py-2 text-gray-500">Dif.</th>
+                    <th className="text-right px-3 py-2 text-gray-500">Valor COP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -584,6 +619,9 @@ export default function InventarioFisico() {
                       </td>
                       <td className={`px-3 py-1.5 text-right font-bold ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
                         {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
+                      </td>
+                      <td className={`px-3 py-1.5 text-right text-xs ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
+                        {item.valor_diferencia === null ? '—' : item.valor_diferencia > 0 ? `+${cop(item.valor_diferencia)}` : cop(item.valor_diferencia)}
                       </td>
                     </tr>
                   ))}
