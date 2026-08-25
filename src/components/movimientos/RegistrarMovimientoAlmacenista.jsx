@@ -211,6 +211,7 @@ export default function RegistrarMovimientoAlmacenista() {
   const [guardando,   setGuardando]   = useState(false)
   const [exito,       setExito]       = useState(false)
   const [error,       setError]       = useState('')
+  const [formKey,     setFormKey]     = useState(0)   // fuerza remonte de SelectorItem al resetear
 
   // ── Estado ENTRADA ──
   const [proveedor,  setProveedor]  = useState('')
@@ -417,6 +418,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setProductos([{ ...PROD0 }])
         setPedidoId('')
         setFechaMov(HOY_COL)
+        setFormKey(k => k + 1)
       }, 2000)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
@@ -532,6 +534,7 @@ export default function RegistrarMovimientoAlmacenista() {
         setColaborador('')
         setTipoSalidaMec('externa')
         setFechaMov(HOY_COL)
+        setFormKey(k => k + 1)
       }, 2000)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
@@ -630,7 +633,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── FORMULARIO ENTRADA ── */}
       {tipo === 'entrada' && (
-        <form onSubmit={handleEntrada} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+        <form key={formKey} onSubmit={handleEntrada} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
           {/* Tipo de entrada — solo para FUNDICIÓN */}
           {esFundicion && (
@@ -759,7 +762,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── FORMULARIO SALIDA ── */}
       {tipo === 'salida' && (
-        <form onSubmit={handleSalida} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+        <form key={formKey} onSubmit={handleSalida} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
 
           {/* Tipo de salida — solo para FUNDICIÓN */}
           {esFundicion && (
