@@ -12,7 +12,7 @@ const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galó
 
 export default function GestionProductos() {
   const navigate = useNavigate()
-  const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, bodegasPermitidas, bodegasOperacion } = useAuth()
   const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
@@ -41,14 +41,14 @@ export default function GestionProductos() {
   async function cargar() {
     setCargando(true)
 
-    // Si no es admin y no tiene bodegas asignadas → no ve nada
-    if (!esAdmin && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
+    // Si no es admin/logistica y no tiene bodegas asignadas → no ve nada
+    if (!esAdmin && !esLogistica && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
       setItems([]); setCategorias([]); setBodegas([])
       setCargando(false); return
     }
 
     let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)').order('nombre')
-    if (!esAdmin && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
+    if (!esAdmin && !esLogistica && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
 
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
       itemsQ,
@@ -62,8 +62,8 @@ export default function GestionProductos() {
 
     let todosItems = it || []
 
-    // Para usuarios no-admin con bodega asignada: también mostrar items de otras bodegas con stock aquí
-    if (!esAdmin && bodegasPermitidas && bodegasPermitidas.length > 0) {
+    // Para usuarios no-admin/no-logistica con bodega asignada: también mostrar items de otras bodegas con stock aquí
+    if (!esAdmin && !esLogistica && bodegasPermitidas && bodegasPermitidas.length > 0) {
       const ownIds = new Set((it || []).map(i => i.id))
       const { data: stockRows } = await supabase.from('stock')
         .select('item_id, cantidad_actual')
@@ -86,7 +86,7 @@ export default function GestionProductos() {
 
     setItems(todosItems)
     // Para no-admin: filtrar categorías y bodegas visibles
-    if (!esAdmin && bodegasPermitidas) {
+    if (!esAdmin && !esLogistica && bodegasPermitidas) {
       setCategorias((cats || []).filter(c => bodegasPermitidas.includes(c.bodega_id)))
       setBodegas((bods || []).filter(b => bodegasPermitidas.includes(b.id)))
     } else {
