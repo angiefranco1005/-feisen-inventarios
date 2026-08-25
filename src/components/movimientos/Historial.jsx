@@ -45,7 +45,7 @@ export default function Historial() {
 
   async function cargar() {
     setCargando(true)
-    const verTodo = esAdmin || esLogistica
+    const verTodo = esAdmin
     let movsQ = supabase
       .from('movimientos')
       .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
