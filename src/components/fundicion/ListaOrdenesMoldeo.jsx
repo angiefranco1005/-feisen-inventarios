@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   ClipboardList, ChevronDown, ChevronUp, Search, PlusCircle,
-  CheckCircle2, AlertTriangle, TrendingUp, Lock, Plus,
+  AlertTriangle, TrendingUp, Plus, Calendar,
 } from 'lucide-react'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
@@ -16,18 +16,19 @@ function fmtFecha(f) {
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
-async function generarNumMovimiento(perfil) {
-  const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
-  const prefix = `ENT-${iniciales}-`
-  const { data: last } = await supabase
-    .from('movimientos').select('numero').like('numero', `${prefix}%`)
-    .order('numero', { ascending: false }).limit(1).maybeSingle()
-  const n = last?.numero ? parseInt(last.numero.replace(prefix, ''), 10) || 0 : 0
-  return `${prefix}${String(n + 1).padStart(4, '0')}`
+
+// Barra de progreso
+function BarraProgreso({ pct }) {
+  const color = pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-feisen-azul'
+  return (
+    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+      <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+    </div>
+  )
 }
 
 export default function ListaOrdenesMoldeo() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
   const { perfil } = useAuth()
 
   const [ordenes,      setOrdenes]      = useState([])
@@ -36,27 +37,21 @@ export default function ListaOrdenesMoldeo() {
   const [busqueda,     setBusqueda]     = useState('')
   const [fundBodegaId, setFundBodegaId] = useState(null)
 
-  // Avances diarios cargados por orden: { [ordenId]: { [piezaId]: { total, dias[] } } }
+  // { [ordenId]: { [piezaId]: { total, dias:[{fecha,cant}] } } }
   const [avancesData,  setAvancesData]  = useState({})
-  // Stock actual: { [ordenId]: { [itemId]: stock } }
+  // { [ordenId]: { [itemId]: stock } }
   const [stockData,    setStockData]    = useState({})
 
-  // Paneles activos por orden
-  const [panelAvance,  setPanelAvance]  = useState({}) // { [ordenId]: bool }
-  const [panelCierre,  setPanelCierre]  = useState({}) // { [ordenId]: bool }
-
-  // Inputs avance del día
-  const [avanceHoy,    setAvanceHoy]    = useState({}) // { [ordenId]: { [piezaId]: string } }
-  const [fechaAvance,  setFechaAvance]  = useState({}) // { [ordenId]: string }
+  // Panel avance diario
+  const [panelAvance,  setPanelAvance]  = useState({})
+  const [avanceHoy,    setAvanceHoy]    = useState({})  // { [ordenId]: { [piezaId]: string } }
+  const [fechaAvance,  setFechaAvance]  = useState({})
   const [guardandoAv,  setGuardandoAv]  = useState(null)
   const [errorAv,      setErrorAv]      = useState({})
 
-  // Inputs cierre / recogida
-  const [resultados,   setResultados]   = useState({})
-  const [guardandoRes, setGuardandoRes] = useState(null)
-  const [errorRes,     setErrorRes]     = useState({})
-
-  // Vista completadas
+  // Vista dentro de la orden abierta: 'pieza' | 'moldeador'
+  const [vistaAbierta, setVistaAbierta] = useState({})
+  // Vista de orden completada: 'pieza' | 'moldeador'
   const [vistaOrden,   setVistaOrden]   = useState({})
 
   useEffect(() => { cargar() }, [])
@@ -105,14 +100,12 @@ export default function ListaOrdenesMoldeo() {
         : { data: [] },
     ])
 
-    // Agrupar avances por pieza
     const avMap = {}
     for (const a of (avData || [])) {
       if (!avMap[a.orden_pieza_id]) avMap[a.orden_pieza_id] = { total: 0, dias: [] }
       avMap[a.orden_pieza_id].total += a.cantidad_moldeada
       avMap[a.orden_pieza_id].dias.push({ fecha: a.fecha, cantidad: a.cantidad_moldeada })
     }
-
     const stMap = {}
     for (const s of (stData || [])) stMap[s.item_id] = s.cantidad_actual ?? 0
 
@@ -127,31 +120,19 @@ export default function ListaOrdenesMoldeo() {
     if (!avancesData[id]) await cargarAvancesYStock(orden, fundBodegaId)
   }
 
-  const filtradas = ordenes.filter(o => {
-    const q = busqueda.toLowerCase().trim()
-    if (!q) return true
-    return (
-      numOrden(o.numero).toLowerCase().includes(q) ||
-      fmtFecha(o.fecha).includes(q) ||
-      (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q)) ||
-      (o.ordenes_moldeo_maquinas || []).some(m => m.maquinas_fundicion?.nombre?.toLowerCase().includes(q))
-    )
-  })
-
-  // ── Avance diario ──────────────────────────────────────────────────────────
+  // ── Inputs avance diario ───────────────────────────────────────────────────
   function setAv(ordenId, piezaId, val) {
     setAvanceHoy(prev => ({
-      ...prev,
-      [ordenId]: { ...(prev[ordenId] || {}), [piezaId]: val }
+      ...prev, [ordenId]: { ...(prev[ordenId] || {}), [piezaId]: val }
     }))
   }
   function getAv(ordenId, piezaId) { return avanceHoy[ordenId]?.[piezaId] ?? '' }
 
   async function guardarAvance(orden) {
     setErrorAv(prev => ({ ...prev, [orden.id]: '' }))
-    const fecha = fechaAvance[orden.id] || hoyCol()
+    const fecha  = fechaAvance[orden.id] || hoyCol()
     const piezas = orden.ordenes_moldeo_piezas || []
-    const rows = piezas
+    const rows   = piezas
       .map(p => ({ pieza: p, cant: Number(getAv(orden.id, p.id) || 0) }))
       .filter(r => r.cant > 0)
 
@@ -159,7 +140,6 @@ export default function ListaOrdenesMoldeo() {
       setErrorAv(prev => ({ ...prev, [orden.id]: 'Ingresa al menos una cantidad mayor a 0.' }))
       return
     }
-
     setGuardandoAv(orden.id)
     try {
       const { error } = await supabase.from('ordenes_moldeo_avances').insert(
@@ -171,84 +151,27 @@ export default function ListaOrdenesMoldeo() {
         }))
       )
       if (error) throw error
-      // Limpiar inputs
       setAvanceHoy(prev => ({ ...prev, [orden.id]: {} }))
       setPanelAvance(prev => ({ ...prev, [orden.id]: false }))
       await cargarAvancesYStock(orden, fundBodegaId)
     } catch (e) {
-      setErrorAv(prev => ({ ...prev, [orden.id]: 'Error al guardar: ' + e.message }))
+      setErrorAv(prev => ({ ...prev, [orden.id]: 'Error: ' + e.message }))
     } finally {
       setGuardandoAv(null)
     }
   }
 
-  // ── Cierre / Recogida ──────────────────────────────────────────────────────
-  function setRes(ordenId, piezaId, campo, val) {
-    setResultados(prev => ({
-      ...prev,
-      [ordenId]: { ...(prev[ordenId] || {}), [piezaId]: { ...(prev[ordenId]?.[piezaId] || {}), [campo]: val } }
-    }))
-  }
-  function getRes(ordenId, piezaId, campo) { return resultados[ordenId]?.[piezaId]?.[campo] ?? '' }
+  const filtradas = ordenes.filter(o => {
+    const q = busqueda.toLowerCase().trim()
+    if (!q) return true
+    return (
+      numOrden(o.numero).toLowerCase().includes(q) ||
+      fmtFecha(o.fecha).includes(q) ||
+      (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q)) ||
+      (o.ordenes_moldeo_maquinas || []).some(m => m.maquinas_fundicion?.nombre?.toLowerCase().includes(q))
+    )
+  })
 
-  async function registrarCierre(orden) {
-    setErrorRes(prev => ({ ...prev, [orden.id]: '' }))
-    const piezas = orden.ordenes_moldeo_piezas || []
-
-    for (const p of piezas) {
-      const conf = Number(getRes(orden.id, p.id, 'conforme') || 0)
-      const nc   = Number(getRes(orden.id, p.id, 'nc') || 0)
-      if (conf < 0 || nc < 0) {
-        setErrorRes(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
-        return
-      }
-    }
-
-    setGuardandoRes(orden.id)
-    try {
-      for (const p of piezas) {
-        const conf   = Number(getRes(orden.id, p.id, 'conforme') || 0)
-        const nc     = Number(getRes(orden.id, p.id, 'nc') || 0)
-        const motivo = getRes(orden.id, p.id, 'motivo') || null
-        await supabase.from('ordenes_moldeo_piezas')
-          .update({ cantidad_conforme: conf, cantidad_nc: nc, motivo_nc: motivo || null })
-          .eq('id', p.id)
-      }
-
-      const piezasConformes = piezas.filter(p => Number(getRes(orden.id, p.id, 'conforme') || 0) > 0)
-      if (piezasConformes.length > 0 && fundBodegaId) {
-        const numero = await generarNumMovimiento(perfil)
-        await supabase.from('movimientos').insert(
-          piezasConformes.map(p => ({
-            numero,
-            tipo:                  'entrada',
-            item_id:               p.item_id,
-            bodega_destino_id:     fundBodegaId,
-            bodega_origen_id:      null,
-            cantidad:              Number(getRes(orden.id, p.id, 'conforme')),
-            precio_costo_snapshot: p.items?.precio_costo || 0,
-            centro_costo:          'FUNDICIÓN',
-            usuario_id:            perfil.id,
-            proveedor:             'Producción interna',
-            referencia:            numOrden(orden.numero),
-            fecha_movimiento:      orden.fecha || null,
-            foto_remision_url: null, destino: null,
-            numero_of: null, serial_motor: null, motivo: null, cliente: null,
-          }))
-        )
-      }
-
-      await supabase.from('ordenes_moldeo').update({ estado: 'completado' }).eq('id', orden.id)
-      await cargar()
-      setExpandido(orden.id)
-    } catch (e) {
-      setErrorRes(prev => ({ ...prev, [orden.id]: 'Error al guardar: ' + e.message }))
-    } finally {
-      setGuardandoRes(null)
-    }
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto p-4">
 
@@ -293,15 +216,37 @@ export default function ListaOrdenesMoldeo() {
             const avOrden    = avancesData[orden.id] || {}
             const stOrden    = stockData[orden.id]   || {}
 
-            // Totales de avance
-            const totalPlaneado   = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
-            const totalMoldeado   = piezas.reduce((s, p) => s + (avOrden[p.id]?.total || 0), 0)
-            const pctAvance       = totalPlaneado > 0 ? Math.round((totalMoldeado / totalPlaneado) * 100) : 0
-            const hayStockAlerta  = !completada && piezas.some(p => {
+            const totalPlaneado  = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
+            const totalMoldeado  = piezas.reduce((s, p) => s + (avOrden[p.id]?.total || 0), 0)
+            const pctAvance      = totalPlaneado > 0 ? Math.round((totalMoldeado / totalPlaneado) * 100) : 0
+            const hayStockAlerta = !completada && piezas.some(p => {
               const stock     = stOrden[p.item_id] ?? null
               const pendiente = Number(p.cantidad_planeada || 0) - (avOrden[p.id]?.total || 0)
               return stock !== null && stock < pendiente && pendiente > 0
             })
+
+            // ── Datos por moldeador (para vista moldeador) ────────────────
+            const porMoldeador = {}
+            piezas.forEach(p => {
+              const k = p.asignado_a?.trim() || 'Sin asignar'
+              if (!porMoldeador[k]) porMoldeador[k] = { piezas: [], plan: 0, moldeado: 0 }
+              const av = avOrden[p.id]?.total || 0
+              porMoldeador[k].piezas.push({ ...p, avance: av })
+              porMoldeador[k].plan     += Number(p.cantidad_planeada || 0)
+              porMoldeador[k].moldeado += av
+            })
+
+            // Historial diario global (todas las piezas, agrupado por fecha)
+            const historialPorFecha = {}
+            piezas.forEach(p => {
+              const nombre = p.items?.nombre || '—'
+              const mol    = p.asignado_a?.trim() || 'Sin asignar'
+              ;(avOrden[p.id]?.dias || []).forEach(d => {
+                if (!historialPorFecha[d.fecha]) historialPorFecha[d.fecha] = []
+                historialPorFecha[d.fecha].push({ pieza: nombre, moldeador: mol, cantidad: d.cantidad })
+              })
+            })
+            const fechasDesc = Object.keys(historialPorFecha).sort((a, b) => b.localeCompare(a))
 
             return (
               <div key={orden.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -319,11 +264,13 @@ export default function ListaOrdenesMoldeo() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-3 shrink-0">
-                    {hayStockAlerta && (
-                      <AlertTriangle size={15} className="text-orange-400" />
-                    )}
+                    {hayStockAlerta && <AlertTriangle size={15} className="text-orange-400" />}
                     {!completada && avancesData[orden.id] && totalMoldeado > 0 && (
-                      <span className="text-xs font-bold text-feisen-azul bg-blue-50 px-2 py-0.5 rounded-full">
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                        pctAvance >= 80 ? 'bg-green-100 text-green-700'
+                        : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-blue-100 text-feisen-azul'
+                      }`}>
                         {pctAvance}%
                       </span>
                     )}
@@ -356,58 +303,78 @@ export default function ListaOrdenesMoldeo() {
                     {/* ══ ORDEN EN CURSO ══ */}
                     {!completada && (
                       <>
-                        {/* Tabla de progreso */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-bold text-gray-400 uppercase">Progreso de la orden</p>
-                            {totalMoldeado > 0 && (
-                              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                                pctAvance >= 80 ? 'bg-green-100 text-green-700'
-                                : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-gray-100 text-gray-500'
-                              }`}>
-                                {pctAvance}% completado
-                              </span>
-                            )}
+                        {/* Toggle vista */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs font-semibold">
+                            {[['pieza','Por pieza'],['moldeador','Por moldeador'],['historial','Historial']].map(([val, lab]) => (
+                              <button key={val} type="button"
+                                onClick={() => setVistaAbierta(prev => ({ ...prev, [orden.id]: val }))}
+                                className={`px-3 py-1.5 transition-colors ${
+                                  (vistaAbierta[orden.id] || 'pieza') === val
+                                    ? 'bg-feisen-azul text-white'
+                                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                                }`}>
+                                {lab}
+                              </button>
+                            ))}
                           </div>
+                          {totalMoldeado > 0 && (
+                            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                              pctAvance >= 80 ? 'bg-green-100 text-green-700'
+                              : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-blue-50 text-feisen-azul'
+                            }`}>
+                              {pctAvance}% avance general
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Vista: Por pieza */}
+                        {(vistaAbierta[orden.id] || 'pieza') === 'pieza' && (
                           <div className="overflow-x-auto rounded-xl border border-gray-200">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="bg-gray-100 text-xs text-gray-500 font-bold uppercase">
                                   <th className="text-left px-3 py-2.5">Pieza</th>
-                                  <th className="text-left px-3 py-2.5 hidden sm:table-cell">Moldeador</th>
+                                  <th className="text-left px-3 py-2.5">Moldeador</th>
                                   <th className="text-center px-2 py-2.5">Plan.</th>
                                   <th className="text-center px-2 py-2.5">Moldeadas</th>
                                   <th className="text-center px-2 py-2.5">Pendiente</th>
                                   <th className="text-center px-2 py-2.5">Stock</th>
+                                  <th className="px-2 py-2.5 w-24">%</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100">
                                 {piezas.map(p => {
-                                  const avP      = avOrden[p.id]?.total || 0
-                                  const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - avP)
+                                  const av        = avOrden[p.id]?.total || 0
+                                  const plan      = Number(p.cantidad_planeada || 0)
+                                  const pendiente = Math.max(0, plan - av)
+                                  const pct       = plan > 0 ? Math.round((av / plan) * 100) : 0
                                   const stock     = stOrden[p.item_id] ?? null
                                   const alerta    = stock !== null && stock < pendiente && pendiente > 0
                                   return (
-                                    <tr key={p.id} className={alerta ? 'bg-orange-50' : 'bg-white hover:bg-gray-50/50'}>
-                                      <td className="px-3 py-2.5 font-medium text-gray-800 text-sm">{p.items?.nombre}</td>
-                                      <td className="px-3 py-2.5 text-xs text-gray-400 hidden sm:table-cell">{p.asignado_a || '—'}</td>
-                                      <td className="px-2 py-2.5 text-center text-gray-500">{p.cantidad_planeada}</td>
-                                      <td className="px-2 py-2.5 text-center font-bold text-feisen-azul">{avP || '—'}</td>
-                                      <td className="px-2 py-2.5 text-center">
-                                        <span className={`font-bold ${pendiente > 0 ? 'text-gray-700' : 'text-green-600'}`}>
+                                    <tr key={p.id} className={alerta ? 'bg-orange-50' : 'bg-white hover:bg-gray-50/40'}>
+                                      <td className="px-3 py-3 font-medium text-gray-800 text-sm">{p.items?.nombre}</td>
+                                      <td className="px-3 py-3 text-xs text-gray-500">{p.asignado_a || '—'}</td>
+                                      <td className="px-2 py-3 text-center text-gray-500">{plan}</td>
+                                      <td className="px-2 py-3 text-center font-bold text-feisen-azul">{av || '—'}</td>
+                                      <td className="px-2 py-3 text-center">
+                                        <span className={`font-bold text-sm ${pendiente === 0 ? 'text-green-600' : 'text-gray-700'}`}>
                                           {pendiente === 0 ? '✓' : pendiente}
                                         </span>
                                       </td>
-                                      <td className="px-2 py-2.5 text-center">
+                                      <td className="px-2 py-3 text-center">
                                         {stock !== null ? (
-                                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                            alerta ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
-                                          }`}>
-                                            {stock}
-                                            {alerta && ' ⚠'}
+                                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${alerta ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                                            {stock}{alerta ? ' ⚠' : ''}
                                           </span>
                                         ) : <span className="text-gray-300">—</span>}
+                                      </td>
+                                      <td className="px-2 py-3">
+                                        <div className="flex items-center gap-1.5">
+                                          <BarraProgreso pct={pct} />
+                                          <span className="text-xs text-gray-400 w-8 text-right shrink-0">{pct}%</span>
+                                        </div>
                                       </td>
                                     </tr>
                                   )
@@ -415,14 +382,96 @@ export default function ListaOrdenesMoldeo() {
                               </tbody>
                             </table>
                           </div>
-                          {hayStockAlerta && (
-                            <p className="text-xs text-orange-500 mt-1.5 font-medium">
-                              ⚠ Stock insuficiente para terminar la cantidad planeada en alguna pieza.
-                            </p>
-                          )}
-                        </div>
+                        )}
 
-                        {/* ── PANEL: Registrar avance del día ── */}
+                        {/* Vista: Por moldeador */}
+                        {(vistaAbierta[orden.id] || 'pieza') === 'moldeador' && (
+                          <div className="space-y-3">
+                            {Object.entries(porMoldeador).map(([mol, d]) => {
+                              const pct = d.plan > 0 ? Math.round((d.moldeado / d.plan) * 100) : 0
+                              return (
+                                <div key={mol} className="bg-white rounded-xl border border-gray-200 p-4">
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-9 h-9 rounded-full bg-feisen-azul text-white text-sm font-bold flex items-center justify-center shrink-0">
+                                      {mol === 'Sin asignar' ? '?' : mol.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-sm font-bold ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-gray-800'}`}>{mol}</p>
+                                      <p className="text-xs text-gray-400">{d.piezas.length} pieza{d.piezas.length !== 1 ? 's' : ''} asignada{d.piezas.length !== 1 ? 's' : ''}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-sm font-bold text-feisen-azul">{d.moldeado} <span className="text-xs font-normal text-gray-400">/ {d.plan}</span></p>
+                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                        pct >= 80 ? 'bg-green-100 text-green-700'
+                                        : pct >= 40 ? 'bg-yellow-100 text-yellow-700'
+                                        : 'bg-gray-100 text-gray-500'
+                                      }`}>{pct}%</span>
+                                    </div>
+                                  </div>
+                                  <BarraProgreso pct={pct} />
+                                  {/* Mini tabla de piezas del moldeador */}
+                                  <div className="mt-3 divide-y divide-gray-50">
+                                    {d.piezas.map(p => {
+                                      const pPct = p.cantidad_planeada > 0 ? Math.round((p.avance / p.cantidad_planeada) * 100) : 0
+                                      return (
+                                        <div key={p.id} className="flex items-center justify-between py-2">
+                                          <span className="text-xs text-gray-600 truncate flex-1">{p.items?.nombre}</span>
+                                          <div className="flex items-center gap-3 ml-2 shrink-0">
+                                            <span className="text-xs text-gray-400">{p.avance}/{p.cantidad_planeada}</span>
+                                            <div className="w-16">
+                                              <BarraProgreso pct={pPct} />
+                                            </div>
+                                            <span className="text-xs font-semibold text-gray-500 w-8 text-right">{pPct}%</span>
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* Vista: Historial diario */}
+                        {(vistaAbierta[orden.id] || 'pieza') === 'historial' && (
+                          <div>
+                            {fechasDesc.length === 0 ? (
+                              <p className="text-center text-gray-400 py-8 text-sm">Sin avances registrados aún.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {fechasDesc.map(fecha => {
+                                  const entradas = historialPorFecha[fecha]
+                                  const totalDia = entradas.reduce((s, e) => s + e.cantidad, 0)
+                                  return (
+                                    <div key={fecha} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                      <div className="flex items-center justify-between px-4 py-2.5 bg-feisen-azul/5 border-b border-gray-100">
+                                        <div className="flex items-center gap-2">
+                                          <Calendar size={13} className="text-feisen-azul" />
+                                          <span className="text-sm font-bold text-feisen-azul">{fmtFecha(fecha)}</span>
+                                        </div>
+                                        <span className="text-xs font-semibold text-gray-500">{totalDia} moldeadas</span>
+                                      </div>
+                                      <table className="w-full text-sm">
+                                        <tbody className="divide-y divide-gray-50">
+                                          {entradas.map((e, i) => (
+                                            <tr key={i} className="hover:bg-gray-50/40">
+                                              <td className="px-4 py-2 text-gray-700 font-medium">{e.pieza}</td>
+                                              <td className="px-3 py-2 text-xs text-gray-400">{e.moldeador}</td>
+                                              <td className="px-3 py-2 text-right font-bold text-feisen-azul">{e.cantidad}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ── Panel: Registrar avance del día ── */}
                         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                           <button type="button"
                             onClick={() => setPanelAvance(prev => ({ ...prev, [orden.id]: !prev[orden.id] }))}
@@ -438,9 +487,8 @@ export default function ListaOrdenesMoldeo() {
 
                           {panelAvance[orden.id] && (
                             <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                              {/* Fecha del avance */}
                               <div className="flex items-center gap-3">
-                                <label className="text-xs font-semibold text-gray-600 shrink-0">Fecha del avance</label>
+                                <label className="text-xs font-semibold text-gray-600 shrink-0">Fecha</label>
                                 <input type="date"
                                   value={fechaAvance[orden.id] || hoyCol()}
                                   onChange={e => setFechaAvance(prev => ({ ...prev, [orden.id]: e.target.value }))}
@@ -449,27 +497,26 @@ export default function ListaOrdenesMoldeo() {
                               </div>
 
                               {errorAv[orden.id] && (
-                                <p className="text-xs text-red-600 font-medium bg-red-50 rounded-lg px-3 py-2">
-                                  {errorAv[orden.id]}
-                                </p>
+                                <div className="flex items-center gap-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg px-3 py-2">
+                                  <AlertTriangle size={13} /> {errorAv[orden.id]}
+                                </div>
                               )}
 
-                              {/* Inputs por pieza */}
                               <div className="space-y-2">
                                 {piezas.map(p => {
-                                  const avP      = avOrden[p.id]?.total || 0
-                                  const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - avP)
+                                  const av        = avOrden[p.id]?.total || 0
+                                  const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - av)
                                   return (
                                     <div key={p.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-800 truncate">{p.items?.nombre}</p>
-                                        {p.asignado_a && <p className="text-xs text-gray-400">{p.asignado_a}</p>}
-                                        <p className="text-xs text-gray-400 mt-0.5">
+                                        <p className="text-xs text-gray-400">
+                                          {p.asignado_a && <span className="mr-2">{p.asignado_a}</span>}
                                           Pendiente: <span className="font-bold text-gray-600">{pendiente}</span>
                                         </p>
                                       </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        <span className="text-xs text-gray-400">Moldeadas hoy</span>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <span className="text-xs text-gray-400">Hoy:</span>
                                         <input type="number" min="0" step="1"
                                           value={getAv(orden.id, p.id)}
                                           onChange={e => setAv(orden.id, p.id, e.target.value)}
@@ -490,86 +537,6 @@ export default function ListaOrdenesMoldeo() {
                             </div>
                           )}
                         </div>
-
-                        {/* ── PANEL: Cerrar orden / Recogida ── */}
-                        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                          <button type="button"
-                            onClick={() => setPanelCierre(prev => ({ ...prev, [orden.id]: !prev[orden.id] }))}
-                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <Lock size={15} className="text-gray-500" />
-                              <span className="text-sm font-bold text-gray-700">Cerrar orden — Recogida post-fundida</span>
-                            </div>
-                            {panelCierre[orden.id]
-                              ? <ChevronUp size={15} className="text-gray-400" />
-                              : <ChevronDown size={15} className="text-gray-400" />}
-                          </button>
-
-                          {panelCierre[orden.id] && (
-                            <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                              <p className="text-xs text-gray-400">
-                                Registra las piezas conformes y no conformes recogidas después de la fundida. Al guardar, la orden se marca como completada y las piezas conformes entran al inventario.
-                              </p>
-
-                              {errorRes[orden.id] && (
-                                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-sm flex items-center gap-2">
-                                  <AlertTriangle size={14} /> {errorRes[orden.id]}
-                                </div>
-                              )}
-
-                              <div className="space-y-3">
-                                {piezas.map(p => (
-                                  <div key={p.id} className="bg-gray-50 rounded-xl p-3">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div>
-                                        <p className="font-semibold text-gray-800 text-sm">{p.items?.nombre}</p>
-                                        {p.asignado_a && <p className="text-xs text-gray-400">{p.asignado_a}</p>}
-                                      </div>
-                                      <span className="bg-gray-200 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">
-                                        Plan: {p.cantidad_planeada}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div>
-                                        <label className="block text-xs font-semibold text-green-600 mb-1">✓ Conformes</label>
-                                        <input type="number" min="0" step="1"
-                                          value={getRes(orden.id, p.id, 'conforme')}
-                                          onChange={e => setRes(orden.id, p.id, 'conforme', e.target.value)}
-                                          placeholder="0"
-                                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-400"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-semibold text-red-500 mb-1">✗ NC</label>
-                                        <input type="number" min="0" step="1"
-                                          value={getRes(orden.id, p.id, 'nc')}
-                                          onChange={e => setRes(orden.id, p.id, 'nc', e.target.value)}
-                                          placeholder="0"
-                                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-red-300"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-semibold text-gray-500 mb-1">Motivo NC</label>
-                                        <input type="text"
-                                          value={getRes(orden.id, p.id, 'motivo')}
-                                          onChange={e => setRes(orden.id, p.id, 'motivo', e.target.value)}
-                                          placeholder="Ej: rotura"
-                                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              <button onClick={() => registrarCierre(orden)} disabled={guardandoRes === orden.id}
-                                className="w-full bg-green-600 text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity flex items-center justify-center gap-2">
-                                <CheckCircle2 size={16} />
-                                {guardandoRes === orden.id ? 'Guardando…' : 'Registrar recogida y cerrar orden'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
                       </>
                     )}
 
@@ -577,12 +544,6 @@ export default function ListaOrdenesMoldeo() {
                     {completada && (() => {
                       const modo    = vistaOrden[orden.id] || 'pieza'
                       const setModo = v => setVistaOrden(prev => ({ ...prev, [orden.id]: v }))
-                      const porMoldeador = {}
-                      piezas.forEach(p => {
-                        const k = p.asignado_a?.trim() || 'Sin asignar'
-                        if (!porMoldeador[k]) porMoldeador[k] = []
-                        porMoldeador[k].push(p)
-                      })
                       return (
                         <div>
                           <div className="flex items-center justify-between mb-3">
@@ -644,11 +605,10 @@ export default function ListaOrdenesMoldeo() {
 
                           {modo === 'moldeador' && (
                             <div className="space-y-3">
-                              {Object.entries(porMoldeador).map(([mol, mPiezas]) => {
-                                const totPlan = mPiezas.reduce((s,p)=>s+Number(p.cantidad_planeada||0),0)
-                                const totConf = mPiezas.reduce((s,p)=>s+Number(p.cantidad_conforme||0),0)
-                                const totNC   = mPiezas.reduce((s,p)=>s+Number(p.cantidad_nc||0),0)
-                                const rend    = totPlan > 0 ? Math.round((totConf/totPlan)*100) : null
+                              {Object.entries(porMoldeador).map(([mol, d]) => {
+                                const totConf = d.piezas.reduce((s,p)=>s+Number(p.cantidad_conforme||0),0)
+                                const totNC   = d.piezas.reduce((s,p)=>s+Number(p.cantidad_nc||0),0)
+                                const rend    = d.plan > 0 ? Math.round((totConf/d.plan)*100) : null
                                 return (
                                   <div key={mol} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                                     <div className="flex items-center justify-between px-4 py-3 bg-feisen-azul/5 border-b border-gray-100">
@@ -670,7 +630,7 @@ export default function ListaOrdenesMoldeo() {
                                     </div>
                                     <table className="w-full text-sm">
                                       <tbody className="divide-y divide-gray-50">
-                                        {mPiezas.map(p => (
+                                        {d.piezas.map(p => (
                                           <tr key={p.id} className="hover:bg-gray-50/50">
                                             <td className="px-4 py-2.5 font-medium text-gray-800">{p.items?.nombre}</td>
                                             <td className="px-3 py-2.5 text-center text-gray-400 text-xs">Plan: {p.cantidad_planeada}</td>
