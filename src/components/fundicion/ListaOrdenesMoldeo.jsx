@@ -228,12 +228,14 @@ export default function ListaOrdenesMoldeo() {
             // ── Datos por moldeador (para vista moldeador) ────────────────
             const porMoldeador = {}
             piezas.forEach(p => {
-              const k = p.asignado_a?.trim() || 'Sin asignar'
-              if (!porMoldeador[k]) porMoldeador[k] = { piezas: [], plan: 0, moldeado: 0 }
+              const k    = p.asignado_a?.trim() || 'Sin asignar'
+              const peso = Number(p.items?.peso_unitario || 0)
+              if (!porMoldeador[k]) porMoldeador[k] = { piezas: [], plan: 0, moldeado: 0, kg: 0 }
               const av = avOrden[p.id]?.total || 0
-              porMoldeador[k].piezas.push({ ...p, avance: av })
+              porMoldeador[k].piezas.push({ ...p, avance: av, peso })
               porMoldeador[k].plan     += Number(p.cantidad_planeada || 0)
               porMoldeador[k].moldeado += av
+              porMoldeador[k].kg       += av * peso
             })
 
             // Historial diario global (todas las piezas, agrupado por fecha)
@@ -241,9 +243,10 @@ export default function ListaOrdenesMoldeo() {
             piezas.forEach(p => {
               const nombre = p.items?.nombre || '—'
               const mol    = p.asignado_a?.trim() || 'Sin asignar'
+              const peso   = Number(p.items?.peso_unitario || 0)
               ;(avOrden[p.id]?.dias || []).forEach(d => {
                 if (!historialPorFecha[d.fecha]) historialPorFecha[d.fecha] = []
-                historialPorFecha[d.fecha].push({ pieza: nombre, moldeador: mol, cantidad: d.cantidad })
+                historialPorFecha[d.fecha].push({ pieza: nombre, moldeador: mol, cantidad: d.cantidad, kg: d.cantidad * peso })
               })
             })
             const fechasDesc = Object.keys(historialPorFecha).sort((a, b) => b.localeCompare(a))
@@ -339,6 +342,7 @@ export default function ListaOrdenesMoldeo() {
                                   <th className="text-left px-3 py-2.5">Moldeador</th>
                                   <th className="text-center px-2 py-2.5">Plan.</th>
                                   <th className="text-center px-2 py-2.5">Moldeadas</th>
+                                  <th className="text-center px-2 py-2.5">Kg</th>
                                   <th className="text-center px-2 py-2.5">Pendiente</th>
                                   <th className="text-center px-2 py-2.5">Stock</th>
                                   <th className="px-2 py-2.5 w-24">%</th>
@@ -352,12 +356,17 @@ export default function ListaOrdenesMoldeo() {
                                   const pct       = plan > 0 ? Math.round((av / plan) * 100) : 0
                                   const stock     = stOrden[p.item_id] ?? null
                                   const alerta    = stock !== null && stock < pendiente && pendiente > 0
+                                  const peso      = Number(p.items?.peso_unitario || 0)
+                                  const kgAv      = av * peso
                                   return (
                                     <tr key={p.id} className={alerta ? 'bg-orange-50' : 'bg-white hover:bg-gray-50/40'}>
                                       <td className="px-3 py-3 font-medium text-gray-800 text-sm">{p.items?.nombre}</td>
                                       <td className="px-3 py-3 text-xs text-gray-500">{p.asignado_a || '—'}</td>
                                       <td className="px-2 py-3 text-center text-gray-500">{plan}</td>
                                       <td className="px-2 py-3 text-center font-bold text-feisen-azul">{av || '—'}</td>
+                                      <td className="px-2 py-3 text-center text-xs font-semibold text-gray-500">
+                                        {av > 0 && peso > 0 ? `${kgAv.toLocaleString('es-CO',{maximumFractionDigits:1})}` : '—'}
+                                      </td>
                                       <td className="px-2 py-3 text-center">
                                         <span className={`font-bold text-sm ${pendiente === 0 ? 'text-green-600' : 'text-gray-700'}`}>
                                           {pendiente === 0 ? '✓' : pendiente}
@@ -401,6 +410,7 @@ export default function ListaOrdenesMoldeo() {
                                     </div>
                                     <div className="text-right shrink-0">
                                       <p className="text-sm font-bold text-feisen-azul">{d.moldeado} <span className="text-xs font-normal text-gray-400">/ {d.plan}</span></p>
+                                      {d.kg > 0 && <p className="text-xs text-gray-400 font-medium">{d.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</p>}
                                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                         pct >= 80 ? 'bg-green-100 text-green-700'
                                         : pct >= 40 ? 'bg-yellow-100 text-yellow-700'
@@ -413,11 +423,13 @@ export default function ListaOrdenesMoldeo() {
                                   <div className="mt-3 divide-y divide-gray-50">
                                     {d.piezas.map(p => {
                                       const pPct = p.cantidad_planeada > 0 ? Math.round((p.avance / p.cantidad_planeada) * 100) : 0
+                                      const pKg  = p.avance * Number(p.items?.peso_unitario || 0)
                                       return (
                                         <div key={p.id} className="flex items-center justify-between py-2">
                                           <span className="text-xs text-gray-600 truncate flex-1">{p.items?.nombre}</span>
                                           <div className="flex items-center gap-3 ml-2 shrink-0">
                                             <span className="text-xs text-gray-400">{p.avance}/{p.cantidad_planeada}</span>
+                                            {pKg > 0 && <span className="text-xs text-gray-400">{pKg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</span>}
                                             <div className="w-16">
                                               <BarraProgreso pct={pPct} />
                                             </div>
@@ -459,6 +471,9 @@ export default function ListaOrdenesMoldeo() {
                                               <td className="px-4 py-2 text-gray-700 font-medium">{e.pieza}</td>
                                               <td className="px-3 py-2 text-xs text-gray-400">{e.moldeador}</td>
                                               <td className="px-3 py-2 text-right font-bold text-feisen-azul">{e.cantidad}</td>
+                                              <td className="px-3 py-2 text-right text-xs text-gray-400">
+                                                {e.kg > 0 ? `${e.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg` : '—'}
+                                              </td>
                                             </tr>
                                           ))}
                                         </tbody>
@@ -523,6 +538,13 @@ export default function ListaOrdenesMoldeo() {
                                           placeholder="0"
                                           className="w-20 border-2 border-gray-200 rounded-xl px-2 py-1.5 text-center text-sm font-bold focus:outline-none focus:border-feisen-azul"
                                         />
+                                        {(() => {
+                                          const cant = Number(getAv(orden.id, p.id)) || 0
+                                          const peso = Number(p.items?.peso_unitario || 0)
+                                          return cant > 0 && peso > 0
+                                            ? <span className="text-xs text-feisen-azul font-semibold">{(cant * peso).toLocaleString('es-CO',{maximumFractionDigits:1})} kg</span>
+                                            : null
+                                        })()}
                                       </div>
                                     </div>
                                   )
