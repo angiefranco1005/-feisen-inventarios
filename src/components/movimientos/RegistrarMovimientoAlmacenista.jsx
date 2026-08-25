@@ -253,9 +253,11 @@ export default function RegistrarMovimientoAlmacenista() {
 
   // ── Sugerencias sincronizadas con Supabase ──
   const [sugsDB,      setSugsDB]      = useState({})
-  const [modalListas, setModalListas] = useState(false)
-  const [tabLista,    setTabLista]    = useState('feisen_proveedores')
-  const [nuevaSug,    setNuevaSug]    = useState('')
+  const [modalListas,  setModalListas]  = useState(false)
+  const [tabLista,     setTabLista]     = useState('feisen_proveedores')
+  const [nuevaSug,     setNuevaSug]     = useState('')
+  const [editandoSug,  setEditandoSug]  = useState(null)  // { key, idx, valor }
+
 
   useEffect(() => {
     if (!perfil?.id) return
@@ -313,6 +315,19 @@ export default function RegistrarMovimientoAlmacenista() {
     if (!trimmed) return
     await guardarSugerencia(key, trimmed)
     setNuevaSug('')
+  }
+
+  async function guardarEdicionSug(key, idx, nuevoValor) {
+    const trimmed = nuevoValor.trim()
+    if (!trimmed) { setEditandoSug(null); return }
+    const lista = [...(sugsDB[key] || [])]
+    lista[idx] = trimmed
+    const nuevasSugs = { ...sugsDB, [key]: lista }
+    setSugsDB(nuevasSugs)
+    if (perfil?.id) {
+      await supabase.from('profiles').update({ sugerencias: nuevasSugs }).eq('id', perfil.id)
+    }
+    setEditandoSug(null)
   }
 
   // Para modo vista de admin: selector de bodega manual
@@ -1052,10 +1067,29 @@ export default function RegistrarMovimientoAlmacenista() {
               {(sugsDB[tabLista] || []).length === 0
                 ? <p className="text-sm text-gray-400 text-center py-6">Sin entradas todavía.</p>
                 : (sugsDB[tabLista] || []).map((s, i) => (
-                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-                      <span className="text-sm text-gray-700">{s}</span>
+                    <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                      {editandoSug?.key === tabLista && editandoSug?.idx === i ? (
+                        <input
+                          autoFocus
+                          value={editandoSug.valor}
+                          onChange={e => setEditandoSug(ed => ({ ...ed, valor: e.target.value }))}
+                          onBlur={() => guardarEdicionSug(tabLista, i, editandoSug.valor)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') guardarEdicionSug(tabLista, i, editandoSug.valor)
+                            if (e.key === 'Escape') setEditandoSug(null)
+                          }}
+                          className="flex-1 text-sm border border-feisen-azul rounded-lg px-2 py-0.5 focus:outline-none"
+                        />
+                      ) : (
+                        <span
+                          className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-feisen-azul"
+                          onClick={() => setEditandoSug({ key: tabLista, idx: i, valor: s })}
+                          title="Click para editar">
+                          {s}
+                        </span>
+                      )}
                       <button type="button" onClick={() => eliminarSugerencia(tabLista, s)}
-                        className="p-1 text-gray-300 hover:text-feisen-rojo transition-colors">
+                        className="p-1 text-gray-300 hover:text-feisen-rojo transition-colors flex-shrink-0">
                         <Trash2 size={14} />
                       </button>
                     </div>
