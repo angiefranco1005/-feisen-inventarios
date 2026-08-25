@@ -248,12 +248,42 @@ export default function RegistrarMovimientoAlmacenista() {
   const esAdminEnPreview = !bodegasOperacion && perfil
 
   useEffect(() => {
-    if (esAdminEnPreview) {
-      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
-        .then(({ data }) => setBodegasDisponibles(data || []))
-      setCargando(false)
-    }
+    if (!esAdminEnPreview) return
+    supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
+      .then(async ({ data }) => {
+        const bods = data || []
+        setBodegasDisponibles(bods)
+        if (bods.length > 0) {
+          const b = bods[0]
+          setBodegaPreviewId(b.id)
+          setBodega(b)
+          const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
+            supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
+            supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+            supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+          ])
+          setItems(its || [])
+          setPedidos(peds || [])
+          setTodasBodegas((allBods || []).filter(bd => bd.id !== b.id))
+        }
+        setCargando(false)
+      })
   }, [esAdminEnPreview])
+
+  async function cambiarBodegaPreview(bodegaId) {
+    const b = bodegasDisponibles.find(b => b.id === bodegaId)
+    if (!b) return
+    setBodegaPreviewId(bodegaId)
+    setBodega(b)
+    const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
+      supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
+      supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+    ])
+    setItems(its || [])
+    setPedidos(peds || [])
+    setTodasBodegas((allBods || []).filter(bd => bd.id !== b.id))
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -497,50 +527,23 @@ export default function RegistrarMovimientoAlmacenista() {
 
   if (cargando) return <div className="flex justify-center py-20"><Spinner /></div>
 
-  // Admin en modo vista: mostrar selector de bodega
-  if (esAdminEnPreview && !bodegaPreviewId) {
-    return (
-      <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold text-feisen-azul mb-6">Registrar movimiento</h1>
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-          <p className="text-sm font-semibold text-amber-800 mb-3">
-            👁 Modo vista — selecciona la bodega a simular
-          </p>
-          <select
-            value={bodegaPreviewId}
-            onChange={e => {
-              setBodegaPreviewId(e.target.value)
-              const b = bodegasDisponibles.find(b => b.id === e.target.value)
-              if (b) {
-                setBodega(b)
-                // Cargar items de esa bodega
-                Promise.all([
-                  supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
-                  supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
-                  supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
-                ]).then(([{ data: its }, { data: peds }, { data: bods }]) => {
-                  setItems(its || [])
-                  setPedidos(peds || [])
-                  setTodasBodegas((bods || []).filter(bd => bd.id !== b.id))
-                })
-              }
-            }}
-            className="w-full border border-amber-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-          >
-            <option value="">Selecciona una bodega…</option>
-            {bodegasDisponibles.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-          </select>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-xl mx-auto">
       <h1 className="text-2xl font-bold text-feisen-azul mb-6">Registrar movimiento</h1>
 
-      {/* Bodega badge */}
-      {bodega && (
+      {/* Bodega badge / selector en modo vista */}
+      {esAdminEnPreview ? (
+        <div className="mb-5 flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-500">Bodega (vista):</span>
+          <select
+            value={bodegaPreviewId}
+            onChange={e => cambiarBodegaPreview(e.target.value)}
+            className="border border-amber-300 rounded-xl px-3 py-1.5 text-sm bg-amber-50 text-amber-800 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            {bodegasDisponibles.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+        </div>
+      ) : bodega && (
         <div className="mb-5 flex items-center gap-2">
           <span className="text-sm text-gray-500">Bodega:</span>
           <span className="bg-feisen-azul text-white text-xs font-semibold px-3 py-1 rounded-full">{bodega.nombre}</span>
