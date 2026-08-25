@@ -242,6 +242,19 @@ export default function RegistrarMovimientoAlmacenista() {
   const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
 
+  // Para modo vista de admin: selector de bodega manual
+  const [bodegaPreviewId, setBodegaPreviewId] = useState('')
+  const [bodegasDisponibles, setBodegasDisponibles] = useState([])
+  const esAdminEnPreview = !bodegasOperacion && perfil
+
+  useEffect(() => {
+    if (esAdminEnPreview) {
+      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
+        .then(({ data }) => setBodegasDisponibles(data || []))
+      setCargando(false)
+    }
+  }, [esAdminEnPreview])
+
   useEffect(() => {
     async function cargar() {
       if (!bodegasOperacion?.[0]) { setCargando(false); return }
@@ -483,6 +496,44 @@ export default function RegistrarMovimientoAlmacenista() {
   }
 
   if (cargando) return <div className="flex justify-center py-20"><Spinner /></div>
+
+  // Admin en modo vista: mostrar selector de bodega
+  if (esAdminEnPreview && !bodegaPreviewId) {
+    return (
+      <div className="max-w-xl mx-auto">
+        <h1 className="text-2xl font-bold text-feisen-azul mb-6">Registrar movimiento</h1>
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-amber-800 mb-3">
+            👁 Modo vista — selecciona la bodega a simular
+          </p>
+          <select
+            value={bodegaPreviewId}
+            onChange={e => {
+              setBodegaPreviewId(e.target.value)
+              const b = bodegasDisponibles.find(b => b.id === e.target.value)
+              if (b) {
+                setBodega(b)
+                // Cargar items de esa bodega
+                Promise.all([
+                  supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
+                  supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+                  supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+                ]).then(([{ data: its }, { data: peds }, { data: bods }]) => {
+                  setItems(its || [])
+                  setPedidos(peds || [])
+                  setTodasBodegas((bods || []).filter(bd => bd.id !== b.id))
+                })
+              }
+            }}
+            className="w-full border border-amber-300 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <option value="">Selecciona una bodega…</option>
+            {bodegasDisponibles.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-xl mx-auto">

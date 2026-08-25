@@ -65,7 +65,7 @@ export function AuthProvider({ children }) {
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esConsultor, esJefeFundicion, esJefeMecanizados,
-      esAdminReal, rolPreview, setRolPreview,
+      esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
     }}>

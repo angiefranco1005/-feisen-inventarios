@@ -32,7 +32,7 @@ function Cargando() {
 }
 
 function AppRoutes() {
-  const { session, perfil, cargando } = useAuth()
+  const { session, perfil, cargando, rolEfectivo } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -48,7 +48,7 @@ function AppRoutes() {
   }
 
   // CONSULTOR → solo ve su dashboard
-  if (esRol(perfil, 'CONSULTOR')) {
+  if (rolEfectivo === 'CONSULTOR') {
     return (
       <Routes>
         <Route path="*" element={<Layout><DashboardConsultor /></Layout>} />
@@ -57,7 +57,7 @@ function AppRoutes() {
   }
 
   // LOGISTICA
-  if (esRol(perfil, 'LOGISTICA')) {
+  if (rolEfectivo === 'LOGISTICA') {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
@@ -72,7 +72,7 @@ function AppRoutes() {
   }
 
   // ALMACENISTA
-  if (esRol(perfil, 'ALMACENISTA')) {
+  if (rolEfectivo === 'ALMACENISTA') {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
@@ -87,7 +87,7 @@ function AppRoutes() {
   }
 
   // JEFE_FUNDICION
-  if (esRol(perfil, 'JEFE_FUNDICION')) {
+  if (rolEfectivo === 'JEFE_FUNDICION') {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
@@ -109,7 +109,7 @@ function AppRoutes() {
   }
 
   // JEFE_MECANIZADOS
-  if (esRol(perfil, 'JEFE_MECANIZADOS')) {
+  if (rolEfectivo === 'JEFE_MECANIZADOS') {
     return (
       <Routes>
         <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
@@ -146,9 +146,6 @@ function AppRoutes() {
   )
 }
 
-function esRol(perfil, rol) {
-  return perfil?.rol === rol
-}
 
 export default function App() {
   return (
