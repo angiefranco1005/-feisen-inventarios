@@ -220,6 +220,10 @@ export default function Layout({ children }) {
               className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 font-medium">
               <KeyRound size={18} /> Cambiar contraseña
             </button>
+            <button onClick={actualizar}
+              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 font-medium">
+              <RefreshCw size={18} /> Actualizar app
+            </button>
             <button onClick={handleLogout}
               className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-feisen-rojo bg-red-50 font-medium">
               <LogOut size={18} /> Cerrar sesión
