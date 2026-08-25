@@ -55,10 +55,9 @@ function SelectorItem({ value, items, onSelect }) {
   )
 }
 
-// ── Input con sugerencias guardadas en localStorage ───────────────────────
-function InputConSugerencias({ value, onChange, placeholder, storageKey, colorRing = 'feisen-azul' }) {
+// ── Input con sugerencias (recibe el array directamente) ─────────────────
+function InputConSugerencias({ value, onChange, placeholder, sugerencias = [], colorRing = 'feisen-azul' }) {
   const [open, setOpen] = useState(false)
-  const sugerencias = JSON.parse(localStorage.getItem(storageKey) || '[]')
   const filtradas = value.trim()
     ? sugerencias.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s.toLowerCase() !== value.toLowerCase())
     : sugerencias
@@ -90,11 +89,6 @@ function InputConSugerencias({ value, onChange, placeholder, storageKey, colorRi
   )
 }
 
-function guardarSugerencia(key, valor) {
-  const existentes = JSON.parse(localStorage.getItem(key) || '[]')
-  const nuevas = [valor, ...existentes.filter(s => s !== valor)].slice(0, 30)
-  localStorage.setItem(key, JSON.stringify(nuevas))
-}
 
 // ── Agrupar productos duplicados sumando sus cantidades ───────────────────
 function agruparProductos(lista) {
@@ -241,6 +235,25 @@ export default function RegistrarMovimientoAlmacenista() {
 
   const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
+
+  // ── Sugerencias sincronizadas con Supabase ──
+  const [sugsDB, setSugsDB] = useState({})
+
+  useEffect(() => {
+    if (!perfil?.id) return
+    supabase.from('profiles').select('sugerencias').eq('id', perfil.id).single()
+      .then(({ data }) => { if (data?.sugerencias) setSugsDB(data.sugerencias) })
+  }, [perfil?.id])
+
+  async function guardarSugerencia(key, valor) {
+    const existentes = sugsDB[key] || []
+    const nuevas = [valor, ...existentes.filter(s => s !== valor)].slice(0, 30)
+    const nuevasSugs = { ...sugsDB, [key]: nuevas }
+    setSugsDB(nuevasSugs)
+    if (perfil?.id) {
+      await supabase.from('profiles').update({ sugerencias: nuevasSugs }).eq('id', perfil.id)
+    }
+  }
 
   // Para modo vista de admin: selector de bodega manual
   const [bodegaPreviewId, setBodegaPreviewId] = useState('')
@@ -622,7 +635,7 @@ export default function RegistrarMovimientoAlmacenista() {
                 value={proveedor}
                 onChange={setProveedor}
                 placeholder="Nombre del proveedor"
-                storageKey="feisen_proveedores"
+                sugerencias={sugsDB['feisen_proveedores'] || []}
                 colorRing="feisen-azul"
               />
             </div>
@@ -785,7 +798,7 @@ export default function RegistrarMovimientoAlmacenista() {
                       value={colaborador}
                       onChange={setColaborador}
                       placeholder="Nombre del colaborador"
-                      storageKey="feisen_colaboradores"
+                      sugerencias={sugsDB['feisen_colaboradores'] || []}
                       colorRing="feisen-azul"
                     />
                   </div>
@@ -822,7 +835,7 @@ export default function RegistrarMovimientoAlmacenista() {
                   value={receptor}
                   onChange={setReceptor}
                   placeholder="Nombre de quien recibe"
-                  storageKey="feisen_receptores"
+                  sugerencias={sugsDB['feisen_receptores'] || []}
                   colorRing="feisen-rojo"
                 />
               </div>
