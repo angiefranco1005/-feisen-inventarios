@@ -1035,9 +1035,8 @@ export default function RegistrarMovimientoAlmacenista() {
             {/* Tabs */}
             <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
               {[
-                { key: 'feisen_proveedores',   label: 'Proveedores'   },
-                { key: 'feisen_receptores',    label: 'Receptores'    },
-                { key: 'feisen_colaboradores', label: 'Colaboradores' },
+                { key: 'feisen_proveedores', label: 'Proveedores' },
+                { key: 'feisen_receptores',  label: 'Receptores'  },
               ].map(t => (
                 <button key={t.key} type="button"
                   onClick={() => { setTabLista(t.key); setNuevaSug('') }}
