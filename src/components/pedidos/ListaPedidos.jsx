@@ -210,13 +210,17 @@ useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setCargando(true)
+    const verTodo = esAdmin || esLogistica
     let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre')
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
 
+    let pedsQ = supabase.from('pedidos')
+      .select('*, pedido_items(*), profiles(nombre)')
+      .order('created_at', { ascending: false })
+    if (!verTodo) pedsQ = pedsQ.eq('usuario_id', perfil.id)
+
     const [{ data: peds }, { data: prods }] = await Promise.all([
-      supabase.from('pedidos')
-        .select('*, pedido_items(*), profiles(nombre)')
-        .order('created_at', { ascending: false }),
+      pedsQ,
       prodsQ,
     ])
     setPedidos(peds || [])

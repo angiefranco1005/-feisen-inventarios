@@ -13,7 +13,7 @@ const TIPO_CONFIG = {
 }
 
 export default function Historial() {
-  const { perfil, esAdmin } = useAuth()
+  const { perfil, esAdmin, esLogistica } = useAuth()
   const [searchParams] = useSearchParams()
   const [movimientos,  setMovimientos]  = useState([])
   const [items,        setItems]        = useState([])
@@ -45,12 +45,16 @@ export default function Historial() {
 
   async function cargar() {
     setCargando(true)
+    const verTodo = esAdmin || esLogistica
+    let movsQ = supabase
+      .from('movimientos')
+      .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    if (!verTodo) movsQ = movsQ.eq('usuario_id', perfil.id)
+
     const [{ data: movs }, { data: its }] = await Promise.all([
-      supabase
-        .from('movimientos')
-        .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
-        .order('created_at', { ascending: false })
-        .limit(1000),
+      movsQ,
       supabase.from('items').select('id, nombre').order('nombre'),
     ])
     setMovimientos(movs || [])
