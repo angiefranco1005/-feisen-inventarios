@@ -33,9 +33,18 @@ function fmtFecha(ts) {
   return d.toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
 }
 
+function fmtDate(str) {
+  if (!str) return ''
+  const [y,m,d] = str.split('-')
+  return `${d}/${m}/${y}`
+}
+
+// ── Fetch ──────────────────────────────────────────────────────────────────────
 async function fetchDatosPeriodo(anio, mes, quincena) {
   const { inicio, fin } = rangoPeriodo(anio, mes, quincena)
-  const [{ data: ordenes }, { data: fundidas }] = await Promise.all([
+
+  const [{ data: ordenes }, { data: fundidas }, { data: avances }] = await Promise.all([
+    // Órdenes de moldeo con resultado de recogida
     supabase.from('ordenes_moldeo').select(`
       id, numero, fecha, estado,
       ordenes_moldeo_piezas(
@@ -43,24 +52,41 @@ async function fetchDatosPeriodo(anio, mes, quincena) {
         items(nombre, peso_unitario)
       )
     `).gte('fecha', inicio).lte('fecha', fin).order('fecha'),
+
+    // Fundidas del período
     supabase.from('fundidas')
       .select('id, numero, fecha, horneros, vaceadores, auxiliares')
       .gte('fecha', inicio).lte('fecha', fin).order('fecha'),
+
+    // Avances diarios del período (via fecha del avance)
+    supabase.from('ordenes_moldeo_avances').select(`
+      id, fecha, cantidad_moldeada,
+      ordenes_moldeo_piezas(
+        id, asignado_a,
+        items(nombre, peso_unitario)
+      )
+    `).gte('fecha', inicio).lte('fecha', fin).order('fecha'),
   ])
-  return { ordenes: ordenes || [], fundidas: fundidas || [] }
+
+  return { ordenes: ordenes || [], fundidas: fundidas || [], avances: avances || [] }
 }
 
-function calcularPersonas(ordenes, fundidas) {
+// ── Calcular por persona ───────────────────────────────────────────────────────
+function calcularPersonas(ordenes, fundidas, avances) {
   const personas = {}
   function persona(nombre) {
     const k = (nombre || '').trim()
     if (!k) return null
     if (!personas[k]) personas[k] = {
-      nombre: k, planeadas: 0, conformes: 0, nc: 0, kgConformes: 0,
+      nombre: k,
+      planeadas: 0, conformes: 0, nc: 0,
+      moldeadas: 0, kgMoldeadas: 0, kgConformes: 0,
       hornero: 0, vaceador: 0, auxiliar: 0,
     }
     return personas[k]
   }
+
+  // Recogida (conformes/NC) y planeación desde órdenes
   for (const ord of ordenes) {
     for (const p of (ord.ordenes_moldeo_piezas || [])) {
       const pr = persona(p.asignado_a || 'Sin asignar')
@@ -73,84 +99,125 @@ function calcularPersonas(ordenes, fundidas) {
       pr.kgConformes += conf * peso
     }
   }
+
+  // Avances diarios (lo que realmente moldeó cada persona)
+  for (const av of avances) {
+    const asignado = av.ordenes_moldeo_piezas?.asignado_a
+    const pr = persona(asignado || 'Sin asignar')
+    if (!pr) continue
+    const cant = Number(av.cantidad_moldeada || 0)
+    const peso = Number(av.ordenes_moldeo_piezas?.items?.peso_unitario || 0)
+    pr.moldeadas   += cant
+    pr.kgMoldeadas += cant * peso
+  }
+
+  // Participación en fundidas
   for (const f of fundidas) {
     for (const h of (f.horneros  || []).filter(Boolean)) { const pr = persona(h); if (pr) pr.hornero++ }
     for (const v of (f.vaceadores|| []).filter(Boolean)) { const pr = persona(v); if (pr) pr.vaceador++ }
     for (const a of (f.auxiliares|| []).filter(Boolean)) { const pr = persona(a); if (pr) pr.auxiliar++ }
     ;[...(f.horneros||[]),...(f.vaceadores||[]),...(f.auxiliares||[])].filter(Boolean).forEach(n => persona(n))
   }
+
   return Object.values(personas).sort((a,b) => a.nombre.localeCompare(b.nombre,'es'))
 }
 
-function generarWorkbook(anio, mes, quincena, ordenes, fundidas) {
-  const personas = calcularPersonas(ordenes, fundidas)
+// ── Workbook Excel ─────────────────────────────────────────────────────────────
+function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
+  const personas = calcularPersonas(ordenes, fundidas, avances)
   const periodo  = labelPeriodo(anio, mes, quincena)
   const wb = XLSX.utils.book_new()
 
-  // Hoja 1: Resumen
+  // Hoja 1: Resumen por persona
   const hResumen = [
     [`FEISEN — Informe Quincenal Fundición`],
     [`Período: ${periodo}`],
     [],
-    ['PERSONA','PIEZAS PLAN.','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','FUNDIDAS HORNERO','FUNDIDAS VACEADOR','FUNDIDAS AUXILIAR'],
+    ['PERSONA','PLANEADAS','MOLDEADAS','KG MOLDEADAS','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','FUNDIDAS (H/V/A)'],
     ...personas.map(p => [
-      p.nombre, p.planeadas, p.conformes, p.nc,
+      p.nombre,
+      p.planeadas||'',
+      p.moldeadas||'',
+      p.kgMoldeadas > 0 ? +p.kgMoldeadas.toFixed(2) : '',
+      p.conformes||'',
+      p.nc||'',
       p.planeadas > 0 ? +(((p.conformes/p.planeadas)*100).toFixed(1)) : '',
-      +p.kgConformes.toFixed(2),
-      p.hornero||'', p.vaceador||'', p.auxiliar||'',
+      p.kgConformes > 0 ? +p.kgConformes.toFixed(2) : '',
+      [p.hornero?`${p.hornero}H`:'', p.vaceador?`${p.vaceador}V`:'', p.auxiliar?`${p.auxiliar}A`:''].filter(Boolean).join(' ') || '',
     ]),
     [],
     ['TOTALES',
       personas.reduce((s,p)=>s+p.planeadas,0),
+      personas.reduce((s,p)=>s+p.moldeadas,0),
+      +personas.reduce((s,p)=>s+p.kgMoldeadas,0).toFixed(2),
       personas.reduce((s,p)=>s+p.conformes,0),
       personas.reduce((s,p)=>s+p.nc,0), '',
       +personas.reduce((s,p)=>s+p.kgConformes,0).toFixed(2),
     ],
   ]
   const wsRes = XLSX.utils.aoa_to_sheet(hResumen)
-  wsRes['!cols'] = [22,14,12,8,14,14,18,18,16].map(w=>({wch:w}))
+  wsRes['!cols'] = [22,12,12,14,12,8,14,14,16].map(w=>({wch:w}))
   XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen')
 
-  // Hoja 2: Detalle Moldeo
+  // Hoja 2: Historial Diario de Avances
+  const hHistorial = [
+    [`HISTORIAL DIARIO DE MOLDEO — ${periodo}`], [],
+    ['FECHA','PIEZA','MOLDEADOR','CANTIDAD','KG'],
+  ]
+  for (const av of [...avances].sort((a,b) => a.fecha.localeCompare(b.fecha))) {
+    const cant = Number(av.cantidad_moldeada || 0)
+    const peso = Number(av.ordenes_moldeo_piezas?.items?.peso_unitario || 0)
+    hHistorial.push([
+      fmtDate(av.fecha),
+      av.ordenes_moldeo_piezas?.items?.nombre || '',
+      av.ordenes_moldeo_piezas?.asignado_a || 'Sin asignar',
+      cant,
+      +(cant * peso).toFixed(2) || '',
+    ])
+  }
+  if (avances.length === 0) hHistorial.push(['Sin avances registrados en este período','','','',''])
+  const wsHist = XLSX.utils.aoa_to_sheet(hHistorial)
+  wsHist['!cols'] = [12,28,20,12,12].map(w=>({wch:w}))
+  XLSX.utils.book_append_sheet(wb, wsHist, 'Historial Diario')
+
+  // Hoja 3: Detalle Recogida (resultado por pieza)
   const hDetalle = [
-    [`DETALLE MOLDEO — ${periodo}`], [],
+    [`RECOGIDA / RESULTADO MOLDEO — ${periodo}`], [],
     ['ORDEN','FECHA','PIEZA','PESO UNIT. (kg)','MOLDEADOR','PLANEADAS','CONFORMES','NC','MOTIVO NC','KG CONFORMES'],
   ]
   for (const ord of ordenes) {
     for (const p of (ord.ordenes_moldeo_piezas||[])) {
       const conf = Number(p.cantidad_conforme||0)
       const peso = Number(p.items?.peso_unitario||0)
-      const [y,m,d] = (ord.fecha||'').split('-')
       hDetalle.push([
         `ORD-MOL-${String(ord.numero).padStart(4,'0')}`,
-        ord.fecha ? `${d}/${m}/${y}` : '',
+        fmtDate(ord.fecha),
         p.items?.nombre||'', peso||'',
         p.asignado_a||'Sin asignar',
         Number(p.cantidad_planeada||0), conf,
         Number(p.cantidad_nc||0), p.motivo_nc||'',
-        +((conf*peso).toFixed(2)),
+        +(conf*peso).toFixed(2)||'',
       ])
     }
   }
+  if (ordenes.length === 0) hDetalle.push(['Sin órdenes en este período','','','','','','','','',''])
   const wsDet = XLSX.utils.aoa_to_sheet(hDetalle)
   wsDet['!cols'] = [14,12,28,14,18,10,10,8,20,14].map(w=>({wch:w}))
-  XLSX.utils.book_append_sheet(wb, wsDet, 'Detalle Moldeo')
+  XLSX.utils.book_append_sheet(wb, wsDet, 'Recogida')
 
-  // Hoja 3: Fundidas
+  // Hoja 4: Fundidas
   const hFundidas = [
     [`FUNDIDAS — ${periodo}`], [],
     ['FUNDIDA','FECHA','HORNEROS','VACEADORES','AUXILIARES'],
-    ...(fundidas||[]).map(f => {
-      const [y,m,d] = (f.fecha||'').split('-')
-      return [
-        `FUN-${String(f.numero).padStart(4,'0')}`,
-        f.fecha ? `${d}/${m}/${y}` : '',
-        (f.horneros ||[]).filter(Boolean).join(', '),
-        (f.vaceadores||[]).filter(Boolean).join(', '),
-        (f.auxiliares||[]).filter(Boolean).join(', '),
-      ]
-    }),
+    ...(fundidas||[]).map(f => [
+      `FUN-${String(f.numero).padStart(4,'0')}`,
+      fmtDate(f.fecha),
+      (f.horneros ||[]).filter(Boolean).join(', '),
+      (f.vaceadores||[]).filter(Boolean).join(', '),
+      (f.auxiliares||[]).filter(Boolean).join(', '),
+    ]),
   ]
+  if (fundidas.length === 0) hFundidas.push(['Sin fundidas en este período','','','',''])
   const wsFun = XLSX.utils.aoa_to_sheet(hFundidas)
   wsFun['!cols'] = [14,12,30,30,30].map(w=>({wch:w}))
   XLSX.utils.book_append_sheet(wb, wsFun, 'Fundidas')
@@ -158,24 +225,23 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas) {
   return wb
 }
 
+// ── Componente ─────────────────────────────────────────────────────────────────
 export default function InformeNomina() {
   const { perfil } = useAuth()
   const ini = hoy()
-  const [anio,      setAnio]      = useState(ini.anio)
-  const [mes,       setMes]       = useState(ini.mes)
-  const [quincena,  setQuincena]  = useState(ini.quincena)
-  const [cargando,  setCargando]  = useState(false)
-  const [resumen,   setResumen]   = useState(null)
-  const [error,     setError]     = useState('')
-  const [historial, setHistorial] = useState([])
-  const [cargandoH, setCargandoH] = useState(false)
-  const [descargando, setDescargando] = useState(null) // id del informe que se está re-descargando
+  const [anio,       setAnio]       = useState(ini.anio)
+  const [mes,        setMes]        = useState(ini.mes)
+  const [quincena,   setQuincena]   = useState(ini.quincena)
+  const [cargando,   setCargando]   = useState(false)
+  const [resumen,    setResumen]    = useState(null)
+  const [error,      setError]      = useState('')
+  const [historial,  setHistorial]  = useState([])
+  const [cargandoH,  setCargandoH]  = useState(false)
+  const [descargando,setDescargando]= useState(null)
 
   const cargarHistorial = useCallback(async () => {
     setCargandoH(true)
-    const { data } = await supabase
-      .from('informes_nomina')
-      .select('*')
+    const { data } = await supabase.from('informes_nomina').select('*')
       .order('anio', { ascending: false })
       .order('mes',  { ascending: false })
       .order('quincena', { ascending: false })
@@ -188,8 +254,8 @@ export default function InformeNomina() {
   async function cargarDatos() {
     setError(''); setCargando(true); setResumen(null)
     try {
-      const { ordenes, fundidas } = await fetchDatosPeriodo(anio, mes, quincena)
-      setResumen({ ordenes, fundidas })
+      const datos = await fetchDatosPeriodo(anio, mes, quincena)
+      setResumen(datos)
     } catch (e) {
       setError('Error al cargar datos: ' + e.message)
     } finally {
@@ -199,11 +265,10 @@ export default function InformeNomina() {
 
   async function descargarExcel() {
     if (!resumen) return
-    const { ordenes, fundidas } = resumen
-    const wb = generarWorkbook(anio, mes, quincena, ordenes, fundidas)
+    const { ordenes, fundidas, avances } = resumen
+    const wb = generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances)
     XLSX.writeFile(wb, `Nomina_Fundicion_${MESES[mes-1]}_Q${quincena}_${anio}.xlsx`)
 
-    // Guardar en historial (upsert por período)
     const ya = historial.find(h => h.anio === anio && h.mes === mes && h.quincena === quincena)
     if (ya) {
       await supabase.from('informes_nomina').update({
@@ -224,8 +289,8 @@ export default function InformeNomina() {
   async function reDescargar(informe) {
     setDescargando(informe.id)
     try {
-      const { ordenes, fundidas } = await fetchDatosPeriodo(informe.anio, informe.mes, informe.quincena)
-      const wb = generarWorkbook(informe.anio, informe.mes, informe.quincena, ordenes, fundidas)
+      const { ordenes, fundidas, avances } = await fetchDatosPeriodo(informe.anio, informe.mes, informe.quincena)
+      const wb = generarWorkbook(informe.anio, informe.mes, informe.quincena, ordenes, fundidas, avances)
       XLSX.writeFile(wb, `Nomina_Fundicion_${MESES[informe.mes-1]}_Q${informe.quincena}_${informe.anio}.xlsx`)
     } catch(e) {
       alert('Error al regenerar: ' + e.message)
@@ -234,7 +299,7 @@ export default function InformeNomina() {
     }
   }
 
-  const personas = resumen ? calcularPersonas(resumen.ordenes, resumen.fundidas) : []
+  const personas = resumen ? calcularPersonas(resumen.ordenes, resumen.fundidas, resumen.avances) : []
 
   return (
     <div className="max-w-3xl mx-auto p-4 pb-20">
@@ -246,7 +311,7 @@ export default function InformeNomina() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-800">Informe Nómina — Fundición</h1>
-          <p className="text-xs text-gray-500">Moldeo, recogida y participación en fundidas por persona</p>
+          <p className="text-xs text-gray-500">Avance diario, recogida y participación en fundidas por persona</p>
         </div>
       </div>
 
@@ -306,7 +371,7 @@ export default function InformeNomina() {
               <div>
                 <p className="text-sm font-bold text-gray-700">Resumen por persona</p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {personas.length} personas · {resumen.ordenes.length} órdenes · {resumen.fundidas.length} fundidas
+                  {personas.length} personas · {resumen.ordenes.length} órdenes · {resumen.avances.length} avances · {resumen.fundidas.length} fundidas
                 </p>
               </div>
               <button onClick={descargarExcel}
@@ -323,12 +388,13 @@ export default function InformeNomina() {
                   <thead>
                     <tr className="bg-gray-50 text-xs text-gray-500 font-bold uppercase border-b border-gray-100">
                       <th className="text-left px-4 py-3">Persona</th>
-                      <th className="text-center px-3 py-3">Plan.</th>
-                      <th className="text-center px-3 py-3">✓ Conf.</th>
-                      <th className="text-center px-3 py-3">✗ NC</th>
-                      <th className="text-center px-3 py-3">%</th>
-                      <th className="text-center px-3 py-3">Kg conf.</th>
-                      <th className="text-center px-3 py-3 text-orange-500">🔥 Fund.</th>
+                      <th className="text-center px-2 py-3">Plan.</th>
+                      <th className="text-center px-2 py-3">Moldeadas</th>
+                      <th className="text-center px-2 py-3">Kg mol.</th>
+                      <th className="text-center px-2 py-3">✓ Conf.</th>
+                      <th className="text-center px-2 py-3">✗ NC</th>
+                      <th className="text-center px-2 py-3">%</th>
+                      <th className="text-center px-2 py-3">🔥 Fund.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -338,10 +404,14 @@ export default function InformeNomina() {
                       return (
                         <tr key={p.nombre} className="hover:bg-gray-50/50">
                           <td className="px-4 py-3 font-semibold text-gray-800">{p.nombre}</td>
-                          <td className="px-3 py-3 text-center text-gray-500">{p.planeadas||'—'}</td>
-                          <td className="px-3 py-3 text-center font-bold text-green-600">{p.conformes||'—'}</td>
-                          <td className="px-3 py-3 text-center font-bold text-red-500">{p.nc||'—'}</td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-2 py-3 text-center text-gray-500">{p.planeadas||'—'}</td>
+                          <td className="px-2 py-3 text-center font-bold text-feisen-azul">{p.moldeadas||'—'}</td>
+                          <td className="px-2 py-3 text-center text-xs font-semibold text-gray-500">
+                            {p.kgMoldeadas>0 ? p.kgMoldeadas.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-center font-bold text-green-600">{p.conformes||'—'}</td>
+                          <td className="px-2 py-3 text-center font-bold text-red-500">{p.nc||'—'}</td>
+                          <td className="px-2 py-3 text-center">
                             {rend != null ? (
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                                 rend>=80?'bg-green-100 text-green-700':rend>=60?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'}`}>
@@ -349,10 +419,7 @@ export default function InformeNomina() {
                               </span>
                             ) : '—'}
                           </td>
-                          <td className="px-3 py-3 text-center font-semibold text-feisen-azul">
-                            {p.kgConformes>0 ? p.kgConformes.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}
-                          </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-2 py-3 text-center">
                             {enFundidas>0 ? (
                               <div className="flex flex-col items-center gap-0.5 text-xs">
                                 {p.hornero  >0 && <span className="text-orange-500 font-semibold">{p.hornero}H</span>}
@@ -368,14 +435,14 @@ export default function InformeNomina() {
                   <tfoot>
                     <tr className="bg-feisen-azul/5 font-bold text-sm border-t border-feisen-azul/20">
                       <td className="px-4 py-3 text-feisen-azul">Totales</td>
-                      <td className="px-3 py-3 text-center">{personas.reduce((s,p)=>s+p.planeadas,0)}</td>
-                      <td className="px-3 py-3 text-center text-green-600">{personas.reduce((s,p)=>s+p.conformes,0)}</td>
-                      <td className="px-3 py-3 text-center text-red-500">{personas.reduce((s,p)=>s+p.nc,0)}</td>
-                      <td />
-                      <td className="px-3 py-3 text-center text-feisen-azul">
-                        {personas.reduce((s,p)=>s+p.kgConformes,0).toLocaleString('es-CO',{maximumFractionDigits:1})}
+                      <td className="px-2 py-3 text-center">{personas.reduce((s,p)=>s+p.planeadas,0)}</td>
+                      <td className="px-2 py-3 text-center text-feisen-azul">{personas.reduce((s,p)=>s+p.moldeadas,0)}</td>
+                      <td className="px-2 py-3 text-center text-gray-500">
+                        {personas.reduce((s,p)=>s+p.kgMoldeadas,0).toLocaleString('es-CO',{maximumFractionDigits:1})}
                       </td>
-                      <td />
+                      <td className="px-2 py-3 text-center text-green-600">{personas.reduce((s,p)=>s+p.conformes,0)}</td>
+                      <td className="px-2 py-3 text-center text-red-500">{personas.reduce((s,p)=>s+p.nc,0)}</td>
+                      <td /><td />
                     </tr>
                   </tfoot>
                 </table>
@@ -391,7 +458,7 @@ export default function InformeNomina() {
 
           <button onClick={descargarExcel}
             className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 transition-opacity mb-6">
-            <Download size={16} /> Descargar Excel completo (3 hojas)
+            <Download size={16} /> Descargar Excel completo (4 hojas)
           </button>
         </>
       )}
