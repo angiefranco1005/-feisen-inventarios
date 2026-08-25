@@ -32,7 +32,7 @@ export default function GestionProductos() {
   const [pagina,     setPagina]     = useState(1)
   const POR_PAGINA = 20
 
-  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0' }
+  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', stock_maximo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0' }
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
@@ -112,6 +112,7 @@ export default function GestionProductos() {
       unidad_medida:    item.unidad_medida,
       precio_costo:     item.precio_costo  || '',
       stock_minimo:     item.stock_minimo  || '0',
+      stock_maximo:     item.stock_maximo  || '0',
       foto_url:         item.foto_url      || '',
       peso_unitario:    item.peso_unitario ?? '',
       cantidad_inicial: '0',
@@ -146,6 +147,7 @@ export default function GestionProductos() {
       unidad_medida: form.unidad_medida,
       precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') ? (parseFloat(form.precio_costo) || 0) : undefined,
       stock_minimo:  parseFloat(form.stock_minimo) || 0,
+      stock_maximo:  parseFloat(form.stock_maximo) || 0,
       foto_url:      form.foto_url      || null,
       peso_unitario: esFundicion ? (parseFloat(form.peso_unitario) || null) : null,
       updated_at:    new Date().toISOString(),
@@ -370,13 +372,24 @@ export default function GestionProductos() {
                           </span>
                           <p className="text-xs text-amber-600 font-semibold">Bajo mínimo ({item.stock_minimo})</p>
                         </div>
+                      ) : item.stock_maximo > 0 && getStock(item) > item.stock_maximo ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="inline-block bg-purple-100 text-purple-700 font-bold text-base px-3 py-1 rounded-xl">
+                            {getStock(item)}
+                          </span>
+                          <p className="text-xs text-purple-500 font-semibold">Sobrestock (máx. {item.stock_maximo})</p>
+                        </div>
                       ) : (
                         <div>
                           <span className="inline-block bg-green-100 text-green-700 font-bold text-base px-3 py-1 rounded-xl">
                             {getStock(item)}
                           </span>
-                          {item.stock_minimo > 0 && (
-                            <p className="text-xs text-gray-300 mt-0.5">mín. {item.stock_minimo}</p>
+                          {(item.stock_minimo > 0 || item.stock_maximo > 0) && (
+                            <p className="text-xs text-gray-300 mt-0.5">
+                              {item.stock_minimo > 0 && `mín. ${item.stock_minimo}`}
+                              {item.stock_minimo > 0 && item.stock_maximo > 0 && ' · '}
+                              {item.stock_maximo > 0 && `máx. ${item.stock_maximo}`}
+                            </p>
                           )}
                         </div>
                       )}
@@ -518,6 +531,13 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Stock mínimo</label>
                 <input type="number" min="0" step="1" value={form.stock_minimo}
                   onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  placeholder="0" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Stock máximo</label>
+                <input type="number" min="0" step="1" value={form.stock_maximo}
+                  onChange={e => setForm(f => ({ ...f, stock_maximo: e.target.value }))}
                   className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
               </div>
