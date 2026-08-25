@@ -201,7 +201,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
   const HOY_COL = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD en hora local
 
-  const [tipo,        setTipo]        = useState('entrada')
+  const [tipo,        setTipo]        = useState('salida')
   const [tipoEntrada, setTipoEntrada] = useState('compra')    // 'compra' | 'produccion'
   const [tipoSalida,  setTipoSalida]  = useState('externa')   // 'externa' | 'interna'
   const [fechaMov,    setFechaMov]    = useState(HOY_COL)
