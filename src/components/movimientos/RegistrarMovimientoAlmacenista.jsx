@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine, Settings } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
+import Modal from '../shared/Modal'
 
 const PROD0 = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
 
@@ -251,7 +252,10 @@ export default function RegistrarMovimientoAlmacenista() {
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
 
   // ── Sugerencias sincronizadas con Supabase ──
-  const [sugsDB, setSugsDB] = useState({})
+  const [sugsDB,      setSugsDB]      = useState({})
+  const [modalListas, setModalListas] = useState(false)
+  const [tabLista,    setTabLista]    = useState('feisen_proveedores')
+  const [nuevaSug,    setNuevaSug]    = useState('')
 
   useEffect(() => {
     if (!perfil?.id) return
@@ -293,6 +297,22 @@ export default function RegistrarMovimientoAlmacenista() {
     if (perfil?.id) {
       await supabase.from('profiles').update({ sugerencias: nuevasSugs }).eq('id', perfil.id)
     }
+  }
+
+  async function eliminarSugerencia(key, valor) {
+    const nuevas = (sugsDB[key] || []).filter(s => s !== valor)
+    const nuevasSugs = { ...sugsDB, [key]: nuevas }
+    setSugsDB(nuevasSugs)
+    if (perfil?.id) {
+      await supabase.from('profiles').update({ sugerencias: nuevasSugs }).eq('id', perfil.id)
+    }
+  }
+
+  async function agregarSugerenciaManual(key, valor) {
+    const trimmed = valor.trim()
+    if (!trimmed) return
+    await guardarSugerencia(key, trimmed)
+    setNuevaSug('')
   }
 
   // Para modo vista de admin: selector de bodega manual
@@ -582,7 +602,13 @@ export default function RegistrarMovimientoAlmacenista() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-feisen-azul mb-6">Registrar movimiento</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-feisen-azul">Registrar movimiento</h1>
+        <button type="button" onClick={() => setModalListas(true)}
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-feisen-azul border border-gray-200 rounded-xl px-3 py-2 transition-colors bg-white">
+          <Settings size={13} /> Mis listas
+        </button>
+      </div>
 
       {/* Bodega badge / selector en modo vista */}
       {esAdminEnPreview ? (
@@ -1000,6 +1026,61 @@ export default function RegistrarMovimientoAlmacenista() {
             {guardando ? 'Registrando...' : '📤 Registrar salida'}
           </button>
         </form>
+      )}
+
+      {/* ── MODAL MIS LISTAS ── */}
+      {modalListas && (
+        <Modal titulo="Mis listas de sugerencias" onCerrar={() => { setModalListas(false); setNuevaSug('') }}>
+          <div className="space-y-4">
+            {/* Tabs */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              {[
+                { key: 'feisen_proveedores',   label: 'Proveedores'   },
+                { key: 'feisen_receptores',    label: 'Receptores'    },
+                { key: 'feisen_colaboradores', label: 'Colaboradores' },
+              ].map(t => (
+                <button key={t.key} type="button"
+                  onClick={() => { setTabLista(t.key); setNuevaSug('') }}
+                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors
+                    ${tabLista === t.key ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Lista actual */}
+            <div className="max-h-52 overflow-y-auto space-y-1.5">
+              {(sugsDB[tabLista] || []).length === 0
+                ? <p className="text-sm text-gray-400 text-center py-6">Sin entradas todavía.</p>
+                : (sugsDB[tabLista] || []).map((s, i) => (
+                    <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                      <span className="text-sm text-gray-700">{s}</span>
+                      <button type="button" onClick={() => eliminarSugerencia(tabLista, s)}
+                        className="p-1 text-gray-300 hover:text-feisen-rojo transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+              }
+            </div>
+
+            {/* Agregar */}
+            <div className="flex gap-2">
+              <input
+                value={nuevaSug}
+                onChange={e => setNuevaSug(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarSugerenciaManual(tabLista, nuevaSug) } }}
+                placeholder="Agregar nombre..."
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              />
+              <button type="button" onClick={() => agregarSugerenciaManual(tabLista, nuevaSug)}
+                className="bg-feisen-azul text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90">
+                Agregar
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">Los cambios se guardan automáticamente y se sincronizan entre dispositivos.</p>
+          </div>
+        </Modal>
       )}
     </div>
   )
