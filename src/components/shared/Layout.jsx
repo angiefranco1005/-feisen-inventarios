@@ -58,17 +58,27 @@ const NAV_JEFE_MECANIZADOS = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+const NAV_OPERARIO = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/productos',                      icon: Package,         label: 'Productos' },
+  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+]
+
 const BADGE = {
   ADMIN:             { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
   LOGISTICA:         { color: 'bg-feisen-azul text-white',   label: 'Logística' },
   ALMACENISTA:       { color: 'bg-emerald-600 text-white',   label: 'Almacenista' },
+  OPERARIO:          { color: 'bg-teal-600 text-white',       label: 'Operario' },
   CONSULTOR:         { color: 'bg-gray-500 text-white',      label: 'Consultor' },
   JEFE_FUNDICION:    { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
   JEFE_MECANIZADOS:  { color: 'bg-purple-600 text-white',    label: 'Jefe Mecanizados' },
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esJefeFundicion, esJefeMecanizados, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -80,6 +90,7 @@ export default function Layout({ children }) {
   const navItems = esAdmin          ? NAV_ADMIN
     : esLogistica        ? NAV_LOGISTICA
     : esAlmacenista      ? NAV_ALMACENISTA
+    : esOperario         ? NAV_OPERARIO
     : esJefeFundicion    ? NAV_JEFE_FUNDICION
     : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
     : []
@@ -155,6 +166,7 @@ export default function Layout({ children }) {
               <option value="">Mi vista (Admin)</option>
               <option value="LOGISTICA">Ver como Logística</option>
               <option value="ALMACENISTA">Ver como Almacenista</option>
+              <option value="OPERARIO">Ver como Operario</option>
               <option value="CONSULTOR">Ver como Consultor</option>
               <option value="JEFE_FUNDICION">Ver como Jefe Fundición</option>
               <option value="JEFE_MECANIZADOS">Ver como Jefe Mecanizados</option>

@@ -72,6 +72,21 @@ function AppRoutes() {
     )
   }
 
+  // OPERARIO
+  if (rolEfectivo === 'OPERARIO') {
+    return (
+      <Routes>
+        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
+        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
+        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    )
+  }
+
   // ALMACENISTA
   if (rolEfectivo === 'ALMACENISTA') {
     return (

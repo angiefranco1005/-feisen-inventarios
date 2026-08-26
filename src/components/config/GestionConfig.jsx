@@ -5,7 +5,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { Plus, Edit2, Trash2, Users, Warehouse, Tag, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
 
-const ROLES_SISTEMA = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'CONSULTOR'] // no se pueden borrar
+const ROLES_SISTEMA = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'OPERARIO', 'CONSULTOR'] // no se pueden borrar
 const COLORES_ROL = [
   { label: 'Rojo Feisen',  value: 'bg-feisen-rojo text-white' },
   { label: 'Azul Feisen',  value: 'bg-feisen-azul text-white' },
