@@ -6,22 +6,27 @@ import { LogOut, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export default function DashboardConsultor() {
-  const { perfil, logout } = useAuth()
+  const { perfil, logout, bodegasPermitidas } = useAuth()
   const navigate = useNavigate()
   const [stock, setStock]       = useState([])
   const [cargando, setCargando] = useState(true)
 
   useEffect(() => {
     async function cargar() {
-      const { data } = await supabase
+      let q = supabase
         .from('stock')
         .select('cantidad_actual, items(nombre, unidad_medida, categorias(nombre)), bodegas(nombre)')
         .order('items(nombre)')
-      setStock(data || [])
+      // Filtrar por bodegas asignadas (si tiene restricción)
+      if (bodegasPermitidas && bodegasPermitidas.length > 0) {
+        q = q.in('bodega_id', bodegasPermitidas)
+      }
+      const { data } = await q
+      setStock((data || []).filter(s => s.items != null))
       setCargando(false)
     }
     cargar()
-  }, [])
+  }, [bodegasPermitidas])
 
   async function handleLogout() {
     await logout()
