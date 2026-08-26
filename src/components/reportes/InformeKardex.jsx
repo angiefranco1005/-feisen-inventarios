@@ -30,15 +30,37 @@ export default function InformeKardex() {
   const [error,        setError]        = useState('')
   const [resultado,    setResultado]    = useState(null)
 
+  // Cargar bodegas una sola vez
   useEffect(() => {
-    Promise.all([
-      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('categorias').select('id, nombre').order('nombre'),
-    ]).then(([{ data: b }, { data: c }]) => {
-      setBodegas(b || [])
-      setCategorias(c || [])
-    })
+    supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setBodegas(data || []))
   }, [])
+
+  // Categorías reactivas a la bodega seleccionada
+  useEffect(() => {
+    if (!bodegaId) {
+      supabase.from('categorias').select('id, nombre').order('nombre')
+        .then(({ data }) => setCategorias(data || []))
+    } else {
+      supabase.from('items')
+        .select('categoria_id, categorias(id, nombre)')
+        .eq('bodega_id', bodegaId)
+        .eq('activo', true)
+        .then(({ data }) => {
+          const map = new Map()
+          for (const item of (data || [])) {
+            if (item.categoria_id && item.categorias)
+              map.set(item.categoria_id, item.categorias.nombre)
+          }
+          const cats = [...map.entries()]
+            .map(([id, nombre]) => ({ id, nombre }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+          setCategorias(cats)
+          // Si la categoría seleccionada ya no está en esta bodega, resetear
+          if (categoriaId && !map.has(categoriaId)) setCategoriaId('')
+        })
+    }
+  }, [bodegaId])
 
   async function generar() {
     setCargando(true)

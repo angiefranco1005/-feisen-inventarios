@@ -737,11 +737,13 @@ function SeccionAlertas({ d }) {
 }
 
 // ── Filtros globales ──────────────────────────────────────────────────────────
-function FiltrosGlobales({ filtros, setFiltros, bodegas, categorias }) {
+function FiltrosGlobales({ filtros, setFiltros, bodegas, categorias, categoriasDisp }) {
+  const catsAMostrar = filtros.bodegaId ? categoriasDisp : categorias
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3 items-center">
       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Filtros</span>
-      <select value={filtros.bodegaId} onChange={e => setFiltros(f => ({ ...f, bodegaId: e.target.value }))}
+      <select value={filtros.bodegaId}
+        onChange={e => setFiltros(f => ({ ...f, bodegaId: e.target.value, categoriaId: '' }))}
         className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
         <option value="">Todas las bodegas</option>
         {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -749,7 +751,7 @@ function FiltrosGlobales({ filtros, setFiltros, bodegas, categorias }) {
       <select value={filtros.categoriaId} onChange={e => setFiltros(f => ({ ...f, categoriaId: e.target.value }))}
         className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
         <option value="">Todas las categorías</option>
-        {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        {catsAMostrar.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
       </select>
       <select value={filtros.meses} onChange={e => setFiltros(f => ({ ...f, meses: +e.target.value }))}
         className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
@@ -772,12 +774,13 @@ const TABS = [
 ]
 
 export default function DashboardEjecutivo() {
-  const [tab,       setTab]       = useState(0)
-  const [filtros,   setFiltros]   = useState({ bodegaId: '', categoriaId: '', meses: 6 })
-  const [datos,     setDatos]     = useState(null)
-  const [cargando,  setCargando]  = useState(true)
-  const [bodegas,   setBodegas]   = useState([])
-  const [categorias,setCategorias]= useState([])
+  const [tab,                  setTab]                  = useState(0)
+  const [filtros,              setFiltros]              = useState({ bodegaId: '', categoriaId: '', meses: 6 })
+  const [datos,                setDatos]                = useState(null)
+  const [cargando,             setCargando]             = useState(true)
+  const [bodegas,              setBodegas]              = useState([])
+  const [categorias,           setCategorias]           = useState([])
+  const [categoriasDisp,       setCategoriasDisp]       = useState([])
 
   useEffect(() => {
     Promise.all([
@@ -822,6 +825,20 @@ export default function DashboardEjecutivo() {
       { data: pedidos },
     ] = await Promise.all([stockQ, movsQ, allMovQ, pedidosQ])
 
+    // Derivar categorías disponibles según los stocks cargados (ya filtrados por bodega)
+    const catMap = new Map()
+    for (const s of (stocks || [])) {
+      if (s.items?.categoria_id && s.items?.categorias?.nombre)
+        catMap.set(s.items.categoria_id, s.items.categorias.nombre)
+    }
+    const cats = [...catMap.entries()]
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+    setCategoriasDisp(cats)
+    // Si la categoría seleccionada no existe en esta bodega, resetearla
+    if (filtros.categoriaId && !catMap.has(filtros.categoriaId))
+      setFiltros(f => ({ ...f, categoriaId: '' }))
+
     setDatos(procesarDatos(stocks || [], movimientos || [], allMovFechas || [], pedidos || [], filtros))
     setCargando(false)
   }
@@ -832,7 +849,7 @@ export default function DashboardEjecutivo() {
         <TrendingUp size={24} /> Dashboard ejecutivo
       </h1>
 
-      <FiltrosGlobales filtros={filtros} setFiltros={setFiltros} bodegas={bodegas} categorias={categorias} />
+      <FiltrosGlobales filtros={filtros} setFiltros={setFiltros} bodegas={bodegas} categorias={categorias} categoriasDisp={categoriasDisp} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl overflow-x-auto">
