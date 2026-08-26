@@ -263,36 +263,34 @@ export default function RegistrarMovimientoAlmacenista() {
 
 
   useEffect(() => {
-    if (!perfil?.id) return
-    supabase.from('profiles').select('sugerencias').eq('id', perfil.id).single()
-      .then(async ({ data }) => {
-        const enDB = data?.sugerencias || {}
+    if (!perfil) return
+    // Usar perfil.sugerencias que ya viene cargado desde AuthContext (no hacer segunda query)
+    const enDB = perfil.sugerencias || {}
 
-        // Migrar sugerencias viejas de localStorage si las hay
-        const KEYS = ['feisen_proveedores', 'feisen_receptores', 'feisen_colaboradores']
-        let hayMigracion = false
-        const fusionado = { ...enDB }
-        for (const key of KEYS) {
-          const local = JSON.parse(localStorage.getItem(key) || '[]')
-          if (local.length > 0) {
-            const existentes = enDB[key] || []
-            const merged = [...new Set([...existentes, ...local])].slice(0, 30)
-            if (merged.length > existentes.length) {
-              fusionado[key] = merged
-              hayMigracion = true
-            }
-            localStorage.removeItem(key) // limpiar para no migrar dos veces
-          }
+    // Migrar sugerencias viejas de localStorage si las hay
+    const KEYS = ['feisen_proveedores', 'feisen_receptores', 'feisen_colaboradores']
+    let hayMigracion = false
+    const fusionado = { ...enDB }
+    for (const key of KEYS) {
+      const local = JSON.parse(localStorage.getItem(key) || '[]')
+      if (local.length > 0) {
+        const existentes = enDB[key] || []
+        const merged = [...new Set([...existentes, ...local])].slice(0, 30)
+        if (merged.length > existentes.length) {
+          fusionado[key] = merged
+          hayMigracion = true
         }
+        localStorage.removeItem(key)
+      }
+    }
 
-        if (hayMigracion) {
-          await supabase.from('profiles').update({ sugerencias: fusionado }).eq('id', perfil.id)
-          setSugsDB(fusionado)
-        } else {
-          setSugsDB(enDB)
-        }
-      })
-  }, [perfil?.id])
+    if (hayMigracion) {
+      supabase.from('profiles').update({ sugerencias: fusionado }).eq('id', perfil.id)
+      setSugsDB(fusionado)
+    } else {
+      setSugsDB(enDB)
+    }
+  }, [perfil])
 
   async function guardarSugerencia(key, valor) {
     const existentes = sugsDB[key] || []
