@@ -769,8 +769,7 @@ const TABS = [
   { id: 0, label: '💰 Financiero' },
   { id: 1, label: '🔄 Rotación' },
   { id: 2, label: '⏱️ Pedidos & Lead Time' },
-  { id: 3, label: '🚦 Vista semanal' },
-  { id: 4, label: '🚨 Alertas' },
+  { id: 3, label: '🚨 Alertas' },
 ]
 
 export default function DashboardEjecutivo() {
@@ -869,8 +868,7 @@ export default function DashboardEjecutivo() {
           {tab === 0 && <SeccionFinanciero d={datos} />}
           {tab === 1 && <SeccionRotacion  d={datos} />}
           {tab === 2 && <SeccionLeadTime  d={datos} />}
-          {tab === 3 && <SeccionSemanal   d={datos} />}
-          {tab === 4 && <SeccionAlertas   d={datos} />}
+          {tab === 3 && <SeccionAlertas   d={datos} />}
         </>
       ) : null}
     </div>
