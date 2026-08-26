@@ -73,10 +73,11 @@ export default function InformeKardex() {
       // ── 2. Movimientos en el período ────────────────────────────────────────
       let movsQ = supabase
         .from('movimientos')
-        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento')
+        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, items(id, nombre, unidad_medida, precio_costo, activo)')
         .gte('fecha_movimiento', fechaInicio)
         .lte('fecha_movimiento', fechaFin)
-      if (bodegaId) movsQ = movsQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
+      if (bodegaId)      movsQ = movsQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
+      if (filtroItemIds) movsQ = movsQ.in('item_id', filtroItemIds)
 
       // ── 3. Movimientos DESPUÉS del período (para retrotraer stock actual) ───
       let movsPostQ = supabase
@@ -98,9 +99,21 @@ export default function InformeKardex() {
       // ── Mapas de referencia ─────────────────────────────────────────────────
       // stock actual por item_id::bodega_id
       const stockMap = {}
+      const bodegaNameMap = {}
       for (const s of (stocks || [])) {
         if (!s.items?.activo) continue
         stockMap[`${s.item_id}::${s.bodega_id}`] = s
+        if (s.bodegas) bodegaNameMap[s.bodega_id] = s.bodegas.nombre
+      }
+      // También cargar nombres de bodegas desde el estado del componente
+      for (const b of bodegas) {
+        if (!bodegaNameMap[b.id]) bodegaNameMap[b.id] = b.nombre
+      }
+
+      // Mapa de info de ítems desde movimientos (para ítems sin stock record)
+      const itemInfoMap = {}
+      for (const m of (movsPeriod || [])) {
+        if (m.items && !itemInfoMap[m.item_id]) itemInfoMap[m.item_id] = m.items
       }
 
       // net post-período por item_id::bodega_id
@@ -167,31 +180,47 @@ export default function InformeKardex() {
         if (seenKeys.has(k)) continue
         seenKeys.add(k)
 
-        const s    = stockMap[k]
-        if (!s) continue // sin stock record = sin datos suficientes para mostrar
+        const [kItemId, kBodegaId] = k.split('::')
+        const s = stockMap[k]
+
+        let itemNombre, itemUnidad, itemPrecio, nombreBodega, stockActual
+
+        if (s) {
+          if (!s.items?.activo) continue
+          itemNombre   = s.items?.nombre        || '—'
+          itemUnidad   = s.items?.unidad_medida || ''
+          itemPrecio   = s.items?.precio_costo  || 0
+          nombreBodega = s.bodegas?.nombre      || bodegaNameMap[kBodegaId] || '—'
+          stockActual  = s.cantidad_actual ?? 0
+        } else {
+          // Sin registro en tabla stock, pero hay movimientos → mostrar igualmente
+          const itemInfo = itemInfoMap[kItemId]
+          if (!itemInfo || !itemInfo.activo) continue
+          itemNombre   = itemInfo.nombre        || '—'
+          itemUnidad   = itemInfo.unidad_medida || ''
+          itemPrecio   = itemInfo.precio_costo  || 0
+          nombreBodega = bodegaNameMap[kBodegaId] || '—'
+          stockActual  = 0
+        }
 
         const a           = acc[k] || { entradas: 0, salidasExt: 0, transfSal: 0, transfEnt: 0, valorEnt: 0, valorSal: 0 }
-        const stockActual = s.cantidad_actual ?? 0
         const net         = postNet[k] || 0
-        // stock_final = stock a fin del período (retrotraemos movimientos posteriores)
         const stockFinal  = Math.max(0, stockActual - net)
-        // stock_inicio = stock_final - entradas - transf_ent + salidas + transf_sal (en el período)
         const stockInicio = Math.max(0, stockFinal - a.entradas - a.transfEnt + a.salidasExt + a.transfSal)
-        const precio      = s.items?.precio_costo || 0
 
         filas.push({
-          nombreProducto: s.items?.nombre || '—',
-          nombreBodega:   s.bodegas?.nombre || '—',
-          unidad:         s.items?.unidad_medida || '',
+          nombreProducto: itemNombre,
+          nombreBodega,
+          unidad:         itemUnidad,
           stockInicio,
           entradas:       a.entradas,
           salidasExt:     a.salidasExt,
           transfSal:      a.transfSal,
           transfEnt:      a.transfEnt,
           stockFinal,
-          precio,
-          valorInicioEst: Math.round(stockInicio * precio),
-          valorFinalEst:  Math.round(stockFinal  * precio),
+          precio:         itemPrecio,
+          valorInicioEst: Math.round(stockInicio * itemPrecio),
+          valorFinalEst:  Math.round(stockFinal  * itemPrecio),
           valorEntradas:  Math.round(a.valorEnt),
           valorSalidas:   Math.round(a.valorSal),
         })
