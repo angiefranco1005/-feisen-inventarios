@@ -372,9 +372,13 @@ function SeccionUsuarios() {
     setEditando(u)
     setForm({ email: '', password: '', nombre: u.nombre, rol: u.rol })
     setMsg(null)
-    // Cargar bodegas actuales del usuario
-    const { data: pb } = await supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', u.id)
+    // Cargar email actual y bodegas en paralelo
+    const [{ data: pb }, emailActual] = await Promise.all([
+      supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', u.id),
+      supabase.rpc('get_user_email', { user_id: u.id }).then(r => r.data || ''),
+    ])
     setBodegasSelec((pb || []).map(r => r.bodega_id))
+    setForm(f => ({ ...f, email: emailActual }))
     setModal(true)
   }
 
@@ -388,10 +392,29 @@ function SeccionUsuarios() {
     e.preventDefault(); setMsg(null); setGuardando(true)
 
     if (editando) {
+      // 1. Actualizar nombre y rol en profiles
       const { error } = await supabase.from('profiles').update({ nombre: form.nombre, rol: form.rol }).eq('id', editando.id)
       if (error) { setMsg({ tipo: 'error', texto: error.message }); setGuardando(false); return }
 
-      // Sincronizar bodegas: borrar las viejas, insertar las nuevas
+      // 2. Si email o contraseña cambiaron, llamar la Edge Function
+      const emailCambiado = form.email && form.email.trim()
+      const passCambiada  = form.password && form.password.trim()
+      if (emailCambiado || passCambiada) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/actualizar-usuario`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ userId: editando.id, email: emailCambiado || undefined, password: passCambiada || undefined }),
+          })
+          const result = await resp.json()
+          if (!resp.ok) throw new Error(result.error || 'Error al actualizar credenciales')
+        } catch (err) {
+          setMsg({ tipo: 'error', texto: err.message }); setGuardando(false); return
+        }
+      }
+
+      // 3. Sincronizar bodegas: borrar las viejas, insertar las nuevas
       await supabase.from('profile_bodegas').delete().eq('profile_id', editando.id)
       if (bodegasSelec.length > 0) {
         await supabase.from('profile_bodegas').insert(
@@ -492,22 +515,29 @@ function SeccionUsuarios() {
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Efrain Palma" />
             </div>
-            {!editando && (
-              <>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Email *</label>
-                  <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                    placeholder="correo@feisen.com" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña temporal *</label>
-                  <input required type="password" minLength={6} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                    placeholder="Mínimo 6 caracteres" />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Email {editando ? '' : '*'}</label>
+              <input
+                required={!editando}
+                type="email"
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                placeholder={editando ? 'Dejar igual o escribir nuevo email' : 'correo@feisen.com'}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña {editando ? <span className="text-gray-400 font-normal text-xs">(dejar en blanco para no cambiar)</span> : '*'}</label>
+              <input
+                required={!editando}
+                type="password"
+                minLength={editando ? 0 : 6}
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                placeholder={editando ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
+              />
+            </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Rol *</label>
               <select required value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}
