@@ -738,12 +738,12 @@ export default function DashboardEjecutivo() {
 
     let movsQ = supabase.from('movimientos')
       .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, created_at')
-      .gte('fecha_movimiento', desdeStr)
+      .or(`fecha_movimiento.gte.${desdeStr},and(fecha_movimiento.is.null,created_at.gte.${desdeStr}T00:00:00)`)
     if (filtros.bodegaId) movsQ = movsQ.or(`bodega_origen_id.eq.${filtros.bodegaId},bodega_destino_id.eq.${filtros.bodegaId}`)
 
     const allMovQ = supabase.from('movimientos')
       .select('item_id, fecha_movimiento, created_at')
-      .gte('fecha_movimiento', desde365)
+      .or(`fecha_movimiento.gte.${desde365},and(fecha_movimiento.is.null,created_at.gte.${desde365}T00:00:00)`)
 
     const pedidosQ = supabase.from('pedidos')
       .select('id, numero, area, estado, fecha_solicitud, fecha_estimada_llegada, fecha_recibido, pedido_items(item_id, cantidad, cantidad_recibida)')

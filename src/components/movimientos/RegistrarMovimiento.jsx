@@ -155,6 +155,7 @@ export default function RegistrarMovimiento() {
       serial_motor:          form.tipo === 'salida'  ? (form.serial_motor || null) : null,
       referencia:            form.tipo === 'salida'  ? (form.referencia   || null) : null,
       motivo: null, cliente: null,
+      fecha_movimiento:      new Date().toISOString().split('T')[0],
     }
 
     const { error: err } = await supabase.from('movimientos').insert(payload)

@@ -73,17 +73,16 @@ export default function InformeKardex() {
       // ── 2. Movimientos en el período ────────────────────────────────────────
       let movsQ = supabase
         .from('movimientos')
-        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, items(id, nombre, unidad_medida, precio_costo, activo)')
-        .gte('fecha_movimiento', fechaInicio)
-        .lte('fecha_movimiento', fechaFin)
+        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, created_at, items(id, nombre, unidad_medida, precio_costo, activo)')
+        .or(`and(fecha_movimiento.gte.${fechaInicio},fecha_movimiento.lte.${fechaFin}),and(fecha_movimiento.is.null,created_at.gte.${fechaInicio}T00:00:00,created_at.lte.${fechaFin}T23:59:59)`)
       if (bodegaId)      movsQ = movsQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
       if (filtroItemIds) movsQ = movsQ.in('item_id', filtroItemIds)
 
       // ── 3. Movimientos DESPUÉS del período (para retrotraer stock actual) ───
       let movsPostQ = supabase
         .from('movimientos')
-        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, fecha_movimiento')
-        .gt('fecha_movimiento', fechaFin)
+        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, fecha_movimiento, created_at')
+        .or(`fecha_movimiento.gt.${fechaFin},and(fecha_movimiento.is.null,created_at.gt.${fechaFin}T23:59:59)`)
       if (bodegaId) movsPostQ = movsPostQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
 
       const [
