@@ -98,6 +98,19 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
       categoria: s.items?.categorias?.nombre || '—',
     }
   }
+  // ── Ítems sin rotación en el período ─────────────────────────────────────
+  const sinRotacion = st
+    .filter(s => !movValByItem[s.item_id] && (s.cantidad_actual || 0) > 0)
+    .map(s => ({
+      nombre:    s.items?.nombre || '—',
+      bodega:    s.bodegas?.nombre || '—',
+      categoria: s.items?.categorias?.nombre || '—',
+      stock:     s.cantidad_actual,
+      precio:    s.items?.precio_costo || 0,
+      valor:     Math.round((s.cantidad_actual || 0) * (s.items?.precio_costo || 0)),
+    }))
+    .sort((a, b) => b.valor - a.valor)
+
   const totalMovVal = Object.values(movValByItem).reduce((s, v) => s + v, 0)
   let cum = 0
   const abcItems = Object.entries(movValByItem)
@@ -216,7 +229,7 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
     pctSinMov90:  activos.length ? sinMov90.length  / activos.length * 100 : 0,
     pctSinMov180: activos.length ? sinMov180.length / activos.length * 100 : 0,
     sinMov90, sinMov180,
-    abcItems, abcSummary, rotacion,
+    abcItems, abcSummary, rotacion, sinRotacion,
     leadTimeProm, leadTimeChart, pedidosRetrasados, pedidosPendientes,
     stockNegativo, stockCeroActivo, comprometidosSinStock,
     semaforo,
@@ -403,6 +416,44 @@ function SeccionRotacion({ d }) {
           </button>
         </div>
       </div>
+
+      {/* Ítems sin rotación */}
+      {d.sinRotacion.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-sm text-amber-700">
+                ⚠️ Sin movimiento en el período — {d.sinRotacion.length} ítem{d.sinRotacion.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Capital inmovilizado: {fmtCOP(d.sinRotacion.reduce((s, i) => s + i.valor, 0))} · ordenado por valor descendente
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-80 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  {['Producto', 'Categoría', 'Bodega', 'Stock', 'Valor inmovilizado'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {d.sinRotacion.map((item, i) => (
+                  <tr key={i} className="hover:bg-amber-50">
+                    <td className="px-4 py-2 font-medium text-gray-800">{item.nombre}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500">{item.categoria}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500">{item.bodega}</td>
+                    <td className="px-4 py-2 text-gray-700">{item.stock}</td>
+                    <td className="px-4 py-2 font-semibold text-amber-700">{item.valor > 0 ? fmtCOP(item.valor) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Tabla ABC detalle */}
       {mostrarABC && d.abcItems.length === 0 && (
