@@ -115,9 +115,10 @@ export function exportarCorteInventario(resultado) {
   XLSX.writeFile(wb, `corte_inventario_${fecha}.xlsx`)
 }
 
-export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'todas las bodegas') {
+export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'todas las bodegas', categoriaNombre = null) {
   const wb = XLSX.utils.book_new()
   const periodo = `${fechaInicio}_${fechaFin}`
+  const filtroLabel = [bodegaNombre, categoriaNombre].filter(Boolean).join(' · ')
 
   // ── Hoja principal: todas las filas ──────────────────────────────────────
   const rows = filas.map(f => ({
@@ -141,7 +142,7 @@ export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'tod
   // Fila de totales
   rows.push({
     'Producto':             'TOTAL',
-    'Bodega':               bodegaNombre,
+    'Bodega':               filtroLabel,
     'Unidad':               '',
     'Stock inicio período': filas.reduce((s, f) => s + f.stockInicio, 0),
     'Entradas externas':    filas.reduce((s, f) => s + f.entradas,    0),
@@ -167,7 +168,8 @@ export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'tod
   ]
   XLSX.utils.book_append_sheet(wb, ws, 'Kardex')
 
-  XLSX.writeFile(wb, `kardex_${periodo}.xlsx`)
+  const sufijo = categoriaNombre ? `_${categoriaNombre.toLowerCase().replace(/\s+/g, '_')}` : ''
+  XLSX.writeFile(wb, `kardex_${periodo}${sufijo}.xlsx`)
 }
 
 export function exportarConsumoExcel(resumen, nombreArchivo = 'consumo_feisen') {

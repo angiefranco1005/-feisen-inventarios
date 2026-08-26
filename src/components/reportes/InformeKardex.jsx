@@ -20,16 +20,24 @@ function fmt(n) {
 }
 
 export default function InformeKardex() {
-  const [fechaInicio, setFechaInicio] = useState(primerDiaMes())
-  const [fechaFin,    setFechaFin]    = useState(ultimoDiaMes())
-  const [bodegaId,    setBodegaId]    = useState('')   // '' = todas
-  const [bodegas,     setBodegas]     = useState([])
-  const [cargando,    setCargando]    = useState(false)
-  const [error,       setError]       = useState('')
-  const [resultado,   setResultado]   = useState(null) // computed rows
+  const [fechaInicio,  setFechaInicio]  = useState(primerDiaMes())
+  const [fechaFin,     setFechaFin]     = useState(ultimoDiaMes())
+  const [bodegaId,     setBodegaId]     = useState('')   // '' = todas
+  const [categoriaId,  setCategoriaId]  = useState('')   // '' = todas
+  const [bodegas,      setBodegas]      = useState([])
+  const [categorias,   setCategorias]   = useState([])
+  const [cargando,     setCargando]     = useState(false)
+  const [error,        setError]        = useState('')
+  const [resultado,    setResultado]    = useState(null)
 
   useEffect(() => {
-    supabase.from('bodegas').select('id, nombre').order('nombre').then(({ data }) => setBodegas(data || []))
+    Promise.all([
+      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('categorias').select('id, nombre').order('nombre'),
+    ]).then(([{ data: b }, { data: c }]) => {
+      setBodegas(b || [])
+      setCategorias(c || [])
+    })
   }, [])
 
   async function generar() {
@@ -38,11 +46,29 @@ export default function InformeKardex() {
     setResultado(null)
 
     try {
+      // ── 0. Si hay filtro de categoría, obtener los item_ids válidos ─────────
+      let filtroItemIds = null
+      if (categoriaId) {
+        const { data: catItems, error: eCat } = await supabase
+          .from('items')
+          .select('id')
+          .eq('categoria_id', categoriaId)
+          .eq('activo', true)
+        if (eCat) throw eCat
+        filtroItemIds = (catItems || []).map(i => i.id)
+        if (filtroItemIds.length === 0) {
+          setResultado({ filas: [], totalValorInicio: 0, totalValorFinal: 0, totalEntradas: 0, totalSalidas: 0 })
+          setCargando(false)
+          return
+        }
+      }
+
       // ── 1. Stock actual ──────────────────────────────────────────────────────
       let stockQ = supabase
         .from('stock')
         .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo), bodegas(id, nombre)')
-      if (bodegaId) stockQ = stockQ.eq('bodega_id', bodegaId)
+      if (bodegaId)      stockQ = stockQ.eq('bodega_id', bodegaId)
+      if (filtroItemIds) stockQ = stockQ.in('item_id', filtroItemIds)
 
       // ── 2. Movimientos en el período ────────────────────────────────────────
       let movsQ = supabase
@@ -191,10 +217,9 @@ export default function InformeKardex() {
 
   function descargar() {
     if (!resultado) return
-    const bodegaNombre = bodegaId
-      ? bodegas.find(b => b.id === bodegaId)?.nombre || 'bodega'
-      : 'todas las bodegas'
-    exportarKardex(resultado.filas, fechaInicio, fechaFin, bodegaNombre)
+    const bodegaNombre    = bodegaId    ? bodegas.find(b => b.id === bodegaId)?.nombre         || 'bodega'    : 'todas las bodegas'
+    const categoriaNombre = categoriaId ? categorias.find(c => c.id === categoriaId)?.nombre   || 'categoria' : null
+    exportarKardex(resultado.filas, fechaInicio, fechaFin, bodegaNombre, categoriaNombre)
   }
 
   const periodoLabel = fechaInicio && fechaFin
@@ -214,7 +239,7 @@ export default function InformeKardex() {
           con su valor en COP.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha inicio</label>
             <input
@@ -244,6 +269,17 @@ export default function InformeKardex() {
             >
               <option value="">Todas las bodegas</option>
               {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Categoría de producto</label>
+            <select
+              value={categoriaId}
+              onChange={e => setCategoriaId(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
         </div>
