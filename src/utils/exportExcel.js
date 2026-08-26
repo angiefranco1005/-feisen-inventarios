@@ -115,6 +115,61 @@ export function exportarCorteInventario(resultado) {
   XLSX.writeFile(wb, `corte_inventario_${fecha}.xlsx`)
 }
 
+export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'todas las bodegas') {
+  const wb = XLSX.utils.book_new()
+  const periodo = `${fechaInicio}_${fechaFin}`
+
+  // ── Hoja principal: todas las filas ──────────────────────────────────────
+  const rows = filas.map(f => ({
+    'Producto':              f.nombreProducto,
+    'Bodega':                f.nombreBodega,
+    'Unidad':                f.unidad,
+    'Stock inicio período':  f.stockInicio,
+    'Entradas externas':     f.entradas,
+    'Salidas externas':      f.salidasExt,
+    'Transf. salidas':       f.transfSal,
+    'Transf. entradas':      f.transfEnt,
+    'Stock fin período':     f.stockFinal,
+    'Variación neta':        f.stockFinal - f.stockInicio,
+    'Precio costo (COP)':    f.precio || '',
+    'Valor inicio (COP)':    f.valorInicioEst,
+    'Valor entradas (COP)':  f.valorEntradas,
+    'Valor salidas (COP)':   f.valorSalidas,
+    'Valor fin (COP)':       f.valorFinalEst,
+  }))
+
+  // Fila de totales
+  rows.push({
+    'Producto':             'TOTAL',
+    'Bodega':               bodegaNombre,
+    'Unidad':               '',
+    'Stock inicio período': filas.reduce((s, f) => s + f.stockInicio, 0),
+    'Entradas externas':    filas.reduce((s, f) => s + f.entradas,    0),
+    'Salidas externas':     filas.reduce((s, f) => s + f.salidasExt,  0),
+    'Transf. salidas':      filas.reduce((s, f) => s + f.transfSal,   0),
+    'Transf. entradas':     filas.reduce((s, f) => s + f.transfEnt,   0),
+    'Stock fin período':    filas.reduce((s, f) => s + f.stockFinal,  0),
+    'Variación neta':       filas.reduce((s, f) => s + (f.stockFinal - f.stockInicio), 0),
+    'Precio costo (COP)':   '',
+    'Valor inicio (COP)':   Math.round(filas.reduce((s, f) => s + f.valorInicioEst, 0)),
+    'Valor entradas (COP)': Math.round(filas.reduce((s, f) => s + f.valorEntradas,  0)),
+    'Valor salidas (COP)':  Math.round(filas.reduce((s, f) => s + f.valorSalidas,   0)),
+    'Valor fin (COP)':      Math.round(filas.reduce((s, f) => s + f.valorFinalEst,  0)),
+  })
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  ws['!cols'] = [
+    { wch: 38 }, { wch: 22 }, { wch: 8 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 },
+    { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+  ]
+  XLSX.utils.book_append_sheet(wb, ws, 'Kardex')
+
+  XLSX.writeFile(wb, `kardex_${periodo}.xlsx`)
+}
+
 export function exportarConsumoExcel(resumen, nombreArchivo = 'consumo_feisen') {
   const wb = XLSX.utils.book_new()
   resumen.forEach(({ centro, filas }) => {

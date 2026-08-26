@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -13,9 +13,8 @@ const NAV_ADMIN = [
   { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/reportes/corte',              icon: CalendarDays,  label: 'Corte inv.' },
-  { to: '/reportes/inventario-fisico', icon: ClipboardList, label: 'Inv. físico' },
-  { to: '/config',                     icon: Settings,      label: 'Configuración' },
+  { to: '/reportes',          icon: TrendingUp,       label: 'Informes' },
+  { to: '/config',            icon: Settings,         label: 'Configuración' },
 ]
 
 const NAV_LOGISTICA = [
@@ -149,7 +148,9 @@ export default function Layout({ children }) {
   const NavLink = ({ item }) => {
     const activo = item.to.includes('?')
       ? location.pathname + location.search === item.to
-      : location.pathname === item.to
+      : item.to === '/reportes'
+        ? location.pathname.startsWith('/reportes')
+        : location.pathname === item.to
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
         className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors
