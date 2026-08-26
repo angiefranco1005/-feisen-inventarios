@@ -437,13 +437,16 @@ function SeccionRotacion({ d }) {
         const totalVal = filas.reduce((s, f) => s + f.valor, 0)
         return (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-4 items-center">
               <p className="font-semibold text-sm text-gray-700">
                 Inventario parado — {filas.length} ítem{filas.length !== 1 ? 's' : ''}
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Capital inmovilizado: {fmtCOP(totalVal)} · ordenado por antigüedad y valor
-              </p>
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                +90 días: {fmtCOP(filas.filter(f => !f.es180).reduce((s, f) => s + f.valor, 0))}
+              </span>
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                +180 días: {fmtCOP(filas.filter(f => f.es180).reduce((s, f) => s + f.valor, 0))}
+              </span>
             </div>
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="w-full text-sm">
