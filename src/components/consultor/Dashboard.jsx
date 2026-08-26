@@ -15,7 +15,7 @@ export default function DashboardConsultor() {
     async function cargar() {
       const { data } = await supabase
         .from('stock')
-        .select('cantidad_actual, items(nombre, unidad_medida, categorias(nombre)), bodegas!bodega_id(nombre)')
+        .select('cantidad_actual, items(nombre, unidad_medida, categorias(nombre)), bodegas(nombre)')
         .order('items(nombre)')
       setStock(data || [])
       setCargando(false)

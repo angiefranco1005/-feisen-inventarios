@@ -23,8 +23,8 @@ export default function DashboardAdmin() {
         supabase.from('items').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('movimientos').select('*', { count: 'exact', head: true }).gte('created_at', hoy.toISOString()),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
-        supabase.from('stock').select('cantidad_actual, bodegas!bodega_id(id, nombre), items!item_id(precio_costo, activo)'),
-        supabase.from('stock').select('cantidad_actual, items!item_id(id, nombre, stock_minimo, unidad_medida, activo), bodegas!bodega_id(nombre)'),
+        supabase.from('stock').select('cantidad_actual, bodegas(id, nombre), items(precio_costo, activo)'),
+        supabase.from('stock').select('cantidad_actual, items(id, nombre, stock_minimo, unidad_medida, activo), bodegas(nombre)'),
       ])
 
       setStats({ productos: productos || 0, movHoy: movHoy || 0, pedidos: pedidos || 0 })
