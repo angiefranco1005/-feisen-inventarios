@@ -143,7 +143,7 @@ export default function Layout({ children }) {
           </div>
           <div>
             <p className="font-bold text-feisen-azul leading-tight">Feisen</p>
-            <p className="text-xs text-gray-400 leading-tight">Inventarios</p>
+            <p className="text-xs text-gray-400 leading-tight">ERP</p>
           </div>
         </div>
 

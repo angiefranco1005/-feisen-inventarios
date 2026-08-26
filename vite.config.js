@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png', 'icons/*.svg'],
       manifest: {
-        name: 'Feisen Inventarios',
-        short_name: 'Feisen',
-        description: 'Control de inventarios Construequipos Franco S.A.S.',
+        name: 'Feisen ERP',
+        short_name: 'Feisen ERP',
+        description: 'ERP Construequipos Franco S.A.S.',
         theme_color: '#064794',
         background_color: '#ffffff',
         display: 'standalone',
