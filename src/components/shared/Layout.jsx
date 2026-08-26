@@ -67,6 +67,30 @@ const NAV_OPERARIO = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+// Barra inferior móvil curada — prioriza las acciones más usadas por cada rol
+const MOBILE_OPERARIO = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/productos',                      icon: Package,          label: 'Productos' },
+]
+const MOBILE_ALMACENISTA = MOBILE_OPERARIO
+const MOBILE_JEFE_MECANIZADOS = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/productos',                      icon: Package,          label: 'Productos' },
+]
+const MOBILE_JEFE_FUNDICION = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
+  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
+]
+
 const BADGE = {
   ADMIN:             { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
   LOGISTICA:         { color: 'bg-feisen-azul text-white',   label: 'Logística' },
@@ -94,6 +118,13 @@ export default function Layout({ children }) {
     : esJefeFundicion    ? NAV_JEFE_FUNDICION
     : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
     : []
+
+  // Barra inferior móvil — curada para que las acciones clave siempre sean visibles
+  const mobileItems = esOperario        ? MOBILE_OPERARIO
+    : esAlmacenista      ? MOBILE_ALMACENISTA
+    : esJefeFundicion    ? MOBILE_JEFE_FUNDICION
+    : esJefeMecanizados  ? MOBILE_JEFE_MECANIZADOS
+    : navItems.slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
 
@@ -272,14 +303,16 @@ export default function Layout({ children }) {
 
       {/* BARRA INFERIOR MÓVIL */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-20">
-        {navItems.slice(0, 5).map(item => {
-          const activo = location.pathname === item.to
+        {mobileItems.map(item => {
+          const activo = item.to.includes('?')
+            ? location.pathname + location.search === item.to
+            : location.pathname === item.to
           return (
             <Link key={item.to} to={item.to}
               className={`flex-1 flex flex-col items-center py-3 gap-1 transition-colors
                 ${activo ? 'text-feisen-azul' : 'text-gray-400'}`}>
               <item.icon size={20} />
-              <span className="text-xs font-medium">{item.label}</span>
+              <span className="text-xs font-medium leading-tight text-center">{item.label}</span>
             </Link>
           )
         })}
