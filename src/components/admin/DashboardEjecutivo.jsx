@@ -83,9 +83,11 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
   const sinMov180 = activos.filter(s => !lastMov[s.item_id] || lastMov[s.item_id] < cutoff180)
 
   // ── ABC Analysis ─────────────────────────────────────────────────────────
+  // Incluye todas las salidas (externas + transferencias internas)
+  // En manufactura la mayoría son transferencias entre bodegas, no salidas externas
   const movValByItem = {}
   for (const m of mv) {
-    if (m.tipo === 'salida' && !m.bodega_destino_id)
+    if (m.tipo === 'salida')
       movValByItem[m.item_id] = (movValByItem[m.item_id] || 0) + (m.cantidad || 0) * (m.precio_costo_snapshot || 0)
   }
   const itemMeta = {}
@@ -403,6 +405,11 @@ function SeccionRotacion({ d }) {
       </div>
 
       {/* Tabla ABC detalle */}
+      {mostrarABC && d.abcItems.length === 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
+          <p className="text-sm text-gray-500">No hay salidas registradas en el período seleccionado. Amplía el rango de meses en los filtros.</p>
+        </div>
+      )}
       {mostrarABC && d.abcItems.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
