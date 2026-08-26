@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -9,6 +9,7 @@ import Alerta from './Alerta'
 
 const NAV_ADMIN = [
   { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/analitica',         icon: Activity,        label: 'Analítica' },
   { to: '/productos',         icon: Package,         label: 'Productos' },
   { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
@@ -150,6 +151,8 @@ export default function Layout({ children }) {
       ? location.pathname + location.search === item.to
       : item.to === '/reportes'
         ? location.pathname.startsWith('/reportes')
+        : item.to === '/analitica'
+        ? location.pathname.startsWith('/analitica')
         : location.pathname === item.to
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}

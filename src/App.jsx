@@ -5,7 +5,8 @@ import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Layout from './components/shared/Layout'
 import Spinner from './components/shared/Spinner'
 
-import DashboardAdmin     from './components/admin/Dashboard'
+import DashboardAdmin      from './components/admin/Dashboard'
+import DashboardEjecutivo from './components/admin/DashboardEjecutivo'
 import DashboardLogistica from './components/logistica/Dashboard'
 import DashboardConsultor from './components/consultor/Dashboard'
 import GestionProductos   from './components/productos/GestionProductos'
@@ -151,6 +152,7 @@ function AppRoutes() {
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
       <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
+      <Route path="/analitica"              element={<Layout><DashboardEjecutivo /></Layout>} />
       <Route path="/reportes"               element={<Layout><HubReportes /></Layout>} />
       <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />
       <Route path="/reportes/inventario-fisico" element={<Layout><InventarioFisico /></Layout>} />
