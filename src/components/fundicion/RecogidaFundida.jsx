@@ -2,30 +2,34 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
-  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search,
+  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame,
 } from 'lucide-react'
 
+const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
+
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
+function numFun(n)   { return `FUN-${String(n).padStart(4, '0')}` }
 function fmtFecha(f) {
   if (!f) return '—'
   const [y, m, d] = f.split('-')
   return `${d}/${m}/${y}`
 }
 
-async function generarNumMovimiento(perfil) {
+async function generarNumero(perfil, prefix) {
   const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
-  const prefix = `ENT-${iniciales}-`
+  const pre = `${prefix}-${iniciales}-`
   const { data: last } = await supabase
-    .from('movimientos').select('numero').like('numero', `${prefix}%`)
+    .from('movimientos').select('numero').like('numero', `${pre}%`)
     .order('numero', { ascending: false }).limit(1).maybeSingle()
-  const n = last?.numero ? parseInt(last.numero.replace(prefix, ''), 10) || 0 : 0
-  return `${prefix}${String(n + 1).padStart(4, '0')}`
+  const n = last?.numero ? parseInt(last.numero.replace(pre, ''), 10) || 0 : 0
+  return `${pre}${String(n + 1).padStart(4, '0')}`
 }
 
 export default function RecogidaFundida() {
   const { perfil } = useAuth()
 
   const [ordenes,      setOrdenes]      = useState([])
+  const [fundidas,     setFundidas]     = useState([])
   const [cargando,     setCargando]     = useState(true)
   const [expandido,    setExpandido]    = useState(null)
   const [busqueda,     setBusqueda]     = useState('')
@@ -40,11 +44,14 @@ export default function RecogidaFundida() {
   const [errores,      setErrores]      = useState({})
   const [exitoOrden,   setExitoOrden]   = useState(null)
 
+  // fundida vinculada por orden: { [ordenId]: fundidaId }
+  const [fundidaSel,   setFundidaSel]   = useState({})
+
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setCargando(true)
-    const [{ data: bods }, { data: ords }] = await Promise.all([
+    const [{ data: bods }, { data: ords }, { data: funs }] = await Promise.all([
       supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
       supabase.from('ordenes_moldeo')
         .select(`
@@ -60,10 +67,17 @@ export default function RecogidaFundida() {
           )
         `)
         .eq('estado', 'pendiente')
+        .order('fecha', { ascending: false }),
+      supabase.from('fundidas')
+        .select('id, numero, fecha, hierro_colado')
+        .not('hierro_colado', 'is', null)
+        .gt('hierro_colado', 0)
         .order('fecha', { ascending: false })
+        .limit(90),
     ])
     setFundBodegaId(bods?.id || null)
     setOrdenes(ords || [])
+    setFundidas(funs || [])
     setCargando(false)
   }
 
@@ -115,6 +129,15 @@ export default function RecogidaFundida() {
     setInputs(prev => ({ ...prev, [orden.id]: nuevos }))
   }
 
+  // Calcular kg de piezas buenas para una orden
+  function calcKgPiezas(orden) {
+    return (orden.ordenes_moldeo_piezas || []).reduce((s, p) => {
+      const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
+      const peso = Number(p.items?.peso_unitario || 0)
+      return s + conf * peso
+    }, 0)
+  }
+
   async function guardarRecogida(orden) {
     setErrores(prev => ({ ...prev, [orden.id]: '' }))
     const piezas = orden.ordenes_moldeo_piezas || []
@@ -155,7 +178,7 @@ export default function RecogidaFundida() {
       // 2. Movimientos de entrada por piezas conformes
       const piezasConformes = piezas.filter(p => Number(getField(orden.id, p.id, 'conforme') || 0) > 0)
       if (piezasConformes.length > 0 && fundBodegaId) {
-        const numero = await generarNumMovimiento(perfil)
+        const numero = await generarNumero(perfil, 'ENT')
         const { error: errMov } = await supabase.from('movimientos').insert(
           piezasConformes.map(p => ({
             numero,
@@ -177,7 +200,33 @@ export default function RecogidaFundida() {
         if (errMov) throw errMov
       }
 
-      // 3. Marcar orden como completada
+      // 3. Salida automática de HIERRO COLADO si hay fundida vinculada
+      const fundidaId = fundidaSel[orden.id]
+      if (fundidaId && fundBodegaId) {
+        const fundida = fundidas.find(f => f.id === fundidaId)
+        if (fundida?.hierro_colado > 0) {
+          const numSal = await generarNumero(perfil, 'SAL')
+          const { error: errHC } = await supabase.from('movimientos').insert({
+            numero:                numSal,
+            tipo:                  'salida',
+            item_id:               HIERRO_COLADO_ITEM_ID,
+            bodega_origen_id:      fundBodegaId,
+            bodega_destino_id:     null,
+            cantidad:              fundida.hierro_colado,
+            precio_costo_snapshot: 0,
+            centro_costo:          'FUNDICIÓN',
+            usuario_id:            perfil.id,
+            referencia:            `${numOrden(orden.numero)} · ${numFun(fundida.numero)}`,
+            fecha_movimiento:      orden.fecha || null,
+            motivo:                'Consumo horno fundición',
+            foto_remision_url: null, destino: null,
+            numero_of: null, serial_motor: null, cliente: null, proveedor: null,
+          })
+          if (errHC) throw errHC
+        }
+      }
+
+      // 4. Marcar orden como completada
       const { error: errOrd } = await supabase.from('ordenes_moldeo')
         .update({ estado: 'completado' }).eq('id', orden.id)
       if (errOrd) throw errOrd
@@ -187,7 +236,7 @@ export default function RecogidaFundida() {
         setExitoOrden(null)
         setExpandido(null)
         cargar()
-      }, 2000)
+      }, 2500)
     } catch (e) {
       setErrores(prev => ({ ...prev, [orden.id]: 'Error al guardar: ' + e.message }))
     } finally {
@@ -215,7 +264,7 @@ export default function RecogidaFundida() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-800">Recogida de Fundida</h1>
-          <p className="text-xs text-gray-500">Registra conformes, NC y razón de calidad por orden de moldeo</p>
+          <p className="text-xs text-gray-500">Registra conformes, NC y vincula la fundida para calcular la merma</p>
         </div>
       </div>
 
@@ -279,13 +328,79 @@ export default function RecogidaFundida() {
                   <div className="border-t border-green-100 bg-green-50 px-5 py-6 flex flex-col items-center gap-3">
                     <CheckCircle2 size={40} className="text-green-500" />
                     <p className="text-sm font-bold text-green-700">¡Recogida registrada!</p>
-                    <p className="text-xs text-green-600">Las piezas conformes ingresaron al inventario de FUNDICIÓN.</p>
+                    <p className="text-xs text-green-600 text-center">
+                      Las piezas conformes ingresaron al inventario de FUNDICIÓN
+                      {fundidaSel[orden.id] ? ' y se descontó el hierro colado consumido.' : '.'}
+                    </p>
                   </div>
                 )}
 
                 {/* Detalle expandido */}
                 {expandido === orden.id && exitoOrden !== orden.id && (
                   <div className="border-t border-gray-100 bg-gray-50 px-5 py-5 space-y-4">
+
+                    {/* ── Vincular fundida ── */}
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Flame size={15} className="text-orange-500 shrink-0" />
+                        <p className="text-xs font-bold text-orange-700">¿A qué fundida corresponde esta orden?</p>
+                      </div>
+
+                      <select
+                        value={fundidaSel[orden.id] || ''}
+                        onChange={e => setFundidaSel(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                        className="w-full border border-orange-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                      >
+                        <option value="">— Seleccionar (opcional) —</option>
+                        {fundidas.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {numFun(f.numero)} · {fmtFecha(f.fecha)} · {f.hierro_colado} kg hierro colado
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Panel de merma */}
+                      {fundidaSel[orden.id] && (() => {
+                        const fundida  = fundidas.find(f => f.id === fundidaSel[orden.id])
+                        const kgEntrada = Number(fundida?.hierro_colado || 0)
+                        const kgPiezas  = calcKgPiezas(orden)
+                        const hayPesos  = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
+                        const kgMerma   = kgEntrada - kgPiezas
+                        const pctMerma  = kgEntrada > 0 ? (kgMerma / kgEntrada * 100) : 0
+
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
+                                <p className="text-xs text-gray-400 mb-0.5">Hierro colado (entrada)</p>
+                                <p className="font-bold text-gray-800 text-sm">{kgEntrada} kg</p>
+                              </div>
+                              <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
+                                <p className="text-xs text-gray-400 mb-0.5">Piezas buenas</p>
+                                {hayPesos
+                                  ? <p className="font-bold text-green-700 text-sm">{kgPiezas.toFixed(1)} kg</p>
+                                  : <p className="text-xs text-gray-400 mt-0.5 italic">sin peso unitario</p>
+                                }
+                              </div>
+                              <div className={`rounded-xl p-2.5 border text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50 border-red-200' : 'bg-white border-orange-100'}`}>
+                                <p className="text-xs text-gray-400 mb-0.5">Merma</p>
+                                {hayPesos
+                                  ? <p className={`font-bold text-sm ${kgMerma > 0 ? 'text-feisen-rojo' : 'text-gray-400'}`}>
+                                      {kgMerma > 0
+                                        ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)`
+                                        : '—'}
+                                    </p>
+                                  : <p className="text-xs text-gray-400 italic">—</p>
+                                }
+                              </div>
+                            </div>
+                            <p className="text-xs text-orange-600 font-medium">
+                              ✓ Al guardar se descontarán <strong>{kgEntrada} kg</strong> de HIERRO COLADO del inventario de FUNDICIÓN.
+                            </p>
+                          </div>
+                        )
+                      })()}
+                    </div>
 
                     {/* Referencia de avance */}
                     {avancesRef[orden.id] && totalMoldeado > 0 && (
@@ -303,7 +418,6 @@ export default function RecogidaFundida() {
                             )
                           })}
                         </div>
-
                       </div>
                     )}
 
@@ -325,6 +439,11 @@ export default function RecogidaFundida() {
                               <p className="font-semibold text-gray-800 text-sm">{p.items?.nombre}</p>
                               {p.asignado_a && (
                                 <p className="text-xs text-gray-400 mt-0.5">Moldeador: {p.asignado_a}</p>
+                              )}
+                              {p.items?.peso_unitario && (
+                                <p className="text-xs text-orange-500 mt-0.5 font-medium">
+                                  {p.items.peso_unitario} kg/ud
+                                </p>
                               )}
                             </div>
                             <div className="text-right shrink-0 ml-3">
@@ -410,7 +529,8 @@ export default function RecogidaFundida() {
                       {guardando === orden.id ? 'Registrando…' : 'Registrar recogida y cerrar orden'}
                     </button>
                     <p className="text-xs text-gray-400 text-center -mt-1">
-                      Las piezas conformes entrarán automáticamente al inventario de FUNDICIÓN.
+                      Las piezas conformes entrarán al inventario de FUNDICIÓN
+                      {fundidaSel[orden.id] ? ' y se descontará el hierro colado automáticamente.' : '.'}
                     </p>
 
                   </div>
