@@ -417,24 +417,17 @@ function SeccionRotacion({ d }) {
         </div>
       </div>
 
-      {/* Inventario parado — tabla unificada con etiqueta por fila */}
+      {/* Inventario parado >90 días */}
       {d.sinMov90.length > 0 && (() => {
-        const ids180 = new Set(d.sinMov180.map(s => `${s.item_id}::${s.bodega_id}`))
         const filas = d.sinMov90
-          .map(s => {
-            const es180 = ids180.has(`${s.item_id}::${s.bodega_id}`)
-            return {
-              nombre:    s.items?.nombre || '—',
-              categoria: s.items?.categorias?.nombre || '—',
-              bodega:    s.bodegas?.nombre || '—',
-              stock:     s.cantidad_actual,
-              valor:     Math.round((s.cantidad_actual || 0) * (s.items?.precio_costo || 0)),
-              etiqueta:  es180 ? '+180 días sin moverse' : '+90 días sin moverse',
-              es180,
-            }
-          })
-          .sort((a, b) => (b.es180 - a.es180) || (b.valor - a.valor))
-        const totalVal = filas.reduce((s, f) => s + f.valor, 0)
+          .map(s => ({
+            nombre:    s.items?.nombre || '—',
+            categoria: s.items?.categorias?.nombre || '—',
+            bodega:    s.bodegas?.nombre || '—',
+            stock:     s.cantidad_actual,
+            valor:     Math.round((s.cantidad_actual || 0) * (s.items?.precio_costo || 0)),
+          }))
+          .sort((a, b) => b.valor - a.valor)
         return (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-4 items-center">
@@ -442,10 +435,7 @@ function SeccionRotacion({ d }) {
                 Inventario parado — {filas.length} ítem{filas.length !== 1 ? 's' : ''}
               </p>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
-                +90 días: {fmtCOP(filas.filter(f => !f.es180).reduce((s, f) => s + f.valor, 0))}
-              </span>
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                +180 días: {fmtCOP(filas.filter(f => f.es180).reduce((s, f) => s + f.valor, 0))}
+                +90 días sin moverse: {fmtCOP(filas.reduce((s, f) => s + f.valor, 0))}
               </span>
             </div>
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
@@ -459,19 +449,15 @@ function SeccionRotacion({ d }) {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filas.map((item, i) => (
-                    <tr key={i} className={item.es180 ? 'bg-red-50 hover:bg-red-100' : 'bg-orange-50 hover:bg-orange-100'}>
+                    <tr key={i} className="bg-orange-50 hover:bg-orange-100">
                       <td className="px-4 py-2.5 font-medium text-gray-800">{item.nombre}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{item.categoria}</td>
                       <td className="px-4 py-2.5 text-xs text-gray-500">{item.bodega}</td>
                       <td className="px-4 py-2.5 text-gray-700">{item.stock}</td>
                       <td className="px-4 py-2.5 font-semibold text-gray-700">{item.valor > 0 ? fmtCOP(item.valor) : '—'}</td>
                       <td className="px-4 py-2.5">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          item.es180
-                            ? 'bg-red-200 text-red-800'
-                            : 'bg-orange-200 text-orange-800'
-                        }`}>
-                          {item.etiqueta}
+                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-200 text-orange-800">
+                          +90 días sin moverse
                         </span>
                       </td>
                     </tr>
