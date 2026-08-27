@@ -70,7 +70,13 @@ const MOBILE_OPERARIO = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
-const MOBILE_ALMACENISTA = MOBILE_OPERARIO
+const MOBILE_ALMACENISTA = [
+  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/productos',         icon: Package,          label: 'Productos' },
+]
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
