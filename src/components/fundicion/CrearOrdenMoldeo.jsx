@@ -160,19 +160,22 @@ export default function CrearOrdenMoldeo() {
   const [libreItem,    setLibreItem]    = useState(null)   // objeto item completo
   const [libreCant,    setLibreCant]    = useState('')
 
-  const [guardando,    setGuardando]    = useState(false)
-  const [error,        setError]        = useState('')
-  const [exito,        setExito]        = useState(null)
+  const [guardando,      setGuardando]      = useState(false)
+  const [error,          setError]          = useState('')
+  const [exito,          setExito]          = useState(null)
+  const [proximoNumero,  setProximoNumero]  = useState(null)
 
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
-    const [{ data: maq }, { data: bod }] = await Promise.all([
+    const [{ data: maq }, { data: bod }, { data: lastOrd }] = await Promise.all([
       supabase.from('maquinas_fundicion').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
+      supabase.from('ordenes_moldeo').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle(),
     ])
     setMaquinas(maq || [])
     setFundBodegaId(bod?.id || null)
+    setProximoNumero((lastOrd?.numero || 0) + 1)
     if (bod?.id) {
       const { data: fi } = await supabase.from('items')
         .select('id, nombre, peso_unitario').eq('bodega_id', bod.id).eq('activo', true).order('nombre')
@@ -361,7 +364,14 @@ export default function CrearOrdenMoldeo() {
         <div className="bg-blue-100 p-2.5 rounded-xl">
           <ClipboardList size={22} className="text-feisen-azul" />
         </div>
-        <h1 className="text-xl font-bold text-gray-800">Nueva Orden de Moldeo</h1>
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Nueva Orden de Moldeo</h1>
+          {proximoNumero && (
+            <p className="text-xs text-feisen-azul font-bold mt-0.5">
+              Próximo N°: <span className="font-mono bg-blue-50 px-2 py-0.5 rounded-lg">{numOrden(proximoNumero)}</span>
+            </p>
+          )}
+        </div>
       </div>
 
       <Stepper paso={paso} onBack={irAtras} />

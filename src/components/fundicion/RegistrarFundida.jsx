@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Flame, Plus, X, CheckCircle2 } from 'lucide-react'
@@ -162,9 +162,15 @@ export default function RegistrarFundida() {
   )
   const [observaciones, setObservaciones] = useState('')
 
-  const [guardando,   setGuardando]   = useState(false)
-  const [error,       setError]       = useState('')
-  const [exito,       setExito]       = useState(null)
+  const [guardando,      setGuardando]      = useState(false)
+  const [error,          setError]          = useState('')
+  const [exito,          setExito]          = useState(null)
+  const [proximoNumero,  setProximoNumero]  = useState(null)
+
+  useEffect(() => {
+    supabase.from('fundidas').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => setProximoNumero((data?.numero || 0) + 1))
+  }, [])
 
   function setMat(key, val) {
     setMateriales(prev => ({ ...prev, [key]: val }))
@@ -301,7 +307,11 @@ export default function RegistrarFundida() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-800">Registrar Fundida</h1>
-          <p className="text-xs text-gray-500">Complete el formulario al encender el horno</p>
+          {proximoNumero && (
+            <p className="text-xs text-orange-600 font-bold mt-0.5">
+              Próximo N°: <span className="font-mono bg-orange-50 px-2 py-0.5 rounded-lg">{numFun(proximoNumero)}</span>
+            </p>
+          )}
         </div>
       </div>
 
