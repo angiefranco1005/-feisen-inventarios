@@ -237,9 +237,15 @@ export default function RecogidaFundida() {
         }
       }
 
-      // 4. Entrada de VACEADERO si se registró
-      const kgVac = Number(vaceaderoKg[orden.id] || 0)
-      if (kgVac > 0 && fundBodegaId) {
+      // 4. Entrada de VACEADERO = kg manual + kg de piezas NC (vuelven al horno)
+      const kgManual = Number(vaceaderoKg[orden.id] || 0)
+      const kgNC = piezas.reduce((s, p) => {
+        const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
+        const peso = Number(p.items?.peso_unitario || 0)
+        return s + nc * peso
+      }, 0)
+      const kgVacTotal = kgManual + kgNC
+      if (kgVacTotal > 0 && fundBodegaId) {
         const numVac = await generarNumero(perfil, 'ENT')
         const { error: errVac } = await supabase.from('movimientos').insert({
           numero:                numVac,
@@ -247,14 +253,14 @@ export default function RecogidaFundida() {
           item_id:               VACEADERO_ITEM_ID,
           bodega_destino_id:     fundBodegaId,
           bodega_origen_id:      null,
-          cantidad:              kgVac,
+          cantidad:              kgVacTotal,
           precio_costo_snapshot: 0,
           centro_costo:          'FUNDICIÓN',
           usuario_id:            perfil.id,
           proveedor:             'Producción interna',
           referencia:            numOrden(orden.numero),
           fecha_movimiento:      orden.fecha || null,
-          motivo:                'Vaceadero recogida fundición',
+          motivo:                `Vaceadero recogida: ${kgManual > 0 ? `${kgManual} kg manual` : ''}${kgManual > 0 && kgNC > 0 ? ' + ' : ''}${kgNC > 0 ? `${kgNC.toFixed(2)} kg piezas NC` : ''}`,
           foto_remision_url: null, destino: null,
           numero_of: null, serial_motor: null, cliente: null,
         })
@@ -668,25 +674,43 @@ export default function RecogidaFundida() {
                     </div>
 
                     {/* ── Vaceadero ── */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">♻️</span>
-                        <p className="text-xs font-bold text-yellow-800">Vaceadero (kg)</p>
-                      </div>
-                      <p className="text-xs text-yellow-700">El metal sobrante del vaceadero que quedó de esta fundición y que va a ser refundido. Se registrará como una <strong>entrada al inventario VACEADERO</strong>.</p>
-                      <input
-                        type="number" min="0" step="0.1"
-                        value={vaceaderoKg[orden.id] || ''}
-                        onChange={e => setVaceaderoKg(prev => ({ ...prev, [orden.id]: e.target.value }))}
-                        placeholder="0.0 kg — opcional"
-                        className="w-full border-2 border-yellow-300 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-yellow-500 bg-white"
-                      />
-                      {Number(vaceaderoKg[orden.id] || 0) > 0 && (
-                        <p className="text-xs text-yellow-700 font-medium">
-                          ✓ Se registrarán <strong>{vaceaderoKg[orden.id]} kg</strong> de entrada al inventario VACEADERO.
-                        </p>
-                      )}
-                    </div>
+                    {(() => {
+                      const kgManual = Number(vaceaderoKg[orden.id] || 0)
+                      const kgNC = piezas.reduce((s, p) => {
+                        const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
+                        const peso = Number(p.items?.peso_unitario || 0)
+                        return s + nc * peso
+                      }, 0)
+                      const kgTotal = kgManual + kgNC
+                      return (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">♻️</span>
+                            <p className="text-xs font-bold text-yellow-800">Vaceadero — entrada al inventario</p>
+                          </div>
+                          <input
+                            type="number" min="0" step="0.1"
+                            value={vaceaderoKg[orden.id] || ''}
+                            onChange={e => setVaceaderoKg(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                            placeholder="Kg de vaceadero manual (opcional)"
+                            className="w-full border-2 border-yellow-300 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-yellow-500 bg-white"
+                          />
+                          {(kgNC > 0 || kgManual > 0) && (
+                            <div className="text-xs text-yellow-800 space-y-0.5">
+                              {kgNC > 0 && (
+                                <p>🔴 Piezas NC → <strong>{kgNC.toFixed(2)} kg</strong> (automático por peso unitario)</p>
+                              )}
+                              {kgManual > 0 && (
+                                <p>➕ Vaceadero manual → <strong>{kgManual} kg</strong></p>
+                              )}
+                              <p className="font-bold text-yellow-900 border-t border-yellow-200 pt-1 mt-1">
+                                Total VACEADERO a ingresar: {kgTotal.toFixed(2)} kg
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {/* Resumen antes de guardar */}
                     {piezas.some(p => Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0) > 0) && (
