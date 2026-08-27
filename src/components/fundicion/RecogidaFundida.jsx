@@ -28,11 +28,14 @@ async function generarNumero(perfil, prefix) {
 export default function RecogidaFundida() {
   const { perfil } = useAuth()
 
+  const [tab,          setTab]          = useState('pendientes')
   const [ordenes,      setOrdenes]      = useState([])
+  const [completadas,  setCompletadas]  = useState([])
   const [fundidas,     setFundidas]     = useState([])
   const [cargando,     setCargando]     = useState(true)
   const [expandido,    setExpandido]    = useState(null)
   const [busqueda,     setBusqueda]     = useState('')
+  const [busquedaComp, setBusquedaComp] = useState('')
   const [fundBodegaId, setFundBodegaId] = useState(null)
 
   // avances por orden: { [ordenId]: { [piezaId]: totalMoldeado } }
@@ -51,23 +54,22 @@ export default function RecogidaFundida() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data: bods }, { data: ords }, { data: funs }] = await Promise.all([
+    const piezasSelect = `
+      id, item_id, cantidad_planeada, asignado_a,
+      cantidad_conforme, cantidad_nc, motivo_nc,
+      items(id, nombre, precio_costo, peso_unitario)
+    `
+    const [{ data: bods }, { data: ords }, { data: comps }, { data: funs }] = await Promise.all([
       supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
       supabase.from('ordenes_moldeo')
-        .select(`
-          id, numero, fecha, estado,
-          ordenes_moldeo_piezas(
-            id, item_id, cantidad_planeada, asignado_a,
-            cantidad_conforme, cantidad_nc, motivo_nc,
-            items(id, nombre, precio_costo, peso_unitario)
-          ),
-          ordenes_moldeo_maquinas(
-            cantidad_maquinas,
-            maquinas_fundicion(nombre)
-          )
-        `)
+        .select(`id, numero, fecha, estado, ordenes_moldeo_piezas(${piezasSelect}), ordenes_moldeo_maquinas(cantidad_maquinas, maquinas_fundicion(nombre))`)
         .eq('estado', 'pendiente')
         .order('fecha', { ascending: false }),
+      supabase.from('ordenes_moldeo')
+        .select(`id, numero, fecha, estado, ordenes_moldeo_piezas(${piezasSelect})`)
+        .eq('estado', 'completado')
+        .order('fecha', { ascending: false })
+        .limit(60),
       supabase.from('fundidas')
         .select('id, numero, fecha, hierro_colado')
         .not('hierro_colado', 'is', null)
@@ -77,6 +79,7 @@ export default function RecogidaFundida() {
     ])
     setFundBodegaId(bods?.id || null)
     setOrdenes(ords || [])
+    setCompletadas(comps || [])
     setFundidas(funs || [])
     setCargando(false)
   }
@@ -268,18 +271,90 @@ export default function RecogidaFundida() {
         </div>
       </div>
 
+      {/* Pestañas */}
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1">
+        {[['pendientes', `Pendientes (${ordenes.length})`], ['completadas', `Completadas (${completadas.length})`]].map(([id, label]) => (
+          <button key={id} type="button"
+            onClick={() => { setTab(id); setBusqueda(''); setBusquedaComp('') }}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === id ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Buscador */}
       <div className="relative mb-4">
         <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+        <input type="text"
+          value={tab === 'pendientes' ? busqueda : busquedaComp}
+          onChange={e => tab === 'pendientes' ? setBusqueda(e.target.value) : setBusquedaComp(e.target.value)}
           placeholder="Buscar por N°, fecha o pieza…"
           className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
         />
       </div>
 
-      {cargando ? (
+      {/* ── Vista Completadas ── */}
+      {tab === 'completadas' && !cargando && (() => {
+        const q = busquedaComp.toLowerCase().trim()
+        const filtComp = completadas.filter(o =>
+          !q ||
+          numOrden(o.numero).toLowerCase().includes(q) ||
+          fmtFecha(o.fecha).includes(q) ||
+          (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q))
+        )
+        return filtComp.length === 0 ? (
+          <div className="text-center py-16">
+            <CheckCircle2 size={40} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 font-medium">{q ? 'Sin resultados.' : 'No hay recogidas completadas.'}</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtComp.map(orden => {
+              const piezas = orden.ordenes_moldeo_piezas || []
+              const totalConf = piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
+              const totalNC   = piezas.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
+              return (
+                <div key={orden.id} className="bg-white rounded-2xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="bg-green-100 text-green-700 font-bold text-sm px-3 py-1 rounded-lg font-mono">
+                        {numOrden(orden.numero)}
+                      </span>
+                      <span className="text-sm text-gray-500">{fmtFecha(orden.fecha)}</span>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                      ✓ Completada
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {piezas.map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
+                        <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
+                        <div className="flex gap-3 shrink-0 text-xs font-semibold">
+                          <span className="text-green-600">✓ {p.cantidad_conforme || 0}</span>
+                          {Number(p.cantidad_nc || 0) > 0 && (
+                            <span className="text-feisen-rojo">✗ {p.cantidad_nc}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {(totalConf > 0 || totalNC > 0) && (
+                    <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100 text-xs font-bold">
+                      <span className="text-green-600">Total conformes: {totalConf}</span>
+                      {totalNC > 0 && <span className="text-feisen-rojo">NC: {totalNC}</span>}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
+      {tab === 'pendientes' && cargando ? (
         <p className="text-center text-gray-400 py-16">Cargando…</p>
-      ) : filtradas.length === 0 ? (
+      ) : tab === 'pendientes' && filtradas.length === 0 ? (
         <div className="text-center py-16">
           <PackageCheck size={40} className="text-gray-200 mx-auto mb-3" />
           <p className="text-gray-400 font-medium">
@@ -287,7 +362,7 @@ export default function RecogidaFundida() {
           </p>
           {!busqueda && <p className="text-xs text-gray-300 mt-1">Cuando se creen órdenes de moldeo aparecerán aquí.</p>}
         </div>
-      ) : (
+      ) : tab === 'pendientes' ? (
         <div className="space-y-3">
           {filtradas.map(orden => {
             const piezas  = orden.ordenes_moldeo_piezas || []
@@ -539,7 +614,7 @@ export default function RecogidaFundida() {
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
