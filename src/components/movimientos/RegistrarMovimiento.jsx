@@ -50,7 +50,7 @@ export default function RegistrarMovimiento() {
   useEffect(() => {
     async function cargar() {
       let bodegasQ = supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
-      let itemsQ   = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre')
+      let itemsQ   = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre').limit(10000)
       if (bodegasOperacion) {
         bodegasQ = bodegasQ.in('id', bodegasOperacion)
         itemsQ   = itemsQ.in('bodega_id', bodegasOperacion)

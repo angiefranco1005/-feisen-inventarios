@@ -35,7 +35,7 @@ export default function GestionItems() {
   async function cargar() {
     setCargando(true)
     const [{ data: itemsData }, { data: cats }, { data: bods }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre'),
+      supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre').limit(10000),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
     ])

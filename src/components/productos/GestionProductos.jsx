@@ -47,7 +47,7 @@ export default function GestionProductos() {
       setCargando(false); return
     }
 
-    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)').order('nombre').limit(5000)
+    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)').order('nombre').limit(10000)
     if (!esAdmin && !esLogistica && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
 
     const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([

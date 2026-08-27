@@ -237,7 +237,7 @@ export default function ListaPedidos() {
   async function cargar() {
     setCargando(true)
     const verTodo = esAdmin || esLogistica
-    let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre')
+    let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
 
     let pedsQ = supabase.from('pedidos')

@@ -347,7 +347,7 @@ export default function RegistrarMovimientoAlmacenista() {
           setBodegaPreviewId(b.id)
           setBodega(b)
           const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
-            supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
+            supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre').limit(10000),
             supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
             supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
           ])
@@ -365,7 +365,7 @@ export default function RegistrarMovimientoAlmacenista() {
     setBodegaPreviewId(bodegaId)
     setBodega(b)
     const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
-      supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre'),
+      supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre').limit(10000),
       supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
       supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
     ])
