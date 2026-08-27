@@ -88,8 +88,8 @@ export default function InventarioFisico() {
       supabase.from('items')
         .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas!bodega_id(nombre), categorias(nombre)')
         .eq('activo', true)
-        .order('bodega_id')
-        .order('nombre'),
+        .order('nombre')
+        .limit(5000),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
       supabase.from('stock').select('item_id, bodega_id, cantidad_actual'),
