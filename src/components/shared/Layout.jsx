@@ -45,6 +45,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM' },
   { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
   { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina' },
+  { to: '/analitica/fundicion',            icon: Activity,         label: 'Analítica' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
