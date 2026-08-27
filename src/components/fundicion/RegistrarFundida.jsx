@@ -136,7 +136,6 @@ function ListaPersonas({ label, valores, onChange, storageKey, placeholder, requ
 const MATERIALES = [
   { key: 'pesoVaceadero',     dbKey: 'peso_vaceadero',            label: 'Peso vaceadero',             unit: 'kg' },
   { key: 'hierroColado',      dbKey: 'hierro_colado',             label: 'Hierro colado',              unit: 'kg' },
-  { key: 'hierroContaminado', dbKey: 'hierro_colado_contaminado', label: 'Hierro colado contaminado',  unit: 'kg' },
   { key: 'carbon',            dbKey: 'carbon',                    label: 'Carbón',                     unit: 'kg' },
   { key: 'caliza',            dbKey: 'caliza',                    label: 'Caliza',                     unit: 'kg' },
   { key: 'ferromolido',       dbKey: 'ferromolido',               label: 'Ferromolido',                unit: 'kg' },
