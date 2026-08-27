@@ -354,11 +354,16 @@ export default function RecogidaFundida() {
                             {ps.map(p => {
                               const conf = Number(p.cantidad_conforme || 0)
                               const nc   = Number(p.cantidad_nc || 0)
+                              const kg   = Number(p.items?.peso_unitario || 0)
+                              const kgTotal = conf * kg
                               return (
                                 <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
-                                  <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
+                                  <div className="flex-1 mr-2 min-w-0">
+                                    <span className="text-gray-700 font-medium truncate block">{p.items?.nombre}</span>
+                                    {kg > 0 && <span className="text-xs text-orange-500">{kg} kg/ud</span>}
+                                  </div>
                                   <div className="flex gap-3 shrink-0 text-xs font-semibold">
-                                    <span className="text-green-600">✓ {conf}</span>
+                                    <span className="text-green-600">✓ {conf}{kg > 0 ? ` (${kgTotal.toFixed(1)} kg)` : ''}</span>
                                     {nc > 0 && <span className="text-feisen-rojo">✗ {nc}</span>}
                                   </div>
                                 </div>
@@ -366,6 +371,11 @@ export default function RecogidaFundida() {
                             })}
                             <div className="flex gap-3 px-3 text-xs text-gray-400 font-medium">
                               <span>Subtotal: <strong className="text-green-600">{ps.reduce((s,p) => s + Number(p.cantidad_conforme||0), 0)} conf</strong></span>
+                              {ps.some(p => Number(p.items?.peso_unitario||0) > 0) && (
+                                <strong className="text-orange-600">
+                                  {ps.reduce((s,p) => s + Number(p.cantidad_conforme||0) * Number(p.items?.peso_unitario||0), 0).toFixed(1)} kg
+                                </strong>
+                              )}
                               {ps.some(p => Number(p.cantidad_nc||0) > 0) && (
                                 <span><strong className="text-feisen-rojo">{ps.reduce((s,p) => s + Number(p.cantidad_nc||0), 0)} NC</strong></span>
                               )}
