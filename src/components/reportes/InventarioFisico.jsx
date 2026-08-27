@@ -79,28 +79,46 @@ export default function InventarioFisico() {
   // ── iniciar nuevo inventario ─────────────────────────────────────────────
   async function iniciarNuevo() {
     setCargando(true)
-    const [{ data: itemsData }, { data: bodegasData }, { count }] = await Promise.all([
+    const [
+      { data: itemsData,   error: errItems },
+      { data: bodegasData },
+      { count },
+      { data: stockData },
+    ] = await Promise.all([
       supabase.from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas!bodega_id(nombre), categorias(nombre), stock(bodega_id, cantidad_actual)')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas!bodega_id(nombre), categorias(nombre)')
         .eq('activo', true)
         .order('bodega_id')
         .order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual'),
     ])
+
+    if (errItems) {
+      setMsg({ tipo: 'error', texto: 'Error cargando productos: ' + errItems.message })
+      setCargando(false)
+      setVista('editor')
+      return
+    }
+
+    // Índice de stock por item_id+bodega_id
+    const stockMap = {}
+    for (const s of (stockData || [])) {
+      stockMap[`${s.item_id}_${s.bodega_id}`] = s.cantidad_actual
+    }
 
     const rows = []
     for (const item of (itemsData || [])) {
-      const stockEntry = (item.stock || []).find(s => s.bodega_id === item.bodega_id)
       rows.push({
-        key:             `${item.id}_${item.bodega_id}`,
-        item_id:         item.id,
-        item_nombre:     item.nombre,
-        item_unidad:     item.unidad_medida,
-        bodega_id:       item.bodega_id,
-        bodega_nombre:   item.bodegas?.nombre || '',
+        key:              `${item.id}_${item.bodega_id}`,
+        item_id:          item.id,
+        item_nombre:      item.nombre,
+        item_unidad:      item.unidad_medida,
+        bodega_id:        item.bodega_id,
+        bodega_nombre:    item.bodegas?.nombre || '',
         categoria_nombre: item.categorias?.nombre || '',
-        cantidad_sistema: stockEntry?.cantidad_actual ?? 0,
+        cantidad_sistema: Number(stockMap[`${item.id}_${item.bodega_id}`] ?? 0),
         precio_costo:     item.precio_costo || 0,
       })
     }
