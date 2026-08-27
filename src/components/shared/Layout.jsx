@@ -30,8 +30,7 @@ const NAV_ALMACENISTA = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
@@ -39,8 +38,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
@@ -53,8 +51,7 @@ const NAV_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
@@ -62,31 +59,27 @@ const NAV_OPERARIO = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 // Barra inferior móvil curada — prioriza las acciones más usadas por cada rol
 const MOBILE_OPERARIO = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_ALMACENISTA = MOBILE_OPERARIO
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo?tipo=entrada', icon: Download,         label: 'Entrada' },
-  { to: '/movimientos/nuevo?tipo=salida',  icon: Upload,           label: 'Salida' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
 ]
