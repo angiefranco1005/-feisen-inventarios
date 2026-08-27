@@ -521,39 +521,62 @@ export default function RecogidaFundida() {
 
                       {/* Panel de merma */}
                       {fundidaSel[orden.id] && (() => {
-                        const fundida  = fundidas.find(f => f.id === fundidaSel[orden.id])
+                        const fundida   = fundidas.find(f => f.id === fundidaSel[orden.id])
                         const kgEntrada = Number(fundida?.hierro_colado || 0)
                         const kgPiezas  = calcKgPiezas(orden)
                         const hayPesos  = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
-                        const kgMerma   = kgEntrada - kgPiezas
-                        const pctMerma  = kgEntrada > 0 ? (kgMerma / kgEntrada * 100) : 0
+                        // Vaceadero = manual + piezas NC con peso
+                        const kgVacManual = Number(vaceaderoKg[orden.id] || 0)
+                        const kgVacNC = piezas.reduce((s, p) => {
+                          const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
+                          const peso = Number(p.items?.peso_unitario || 0)
+                          return s + nc * peso
+                        }, 0)
+                        const kgVaceadero = kgVacManual + kgVacNC
+                        // Merma real = hierro - piezas buenas - vaceadero
+                        const kgMerma  = kgEntrada - kgPiezas - kgVaceadero
+                        const pctMerma = kgEntrada > 0 ? (kgMerma / kgEntrada * 100) : 0
 
                         return (
                           <div className="space-y-2">
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                               <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">Hierro colado (entrada)</p>
+                                <p className="text-xs text-gray-400 mb-0.5">🔥 Hierro colado</p>
                                 <p className="font-bold text-gray-800 text-sm">{kgEntrada} kg</p>
                               </div>
                               <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">Piezas buenas</p>
+                                <p className="text-xs text-gray-400 mb-0.5">✅ Piezas buenas</p>
                                 {hayPesos
                                   ? <p className="font-bold text-green-700 text-sm">{kgPiezas.toFixed(1)} kg</p>
-                                  : <p className="text-xs text-gray-400 mt-0.5 italic">sin peso unitario</p>
+                                  : <p className="text-xs text-gray-400 italic">sin peso unitario</p>
                                 }
                               </div>
+                              <div className="bg-yellow-50 rounded-xl p-2.5 border border-yellow-200 text-center">
+                                <p className="text-xs text-gray-400 mb-0.5">♻️ Vaceadero</p>
+                                <p className="font-bold text-yellow-700 text-sm">
+                                  {kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}
+                                </p>
+                                {kgVacNC > 0 && kgVacManual > 0 && (
+                                  <p className="text-xs text-yellow-600">{kgVacNC.toFixed(2)} NC + {kgVacManual} manual</p>
+                                )}
+                              </div>
                               <div className={`rounded-xl p-2.5 border text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50 border-red-200' : 'bg-white border-orange-100'}`}>
-                                <p className="text-xs text-gray-400 mb-0.5">Merma</p>
+                                <p className="text-xs text-gray-400 mb-0.5">⚠️ Merma real</p>
                                 {hayPesos
-                                  ? <p className={`font-bold text-sm ${kgMerma > 0 ? 'text-feisen-rojo' : 'text-gray-400'}`}>
+                                  ? <p className={`font-bold text-sm ${kgMerma > 0 ? 'text-feisen-rojo' : 'text-green-600'}`}>
                                       {kgMerma > 0
                                         ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)`
-                                        : '—'}
+                                        : '0 kg ✓'}
                                     </p>
                                   : <p className="text-xs text-gray-400 italic">—</p>
                                 }
                               </div>
                             </div>
+                            {hayPesos && kgEntrada > 0 && (
+                              <p className="text-xs text-gray-500 font-medium">
+                                Merma = hierro colado ({kgEntrada} kg) − piezas buenas ({kgPiezas.toFixed(1)} kg) − vaceadero ({kgVaceadero.toFixed(2)} kg)
+                              </p>
+                            )}
                             <p className="text-xs text-orange-600 font-medium">
                               ✓ Al guardar se descontarán <strong>{kgEntrada} kg</strong> de HIERRO COLADO del inventario de FUNDICIÓN.
                             </p>
