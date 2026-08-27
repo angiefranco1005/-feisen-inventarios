@@ -149,8 +149,13 @@ export default function RecogidaFundida() {
     for (const p of piezas) {
       const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
       const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
+      const plan = Number(p.cantidad_planeada || 0)
       if (conf < 0 || nc < 0) {
         setErrores(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
+        return
+      }
+      if (plan > 0 && conf + nc !== plan) {
+        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": conformes (${conf}) + NC (${nc}) = ${conf + nc}, pero la orden tiene ${plan} planeadas. Deben sumar exactamente.` }))
         return
       }
     }
@@ -584,7 +589,13 @@ export default function RecogidaFundida() {
                               <label className="block text-xs font-bold text-green-600 mb-1.5">✓ Conformes</label>
                               <input type="number" min="0" step="1"
                                 value={getField(orden.id, p.id, 'conforme')}
-                                onChange={e => setField(orden.id, p.id, 'conforme', e.target.value)}
+                                onChange={e => {
+                                  const conf = e.target.value
+                                  setField(orden.id, p.id, 'conforme', conf)
+                                  const plan = Number(p.cantidad_planeada || 0)
+                                  const ncAuto = Math.max(0, plan - Number(conf || 0))
+                                  if (plan > 0) setField(orden.id, p.id, 'nc', String(ncAuto))
+                                }}
                                 placeholder="0"
                                 className="w-full border-2 border-gray-200 rounded-xl px-2 py-2.5 text-center text-base font-bold focus:outline-none focus:border-green-400 focus:ring-0"
                               />
