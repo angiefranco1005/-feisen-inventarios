@@ -13,6 +13,13 @@ const MATERIAL_ITEMS = {
   exlac:       '55974f24-8892-475f-8658-eb57f5f496cc', // EXLAC (slax)
 }
 
+const MATERIAL_LABELS = {
+  carbon:      'Carbón',
+  caliza:      'Caliza',
+  ferromolido: 'Ferromolido',
+  exlac:       'Exlac (slax)',
+}
+
 async function generarNumSalida(perfil) {
   const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
   const pre = `SAL-${iniciales}-`
@@ -183,6 +190,34 @@ export default function RegistrarFundida() {
 
     setGuardando(true)
     try {
+      // Validar stock disponible de cada material antes de guardar
+      const materialesConsumir = Object.entries(MATERIAL_ITEMS)
+        .filter(([key]) => materiales[key] !== '' && parseFloat(materiales[key]) > 0)
+
+      if (materialesConsumir.length > 0) {
+        const faltantes = []
+        for (const [key, itemId] of materialesConsumir) {
+          const { data: stockRow } = await supabase
+            .from('stock')
+            .select('cantidad_actual')
+            .eq('item_id', itemId)
+            .eq('bodega_id', FUND_BODEGA_ID)
+            .maybeSingle()
+          const disponible = Number(stockRow?.cantidad_actual ?? 0)
+          const solicitado = parseFloat(materiales[key])
+          if (disponible < solicitado) {
+            faltantes.push(
+              `• ${MATERIAL_LABELS[key]}: necesitas ${solicitado} kg, hay ${disponible.toFixed(2)} kg`
+            )
+          }
+        }
+        if (faltantes.length > 0) {
+          setError('Stock insuficiente en FUNDICIÓN:\n' + faltantes.join('\n'))
+          setGuardando(false)
+          return
+        }
+      }
+
       const payload = {
         fecha,
         hora_inicio: horaInicio,
@@ -271,7 +306,7 @@ export default function RegistrarFundida() {
       </div>
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium whitespace-pre-line">
           {error}
         </div>
       )}
