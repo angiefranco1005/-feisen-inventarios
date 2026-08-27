@@ -42,10 +42,10 @@ const NAV_JEFE_FUNDICION = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
-  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM' },
   { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
   { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina' },
   { to: '/analitica/fundicion',            icon: Activity,         label: 'Analítica' },
+  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
