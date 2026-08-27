@@ -47,36 +47,44 @@ export default function GestionProductos() {
       setCargando(false); return
     }
 
-    let itemsQ = supabase.from('items').select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)').order('nombre').limit(10000)
+    let itemsQ = supabase.from('items')
+      .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
+      .order('nombre').limit(10000)
     if (!esAdmin && !esLogistica && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
 
-    const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }] = await Promise.all([
+    const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }, { data: stockData }] = await Promise.all([
       itemsQ,
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').limit(10000),
     ])
     if (e1 || e2 || e3) {
       const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
 
-    let todosItems = it || []
+    // Índice de stock: { item_id: [ {bodega_id, cantidad_actual} ] }
+    const stockIdx = {}
+    for (const s of (stockData || [])) {
+      if (!stockIdx[s.item_id]) stockIdx[s.item_id] = []
+      stockIdx[s.item_id].push({ bodega_id: s.bodega_id, cantidad_actual: s.cantidad_actual })
+    }
 
-    // Para usuarios no-admin/no-logistica con bodega asignada: también mostrar items de otras bodegas con stock aquí
+    let todosItems = (it || []).map(i => ({ ...i, stock: stockIdx[i.id] || [] }))
+
+    // Para usuarios no-admin/no-logistica: mostrar también ítems de otras bodegas con stock aquí
     if (!esAdmin && !esLogistica && bodegasPermitidas && bodegasPermitidas.length > 0) {
-      const ownIds = new Set((it || []).map(i => i.id))
-      const { data: stockRows } = await supabase.from('stock')
-        .select('item_id, cantidad_actual')
-        .in('bodega_id', bodegasPermitidas)
-        .gt('cantidad_actual', 0)
-      const extraIds = (stockRows || []).map(r => r.item_id).filter(id => !ownIds.has(id))
+      const ownIds = new Set(todosItems.map(i => i.id))
+      const extraIds = (stockData || [])
+        .filter(s => bodegasPermitidas.includes(s.bodega_id) && s.cantidad_actual > 0 && !ownIds.has(s.item_id))
+        .map(s => s.item_id)
       if (extraIds.length > 0) {
         const { data: ext } = await supabase.from('items')
-          .select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(bodega_id, cantidad_actual)')
+          .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
           .in('id', extraIds).eq('activo', true)
-        // Marcar como transferidas: categoría visual "Fundición"
         const marcadas = (ext || []).map(item => ({
           ...item,
+          stock: stockIdx[item.id] || [],
           categorias: { nombre: 'Fundición' },
           categoria_id: '__fundicion__',
         }))
