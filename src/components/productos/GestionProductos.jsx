@@ -47,21 +47,33 @@ export default function GestionProductos() {
       setCargando(false); return
     }
 
-    let itemsQ = supabase.from('items')
-      .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
-      .order('nombre').limit(10000)
-    if (!esAdmin && !esLogistica && bodegasPermitidas) itemsQ = itemsQ.in('bodega_id', bodegasPermitidas)
+    // Construir base de query de items (sin límite fijo — usamos range para superar max-rows=1000 de PostgREST)
+    const buildItemsQ = (from, to) => {
+      let q = supabase.from('items')
+        .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
+        .order('nombre').range(from, to)
+      if (!esAdmin && !esLogistica && bodegasPermitidas) q = q.in('bodega_id', bodegasPermitidas)
+      return q
+    }
 
-    const [{ data: it, error: e1 }, { data: cats, error: e2 }, { data: bods, error: e3 }, { data: stockData }] = await Promise.all([
-      itemsQ,
+    const [
+      { data: it1, error: e1 },
+      { data: it2 },
+      { data: cats, error: e2 },
+      { data: bods, error: e3 },
+      { data: stockData },
+    ] = await Promise.all([
+      buildItemsQ(0, 999),
+      buildItemsQ(1000, 1999),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').limit(10000),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 9999),
     ])
     if (e1 || e2 || e3) {
       const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
+    const it = [...(it1 || []), ...(it2 || [])]
 
     // Índice de stock: { item_id: [ {bodega_id, cantidad_actual} ] }
     const stockIdx = {}
