@@ -326,18 +326,54 @@ export default function RecogidaFundida() {
                       ✓ Completada
                     </span>
                   </div>
-                  <div className="space-y-1.5">
-                    {piezas.map(p => (
-                      <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
-                        <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
-                        <div className="flex gap-3 shrink-0 text-xs font-semibold">
-                          <span className="text-green-600">✓ {p.cantidad_conforme || 0}</span>
-                          {Number(p.cantidad_nc || 0) > 0 && (
-                            <span className="text-feisen-rojo">✗ {p.cantidad_nc}</span>
-                          )}
+                  <div className="space-y-3">
+                    {(() => {
+                      const hayAsignados = piezas.some(p => p.asignado_a)
+                      if (!hayAsignados) {
+                        return piezas.map(p => (
+                          <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
+                            <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
+                            <div className="flex gap-3 shrink-0 text-xs font-semibold">
+                              <span className="text-green-600">✓ {p.cantidad_conforme || 0}</span>
+                              {Number(p.cantidad_nc || 0) > 0 && <span className="text-feisen-rojo">✗ {p.cantidad_nc}</span>}
+                            </div>
+                          </div>
+                        ))
+                      }
+                      // Agrupar por moldeador
+                      const grupos = {}
+                      for (const p of piezas) {
+                        const key = p.asignado_a || 'Sin asignar'
+                        if (!grupos[key]) grupos[key] = []
+                        grupos[key].push(p)
+                      }
+                      return Object.entries(grupos).map(([persona, ps]) => (
+                        <div key={persona}>
+                          <p className="text-xs font-bold text-feisen-azul mb-1.5 px-1">👤 {persona}</p>
+                          <div className="space-y-1">
+                            {ps.map(p => {
+                              const conf = Number(p.cantidad_conforme || 0)
+                              const nc   = Number(p.cantidad_nc || 0)
+                              return (
+                                <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
+                                  <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
+                                  <div className="flex gap-3 shrink-0 text-xs font-semibold">
+                                    <span className="text-green-600">✓ {conf}</span>
+                                    {nc > 0 && <span className="text-feisen-rojo">✗ {nc}</span>}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            <div className="flex gap-3 px-3 text-xs text-gray-400 font-medium">
+                              <span>Subtotal: <strong className="text-green-600">{ps.reduce((s,p) => s + Number(p.cantidad_conforme||0), 0)} conf</strong></span>
+                              {ps.some(p => Number(p.cantidad_nc||0) > 0) && (
+                                <span><strong className="text-feisen-rojo">{ps.reduce((s,p) => s + Number(p.cantidad_nc||0), 0)} NC</strong></span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                   {(totalConf > 0 || totalNC > 0) && (
                     <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100 text-xs font-bold">
