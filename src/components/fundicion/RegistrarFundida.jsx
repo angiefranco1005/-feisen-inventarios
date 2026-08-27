@@ -3,6 +3,26 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Flame, Plus, X, CheckCircle2 } from 'lucide-react'
 
+const FUND_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
+
+// Materiales del formulario que tienen item en inventario → se descontarán al guardar
+const MATERIAL_ITEMS = {
+  carbon:      '7314b94c-385c-4c22-b0f8-04861fbc644e', // CARBÓN
+  caliza:      '8dac18cd-3909-4ea5-ace5-316a2cf6a894', // CALIZA
+  ferromolido: '8a13934b-6d19-4ef1-975f-8b36f3429abd', // FERROMOLIDO
+  exlac:       '55974f24-8892-475f-8658-eb57f5f496cc', // EXLAC (slax)
+}
+
+async function generarNumSalida(perfil) {
+  const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
+  const pre = `SAL-${iniciales}-`
+  const { data: last } = await supabase
+    .from('movimientos').select('numero').like('numero', `${pre}%`)
+    .order('numero', { ascending: false }).limit(1).maybeSingle()
+  const n = last?.numero ? parseInt(last.numero.replace(pre, ''), 10) || 0 : 0
+  return `${pre}${String(n + 1).padStart(4, '0')}`
+}
+
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
@@ -184,6 +204,33 @@ export default function RegistrarFundida() {
         .single()
 
       if (err) { setError('Error al guardar: ' + err.message); return }
+
+      // Crear salidas automáticas de materiales consumidos en el horno
+      const matSalidas = Object.entries(MATERIAL_ITEMS)
+        .filter(([key]) => materiales[key] !== '' && parseFloat(materiales[key]) > 0)
+      if (matSalidas.length > 0) {
+        const numSal = await generarNumSalida(perfil)
+        const numFun = `FUN-${String(data.numero).padStart(4, '0')}`
+        await supabase.from('movimientos').insert(
+          matSalidas.map(([key, itemId]) => ({
+            numero:                numSal,
+            tipo:                  'salida',
+            item_id:               itemId,
+            bodega_origen_id:      FUND_BODEGA_ID,
+            bodega_destino_id:     null,
+            cantidad:              parseFloat(materiales[key]),
+            precio_costo_snapshot: 0,
+            centro_costo:          'FUNDICIÓN',
+            usuario_id:            perfil.id,
+            referencia:            numFun,
+            fecha_movimiento:      fecha || null,
+            motivo:                'Consumo horno fundición',
+            foto_remision_url: null, destino: null,
+            numero_of: null, serial_motor: null, cliente: null, proveedor: null,
+          }))
+        )
+      }
+
       setExito({ numero: data.numero })
     } finally {
       setGuardando(false)
