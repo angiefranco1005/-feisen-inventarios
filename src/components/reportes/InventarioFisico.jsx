@@ -205,35 +205,39 @@ export default function InventarioFisico() {
     const hoy = HOY()
     const conDif = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0)
 
+    // Generar número de movimiento base
+    const iniciales = (perfil?.nombre || 'ADM').trim().split(/\s+/).map(n => n[0].toUpperCase()).join('')
+    const preENT = `ENT-${iniciales}-`, preSAL = `SAL-${iniciales}-`
+    const [{ data: lastEnt }, { data: lastSal }] = await Promise.all([
+      supabase.from('movimientos').select('numero').like('numero', `${preENT}%`).order('numero', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('movimientos').select('numero').like('numero', `${preSAL}%`).order('numero', { ascending: false }).limit(1).maybeSingle(),
+    ])
+    let seqEnt = lastEnt?.numero ? parseInt(lastEnt.numero.replace(preENT, ''), 10) || 0 : 0
+    let seqSal = lastSal?.numero ? parseInt(lastSal.numero.replace(preSAL, ''), 10) || 0 : 0
+
     for (const item of conDif) {
-      // Actualizar stock
-      const { data: stockRow } = await supabase.from('stock')
-        .select('item_id').eq('item_id', item.item_id).eq('bodega_id', item.bodega_id).maybeSingle()
-
-      if (stockRow) {
-        await supabase.from('stock')
-          .update({ cantidad_actual: item.cantidad_fisica, updated_at: new Date().toISOString() })
-          .eq('item_id', item.item_id).eq('bodega_id', item.bodega_id)
-      } else {
-        await supabase.from('stock').insert({
-          item_id: item.item_id, bodega_id: item.bodega_id, cantidad_actual: item.cantidad_fisica,
-        })
-      }
-
-      // Movimiento de ajuste (auditoría)
       const esSalida = item.diferencia < 0
+      // Número único por movimiento
+      const numMov = esSalida
+        ? `${preSAL}${String(++seqSal).padStart(4, '0')}`
+        : `${preENT}${String(++seqEnt).padStart(4, '0')}`
+
+      // Insertar movimiento → el trigger fn_actualizar_stock actualiza stock automáticamente
       await supabase.from('movimientos').insert({
-        tipo:              'ajuste_inventario',
+        numero:            numMov,
+        tipo:              esSalida ? 'salida' : 'entrada',
         item_id:           item.item_id,
         bodega_origen_id:  esSalida ? item.bodega_id : null,
         bodega_destino_id: esSalida ? null : item.bodega_id,
         cantidad:          Math.abs(item.diferencia),
+        precio_costo_snapshot: item.precio_costo || 0,
         usuario_id:        perfil.id,
         centro_costo:      item.bodega_nombre,
         referencia:        numero,
         motivo:            `Ajuste inv. físico. Sistema: ${item.cantidad_sistema} → Físico: ${item.cantidad_fisica}`,
         fecha_movimiento:  hoy,
         revertido:         false,
+        foto_remision_url: null, destino: null, numero_of: null, serial_motor: null, cliente: null, proveedor: null,
       })
     }
 
