@@ -80,48 +80,42 @@ export default function InventarioFisico() {
   async function iniciarNuevo() {
     setCargando(true)
     const [
-      { data: itemsData,   error: errItems },
+      { data: stockData,   error: errStock },
       { data: bodegasData },
       { count },
-      { data: stockData },
     ] = await Promise.all([
-      supabase.from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas!bodega_id(nombre), categorias(nombre)')
-        .eq('activo', true)
-        .order('nombre')
+      supabase.from('stock')
+        .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, categorias(nombre)), bodegas(id, nombre)')
+        .gt('cantidad_actual', -99999)   // trae todos, incluso en 0
         .limit(5000),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual'),
     ])
 
-    if (errItems) {
-      setMsg({ tipo: 'error', texto: 'Error cargando productos: ' + errItems.message })
+    if (errStock) {
+      setMsg({ tipo: 'error', texto: 'Error cargando stock: ' + errStock.message })
       setCargando(false)
       setVista('editor')
       return
     }
 
-    // Índice de stock por item_id+bodega_id
-    const stockMap = {}
-    for (const s of (stockData || [])) {
-      stockMap[`${s.item_id}_${s.bodega_id}`] = s.cantidad_actual
-    }
-
     const rows = []
-    for (const item of (itemsData || [])) {
+    for (const s of (stockData || [])) {
+      if (!s.items || !s.items.nombre) continue   // ítem eliminado/inactivo
       rows.push({
-        key:              `${item.id}_${item.bodega_id}`,
-        item_id:          item.id,
-        item_nombre:      item.nombre,
-        item_unidad:      item.unidad_medida,
-        bodega_id:        item.bodega_id,
-        bodega_nombre:    item.bodegas?.nombre || '',
-        categoria_nombre: item.categorias?.nombre || '',
-        cantidad_sistema: Number(stockMap[`${item.id}_${item.bodega_id}`] ?? 0),
-        precio_costo:     item.precio_costo || 0,
+        key:              `${s.item_id}_${s.bodega_id}`,
+        item_id:          s.item_id,
+        item_nombre:      s.items.nombre,
+        item_unidad:      s.items.unidad_medida,
+        bodega_id:        s.bodega_id,
+        bodega_nombre:    s.bodegas?.nombre || '',
+        categoria_nombre: s.items.categorias?.nombre || '',
+        cantidad_sistema: Number(s.cantidad_actual ?? 0),
+        precio_costo:     s.items.precio_costo || 0,
       })
     }
+    // Ordenar por bodega → nombre
+    rows.sort((a, b) => a.bodega_nombre.localeCompare(b.bodega_nombre) || a.item_nombre.localeCompare(b.item_nombre))
 
     const num = `INV-FIS-${String((count || 0) + 1).padStart(4, '0')}`
     setItems(rows)
