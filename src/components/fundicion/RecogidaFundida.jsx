@@ -52,6 +52,8 @@ export default function RecogidaFundida() {
   const [fundidaSel,   setFundidaSel]   = useState({})
   // vaceadero en kg por orden: { [ordenId]: string }
   const [vaceaderoKg,  setVaceaderoKg]  = useState({})
+  // movimientos hierro/vaceadero de órdenes completadas: { [numOrden]: { hierro, vaceadero } }
+  const [movsComp,     setMovsComp]     = useState({})
 
   useEffect(() => { cargar() }, [])
 
@@ -84,6 +86,28 @@ export default function RecogidaFundida() {
     setOrdenes(ords || [])
     setCompletadas(comps || [])
     setFundidas(funs || [])
+
+    // Cargar movimientos de hierro colado y vaceadero para órdenes completadas
+    const numRefs = (comps || []).map(o => numOrden(o.numero))
+    if (numRefs.length > 0) {
+      const orFilter = numRefs.map(r => `referencia.like.${r}%`).join(',')
+      const { data: movsData } = await supabase
+        .from('movimientos')
+        .select('referencia, item_id, tipo, cantidad')
+        .or(orFilter)
+        .in('item_id', [HIERRO_COLADO_ITEM_ID, VACEADERO_ITEM_ID])
+        .eq('revertido', false)
+      const mapa = {}
+      for (const m of (movsData || [])) {
+        const ref = numRefs.find(r => m.referencia?.startsWith(r))
+        if (!ref) continue
+        if (!mapa[ref]) mapa[ref] = { hierro: 0, vaceadero: 0 }
+        if (m.item_id === HIERRO_COLADO_ITEM_ID && m.tipo === 'salida') mapa[ref].hierro += Number(m.cantidad)
+        if (m.item_id === VACEADERO_ITEM_ID     && m.tipo === 'entrada') mapa[ref].vaceadero += Number(m.cantidad)
+      }
+      setMovsComp(mapa)
+    }
+
     setCargando(false)
   }
 
@@ -429,6 +453,40 @@ export default function RecogidaFundida() {
                       {totalNC > 0 && <span className="text-feisen-rojo">NC: {totalNC}</span>}
                     </div>
                   )}
+                  {/* Panel merma completada */}
+                  {(() => {
+                    const ref = numOrden(orden.numero)
+                    const mov = movsComp[ref]
+                    const kgHierro    = mov?.hierro    || 0
+                    const kgVaceadero = mov?.vaceadero || 0
+                    const kgPiezas    = piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0) * Number(p.items?.peso_unitario || 0), 0)
+                    const hayPesos    = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
+                    if (!kgHierro && !kgVaceadero) return null
+                    const kgMerma  = kgHierro - kgPiezas - kgVaceadero
+                    const pctMerma = kgHierro > 0 ? (kgMerma / kgHierro * 100) : 0
+                    return (
+                      <div className="mt-3 pt-3 border-t border-orange-100 grid grid-cols-2 gap-2">
+                        <div className="bg-orange-50 rounded-xl p-2 text-center">
+                          <p className="text-xs text-gray-400">🔥 Hierro colado</p>
+                          <p className="font-bold text-gray-800 text-sm">{kgHierro} kg</p>
+                        </div>
+                        <div className="bg-green-50 rounded-xl p-2 text-center">
+                          <p className="text-xs text-gray-400">✅ Piezas buenas</p>
+                          <p className="font-bold text-green-700 text-sm">{hayPesos ? `${kgPiezas.toFixed(1)} kg` : '—'}</p>
+                        </div>
+                        <div className="bg-yellow-50 rounded-xl p-2 text-center">
+                          <p className="text-xs text-gray-400">♻️ Vaceadero</p>
+                          <p className="font-bold text-yellow-700 text-sm">{kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}</p>
+                        </div>
+                        <div className={`rounded-xl p-2 text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50' : 'bg-gray-50'}`}>
+                          <p className="text-xs text-gray-400">⚠️ Merma real</p>
+                          <p className={`font-bold text-sm ${kgMerma > 0 && hayPesos ? 'text-feisen-rojo' : 'text-gray-400'}`}>
+                            {hayPesos && kgMerma > 0 ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)` : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
