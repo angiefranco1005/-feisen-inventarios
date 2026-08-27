@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
+const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 function numFun(n)   { return `FUN-${String(n).padStart(4, '0')}` }
@@ -49,6 +50,8 @@ export default function RecogidaFundida() {
 
   // fundida vinculada por orden: { [ordenId]: fundidaId }
   const [fundidaSel,   setFundidaSel]   = useState({})
+  // vaceadero en kg por orden: { [ordenId]: string }
+  const [vaceaderoKg,  setVaceaderoKg]  = useState({})
 
   useEffect(() => { cargar() }, [])
 
@@ -234,7 +237,31 @@ export default function RecogidaFundida() {
         }
       }
 
-      // 4. Marcar orden como completada
+      // 4. Entrada de VACEADERO si se registró
+      const kgVac = Number(vaceaderoKg[orden.id] || 0)
+      if (kgVac > 0 && fundBodegaId) {
+        const numVac = await generarNumero(perfil, 'ENT')
+        const { error: errVac } = await supabase.from('movimientos').insert({
+          numero:                numVac,
+          tipo:                  'entrada',
+          item_id:               VACEADERO_ITEM_ID,
+          bodega_destino_id:     fundBodegaId,
+          bodega_origen_id:      null,
+          cantidad:              kgVac,
+          precio_costo_snapshot: 0,
+          centro_costo:          'FUNDICIÓN',
+          usuario_id:            perfil.id,
+          proveedor:             'Producción interna',
+          referencia:            numOrden(orden.numero),
+          fecha_movimiento:      orden.fecha || null,
+          motivo:                'Vaceadero recogida fundición',
+          foto_remision_url: null, destino: null,
+          numero_of: null, serial_motor: null, cliente: null,
+        })
+        if (errVac) throw errVac
+      }
+
+      // 5. Marcar orden como completada
       const { error: errOrd } = await supabase.from('ordenes_moldeo')
         .update({ estado: 'completado' }).eq('id', orden.id)
       if (errOrd) throw errOrd
@@ -456,7 +483,8 @@ export default function RecogidaFundida() {
                     <p className="text-sm font-bold text-green-700">¡Recogida registrada!</p>
                     <p className="text-xs text-green-600 text-center">
                       Las piezas conformes ingresaron al inventario de FUNDICIÓN
-                      {fundidaSel[orden.id] ? ' y se descontó el hierro colado consumido.' : '.'}
+                      {fundidaSel[orden.id] ? ' · se descontó el hierro colado' : ''}
+                      {Number(vaceaderoKg[orden.id] || 0) > 0 ? ` · ${vaceaderoKg[orden.id]} kg de vaceadero registrados` : ''}.
                     </p>
                   </div>
                 )}
@@ -639,6 +667,27 @@ export default function RecogidaFundida() {
                       ))}
                     </div>
 
+                    {/* ── Vaceadero ── */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">♻️</span>
+                        <p className="text-xs font-bold text-yellow-800">Vaceadero (kg)</p>
+                      </div>
+                      <p className="text-xs text-yellow-700">El metal sobrante del vaceadero que quedó de esta fundición y que va a ser refundido. Se registrará como una <strong>entrada al inventario VACEADERO</strong>.</p>
+                      <input
+                        type="number" min="0" step="0.1"
+                        value={vaceaderoKg[orden.id] || ''}
+                        onChange={e => setVaceaderoKg(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                        placeholder="0.0 kg — opcional"
+                        className="w-full border-2 border-yellow-300 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-yellow-500 bg-white"
+                      />
+                      {Number(vaceaderoKg[orden.id] || 0) > 0 && (
+                        <p className="text-xs text-yellow-700 font-medium">
+                          ✓ Se registrarán <strong>{vaceaderoKg[orden.id]} kg</strong> de entrada al inventario VACEADERO.
+                        </p>
+                      )}
+                    </div>
+
                     {/* Resumen antes de guardar */}
                     {piezas.some(p => Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0) > 0) && (
                       <div className="bg-gray-100 rounded-xl px-4 py-3 flex justify-between text-sm font-semibold">
@@ -661,8 +710,9 @@ export default function RecogidaFundida() {
                       {guardando === orden.id ? 'Registrando…' : 'Registrar recogida y cerrar orden'}
                     </button>
                     <p className="text-xs text-gray-400 text-center -mt-1">
-                      Las piezas conformes entrarán al inventario de FUNDICIÓN
-                      {fundidaSel[orden.id] ? ' y se descontará el hierro colado automáticamente.' : '.'}
+                      Piezas conformes → inventario FUNDICIÓN
+                      {fundidaSel[orden.id] ? ' · hierro colado descontado' : ''}
+                      {Number(vaceaderoKg[orden.id] || 0) > 0 ? ' · vaceadero ingresado' : ''}.
                     </p>
 
                   </div>
