@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Wrench, Search, ChevronRight, X, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Wrench, Plus, Trash2, CheckCircle, AlertTriangle, ChevronDown } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
@@ -11,59 +11,64 @@ const CATEGORIAS_MECANIZABLES = new Set([
   'a735b04a-9bd7-424b-b695-1ac8ce1a5bf4', // FUNDICIÓN - MECANIZADOS
 ])
 
-export default function RegistroMecanizado() {
-  const [items, setItems]       = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [modal, setModal]       = useState(null)   // item seleccionado
-  const [cantidad, setCantidad] = useState('')
-  const [operario, setOperario] = useState('')
-  const [enviando, setEnviando] = useState(false)
-  const [alerta, setAlerta]     = useState(null)   // { tipo: 'ok'|'error', msg }
+function hoyISO() {
+  const d = new Date()
+  return d.toISOString().slice(0, 10)
+}
 
-  const cargarItems = useCallback(async () => {
+export default function RegistroMecanizado() {
+  // Catálogo de materia prima disponible
+  const [catalogo, setCatalogo]   = useState([])
+  const [cargando, setCargando]   = useState(true)
+
+  // Cabecera del registro
+  const [fecha, setFecha]         = useState(hoyISO())
+  const [operario, setOperario]   = useState('')
+
+  // Línea en construcción
+  const [selItem, setSelItem]     = useState('')   // id del item
+  const [cantidad, setCantidad]   = useState('')
+
+  // Líneas ya agregadas
+  const [lineas, setLineas]       = useState([])
+
+  // Estado de envío
+  const [enviando, setEnviando]   = useState(false)
+  const [alerta, setAlerta]       = useState(null) // { tipo, msg }
+
+  /* ── Cargar catálogo ─────────────────────────────────────── */
+  const cargarCatalogo = useCallback(async () => {
     setCargando(true)
     try {
-      // Traer todos los ítems del bodega MECANIZADOS con sus categorías
       const { data: rawItems, error } = await supabase
         .from('items')
-        .select('id, nombre, unidad, cantidad_inicial, categoria_id, categorias(nombre)')
+        .select('id, nombre, unidad, cantidad_inicial, categoria_id')
         .eq('bodega_id', BODEGA_MECANIZADOS)
         .eq('activo', true)
         .order('nombre')
 
       if (error) throw error
 
-      // Filtrar solo las categorías mecanizables
       const mecanizables = rawItems.filter(i => CATEGORIAS_MECANIZABLES.has(i.categoria_id))
+      if (!mecanizables.length) { setCatalogo([]); return }
 
-      if (mecanizables.length === 0) {
-        setItems([])
-        return
-      }
-
-      // Calcular stock desde movimientos
       const ids = mecanizables.map(i => i.id)
-      const { data: movs, error: eMovs } = await supabase
+      const { data: movs, error: eM } = await supabase
         .from('movimientos')
         .select('item_id, tipo, cantidad')
         .in('item_id', ids)
 
-      if (eMovs) throw eMovs
+      if (eM) throw eM
 
       const neto = {}
       for (const m of movs) {
-        if (!neto[m.item_id]) neto[m.item_id] = 0
-        neto[m.item_id] += m.tipo === 'entrada' ? m.cantidad : -m.cantidad
+        neto[m.item_id] = (neto[m.item_id] || 0) + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad)
       }
 
-      const resultado = mecanizables.map(i => ({
+      setCatalogo(mecanizables.map(i => ({
         ...i,
         stock: Math.max(0, (i.cantidad_inicial || 0) + (neto[i.id] || 0)),
-        categoria_nombre: i.categorias?.nombre || '',
-      }))
-
-      setItems(resultado)
+      })))
     } catch (e) {
       setAlerta({ tipo: 'error', msg: 'Error cargando productos: ' + e.message })
     } finally {
@@ -71,99 +76,80 @@ export default function RegistroMecanizado() {
     }
   }, [])
 
-  useEffect(() => { cargarItems() }, [cargarItems])
+  useEffect(() => { cargarCatalogo() }, [cargarCatalogo])
 
-  const abrirModal = (item) => {
-    setModal(item)
-    setCantidad('')
-    setOperario('')
-    setAlerta(null)
+  /* ── Stock real = catálogo − lo que ya agregué en líneas ─── */
+  const stockDisponible = (itemId) => {
+    const base = catalogo.find(i => i.id === itemId)?.stock ?? 0
+    const usado = lineas.filter(l => l.itemId === itemId).reduce((s, l) => s + l.cantidad, 0)
+    return Math.max(0, base - usado)
   }
 
-  const cerrarModal = () => {
-    if (enviando) return
-    setModal(null)
+  /* ── Agregar línea ───────────────────────────────────────── */
+  const agregarLinea = () => {
     setAlerta(null)
-  }
-
-  const ejecutarMecanizado = async () => {
+    if (!selItem) { setAlerta({ tipo: 'error', msg: 'Selecciona un producto.' }); return }
     const cant = parseFloat(cantidad)
-    if (!cant || cant <= 0) {
-      setAlerta({ tipo: 'error', msg: 'Ingresa una cantidad válida.' })
-      return
-    }
-    if (cant > modal.stock) {
-      setAlerta({ tipo: 'error', msg: `Stock insuficiente. Disponible: ${modal.stock} ${modal.unidad}` })
-      return
-    }
-    if (!operario.trim()) {
-      setAlerta({ tipo: 'error', msg: 'Ingresa el nombre del operario.' })
-      return
-    }
+    if (!cant || cant <= 0) { setAlerta({ tipo: 'error', msg: 'Ingresa una cantidad válida.' }); return }
+    const disp = stockDisponible(selItem)
+    if (cant > disp) { setAlerta({ tipo: 'error', msg: `Stock insuficiente. Disponible: ${disp}` }); return }
+
+    const item = catalogo.find(i => i.id === selItem)
+    setLineas(prev => [...prev, { itemId: item.id, nombre: item.nombre, unidad: item.unidad, cantidad: cant }])
+    setSelItem('')
+    setCantidad('')
+  }
+
+  const eliminarLinea = (idx) => setLineas(prev => prev.filter((_, i) => i !== idx))
+
+  /* ── Confirmar registro ──────────────────────────────────── */
+  const confirmar = async () => {
+    setAlerta(null)
+    if (!operario.trim()) { setAlerta({ tipo: 'error', msg: 'Ingresa el nombre del operario.' }); return }
+    if (!fecha) { setAlerta({ tipo: 'error', msg: 'Selecciona la fecha.' }); return }
+    if (!lineas.length) { setAlerta({ tipo: 'error', msg: 'Agrega al menos un producto.' }); return }
 
     setEnviando(true)
-    setAlerta(null)
-
     try {
-      // Buscar el ítem destino: mismo nombre + ' - MECANIZADO', categoría PRODUCTO MECANIZADO
-      const nombreDestino = modal.nombre.trim() + ' - MECANIZADO'
-      const { data: destinos, error: eDest } = await supabase
-        .from('items')
-        .select('id, nombre')
-        .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
-        .ilike('nombre', nombreDestino)
-        .eq('activo', true)
-        .limit(1)
+      // Resolver ítems destino en paralelo
+      const destinos = await Promise.all(lineas.map(async (l) => {
+        const nombreDest = l.nombre.trim() + ' - MECANIZADO'
+        const { data, error } = await supabase
+          .from('items')
+          .select('id')
+          .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
+          .ilike('nombre', nombreDest)
+          .eq('activo', true)
+          .limit(1)
+        if (error) throw error
+        if (!data?.length) throw new Error(`No se encontró "${nombreDest}" en PRODUCTO MECANIZADO.`)
+        return data[0].id
+      }))
 
-      if (eDest) throw eDest
-      if (!destinos || destinos.length === 0) {
-        throw new Error(`No se encontró el producto destino "${nombreDestino}". Verifica que exista en PRODUCTO MECANIZADO.`)
-      }
+      const fechaISO  = new Date(fecha + 'T12:00:00').toISOString()
+      const motivo    = `Mecanizado por: ${operario.trim()}`
+      const movs      = []
 
-      const destino = destinos[0]
-      const motivo  = `Mecanizado por: ${operario.trim()}`
-      const ahora   = new Date().toISOString()
-
-      // 1) Salida del ítem de materia prima
-      const { error: eSal } = await supabase
-        .from('movimientos')
-        .insert({
-          item_id:               modal.id,
+      lineas.forEach((l, i) => {
+        const base = {
           bodega_origen_id:      BODEGA_MECANIZADOS,
-          tipo:                  'salida',
-          cantidad:              cant,
           precio_costo_snapshot: 0,
           motivo,
-          fecha_movimiento:      ahora,
+          fecha_movimiento:      fechaISO,
           centro_costo:          'Construequipos',
-        })
+        }
+        movs.push({ ...base, item_id: l.itemId,    tipo: 'salida',  cantidad: l.cantidad })
+        movs.push({ ...base, item_id: destinos[i], tipo: 'entrada', cantidad: l.cantidad })
+      })
 
-      if (eSal) throw eSal
+      const { error } = await supabase.from('movimientos').insert(movs)
+      if (error) throw error
 
-      // 2) Entrada al ítem mecanizado
-      const { error: eEnt } = await supabase
-        .from('movimientos')
-        .insert({
-          item_id:               destino.id,
-          bodega_origen_id:      BODEGA_MECANIZADOS,
-          tipo:                  'entrada',
-          cantidad:              cant,
-          precio_costo_snapshot: 0,
-          motivo,
-          fecha_movimiento:      ahora,
-          centro_costo:          'Construequipos',
-        })
-
-      if (eEnt) throw eEnt
-
-      setAlerta({ tipo: 'ok', msg: `✓ ${cant} ${modal.unidad} de "${modal.nombre}" mecanizadas por ${operario.trim()}.` })
-      await cargarItems()
-
-      // Cerrar modal después de un momento
-      setTimeout(() => {
-        setModal(null)
-        setAlerta(null)
-      }, 2000)
+      setAlerta({ tipo: 'ok', msg: `✓ Registro guardado: ${lineas.length} producto(s) mecanizados por ${operario.trim()}.` })
+      setLineas([])
+      setOperario('')
+      setFecha(hoyISO())
+      await cargarCatalogo()
     } catch (e) {
       setAlerta({ tipo: 'error', msg: e.message })
     } finally {
@@ -171,170 +157,168 @@ export default function RegistroMecanizado() {
     }
   }
 
-  const filtrados = items.filter(i =>
-    i.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    i.categoria_nombre.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const itemSeleccionado = catalogo.find(i => i.id === selItem)
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6">
+
       {/* Encabezado */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#064794' }}>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#064794' }}>
           <Wrench className="w-5 h-5 text-white" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Registro de mecanizado</h1>
-          <p className="text-sm text-gray-500">Transforma materia prima en producto mecanizado</p>
+          <p className="text-sm text-gray-500">Registra la transformación de materia prima</p>
         </div>
       </div>
 
-      {/* Buscador */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Buscar producto o categoría..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* ── SECCIÓN 1: Cabecera del registro ── */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Información del turno</h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={e => setFecha(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Operario <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={operario}
+              onChange={e => setOperario(e.target.value)}
+              placeholder="Nombre del operario"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Lista */}
-      {cargando ? (
-        <div className="flex justify-center py-16"><Spinner /></div>
-      ) : filtrados.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <Wrench className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p>{busqueda ? 'Sin resultados para tu búsqueda.' : 'No hay productos mecanizables en bodega.'}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtrados.map(item => (
-            <button
-              key={item.id}
-              onClick={() => abrirModal(item)}
-              className="w-full flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-sm transition-all text-left"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{item.nombre}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.categoria_nombre}</p>
-              </div>
-              <div className="flex items-center gap-4 ml-4">
-                <div className="text-right">
-                  <p className={`text-sm font-semibold ${item.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {item.stock} {item.unidad}
-                  </p>
-                  <p className="text-xs text-gray-400">en stock</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── SECCIÓN 2: Agregar líneas ── */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Agregar productos</h2>
 
-      {/* Modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            {/* Header modal */}
-            <div className="flex items-center justify-between p-5 border-b">
-              <div>
-                <h2 className="font-bold text-gray-900">Mecanizar producto</h2>
-                <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{modal.nombre}</p>
+        {cargando ? (
+          <div className="flex justify-center py-6"><Spinner /></div>
+        ) : (
+          <div className="space-y-3">
+            {/* Selector de producto */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Producto (materia prima)</label>
+              <div className="relative">
+                <select
+                  value={selItem}
+                  onChange={e => { setSelItem(e.target.value); setCantidad('') }}
+                  className="w-full appearance-none border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white pr-9"
+                >
+                  <option value="">-- Selecciona un producto --</option>
+                  {catalogo.map(i => (
+                    <option key={i.id} value={i.id} disabled={stockDisponible(i.id) === 0}>
+                      {i.nombre} — Stock: {stockDisponible(i.id)} {i.unidad}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
-              <button onClick={cerrarModal} className="p-1 rounded-lg hover:bg-gray-100">
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
             </div>
 
-            <div className="p-5 space-y-4">
-              {/* Stock disponible */}
-              <div className="bg-gray-50 rounded-lg px-4 py-3 flex justify-between items-center">
-                <span className="text-sm text-gray-600">Stock disponible</span>
-                <span className={`font-bold ${modal.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                  {modal.stock} {modal.unidad}
-                </span>
-              </div>
-
-              {/* Cantidad */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cantidad a mecanizar <span className="text-red-500">*</span>
-                </label>
+            {/* Cantidad */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+              <div className="flex gap-2">
                 <input
                   type="number"
                   min="0.01"
                   step="0.01"
-                  max={modal.stock}
+                  max={selItem ? stockDisponible(selItem) : undefined}
                   value={cantidad}
                   onChange={e => setCantidad(e.target.value)}
-                  placeholder={`Máx. ${modal.stock}`}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
+                  placeholder={selItem ? `Máx. ${stockDisponible(selItem)} ${itemSeleccionado?.unidad ?? ''}` : 'Selecciona un producto primero'}
+                  disabled={!selItem}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
                 />
+                <button
+                  onClick={agregarLinea}
+                  disabled={!selItem || !cantidad}
+                  className="px-4 py-2.5 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-40"
+                  style={{ backgroundColor: '#064794' }}
+                >
+                  <Plus className="w-4 h-4" /> Agregar
+                </button>
               </div>
+            </div>
 
-              {/* Operario */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre del operario <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={operario}
-                  onChange={e => setOperario(e.target.value)}
-                  placeholder="Ej: Juan Pérez"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+            {/* Info destino */}
+            {selItem && (
+              <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+                → Producto destino: <strong>{itemSeleccionado?.nombre} - MECANIZADO</strong>
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Producto destino (informativo) */}
-              <div className="bg-blue-50 rounded-lg px-4 py-3">
-                <p className="text-xs text-blue-600 font-medium">Producto destino</p>
-                <p className="text-sm text-blue-900 mt-0.5">{modal.nombre} - MECANIZADO</p>
-              </div>
+      {/* ── SECCIÓN 3: Líneas agregadas ── */}
+      {lineas.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            Productos a mecanizar <span className="ml-1 text-blue-600">({lineas.length})</span>
+          </h2>
 
-              {/* Alerta */}
-              {alerta && (
-                <div className={`flex items-start gap-2 rounded-lg px-4 py-3 text-sm ${
-                  alerta.tipo === 'ok'
-                    ? 'bg-green-50 text-green-800'
-                    : 'bg-red-50 text-red-700'
-                }`}>
-                  {alerta.tipo === 'ok'
-                    ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  }
-                  <span>{alerta.msg}</span>
+          <div className="space-y-2">
+            {lineas.map((l, i) => (
+              <div key={i} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{l.nombre}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">→ {l.nombre} - MECANIZADO</p>
                 </div>
-              )}
-            </div>
-
-            {/* Footer modal */}
-            <div className="flex gap-3 p-5 pt-0">
-              <button
-                onClick={cerrarModal}
-                disabled={enviando}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={ejecutarMecanizado}
-                disabled={enviando || modal.stock === 0}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ backgroundColor: '#064794' }}
-              >
-                {enviando ? <Spinner className="w-4 h-4" /> : <Wrench className="w-4 h-4" />}
-                {enviando ? 'Registrando...' : 'Confirmar'}
-              </button>
-            </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-blue-700">{l.cantidad} {l.unidad}</span>
+                  <button onClick={() => eliminarLinea(i)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
+
+      {/* Alerta */}
+      {alerta && (
+        <div className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm ${
+          alerta.tipo === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'
+        }`}>
+          {alerta.tipo === 'ok'
+            ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          }
+          <span>{alerta.msg}</span>
+        </div>
+      )}
+
+      {/* Botón confirmar */}
+      <button
+        onClick={confirmar}
+        disabled={enviando || !lineas.length || !operario.trim() || !fecha}
+        className="w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{ backgroundColor: '#B4271D' }}
+      >
+        {enviando ? <Spinner className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
+        {enviando ? 'Guardando...' : `Confirmar registro${lineas.length ? ` (${lineas.length} producto${lineas.length > 1 ? 's' : ''})` : ''}`}
+      </button>
+
     </div>
   )
 }
