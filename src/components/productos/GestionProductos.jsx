@@ -47,10 +47,10 @@ export default function GestionProductos() {
       setCargando(false); return
     }
 
-    // Construir base de query de items (sin límite fijo — usamos range para superar max-rows=1000 de PostgREST)
+    // Construir base de query de items — stock embebido para no depender de query separada
     const buildItemsQ = (from, to) => {
       let q = supabase.from('items')
-        .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
+        .select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(item_id, bodega_id, cantidad_actual)')
         .order('nombre').range(from, to)
       if (!esAdmin && !esLogistica && bodegasPermitidas) q = q.in('bodega_id', bodegasPermitidas)
       return q
@@ -61,28 +61,39 @@ export default function GestionProductos() {
       { data: it2 },
       { data: cats, error: e2 },
       { data: bods, error: e3 },
-      { data: st1, error: e4 },
-      { data: st2 },
     ] = await Promise.all([
       buildItemsQ(0, 999),
       buildItemsQ(1000, 1999),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 999),
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(1000, 1999),
     ])
-    const stockData = [...(st1 || []), ...(st2 || [])]
-    if (e1 || e2 || e3 || e4) {
-      const errMsg = (e1 || e2 || e3 || e4)?.message || 'Error desconocido'
+    if (e1 || e2 || e3) {
+      const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
     const it = [...(it1 || []), ...(it2 || [])]
 
-    // Índice de stock: { item_id: [ {bodega_id, cantidad_actual} ] }
+    // Índice de stock construido desde el stock embebido en cada item
     const stockIdx = {}
-    for (const s of (stockData || [])) {
+    for (const i of it) {
+      for (const s of (i.stock || [])) {
+        if (!stockIdx[i.id]) stockIdx[i.id] = []
+        stockIdx[i.id].push({ bodega_id: s.bodega_id, cantidad_actual: s.cantidad_actual })
+      }
+    }
+
+    // También traemos stock separado para la lógica de "extra items" (usuarios con bodegas limitadas)
+    const { data: stockData } = await supabase
+      .from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 999)
+    const { data: stockData2 } = await supabase
+      .from('stock').select('item_id, bodega_id, cantidad_actual').range(1000, 1999)
+    const allStock = [...(stockData || []), ...(stockData2 || [])]
+    for (const s of allStock) {
       if (!stockIdx[s.item_id]) stockIdx[s.item_id] = []
-      stockIdx[s.item_id].push({ bodega_id: s.bodega_id, cantidad_actual: s.cantidad_actual })
+      // Evitar duplicados si ya lo tenemos del join embebido
+      if (!stockIdx[s.item_id].some(x => x.bodega_id === s.bodega_id)) {
+        stockIdx[s.item_id].push({ bodega_id: s.bodega_id, cantidad_actual: s.cantidad_actual })
+      }
     }
 
     let todosItems = (it || []).map(i => ({ ...i, stock: stockIdx[i.id] || [] }))
@@ -90,7 +101,7 @@ export default function GestionProductos() {
     // Para usuarios no-admin/no-logistica: mostrar también ítems de otras bodegas con stock aquí
     if (!esAdmin && !esLogistica && bodegasPermitidas && bodegasPermitidas.length > 0) {
       const ownIds = new Set(todosItems.map(i => i.id))
-      const extraIds = (stockData || [])
+      const extraIds = (allStock || [])
         .filter(s => bodegasPermitidas.includes(s.bodega_id) && s.cantidad_actual > 0 && !ownIds.has(s.item_id))
         .map(s => s.item_id)
       if (extraIds.length > 0) {
