@@ -79,8 +79,8 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
   const cutoff90  = new Date(hoy - 90  * 86400000).toISOString().split('T')[0]
   const cutoff180 = new Date(hoy - 180 * 86400000).toISOString().split('T')[0]
   const activos   = st.filter(s => s.cantidad_actual > 0)
-  const sinMov90  = activos.filter(s => !lastMov[s.item_id] || lastMov[s.item_id] < cutoff90)
-  const sinMov180 = activos.filter(s => !lastMov[s.item_id] || lastMov[s.item_id] < cutoff180)
+  const sinMov90  = activos.filter(s => lastMov[s.item_id] && lastMov[s.item_id] < cutoff90)
+  const sinMov180 = activos.filter(s => lastMov[s.item_id] && lastMov[s.item_id] < cutoff180)
 
   // ── ABC Analysis ─────────────────────────────────────────────────────────
   // Incluye todas las salidas (externas + transferencias internas)
