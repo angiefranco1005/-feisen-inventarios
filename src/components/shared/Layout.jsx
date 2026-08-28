@@ -1,21 +1,22 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
 
 const NAV_ADMIN = [
-  { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/analitica',         icon: Activity,        label: 'Analítica' },
-  { to: '/productos',         icon: Package,         label: 'Productos' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/reportes',          icon: TrendingUp,       label: 'Informes' },
-  { to: '/config',            icon: Settings,         label: 'Configuración' },
+  { to: '/dashboard',             icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/analitica',             icon: Activity,        label: 'Analítica' },
+  { to: '/productos',             icon: Package,         label: 'Productos' },
+  { to: '/movimientos',           icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo',     icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/mecanizados/registro',  icon: Wrench,           label: 'Mecanizado' },
+  { to: '/pedidos',               icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
+  { to: '/config',                icon: Settings,         label: 'Configuración' },
 ]
 
 const NAV_LOGISTICA = [
@@ -50,6 +51,7 @@ const NAV_JEFE_FUNDICION = [
 
 const NAV_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/mecanizados/registro',           icon: Wrench,           label: 'Mecanizado' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },

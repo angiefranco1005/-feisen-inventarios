@@ -27,6 +27,7 @@ import GestionBOM          from './components/fundicion/GestionBOM'
 import RecogidaFundida     from './components/fundicion/RecogidaFundida'
 import AnaliticaFundicion  from './components/fundicion/AnaliticaFundicion'
 import InformeNomina       from './components/reportes/InformeNomina'
+import RegistroMecanizado  from './components/mecanizados/RegistroMecanizado'
 
 function Cargando() {
   return (
@@ -133,13 +134,14 @@ function AppRoutes() {
   if (rolEfectivo === 'JEFE_MECANIZADOS') {
     return (
       <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
+        <Route path="/"                     element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/dashboard"            element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/productos"            element={<Layout><GestionProductos /></Layout>} />
+        <Route path="/movimientos/nuevo"    element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
+        <Route path="/movimientos"          element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"              element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="/mecanizados/registro" element={<Layout><RegistroMecanizado /></Layout>} />
+        <Route path="*"                     element={<Navigate to="/dashboard" replace />} />
       </Routes>
     )
   }
@@ -165,9 +167,10 @@ function AppRoutes() {
       <Route path="/moldeo/nueva"      element={<Layout><CrearOrdenMoldeo /></Layout>} />
       <Route path="/moldeo/catalogo"   element={<Layout><GestionBOM /></Layout>} />
       <Route path="/recogida"          element={<Layout><RecogidaFundida /></Layout>} />
-      <Route path="/nomina/fundicion"  element={<Layout><InformeNomina /></Layout>} />
-      <Route path="/analitica/fundicion" element={<Layout><AnaliticaFundicion /></Layout>} />
-      <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
+      <Route path="/nomina/fundicion"       element={<Layout><InformeNomina /></Layout>} />
+      <Route path="/analitica/fundicion"    element={<Layout><AnaliticaFundicion /></Layout>} />
+      <Route path="/mecanizados/registro"   element={<Layout><RegistroMecanizado /></Layout>} />
+      <Route path="*"                       element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
