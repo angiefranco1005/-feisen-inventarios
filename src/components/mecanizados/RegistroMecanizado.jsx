@@ -42,7 +42,7 @@ export default function RegistroMecanizado() {
     try {
       const { data: rawItems, error } = await supabase
         .from('items')
-        .select('id, nombre, unidad, cantidad_inicial, categoria_id')
+        .select('id, nombre, unidad_medida, categoria_id')
         .eq('bodega_id', BODEGA_MECANIZADOS)
         .eq('activo', true)
         .order('nombre')
@@ -67,7 +67,8 @@ export default function RegistroMecanizado() {
 
       setCatalogo(mecanizables.map(i => ({
         ...i,
-        stock: Math.max(0, (i.cantidad_inicial || 0) + (neto[i.id] || 0)),
+        unidad: i.unidad_medida || 'und',
+        stock: Math.max(0, neto[i.id] || 0),
       })))
     } catch (e) {
       setAlerta({ tipo: 'error', msg: 'Error cargando productos: ' + e.message })
@@ -126,7 +127,6 @@ export default function RegistroMecanizado() {
         return data[0].id
       }))
 
-      const fechaISO  = new Date(fecha + 'T12:00:00').toISOString()
       const motivo    = `Mecanizado por: ${operario.trim()}`
       const movs      = []
 
@@ -135,7 +135,7 @@ export default function RegistroMecanizado() {
           bodega_origen_id:      BODEGA_MECANIZADOS,
           precio_costo_snapshot: 0,
           motivo,
-          fecha_movimiento:      fechaISO,
+          fecha_movimiento:      fecha,
           centro_costo:          'Construequipos',
         }
         movs.push({ ...base, item_id: l.itemId,    tipo: 'salida',  cantidad: l.cantidad })
