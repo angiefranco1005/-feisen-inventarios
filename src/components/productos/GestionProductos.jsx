@@ -5,10 +5,18 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History, Wrench } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
+
+const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
+const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
+const CATEGORIAS_MECANIZABLES = new Set([
+  'cfa47941-3a0e-4fc8-a9c5-6a676bbb5c50', // FERRETERIA - MECANIZADOS
+  '549c8036-364a-433b-b18f-d4a444c9f9a2', // ACEROS
+  'a735b04a-9bd7-424b-b695-1ac8ce1a5bf4', // FUNDICIÓN - MECANIZADOS
+])
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -31,6 +39,12 @@ export default function GestionProductos() {
   const [subiendo,   setSubiendo]   = useState(false)
   const [pagina,     setPagina]     = useState(1)
   const POR_PAGINA = 20
+
+  // ── Estado modal Mecanizar ──────────────────────────────────────────────────
+  const [modalMecanizar,  setModalMecanizar]  = useState(false)
+  const [itemMecanizar,   setItemMecanizar]   = useState(null)
+  const [formMec,         setFormMec]         = useState({ cantidad: '1', operario: '' })
+  const [guardandoMec,    setGuardandoMec]    = useState(false)
 
   const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', stock_maximo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0' }
   const [form, setForm] = useState(FORM0)
@@ -222,6 +236,80 @@ export default function GestionProductos() {
     }
     await supabase.from('items').delete().eq('id', item.id)
     setConfirm(null)
+    cargar()
+  }
+
+  // ── Mecanizado ─────────────────────────────────────────────────────────────
+  function abrirMecanizar(item) {
+    setItemMecanizar(item)
+    setFormMec({ cantidad: '1', operario: '' })
+    setMsg(null)
+    setModalMecanizar(true)
+  }
+
+  async function ejecutarMecanizado(e) {
+    e.preventDefault()
+    setMsg(null)
+    setGuardandoMec(true)
+
+    const cantidad = parseFloat(formMec.cantidad)
+    if (!cantidad || cantidad <= 0) {
+      setMsg({ tipo: 'error', texto: 'Ingresa una cantidad válida.' })
+      setGuardandoMec(false); return
+    }
+
+    const stockDisp = getStock(itemMecanizar)
+    if (stockDisp !== null && cantidad > stockDisp) {
+      setMsg({ tipo: 'error', texto: `Stock insuficiente. Disponible: ${stockDisp}` })
+      setGuardandoMec(false); return
+    }
+
+    // Buscar el item destino "- MECANIZADO"
+    const nombreTarget = itemMecanizar.nombre + ' - MECANIZADO'
+    const itemTarget = items.find(i =>
+      i.nombre.toUpperCase().trim() === nombreTarget.toUpperCase().trim() &&
+      i.categoria_id === CAT_PRODUCTO_MECANIZADO &&
+      i.bodega_id === BODEGA_MECANIZADOS
+    )
+    if (!itemTarget) {
+      setMsg({ tipo: 'error', texto: `No se encontró "${nombreTarget}" en la base de datos.` })
+      setGuardandoMec(false); return
+    }
+
+    const hoy    = new Date().toISOString().split('T')[0]
+    const motivo = formMec.operario.trim()
+      ? `Mecanizado por: ${formMec.operario.trim()}`
+      : 'Proceso de mecanizado'
+
+    // Salida de materia prima
+    const { error: e1 } = await supabase.from('movimientos').insert({
+      item_id:               itemMecanizar.id,
+      bodega_origen_id:      BODEGA_MECANIZADOS,
+      tipo:                  'salida',
+      cantidad,
+      precio_costo_snapshot: itemMecanizar.precio_costo || 0,
+      motivo,
+      fecha_movimiento:      hoy,
+      centro_costo:          'MECANIZADOS',
+    })
+    if (e1) { setMsg({ tipo: 'error', texto: 'Error al registrar salida: ' + e1.message }); setGuardandoMec(false); return }
+
+    // Entrada a producto mecanizado
+    const { error: e2 } = await supabase.from('movimientos').insert({
+      item_id:               itemTarget.id,
+      bodega_origen_id:      BODEGA_MECANIZADOS,
+      tipo:                  'entrada',
+      cantidad,
+      precio_costo_snapshot: itemTarget.precio_costo || 0,
+      motivo,
+      fecha_movimiento:      hoy,
+      centro_costo:          'MECANIZADOS',
+    })
+    if (e2) { setMsg({ tipo: 'error', texto: 'Error al registrar entrada: ' + e2.message }); setGuardandoMec(false); return }
+
+    setModalMecanizar(false)
+    setGuardandoMec(false)
+    setMsg({ tipo: 'exito', texto: `✅ ${cantidad} und mecanizadas correctamente.` })
     cargar()
   }
 
@@ -444,6 +532,12 @@ export default function GestionProductos() {
                     {puedeEditar && (
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          {CATEGORIAS_MECANIZABLES.has(item.categoria_id) && item.bodega_id === BODEGA_MECANIZADOS && (
+                            <button onClick={() => abrirMecanizar(item)} title="Registrar mecanizado"
+                              className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg">
+                              <Wrench size={15} />
+                            </button>
+                          )}
                           <button onClick={() => navigate(`/movimientos?item=${item.id}`)} title="Ver historial de movimientos"
                             className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
                             <History size={15} />
@@ -504,6 +598,55 @@ export default function GestionProductos() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* MODAL MECANIZAR */}
+      {modalMecanizar && itemMecanizar && (
+        <Modal titulo="Registrar mecanizado" onCerrar={() => setModalMecanizar(false)}>
+          <form onSubmit={ejecutarMecanizado} className="space-y-4">
+            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-xs w-24">Materia prima</span>
+                <span className="font-semibold text-gray-800">{itemMecanizar.nombre}</span>
+              </div>
+              <div className="flex items-center gap-2 text-orange-400 text-xs pl-1">↓ se transforma en</div>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 text-xs w-24">Producto final</span>
+                <span className="font-semibold text-orange-700">{itemMecanizar.nombre} - MECANIZADO</span>
+              </div>
+              <p className="text-xs text-gray-400 pt-1">Stock disponible: <strong>{getStock(itemMecanizar)}</strong> {itemMecanizar.unidad_medida}</p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Cantidad *</label>
+              <input required type="number" min="0.001" step="0.001"
+                value={formMec.cantidad}
+                onChange={e => setFormMec(f => ({ ...f, cantidad: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                placeholder="1" />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Operario</label>
+              <input type="text"
+                value={formMec.operario}
+                onChange={e => setFormMec(f => ({ ...f, operario: e.target.value }))}
+                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                placeholder="Nombre del operario (opcional)" />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={() => setModalMecanizar(false)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="submit" disabled={guardandoMec}
+                className="flex-1 bg-orange-500 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+                <Wrench size={15} /> {guardandoMec ? 'Registrando...' : 'Confirmar mecanizado'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* MODAL ELIMINAR */}
