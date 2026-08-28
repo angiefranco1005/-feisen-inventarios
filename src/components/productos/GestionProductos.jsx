@@ -61,16 +61,19 @@ export default function GestionProductos() {
       { data: it2 },
       { data: cats, error: e2 },
       { data: bods, error: e3 },
-      { data: stockData },
+      { data: st1, error: e4 },
+      { data: st2 },
     ] = await Promise.all([
       buildItemsQ(0, 999),
       buildItemsQ(1000, 1999),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 9999),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 999),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(1000, 1999),
     ])
-    if (e1 || e2 || e3) {
-      const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
+    const stockData = [...(st1 || []), ...(st2 || [])]
+    if (e1 || e2 || e3 || e4) {
+      const errMsg = (e1 || e2 || e3 || e4)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
     const it = [...(it1 || []), ...(it2 || [])]
