@@ -117,6 +117,12 @@ export default function RegistroMecanizado() {
 
     setEnviando(true)
     try {
+      // Generar código MEC-XXXX
+      const { count } = await supabase
+        .from('movimientos').select('*', { count: 'exact', head: true })
+        .like('numero', 'MEC-%')
+      const numeroMec = `MEC-${String((count || 0) + 1).padStart(4, '0')}`
+
       const destinos = await Promise.all(lineas.map(async (l) => {
         const nombreDest = l.nombre.trim() + ' - MECANIZADO'
         const { data, error } = await supabase
@@ -134,7 +140,7 @@ export default function RegistroMecanizado() {
       const motivo = `Mecanizado por: ${operario.trim()}`
       const movs   = []
       lineas.forEach((l, i) => {
-        const base = { bodega_origen_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: 'MECANIZADOS', usuario_id: usuarioId }
+        const base = { bodega_origen_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: 'MECANIZADOS', usuario_id: usuarioId, numero: numeroMec }
         movs.push({ ...base, item_id: l.itemId,    tipo: 'salida',  cantidad: l.cantidad })
         movs.push({ ...base, item_id: destinos[i], tipo: 'entrada', cantidad: l.cantidad })
       })
