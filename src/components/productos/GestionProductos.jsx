@@ -290,7 +290,7 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemMecanizar.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'Construequipos',
+      centro_costo:          'MECANIZADOS',
       usuario_id:            perfil?.id,
     })
     if (e1) { setMsg({ tipo: 'error', texto: 'Error al registrar salida: ' + e1.message }); setGuardandoMec(false); return }
@@ -304,7 +304,7 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemTarget.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'Construequipos',
+      centro_costo:          'MECANIZADOS',
       usuario_id:            perfil?.id,
     })
     if (e2) { setMsg({ tipo: 'error', texto: 'Error al registrar entrada: ' + e2.message }); setGuardandoMec(false); return }

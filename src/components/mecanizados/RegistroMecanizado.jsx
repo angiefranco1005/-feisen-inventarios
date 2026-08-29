@@ -134,7 +134,7 @@ export default function RegistroMecanizado() {
       const motivo = `Mecanizado por: ${operario.trim()}`
       const movs   = []
       lineas.forEach((l, i) => {
-        const base = { bodega_origen_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: 'Construequipos', usuario_id: usuarioId }
+        const base = { bodega_origen_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: 'MECANIZADOS', usuario_id: usuarioId }
         movs.push({ ...base, item_id: l.itemId,    tipo: 'salida',  cantidad: l.cantidad })
         movs.push({ ...base, item_id: destinos[i], tipo: 'entrada', cantidad: l.cantidad })
       })
