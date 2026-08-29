@@ -548,21 +548,38 @@ export default function RegistrarMovimientoAlmacenista() {
       // ── Transferencia interna: crear entrada automática en bodega destino ──
       if (esInterna && destinoBodegaId) {
         const numeroRec = await generarNumero('REC')
-        const entradas = agrupados.map(p => ({
-          numero:                numeroRec,
-          tipo:                  'entrada',
-          item_id:               p.item_id,
-          bodega_destino_id:     destinoBodegaId,
-          bodega_origen_id:      bodega.id,
-          cantidad:              p.cantidad,
-          precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
-          centro_costo:          destNombre,
-          usuario_id:            perfil.id,
-          referencia:            `Transferencia desde ${bodega.nombre}`,
-          fecha_movimiento:      fechaMov || null,
-          proveedor: null, pedido_id: null, destino: null, numero_of: null,
-          serial_motor: null, motivo: null, cliente: null, foto_remision_url: null,
-        }))
+
+        // Buscar el item_id correcto en la bodega DESTINO por nombre
+        const nombresOrigen = agrupados.map(p => items.find(i => i.id === p.item_id)?.nombre).filter(Boolean)
+        const { data: itemsDest } = await supabase
+          .from('items')
+          .select('id, nombre')
+          .eq('bodega_id', destinoBodegaId)
+          .eq('activo', true)
+          .in('nombre', nombresOrigen)
+
+        const mapaDestino = {}
+        for (const it of (itemsDest || [])) mapaDestino[it.nombre] = it.id
+
+        const entradas = agrupados.map(p => {
+          const nombreOrigen = items.find(i => i.id === p.item_id)?.nombre
+          const itemIdDest   = mapaDestino[nombreOrigen] || p.item_id // fallback al origen si no existe en destino
+          return {
+            numero:                numeroRec,
+            tipo:                  'entrada',
+            item_id:               itemIdDest,
+            bodega_destino_id:     destinoBodegaId,
+            bodega_origen_id:      bodega.id,
+            cantidad:              p.cantidad,
+            precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+            centro_costo:          destNombre,
+            usuario_id:            perfil.id,
+            referencia:            `Transferencia desde ${bodega.nombre}`,
+            fecha_movimiento:      fechaMov || null,
+            proveedor: null, pedido_id: null, destino: null, numero_of: null,
+            serial_motor: null, motivo: null, cliente: null, foto_remision_url: null,
+          }
+        })
         const { error: errEnt } = await supabase.from('movimientos').insert(entradas)
         if (errEnt) {
           setError(`Salida registrada (${numero}), pero error al crear la entrada automática en ${destNombre}: ` + errEnt.message)
