@@ -264,6 +264,7 @@ export default function RegistrarMovimientoAlmacenista() {
   const [numeroOrden,    setNumeroOrden]    = useState('')
   const [colaborador,    setColaborador]    = useState('')
   const [firmaReceptorUrl, setFirmaReceptorUrl] = useState(null)
+  const [destinoMec,     setDestinoMec]     = useState('')  // 'ALMACEN' | 'SOLDADURA'
 
   const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
@@ -502,6 +503,7 @@ export default function RegistrarMovimientoAlmacenista() {
     if (esInterna && !destinoBodegaId)                                                { setError('Selecciona el destino interno.'); return }
     if (!firmaDataUrl && !(esMecanizados && tipoSalidaMec === 'produccion'))           { setError('Se requiere la firma del responsable.'); return }
     if (esMecanizados && tipoSalidaMec === 'externa' && !numeroOrden.trim())          { setError('Ingresa el N° de orden.'); return }
+    if (esMecanizados && tipoSalidaMec === 'produccion' && !destinoMec)               { setError('Selecciona el destino (Almacén o Soldadura y Armado).'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !colaborador.trim())       { setError('Ingresa el colaborador que recibe.'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !firmaReceptorUrl)         { setError('Se requiere la firma del colaborador que recibe.'); return }
 
@@ -544,7 +546,7 @@ export default function RegistrarMovimientoAlmacenista() {
                                  ? colaborador.trim()
                                  : (!esFundicion && !esMecanizados ? receptor.trim() : null),
         referencia:            notas.trim() || null,
-        destino:               esMecanizados && tipoSalidaMec === 'produccion' ? 'Producción interna' : destNombre,
+        destino:               esMecanizados && tipoSalidaMec === 'produccion' ? destinoMec : destNombre,
         numero_of:             esExternaFundic ? numeroOF.trim()
                                  : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
         foto_remision_url:     firmaDataUrl,
@@ -567,6 +569,7 @@ export default function RegistrarMovimientoAlmacenista() {
       setNumeroOrden('')
       setColaborador('')
       setTipoSalidaMec('externa')
+      setDestinoMec('')
       setFechaMov(HOY_COL)
       setFormKey(k => k + 1)
       setExito(true)
@@ -895,6 +898,25 @@ export default function RegistrarMovimientoAlmacenista() {
 
               {tipoSalidaMec === 'produccion' && (
                 <>
+                  {/* Destino */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">¿A dónde va? *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button"
+                        onClick={() => setDestinoMec('ALMACEN')}
+                        className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
+                          ${destinoMec === 'ALMACEN' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        🏬 Almacén
+                      </button>
+                      <button type="button"
+                        onClick={() => setDestinoMec('SOLDADURA Y ARMADO')}
+                        className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
+                          ${destinoMec === 'SOLDADURA Y ARMADO' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                        🔧 Soldadura y Armado
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
                     <InputConSugerencias
