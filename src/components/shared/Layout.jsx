@@ -82,7 +82,7 @@ const MOBILE_ALMACENISTA = [
 ]
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/mecanizados/registro',           icon: Wrench,          label: 'Mecanizado' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
