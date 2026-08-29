@@ -151,9 +151,9 @@ function SelectorProducto({ value, onSelect, productos }) {
     : productos
 
   return (
-    <div className="relative flex-1">
+    <div className="relative w-full">
       <div className="relative">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input required value={busqueda}
           onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onSelect('', '', null) }}
           onFocus={() => setAbierto(true)}
@@ -163,15 +163,15 @@ function SelectorProducto({ value, onSelect, productos }) {
             if (busqueda && !coincide) { setBusqueda(''); onSelect('', '', null) }
           }, 150)}
           placeholder="Buscar producto..."
-          className="w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          className="w-full border border-gray-300 rounded-xl pl-10 pr-3 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
       </div>
       {abierto && filtrados.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
-          {filtrados.slice(0, 20).map(p => (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+          {filtrados.slice(0, 30).map(p => (
             <button key={p.id} type="button" onMouseDown={() => { setBusqueda(p.nombre); setAbierto(false); onSelect(p.nombre, p.unidad_medida, p.id) }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 flex justify-between">
+              className="w-full text-left px-4 py-3.5 text-base hover:bg-blue-50 active:bg-blue-100 border-b last:border-0 flex justify-between items-center">
               <span className="font-medium text-gray-800">{p.nombre}</span>
-              <span className="text-xs text-gray-400">{p.unidad_medida}</span>
+              <span className="text-sm text-gray-400 ml-2 flex-shrink-0">{p.unidad_medida}</span>
             </button>
           ))}
         </div>
@@ -560,30 +560,49 @@ export default function ListaPedidos() {
             <p className="text-sm text-gray-500">Agrega los productos que necesitas solicitar.</p>
 
             {items.map((it, idx) => (
-              <div key={idx} className="flex gap-2 items-start">
+              <div key={idx} className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2.5 relative">
+                {/* Producto */}
                 <SelectorProducto value={it.descripcion} productos={productos}
                   onSelect={(nombre, unidad, itemId) => {
                     const copia = [...items]
                     copia[idx] = { ...copia[idx], descripcion: nombre, unidad: unidad || copia[idx].unidad, item_id: itemId || null }
                     setItems(copia)
                   }} />
-                <input type="number" min="0.001" step="0.001" placeholder="Cant." value={it.cantidad}
-                  onChange={e => { const c = [...items]; c[idx].cantidad = e.target.value; setItems(c) }}
-                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-                <select value={it.unidad} onChange={e => { const c = [...items]; c[idx].unidad = e.target.value; setItems(c) }}
-                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+
+                {/* Cantidad + Unidad */}
+                <div className="flex gap-2 items-center">
+                  {/* Botones +/− */}
+                  <div className="flex items-center flex-1 border border-gray-300 rounded-xl overflow-hidden bg-white">
+                    <button type="button"
+                      onClick={() => { const c = [...items]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItems(c) }}
+                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
+                    <input type="number" min="0.001" step="0.001" value={it.cantidad}
+                      onChange={e => { const c = [...items]; c[idx].cantidad = e.target.value; setItems(c) }}
+                      className="flex-1 text-center py-3 text-lg font-semibold border-x border-gray-200 focus:outline-none bg-white min-w-0" />
+                    <button type="button"
+                      onClick={() => { const c = [...items]; c[idx].cantidad = String((parseFloat(c[idx].cantidad) || 0) + 1); setItems(c) }}
+                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">+</button>
+                  </div>
+                  {/* Unidad */}
+                  <select value={it.unidad} onChange={e => { const c = [...items]; c[idx].unidad = e.target.value; setItems(c) }}
+                    className="w-24 border border-gray-300 rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
+                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+
+                {/* Quitar ítem */}
                 {items.length > 1 && (
                   <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                    className="p-2 text-gray-400 hover:text-feisen-rojo">✕</button>
+                    className="w-full text-sm text-feisen-rojo font-medium py-1 hover:bg-red-50 rounded-lg">
+                    ✕ Quitar este producto
+                  </button>
                 )}
               </div>
             ))}
 
             <button type="button" onClick={() => setItems([...items, { ...ITEM0 }])}
-              className="text-sm text-feisen-azul font-medium flex items-center gap-1 hover:underline">
-              <Plus size={14} /> Agregar otro producto
+              className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl text-base font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 active:bg-blue-100">
+              <Plus size={18} /> Agregar otro producto
             </button>
 
             <div>
@@ -591,7 +610,7 @@ export default function ListaPedidos() {
               <div className="flex gap-2">
                 {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
                   <button key={val} type="button" onClick={() => setPrioridad(val)}
-                    className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium border transition-colors
+                    className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold border-2 transition-colors
                       ${prioridad === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
                     {cfg.label}
                   </button>
@@ -601,8 +620,8 @@ export default function ListaPedidos() {
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
-              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
+              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
@@ -618,11 +637,11 @@ export default function ListaPedidos() {
                   </button>
                 </div>
               ) : (
-                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-5 text-sm text-gray-400 transition-colors
+                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
                   ${subiendoFoto ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
                   {subiendoFoto
-                    ? <><Upload size={22} className="animate-pulse" /><span>Subiendo...</span></>
-                    : <><Upload size={22} /><span>Adjuntar foto de la muestra o referencia</span></>
+                    ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
+                    : <><Upload size={28} /><span>Adjuntar foto de la muestra o referencia</span></>
                   }
                   <input type="file" accept="image/*" className="hidden"
                     onChange={e => subirFoto(e.target.files?.[0], setFotoMuestra, setSubiendoFoto)} disabled={subiendoFoto} />
@@ -632,9 +651,9 @@ export default function ListaPedidos() {
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalNuevo(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-gray-300 rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={subiendoFoto}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">Crear pedido</button>
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">Crear pedido</button>
             </div>
           </form>
         </Modal>
@@ -714,30 +733,42 @@ export default function ListaPedidos() {
             {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
             {itemsEdit.map((it, idx) => (
-              <div key={idx} className="flex gap-2 items-start">
+              <div key={idx} className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2.5 relative">
                 <SelectorProducto value={it.descripcion} productos={productos}
                   onSelect={(nombre, unidad, itemId) => {
                     const c = [...itemsEdit]
                     c[idx] = { ...c[idx], descripcion: nombre, unidad: unidad || c[idx].unidad, item_id: itemId || null }
                     setItemsEdit(c)
                   }} />
-                <input type="number" min="0.001" step="0.001" placeholder="Cant." value={it.cantidad}
-                  onChange={e => { const c = [...itemsEdit]; c[idx].cantidad = e.target.value; setItemsEdit(c) }}
-                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-                <select value={it.unidad} onChange={e => { const c = [...itemsEdit]; c[idx].unidad = e.target.value; setItemsEdit(c) }}
-                  className="w-20 border border-gray-300 rounded-xl px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <div className="flex gap-2 items-center">
+                  <div className="flex items-center flex-1 border border-gray-300 rounded-xl overflow-hidden bg-white">
+                    <button type="button"
+                      onClick={() => { const c = [...itemsEdit]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItemsEdit(c) }}
+                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
+                    <input type="number" min="0.001" step="0.001" value={it.cantidad}
+                      onChange={e => { const c = [...itemsEdit]; c[idx].cantidad = e.target.value; setItemsEdit(c) }}
+                      className="flex-1 text-center py-3 text-lg font-semibold border-x border-gray-200 focus:outline-none bg-white min-w-0" />
+                    <button type="button"
+                      onClick={() => { const c = [...itemsEdit]; c[idx].cantidad = String((parseFloat(c[idx].cantidad) || 0) + 1); setItemsEdit(c) }}
+                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">+</button>
+                  </div>
+                  <select value={it.unidad} onChange={e => { const c = [...itemsEdit]; c[idx].unidad = e.target.value; setItemsEdit(c) }}
+                    className="w-24 border border-gray-300 rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
+                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
                 {itemsEdit.length > 1 && (
                   <button type="button" onClick={() => setItemsEdit(itemsEdit.filter((_, i) => i !== idx))}
-                    className="p-2 text-gray-400 hover:text-feisen-rojo">✕</button>
+                    className="w-full text-sm text-feisen-rojo font-medium py-1 hover:bg-red-50 rounded-lg">
+                    ✕ Quitar este producto
+                  </button>
                 )}
               </div>
             ))}
 
             <button type="button" onClick={() => setItemsEdit([...itemsEdit, { ...ITEM0 }])}
-              className="text-sm text-feisen-azul font-medium flex items-center gap-1 hover:underline">
-              <Plus size={14} /> Agregar otro producto
+              className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl text-base font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 active:bg-blue-100">
+              <Plus size={18} /> Agregar otro producto
             </button>
 
             <div>
@@ -745,7 +776,7 @@ export default function ListaPedidos() {
               <div className="flex gap-2">
                 {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
                   <button key={val} type="button" onClick={() => setPrioridadEdit(val)}
-                    className={`flex-1 py-2 px-2 rounded-xl text-xs font-medium border transition-colors
+                    className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold border-2 transition-colors
                       ${prioridadEdit === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
                     {cfg.label}
                   </button>
@@ -755,8 +786,8 @@ export default function ListaPedidos() {
 
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
-              <textarea value={obsEdit} onChange={e => setObsEdit(e.target.value)} rows={2}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
+              <textarea value={obsEdit} onChange={e => setObsEdit(e.target.value)} rows={3}
+                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
@@ -772,11 +803,11 @@ export default function ListaPedidos() {
                   </button>
                 </div>
               ) : (
-                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-5 text-sm text-gray-400 transition-colors
+                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
                   ${subiendoFotoEdit ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
                   {subiendoFotoEdit
-                    ? <><Upload size={22} className="animate-pulse" /><span>Subiendo...</span></>
-                    : <><Upload size={22} /><span>Adjuntar foto de muestra o referencia</span></>
+                    ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
+                    : <><Upload size={28} /><span>Adjuntar foto de muestra o referencia</span></>
                   }
                   <input type="file" accept="image/*" className="hidden"
                     onChange={e => subirFoto(e.target.files?.[0], setFotoMuestraEdit, setSubiendoFotoEdit)} disabled={subiendoFotoEdit} />
@@ -786,9 +817,9 @@ export default function ListaPedidos() {
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalEditar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-gray-300 rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardandoEdit || subiendoFotoEdit}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">
                 {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
