@@ -212,10 +212,21 @@ function FirmaCanvas({ onFirma, firmaDataUrl }) {
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
-  const { perfil, bodegasOperacion, rolEfectivo } = useAuth()
+  const { perfil, bodegasOperacion, rolEfectivo, esAdmin } = useAuth()
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
+
+  // Query de pedidos filtrada: admin ve todos; los demás solo los suyos
+  function queryPedidos() {
+    let q = supabase.from('pedidos')
+      .select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)')
+      .in('estado', ['pendiente', 'en_transito'])
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (!esAdmin) q = q.eq('solicitante_id', perfil.id)
+    return q
+  }
   const [searchParams] = useSearchParams()
 
   const HOY_COL = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD en hora local
@@ -351,11 +362,11 @@ export default function RegistrarMovimientoAlmacenista() {
           setBodega(b)
           const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
             supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre').limit(10000),
-            supabase.from('pedidos').select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+            queryPedidos(),
             supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
           ])
           setItems(its || [])
-          setPedidos(miArea ? (peds || []).filter(p => p.area === miArea || !p.area) : (peds || []))
+          setPedidos(peds || [])
           setTodasBodegas((allBods || []).filter(bd => bd.id !== b.id))
         }
         setCargando(false)
@@ -385,8 +396,7 @@ export default function RegistrarMovimientoAlmacenista() {
         supabase.from('items')
           .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
           .eq('bodega_id', bodegasOperacion[0]).eq('activo', true).order('nombre'),
-        supabase.from('pedidos').select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)')
-          .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+        queryPedidos(),
         supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
         // Items de otras bodegas que tienen stock aquí (ej: FUNDICIÓN → MECANIZADOS)
         supabase.from('stock').select('item_id').eq('bodega_id', bodegasOperacion[0]).gt('cantidad_actual', 0),
