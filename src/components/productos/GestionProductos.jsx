@@ -290,7 +290,8 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemMecanizar.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'MECANIZADOS',
+      centro_costo:          'Construequipos',
+      usuario_id:            perfil?.id,
     })
     if (e1) { setMsg({ tipo: 'error', texto: 'Error al registrar salida: ' + e1.message }); setGuardandoMec(false); return }
 
@@ -303,7 +304,8 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemTarget.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'MECANIZADOS',
+      centro_costo:          'Construequipos',
+      usuario_id:            perfil?.id,
     })
     if (e2) { setMsg({ tipo: 'error', texto: 'Error al registrar entrada: ' + e2.message }); setGuardandoMec(false); return }
 
@@ -532,12 +534,6 @@ export default function GestionProductos() {
                     {puedeEditar && (
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-2">
-                          {CATEGORIAS_MECANIZABLES.has(item.categoria_id) && item.bodega_id === BODEGA_MECANIZADOS && (
-                            <button onClick={() => abrirMecanizar(item)} title="Registrar mecanizado"
-                              className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg">
-                              <Wrench size={15} />
-                            </button>
-                          )}
                           <button onClick={() => navigate(`/movimientos?item=${item.id}`)} title="Ver historial de movimientos"
                             className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
                             <History size={15} />
