@@ -6,12 +6,13 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen } from 'lucide-react'
 
 const ESTADO_CONFIG = {
-  pendiente:    { label: 'Pendiente',    color: 'bg-amber-100 text-amber-700',  icon: ShoppingCart },
-  en_transito:  { label: 'En tránsito',  color: 'bg-blue-100 text-blue-700',    icon: Truck        },
-  recibido:     { label: 'Recibido',     color: 'bg-green-100 text-green-700',  icon: CheckCircle  },
+  pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
+  en_transito:             { label: 'En tránsito',          color: 'bg-blue-100 text-blue-700',     icon: Truck        },
+  recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
+  parcialmente_recibido:   { label: 'Parcial ⚠️',           color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
 }
 
 const PRIORIDAD_CONFIG = {
@@ -23,10 +24,11 @@ const PRIORIDAD_CONFIG = {
 const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
 
 const HISTORIAL_LABELS = {
-  creado:       '✅ Pedido creado',
-  editado:      '✏️ Pedido editado',
-  en_transito:  '🚚 Marcado en tránsito',
-  recibido:     '📦 Recibido',
+  creado:                  '✅ Pedido creado',
+  editado:                 '✏️ Pedido editado',
+  en_transito:             '🚚 Marcado en tránsito',
+  recibido:                '📦 Recibido',
+  parcialmente_recibido:   '⚠️ Recibido parcialmente',
 }
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
@@ -60,15 +62,15 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, o
               En tránsito
             </button>
           )}
-          {p.estado === 'en_transito' && puedeRecibir && (
+          {(p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && puedeRecibir && (
             <>
               <button onClick={() => onRecibido(p, true)}
                 className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium">
-                ✅ Recibido + Entrada
+                {p.estado === 'parcialmente_recibido' ? '📦 Llegó más + Entrada' : '✅ Recibido + Entrada'}
               </button>
               <button onClick={() => onRecibido(p, false)}
                 className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
-                Solo recibir
+                {p.estado === 'parcialmente_recibido' ? '📦 Llegó más' : 'Solo recibir'}
               </button>
             </>
           )}
@@ -92,12 +94,25 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, o
 
       {p.pedido_items?.length > 0 && (
         <div className="border-t border-gray-50 px-5 py-3 space-y-1">
-          {p.pedido_items.map((it, i) => (
-            <div key={i} className="flex justify-between text-sm">
-              <span className="text-gray-600">{it.descripcion}</span>
-              <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
-            </div>
-          ))}
+          {p.pedido_items.map((it, i) => {
+            const recibido = it.cantidad_recibida || 0
+            const pendiente = it.cantidad - recibido
+            const esParcial = p.estado === 'parcialmente_recibido'
+            return (
+              <div key={i} className="text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">{it.descripcion}</span>
+                  <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
+                </div>
+                {esParcial && (
+                  <div className="flex justify-between text-xs mt-0.5">
+                    <span className="text-green-600">✓ Recibido: {recibido} {it.unidad}</span>
+                    {pendiente > 0 && <span className="text-orange-600 font-semibold">⏳ Pendiente: {pendiente} {it.unidad}</span>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
           {p.foto_muestra_url && (
@@ -327,30 +342,58 @@ export default function ListaPedidos() {
 
   function iniciarRecibido(pedido, conEntrada) {
     const inicial = {}
-    pedido.pedido_items?.forEach(it => { inicial[it.id] = String(it.cantidad) })
+    pedido.pedido_items?.forEach(it => {
+      const pendiente = it.cantidad - (it.cantidad_recibida || 0)
+      inicial[it.id] = String(Math.max(0, pendiente))
+    })
     setCantRec(inicial)
     setModalRecibido({ pedido, conEntrada })
   }
 
   async function confirmarRecibido() {
     const { pedido, conEntrada } = modalRecibido
+    const items = pedido.pedido_items || []
 
-    // 1. Guardar cantidad_recibida por ítem
+    // 1. Sumar a la cantidad_recibida existente (para re-recepciones)
+    const nuevasCantidades = {}
+    items.forEach(it => {
+      const yaRecibido = it.cantidad_recibida || 0
+      const ahoraLlego = parseFloat(cantRec[it.id]) || 0
+      nuevasCantidades[it.id] = yaRecibido + ahoraLlego
+    })
+
     await Promise.all(
-      (pedido.pedido_items || []).map(it =>
+      items.map(it =>
         supabase.from('pedido_items')
-          .update({ cantidad_recibida: parseFloat(cantRec[it.id]) || 0 })
+          .update({ cantidad_recibida: nuevasCantidades[it.id] })
           .eq('id', it.id)
       )
     )
 
-    // 2. Marcar pedido como recibido
+    // 2. ¿Llegó completo o parcial?
+    const esCompleto = items.every(it => nuevasCantidades[it.id] >= it.cantidad)
+    const nuevoEstado = esCompleto ? 'recibido' : 'parcialmente_recibido'
+
+    const detalleItems = items.map(it => {
+      const recibido = nuevasCantidades[it.id]
+      const pendiente = it.cantidad - recibido
+      return pendiente > 0 ? `${it.descripcion}: falta ${pendiente} ${it.unidad}` : null
+    }).filter(Boolean).join(', ')
+
     await supabase.from('pedidos')
-      .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
+      .update({ estado: nuevoEstado, ...(esCompleto ? { fecha_recibido: new Date().toISOString() } : {}) })
       .eq('id', pedido.id)
-    await registrarHistorial(pedido.id, 'recibido',
-      conEntrada ? 'Recibido con entrada automática de inventario' : 'Recibido sin entrada de inventario')
-    setPedidos(prev => prev.map(p => p.id === pedido.id ? { ...p, estado: 'recibido' } : p))
+
+    await registrarHistorial(pedido.id, nuevoEstado,
+      esCompleto
+        ? (conEntrada ? 'Recibido completo con entrada de inventario' : 'Recibido completo sin entrada de inventario')
+        : `Llegó incompleto. ${detalleItems}`)
+
+    setPedidos(prev => prev.map(p =>
+      p.id === pedido.id
+        ? { ...p, estado: nuevoEstado, pedido_items: p.pedido_items?.map(it => ({ ...it, cantidad_recibida: nuevasCantidades[it.id] })) }
+        : p
+    ))
     setModalRecibido(null)
 
     // 3. Si "Recibido + Entrada", crear movimientos automáticamente
@@ -515,13 +558,31 @@ export default function ListaPedidos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
+      {/* Alerta pedidos incompletos (solo logística/admin) */}
+      {(esAdmin || esLogistica) && (() => {
+        const incompletos = pedidos.filter(p => p.estado === 'parcialmente_recibido')
+        return incompletos.length > 0 ? (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-orange-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-orange-800">
+                {incompletos.length === 1 ? '1 pedido llegó incompleto' : `${incompletos.length} pedidos llegaron incompletos`}
+              </p>
+              <p className="text-xs text-orange-600 mt-0.5">
+                {incompletos.map(p => p.numero).join(', ')} — Quedan cantidades pendientes por recibir.
+              </p>
+            </div>
+          </div>
+        ) : null
+      })()}
+
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
-        {['todos', 'pendiente', 'en_transito', 'recibido'].map(f => (
+        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'recibido'].map(f => (
           <button key={f} onClick={() => setFiltro(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors
               ${filtro === f ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-            {f === 'todos' ? 'Todos' : ESTADO_CONFIG[f].label}
+            {f === 'todos' ? 'Todos' : ESTADO_CONFIG[f]?.label}
           </button>
         ))}
       </div>
@@ -666,15 +727,24 @@ export default function ListaPedidos() {
           onCerrar={() => setModalRecibido(null)}
         >
           <div className="space-y-4">
+            {modalRecibido.pedido.estado === 'parcialmente_recibido' && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-xs text-orange-700">
+                ⚠️ Pedido incompleto. Ingresa lo que llegó <strong>en esta entrega</strong>.
+              </div>
+            )}
             <p className="text-sm text-gray-500">Ingresa la cantidad que llegó realmente de cada ítem.</p>
-            {modalRecibido.pedido.pedido_items?.map(it => (
+            {modalRecibido.pedido.pedido_items?.map(it => {
+              const yaRecibido = it.cantidad_recibida || 0
+              const pendiente = it.cantidad - yaRecibido
+              return (
               <div key={it.id} className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{it.descripcion}</p>
                   <p className="text-xs text-gray-400">Pedido: {it.cantidad} {it.unidad}</p>
+                  {yaRecibido > 0 && <p className="text-xs text-green-600">Ya recibido: {yaRecibido} · Pendiente: {pendiente} {it.unidad}</p>}
                 </div>
                 <div className="w-28 flex-shrink-0">
-                  <label className="text-xs text-gray-500 block mb-1">Recibido</label>
+                  <label className="text-xs text-gray-500 block mb-1">Llegó ahora</label>
                   <div className="flex items-center gap-1">
                     <input
                       type="number" min="0" step="0.001"
@@ -686,7 +756,9 @@ export default function ListaPedidos() {
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            }
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setModalRecibido(null)}
                 className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
