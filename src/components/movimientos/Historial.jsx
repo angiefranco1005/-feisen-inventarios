@@ -13,7 +13,7 @@ const TIPO_CONFIG = {
 }
 
 export default function Historial() {
-  const { perfil, esAdmin, esLogistica } = useAuth()
+  const { perfil, esAdmin, esLogistica, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
   const [movimientos,  setMovimientos]  = useState([])
   const [items,        setItems]        = useState([])
@@ -45,17 +45,27 @@ export default function Historial() {
 
   async function cargar() {
     setCargando(true)
-    const verTodo = esAdmin
+    const verTodo = esAdmin || esLogistica
     let movsQ = supabase
       .from('movimientos')
-      .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
+      .select('*, items(nombre, unidad_medida, bodega_id, bodegas:bodega_id(nombre)), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
       .order('created_at', { ascending: false })
       .limit(1000)
-    if (!verTodo) movsQ = movsQ.eq('usuario_id', perfil.id)
+
+    if (!verTodo) {
+      if (bodegasOperacion?.length) {
+        // Jefes de área: ver todos los movimientos que entran o salen de sus bodegas
+        movsQ = movsQ.or(
+          `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')}),usuario_id.eq.${perfil.id}`
+        )
+      } else {
+        movsQ = movsQ.eq('usuario_id', perfil.id)
+      }
+    }
 
     const [{ data: movs }, { data: its }] = await Promise.all([
       movsQ,
-      supabase.from('items').select('id, nombre').order('nombre').limit(10000),
+      supabase.from('items').select('id, nombre, bodega_id, bodegas:bodega_id(nombre)').order('nombre').limit(10000),
     ])
     setMovimientos(movs || [])
     setItems(its || [])
@@ -280,9 +290,10 @@ export default function Historial() {
                 .slice(0, 30)
                 .map(i => (
                   <button key={i.id} type="button"
-                    onMouseDown={() => { setFiltroItem(i.id); setBusquedaProducto(i.nombre); setMostrarListaProd(false) }}
+                    onMouseDown={() => { setFiltroItem(i.id); setBusquedaProducto(i.nombre + (i.bodegas?.nombre ? ` (${i.bodegas.nombre})` : '')); setMostrarListaProd(false) }}
                     className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 ${filtroItem === i.id ? 'bg-blue-50 text-feisen-azul font-medium' : 'text-gray-700'}`}>
-                    {i.nombre}
+                    <span className="font-medium">{i.nombre}</span>
+                    {i.bodegas?.nombre && <span className="ml-1 text-xs text-gray-400">· {i.bodegas.nombre}</span>}
                   </button>
                 ))}
             </div>
