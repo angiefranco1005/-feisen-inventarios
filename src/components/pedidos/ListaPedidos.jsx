@@ -181,7 +181,10 @@ function SelectorProducto({ value, onSelect, productos }) {
 }
 
 export default function ListaPedidos() {
-  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion, rolEfectivo } = useAuth()
+
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION' }
+  const miArea = AREA_POR_ROL[rolEfectivo] || null
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
@@ -281,8 +284,10 @@ export default function ListaPedidos() {
 
     const numero = await generarNumero()
     const { data: pedido, error: err1 } = await supabase.from('pedidos').insert({
-      numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id, prioridad,
-      foto_muestra_url: fotoMuestra || null,
+      numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id,
+      solicitante_nombre: perfil?.nombre || null,
+      prioridad, foto_muestra_url: fotoMuestra || null,
+      area: miArea,
     }).select().single()
     if (err1) { setMsg({ tipo: 'error', texto: 'Error: ' + err1.message }); return }
 

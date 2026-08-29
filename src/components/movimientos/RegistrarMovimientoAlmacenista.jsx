@@ -212,7 +212,10 @@ function FirmaCanvas({ onFirma, firmaDataUrl }) {
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
-  const { perfil, bodegasOperacion } = useAuth()
+  const { perfil, bodegasOperacion, rolEfectivo } = useAuth()
+
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN' }
+  const miArea = AREA_POR_ROL[rolEfectivo] || null
   const [searchParams] = useSearchParams()
 
   const HOY_COL = new Date().toLocaleDateString('en-CA') // YYYY-MM-DD en hora local
@@ -348,11 +351,11 @@ export default function RegistrarMovimientoAlmacenista() {
           setBodega(b)
           const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
             supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre').limit(10000),
-            supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+            supabase.from('pedidos').select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
             supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
           ])
           setItems(its || [])
-          setPedidos(peds || [])
+          setPedidos(miArea ? (peds || []).filter(p => p.area === miArea || !p.area) : (peds || []))
           setTodasBodegas((allBods || []).filter(bd => bd.id !== b.id))
         }
         setCargando(false)
@@ -366,11 +369,11 @@ export default function RegistrarMovimientoAlmacenista() {
     setBodega(b)
     const [{ data: its }, { data: peds }, { data: allBods }] = await Promise.all([
       supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario').eq('bodega_id', b.id).eq('activo', true).order('nombre').limit(10000),
-      supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
+      supabase.from('pedidos').select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)').in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
       supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
     ])
     setItems(its || [])
-    setPedidos(peds || [])
+    setPedidos(miArea ? (peds || []).filter(p => p.area === miArea || !p.area) : (peds || []))
     setTodasBodegas((allBods || []).filter(bd => bd.id !== b.id))
   }
 
@@ -382,7 +385,7 @@ export default function RegistrarMovimientoAlmacenista() {
         supabase.from('items')
           .select('id, nombre, unidad_medida, bodega_id, precio_costo, peso_unitario')
           .eq('bodega_id', bodegasOperacion[0]).eq('activo', true).order('nombre'),
-        supabase.from('pedidos').select('id, numero, estado')
+        supabase.from('pedidos').select('id, numero, estado, area, pedido_items(descripcion, cantidad, unidad)')
           .in('estado', ['pendiente', 'en_transito']).order('created_at', { ascending: false }).limit(50),
         supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
         // Items de otras bodegas que tienen stock aquí (ej: FUNDICIÓN → MECANIZADOS)
@@ -403,7 +406,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       setBodega(bod)
       setItems(todosItems)
-      setPedidos(peds || [])
+      setPedidos(miArea ? (peds || []).filter(p => p.area === miArea || !p.area) : (peds || []))
       setTodasBodegas((bods || []).filter(b => b.id !== bodegasOperacion[0]))
       setCargando(false)
     }
@@ -725,21 +728,54 @@ export default function RegistrarMovimientoAlmacenista() {
 
           {/* Pedido asociado — solo para compra */}
           {(!esFundicion || tipoEntrada === 'compra') && (
-            <div>
+            <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                 Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
               </label>
-              <select
-                value={pedidoId}
-                onChange={e => setPedidoId(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                <option value="">Sin pedido asociado</option>
-                {pedidos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
-                  </option>
-                ))}
-              </select>
+
+              {pedidos.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">No hay pedidos pendientes{miArea ? ` de ${miArea}` : ''}.</p>
+              ) : (
+                <select
+                  value={pedidoId}
+                  onChange={e => setPedidoId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                  <option value="">Sin pedido asociado</option>
+                  {pedidos.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.numero} — {p.estado === 'en_transito' ? '🚚 En tránsito' : '⏳ Pendiente'}
+                      {p.area ? ` · ${p.area}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {/* Panel de referencia del pedido seleccionado */}
+              {pedidoId && (() => {
+                const ped = pedidos.find(p => p.id === pedidoId)
+                const items_ped = ped?.pedido_items || []
+                if (!items_ped.length) return null
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
+                      📋 Contenido del pedido {ped.numero}
+                    </p>
+                    <div className="space-y-1">
+                      {items_ped.map((it, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm">
+                          <span className="text-blue-900 font-medium">{it.descripcion}</span>
+                          <span className="text-blue-600 font-semibold ml-2 whitespace-nowrap">
+                            {it.cantidad} {it.unidad}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-blue-500 mt-2">
+                      Referencia — ingresa las cantidades reales abajo
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
           )}
 
