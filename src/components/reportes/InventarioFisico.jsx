@@ -76,22 +76,34 @@ export default function InventarioFisico() {
     setCargandoDetalle(false)
   }
 
-  // ── iniciar nuevo inventario ─────────────────────────────────────────────
-  async function iniciarNuevo() {
+  // ── continuar borrador ───────────────────────────────────────────────────
+  async function continuarBorrador(inv) {
     setCargando(true)
+    // Cargar items guardados del borrador
+    const { data: itemsGuardados } = await supabase
+      .from('inventario_fisico_items')
+      .select('*')
+      .eq('inventario_id', inv.id)
+    // Reconstruir conteos desde los ítems guardados
+    const conteosGuardados = {}
+    for (const it of (itemsGuardados || [])) {
+      const key = `${it.item_id}_${it.bodega_id}`
+      if (it.cantidad_fisica !== null) conteosGuardados[key] = String(it.cantidad_fisica)
+    }
+    // Luego cargar items completos igual que iniciarNuevo
+    await cargarEditorConConteos(inv.id, inv.numero, inv.fecha, inv.notas || '', conteosGuardados)
+  }
 
-    // Cargar stock, bodegas y contador en paralelo
+  // ── lógica compartida: cargar items + abrir editor ───────────────────────
+  async function cargarEditorConConteos(id, num, fecha_, notas_, conteosIniciales) {
     const [
       { data: stockData },
       { data: bodegasData },
-      { count },
     ] = await Promise.all([
       supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 9999),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-      supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
     ])
 
-    // Cargar ítems bodega por bodega (evita el límite de 1000 de Supabase)
     let itemsData = []
     const bodegaIds = (bodegasData || []).map(b => b.id)
     for (const bodegaId of bodegaIds) {
@@ -101,57 +113,51 @@ export default function InventarioFisico() {
         .eq('bodega_id', bodegaId)
         .order('nombre')
         .limit(2000)
-      if (err) {
-        setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + err.message })
-        setCargando(false)
-        setVista('editor')
-        return
-      }
+      if (err) { setMsg({ tipo: 'error', texto: 'Error: ' + err.message }); setCargando(false); setVista('editor'); return }
       itemsData = itemsData.concat(lote || [])
     }
 
-    // Mapa bodega_id → nombre
     const bodegaMap = {}
     for (const b of (bodegasData || [])) { bodegaMap[b.id] = b.nombre }
-
-    // Mapa de stock: "item_id_bodega_id" → cantidad_actual
     const stockMap = {}
     for (const s of (stockData || [])) {
       stockMap[`${s.item_id}_${s.bodega_id}`] = Number(s.cantidad_actual ?? 0)
     }
-
     const rows = []
-    for (const item of (itemsData || [])) {
+    for (const item of itemsData) {
       if (!item.nombre || !item.bodega_id) continue
       const key = `${item.id}_${item.bodega_id}`
       rows.push({
-        key,
-        item_id:          item.id,
-        item_nombre:      item.nombre,
-        item_unidad:      item.unidad_medida,
-        bodega_id:        item.bodega_id,
-        bodega_nombre:    bodegaMap[item.bodega_id] || '',
+        key, item_id: item.id, item_nombre: item.nombre, item_unidad: item.unidad_medida,
+        bodega_id: item.bodega_id, bodega_nombre: bodegaMap[item.bodega_id] || '',
         categoria_nombre: item.categorias?.nombre || '',
-        cantidad_sistema: stockMap[key] ?? 0,
-        precio_costo:     item.precio_costo || 0,
+        cantidad_sistema: stockMap[key] ?? 0, precio_costo: item.precio_costo || 0,
       })
     }
-    // Ordenar por bodega → nombre
     rows.sort((a, b) => a.bodega_nombre.localeCompare(b.bodega_nombre) || a.item_nombre.localeCompare(b.item_nombre))
 
-    const num = `INV-FIS-${String((count || 0) + 1).padStart(4, '0')}`
     setItems(rows)
     setBodegas(bodegasData || [])
-    setConteos({})
+    setConteos(conteosIniciales || {})
     setBusqueda('')
     setFiltroBodega('')
-    setNotas('')
-    setFecha(HOY())
-    setInvId(null)
+    setNotas(notas_)
+    setFecha(fecha_)
+    setInvId(id)
     setNumero(num)
     setSoloConDif(false)
     setVista('editor')
     setCargando(false)
+  }
+
+  // ── iniciar nuevo inventario ─────────────────────────────────────────────
+  async function iniciarNuevo() {
+    setCargando(true)
+    const { count } = await supabase
+      .from('inventarios_fisicos')
+      .select('*', { count: 'exact', head: true })
+    const num = `INV-FIS-${String((count || 0) + 1).padStart(4, '0')}`
+    await cargarEditorConConteos(null, num, HOY(), '', {})
   }
 
   // ── items derivados ──────────────────────────────────────────────────────
@@ -353,10 +359,18 @@ export default function InventarioFisico() {
                         {inv.profiles?.nombre || '—'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button onClick={() => abrirDetalle(inv)}
-                          className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg" title="Ver detalle">
-                          <Eye size={15} />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          {inv.estado === 'borrador' && (
+                            <button onClick={() => continuarBorrador(inv)}
+                              className="px-2.5 py-1 text-xs font-medium text-feisen-azul border border-feisen-azul rounded-lg hover:bg-blue-50 active:bg-blue-100" title="Continuar editando">
+                              ✏️ Continuar
+                            </button>
+                          )}
+                          <button onClick={() => abrirDetalle(inv)}
+                            className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg" title="Ver detalle">
+                            <Eye size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
