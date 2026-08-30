@@ -79,41 +79,37 @@ export default function InventarioFisico() {
   // ── iniciar nuevo inventario ─────────────────────────────────────────────
   async function iniciarNuevo() {
     setCargando(true)
+
+    // Cargar stock, bodegas y contador en paralelo
     const [
-      { data: itemsData,  error: errItems },
       { data: stockData },
       { data: bodegasData },
       { count },
     ] = await Promise.all([
-      // Saldos actuales
-      supabase.from('stock')
-        .select('item_id, bodega_id, cantidad_actual')
-        .range(0, 9999),
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 9999),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
     ])
 
-    // Cargar todos los ítems activos en lotes de 1000 (Supabase limita a 1000 por query)
+    // Cargar ítems en lotes de 1000 (límite de Supabase)
     let itemsData = []
     let from = 0
-    const PAGE = 1000
     while (true) {
-      const { data: lote, error: errItems } = await supabase.from('items')
+      const { data: lote, error: err } = await supabase.from('items')
         .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
         .eq('activo', true)
         .order('nombre')
-        .range(from, from + PAGE - 1)
-      if (errItems) {
-        setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + errItems.message })
+        .range(from, from + 999)
+      if (err) {
+        setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + err.message })
         setCargando(false)
         setVista('editor')
         return
       }
       itemsData = itemsData.concat(lote || [])
-      if (!lote || lote.length < PAGE) break
-      from += PAGE
+      if (!lote || lote.length < 1000) break
+      from += 1000
     }
-    const errItems = null // ya manejado arriba
 
     // Mapa bodega_id → nombre
     const bodegaMap = {}
