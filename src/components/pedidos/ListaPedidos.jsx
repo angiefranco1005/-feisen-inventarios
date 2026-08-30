@@ -255,8 +255,10 @@ export default function ListaPedidos() {
   async function cargar() {
     setCargando(true)
     const verTodo = esAdmin || esLogistica
+    const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
     let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
+    if (rolEfectivo === 'JEFE_MECANIZADOS') prodsQ = prodsQ.neq('categoria_id', CAT_PRODUCTO_MECANIZADO)
 
     let pedsQ = supabase.from('pedidos')
       .select('*, pedido_items(*), profiles(nombre)')

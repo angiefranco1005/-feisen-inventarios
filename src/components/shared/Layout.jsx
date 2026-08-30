@@ -13,7 +13,6 @@ const NAV_ADMIN = [
   { to: '/productos',             icon: Package,         label: 'Productos' },
   { to: '/movimientos',           icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',     icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/mecanizados/registro',  icon: Wrench,           label: 'Mecanizado' },
   { to: '/pedidos',               icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
   { to: '/config',                icon: Settings,         label: 'Configuración' },
