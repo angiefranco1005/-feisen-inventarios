@@ -87,7 +87,7 @@ export default function InventarioFisico() {
     ] = await Promise.all([
       // Todos los ítems activos (aunque nunca hayan tenido movimiento)
       supabase.from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, bodegas(id, nombre), categorias(nombre)')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
         .eq('activo', true)
         .limit(10000),
       // Saldos actuales
@@ -105,6 +105,10 @@ export default function InventarioFisico() {
       return
     }
 
+    // Mapa bodega_id → nombre
+    const bodegaMap = {}
+    for (const b of (bodegasData || [])) { bodegaMap[b.id] = b.nombre }
+
     // Mapa de stock: "item_id_bodega_id" → cantidad_actual
     const stockMap = {}
     for (const s of (stockData || [])) {
@@ -121,7 +125,7 @@ export default function InventarioFisico() {
         item_nombre:      item.nombre,
         item_unidad:      item.unidad_medida,
         bodega_id:        item.bodega_id,
-        bodega_nombre:    item.bodegas?.nombre || '',
+        bodega_nombre:    bodegaMap[item.bodega_id] || '',
         categoria_nombre: item.categorias?.nombre || '',
         cantidad_sistema: stockMap[key] ?? 0,
         precio_costo:     item.precio_costo || 0,
