@@ -85,25 +85,35 @@ export default function InventarioFisico() {
       { data: bodegasData },
       { count },
     ] = await Promise.all([
-      // Todos los ítems activos (aunque nunca hayan tenido movimiento)
-      supabase.from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
-        .eq('activo', true)
-        .limit(10000),
       // Saldos actuales
       supabase.from('stock')
         .select('item_id, bodega_id, cantidad_actual')
-        .limit(10000),
+        .range(0, 9999),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
     ])
 
-    if (errItems) {
-      setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + errItems.message })
-      setCargando(false)
-      setVista('editor')
-      return
+    // Cargar todos los ítems activos en lotes de 1000 (Supabase limita a 1000 por query)
+    let itemsData = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data: lote, error: errItems } = await supabase.from('items')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
+        .eq('activo', true)
+        .order('nombre')
+        .range(from, from + PAGE - 1)
+      if (errItems) {
+        setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + errItems.message })
+        setCargando(false)
+        setVista('editor')
+        return
+      }
+      itemsData = itemsData.concat(lote || [])
+      if (!lote || lote.length < PAGE) break
+      from += PAGE
     }
+    const errItems = null // ya manejado arriba
 
     // Mapa bodega_id → nombre
     const bodegaMap = {}
