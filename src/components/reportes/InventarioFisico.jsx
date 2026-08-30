@@ -91,15 +91,16 @@ export default function InventarioFisico() {
       supabase.from('inventarios_fisicos').select('*', { count: 'exact', head: true }),
     ])
 
-    // Cargar ítems en lotes de 1000 (límite de Supabase)
+    // Cargar ítems bodega por bodega (evita el límite de 1000 de Supabase)
     let itemsData = []
-    let from = 0
-    while (true) {
+    const bodegaIds = (bodegasData || []).map(b => b.id)
+    for (const bodegaId of bodegaIds) {
       const { data: lote, error: err } = await supabase.from('items')
         .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
         .eq('activo', true)
+        .eq('bodega_id', bodegaId)
         .order('nombre')
-        .range(from, from + 999)
+        .limit(2000)
       if (err) {
         setMsg({ tipo: 'error', texto: 'Error cargando ítems: ' + err.message })
         setCargando(false)
@@ -107,8 +108,6 @@ export default function InventarioFisico() {
         return
       }
       itemsData = itemsData.concat(lote || [])
-      if (!lote || lote.length < 1000) break
-      from += 1000
     }
 
     // Mapa bodega_id → nombre
