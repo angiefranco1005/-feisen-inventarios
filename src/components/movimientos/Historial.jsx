@@ -28,6 +28,7 @@ export default function Historial() {
   const [msg,                setMsg]                = useState(null)
   const [busquedaProducto,   setBusquedaProducto]   = useState('')
   const [mostrarListaProd,   setMostrarListaProd]   = useState(false)
+  const [filtroUsuario,      setFiltroUsuario]      = useState('')
 
   useEffect(() => { cargar() }, [])
 
@@ -212,9 +213,22 @@ export default function Historial() {
     setEliminando(false)
   }
 
+  // Lista de usuarios únicos para el filtro (solo para admin/logística)
+  const usuariosUnicos = (esAdmin || esLogistica)
+    ? Object.values(
+        movimientos.reduce((acc, m) => {
+          if (m.usuario_id && m.profiles?.nombre && !acc[m.usuario_id]) {
+            acc[m.usuario_id] = { id: m.usuario_id, nombre: m.profiles.nombre }
+          }
+          return acc
+        }, {})
+      ).sort((a, b) => a.nombre.localeCompare(b.nombre))
+    : []
+
   const filtrados = movimientos.filter(m => {
     const matchTipo    = filtroTipo === 'todos' || m.tipo === filtroTipo
     const matchItem    = !filtroItem || m.item_id === filtroItem
+    const matchUsuario = !filtroUsuario || m.usuario_id === filtroUsuario
     const matchBusqueda = !busqueda ||
       m.items?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
       m.referencia?.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -223,7 +237,7 @@ export default function Historial() {
       m.numero?.toLowerCase().includes(busqueda.toLowerCase()) ||
       m.proveedor?.toLowerCase().includes(busqueda.toLowerCase()) ||
       m.cliente?.toLowerCase().includes(busqueda.toLowerCase())
-    return matchTipo && matchItem && matchBusqueda
+    return matchTipo && matchItem && matchUsuario && matchBusqueda
   })
 
   // Agrupar por número de movimiento
@@ -299,6 +313,15 @@ export default function Historial() {
             </div>
           )}
         </div>
+        {(esAdmin || esLogistica) && usuariosUnicos.length > 0 && (
+          <select value={filtroUsuario} onChange={e => setFiltroUsuario(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-feisen-azul shrink-0">
+            <option value="">Todos los usuarios</option>
+            {usuariosUnicos.map(u => (
+              <option key={u.id} value={u.id}>{u.nombre.split(' ').slice(0,2).join(' ')}</option>
+            ))}
+          </select>
+        )}
         <div className="flex gap-2">
           {['todos', 'entrada', 'salida'].map(t => (
             <button key={t} onClick={() => setFiltroTipo(t)}
