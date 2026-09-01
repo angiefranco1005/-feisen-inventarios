@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
 
 const TIPO_CONFIG = {
   entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
@@ -29,6 +29,11 @@ export default function Historial() {
   const [busquedaProducto,   setBusquedaProducto]   = useState('')
   const [mostrarListaProd,   setMostrarListaProd]   = useState(false)
   const [filtroUsuario,      setFiltroUsuario]      = useState('')
+  const [editModal,          setEditModal]          = useState(null)
+  const [editForm,           setEditForm]           = useState({})
+  const [editGuardando,      setEditGuardando]      = useState(false)
+  const [editHistorial,      setEditHistorial]      = useState([])
+  const [editados,           setEditados]           = useState(new Set())
 
   useEffect(() => { cargar() }, [])
 
@@ -70,7 +75,89 @@ export default function Historial() {
     ])
     setMovimientos(movs || [])
     setItems(its || [])
+
+    // Cargar qué movimientos tienen ediciones (para mostrar indicador)
+    if ((movs || []).length > 0) {
+      const ids = (movs || []).map(m => m.id)
+      const { data: edData } = await supabase
+        .from('movimientos_ediciones')
+        .select('movimiento_id')
+        .in('movimiento_id', ids)
+      setEditados(new Set((edData || []).map(e => e.movimiento_id)))
+    }
+
     setCargando(false)
+  }
+
+  // ── editar movimiento (solo admin) ───────────────────────────────────────
+  function abrirEdicion(m) {
+    setEditForm({
+      fecha_movimiento:      m.fecha_movimiento || new Date(m.created_at).toISOString().split('T')[0],
+      cantidad:              String(m.cantidad ?? ''),
+      precio_costo_snapshot: String(m.precio_costo_snapshot ?? ''),
+      referencia:            m.referencia || '',
+      proveedor:             m.proveedor  || '',
+      cliente:               m.cliente    || '',
+      numero_of:             m.numero_of  || '',
+      serial_motor:          m.serial_motor || '',
+    })
+    setEditHistorial([])
+    setEditModal(m)
+    supabase.from('movimientos_ediciones')
+      .select('*, profiles(nombre)')
+      .eq('movimiento_id', m.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setEditHistorial(data || []))
+  }
+
+  async function guardarEdicion() {
+    setEditGuardando(true)
+    const m = editModal
+    const LABEL = {
+      fecha_movimiento: 'Fecha', cantidad: 'Cantidad', precio_costo_snapshot: 'Precio costo',
+      referencia: 'Referencia', proveedor: 'Proveedor', cliente: 'Cliente',
+      numero_of: 'N° OF', serial_motor: 'Serial motor',
+    }
+    const cambios = {}
+    for (const campo of Object.keys(LABEL)) {
+      const esNum  = campo === 'cantidad' || campo === 'precio_costo_snapshot'
+      const viejoRaw = m[campo]
+      const viejoStr = esNum ? String(viejoRaw ?? 0) : String(viejoRaw ?? '')
+      const nuevoStr = editForm[campo]
+      if (viejoStr !== nuevoStr) {
+        cambios[campo] = { de: esNum ? parseFloat(viejoRaw ?? 0) : (viejoRaw ?? ''), a: esNum ? parseFloat(nuevoStr) : nuevoStr, label: LABEL[campo] }
+      }
+    }
+    if (Object.keys(cambios).length === 0) { setEditGuardando(false); setEditModal(null); return }
+
+    const updates = Object.fromEntries(Object.entries(cambios).map(([k, v]) => [k, v.a]))
+
+    // Ajustar stock si cambió la cantidad
+    if (cambios.cantidad) {
+      const diff = cambios.cantidad.a - cambios.cantidad.de
+      if (diff !== 0) {
+        const { data: bodegasData } = await supabase.from('bodegas').select('id').ilike('nombre', m.centro_costo || '').limit(1)
+        const bid = bodegasData?.[0]?.id
+        if (bid && m.item_id) {
+          const { data: stockRow } = await supabase.from('stock').select('id, cantidad_actual')
+            .eq('item_id', m.item_id).eq('bodega_id', bid).maybeSingle()
+          if (stockRow) {
+            const ajuste = m.tipo === 'entrada' ? diff : -diff
+            await supabase.from('stock').update({ cantidad_actual: Math.max(0, stockRow.cantidad_actual + ajuste) }).eq('id', stockRow.id)
+          }
+        }
+      }
+    }
+
+    const { error } = await supabase.from('movimientos').update(updates).eq('id', m.id)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); setEditGuardando(false); return }
+
+    await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
+
+    setEditados(prev => new Set([...prev, m.id]))
+    setEditGuardando(false)
+    setEditModal(null)
+    cargar()
   }
 
   async function generarNumero() {
@@ -413,7 +500,10 @@ export default function Historial() {
                       return (
                         <div key={m.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800">{m.items?.nombre}</p>
+                            <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
+                              {m.items?.nombre}
+                              {editados.has(m.id) && <span className="text-[10px] text-feisen-azul bg-blue-50 px-1.5 py-0.5 rounded-full font-semibold">✏️ editado</span>}
+                            </p>
                             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                               <span className="text-xs text-feisen-azul font-semibold">{m.cantidad} {m.items?.unidad_medida}</span>
 
@@ -465,6 +555,11 @@ export default function Historial() {
                           </div>
                           {esAdmin && (
                             <div className="flex items-center gap-1 shrink-0">
+                              <button onClick={() => abrirEdicion(m)}
+                                className="p-1.5 text-gray-300 hover:text-feisen-azul hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Editar">
+                                <Pencil size={14} />
+                              </button>
                               {!m.revertido && !esReversion && (
                                 <button onClick={() => setConfirmRevert(m)}
                                   className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
@@ -534,6 +629,79 @@ export default function Historial() {
                 {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal editar movimiento */}
+      {editModal && (
+        <Modal titulo={`Editar ${editModal.numero || 'movimiento'}`} onCerrar={() => setEditModal(null)}>
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            <div className="bg-blue-50 rounded-xl px-4 py-2.5 text-sm text-feisen-azul font-medium">
+              {editModal.items?.nombre} · {editModal.tipo === 'entrada' ? '↑ Entrada' : '↓ Salida'}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: 'fecha_movimiento', label: 'Fecha', type: 'date' },
+                { key: 'cantidad',         label: 'Cantidad', type: 'number' },
+                { key: 'precio_costo_snapshot', label: 'Precio costo ($)', type: 'number' },
+                { key: 'numero_of',        label: 'N° OF', type: 'text' },
+                { key: 'proveedor',        label: 'Proveedor', type: 'text' },
+                { key: 'cliente',          label: 'Cliente', type: 'text' },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <label className="text-xs text-gray-500 font-medium block mb-1">{label}</label>
+                  <input type={type} step={type === 'number' ? '0.001' : undefined}
+                    value={editForm[key] ?? ''}
+                    onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                </div>
+              ))}
+            </div>
+            {[
+              { key: 'referencia', label: 'Referencia' },
+              { key: 'serial_motor', label: 'Serial motor' },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <label className="text-xs text-gray-500 font-medium block mb-1">{label}</label>
+                <input type="text" value={editForm[key] ?? ''}
+                  onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              </div>
+            ))}
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditModal(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={guardarEdicion} disabled={editGuardando}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {editGuardando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+
+            {/* Historial de cambios */}
+            {editHistorial.length > 0 && (
+              <div className="border-t border-gray-100 pt-4 space-y-2">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Historial de cambios</p>
+                {editHistorial.map(e => (
+                  <div key={e.id} className="bg-gray-50 rounded-xl px-3 py-2.5 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-gray-700">{e.profiles?.nombre || '—'}</span>
+                      <span className="text-gray-400">{new Date(e.created_at).toLocaleString('es-CO')}</span>
+                    </div>
+                    {Object.entries(e.cambios).map(([campo, val]) => (
+                      <p key={campo} className="text-gray-600">
+                        <span className="font-medium">{val.label || campo}:</span>{' '}
+                        <span className="text-feisen-rojo line-through">{String(val.de ?? '—')}</span>
+                        {' → '}
+                        <span className="text-green-600 font-medium">{String(val.a ?? '—')}</span>
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Modal>
       )}
