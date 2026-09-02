@@ -76,15 +76,12 @@ export default function Historial() {
     setMovimientos(movs || [])
     setItems(its || [])
 
-    // Cargar qué movimientos tienen ediciones (para mostrar indicador)
-    if ((movs || []).length > 0) {
-      const ids = (movs || []).map(m => m.id)
-      const { data: edData } = await supabase
-        .from('movimientos_ediciones')
-        .select('movimiento_id')
-        .in('movimiento_id', ids)
-      setEditados(new Set((edData || []).map(e => e.movimiento_id)))
-    }
+    // Cargar qué movimientos tienen ediciones (sin filtrar por ID para evitar URLs gigantes)
+    const { data: edData } = await supabase
+      .from('movimientos_ediciones')
+      .select('movimiento_id')
+      .limit(5000)
+    setEditados(new Set((edData || []).map(e => e.movimiento_id)))
 
     setCargando(false)
   }
