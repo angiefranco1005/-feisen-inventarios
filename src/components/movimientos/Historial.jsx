@@ -76,14 +76,12 @@ export default function Historial() {
     setMovimientos(movs || [])
     setItems(its || [])
 
-    // Cargar qué movimientos tienen ediciones (sin filtrar por ID para evitar URLs gigantes)
-    const { data: edData } = await supabase
-      .from('movimientos_ediciones')
-      .select('movimiento_id')
-      .limit(5000)
-    setEditados(new Set((edData || []).map(e => e.movimiento_id)))
-
     setCargando(false)
+
+    // Cargar indicadores de edición en segundo plano (no bloquea la carga principal)
+    supabase.from('movimientos_ediciones').select('movimiento_id').limit(5000)
+      .then(({ data: edData }) => setEditados(new Set((edData || []).map(e => e.movimiento_id))))
+      .catch(() => {})
   }
 
   // ── editar movimiento (solo admin) ───────────────────────────────────────
