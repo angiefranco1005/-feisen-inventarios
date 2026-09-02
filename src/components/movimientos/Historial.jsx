@@ -54,9 +54,9 @@ export default function Historial() {
     const verTodo = esAdmin || esLogistica
     let movsQ = supabase
       .from('movimientos')
-      .select('*, items(nombre, unidad_medida, bodega_id, bodegas:bodega_id(nombre)), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
+      .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
       .order('created_at', { ascending: false })
-      .limit(1000)
+      .limit(400)
 
     if (!verTodo) {
       if (bodegasOperacion?.length) {
@@ -71,7 +71,7 @@ export default function Historial() {
 
     const [{ data: movs }, { data: its }] = await Promise.all([
       movsQ,
-      supabase.from('items').select('id, nombre, bodega_id, bodegas:bodega_id(nombre)').order('nombre').limit(10000),
+      supabase.from('items').select('id, nombre, bodega_id').eq('activo', true).order('nombre').limit(2000),
     ])
     setMovimientos(movs || [])
     setItems(its || [])
@@ -579,7 +579,7 @@ export default function Historial() {
           )
         })}
       </div>
-      <p className="text-xs text-gray-400 text-right">Mostrando últimos 1000 movimientos ({grupos.length} registros)</p>
+      <p className="text-xs text-gray-400 text-right">Mostrando últimos 400 movimientos ({grupos.length} registros)</p>
 
       {/* Modal firma digital */}
       {firmaModal && (
