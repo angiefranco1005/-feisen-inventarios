@@ -6,6 +6,7 @@ import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
+import FirmaCanvas from '../shared/FirmaCanvas'
 
 const PROD0 = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
 
@@ -109,107 +110,6 @@ function agruparProductos(lista) {
   return Object.values(mapa)
 }
 
-// ── Canvas de firma digital ───────────────────────────────────────────────
-function FirmaCanvas({ onFirma, firmaDataUrl }) {
-  const canvasRef = useRef(null)
-  const dibujando = useRef(false)
-  const tieneTrazos = useRef(false)
-
-  // Limpiar el canvas cuando el padre resetea firmaDataUrl a null
-  useEffect(() => {
-    if (!firmaDataUrl && canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d')
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
-      tieneTrazos.current = false
-      dibujando.current = false
-    }
-  }, [firmaDataUrl])
-
-  function getPos(e, canvas) {
-    const rect = canvas.getBoundingClientRect()
-    const touch = e.touches?.[0]
-    const clientX = touch ? touch.clientX : e.clientX
-    const clientY = touch ? touch.clientY : e.clientY
-    return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height),
-    }
-  }
-
-  function iniciar(e) {
-    e.preventDefault()
-    dibujando.current = true
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const pos = getPos(e, canvas)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-  }
-
-  function dibujar(e) {
-    e.preventDefault()
-    if (!dibujando.current) return
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    const pos = getPos(e, canvas)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.strokeStyle = '#064794'
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.stroke()
-    tieneTrazos.current = true
-  }
-
-  function terminar(e) {
-    e.preventDefault()
-    if (!dibujando.current) return
-    dibujando.current = false
-    if (tieneTrazos.current) {
-      const dataUrl = canvasRef.current.toDataURL('image/png')
-      onFirma(dataUrl)
-    }
-  }
-
-  function limpiar() {
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    tieneTrazos.current = false
-    onFirma(null)
-  }
-
-  return (
-    <div>
-      <div className={`rounded-xl overflow-hidden border-2 transition-colors ${firmaDataUrl ? 'border-green-400' : 'border-dashed border-gray-300'}`}>
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={160}
-          className="w-full touch-none bg-white block cursor-crosshair"
-          onMouseDown={iniciar}
-          onMouseMove={dibujar}
-          onMouseUp={terminar}
-          onMouseLeave={terminar}
-          onTouchStart={iniciar}
-          onTouchMove={dibujar}
-          onTouchEnd={terminar}
-        />
-      </div>
-      <div className="flex items-center justify-between mt-2">
-        {firmaDataUrl
-          ? <p className="text-xs text-green-600 font-medium">✓ Firma registrada</p>
-          : <p className="text-xs text-gray-400">Firma con el dedo o el mouse</p>
-        }
-        <button type="button" onClick={limpiar}
-          className="text-xs text-gray-400 hover:text-feisen-rojo transition-colors underline">
-          Limpiar
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion, rolEfectivo, esAdmin } = useAuth()
@@ -257,8 +157,9 @@ export default function RegistrarMovimientoAlmacenista() {
   const [notas,          setNotas]          = useState('')
   const [destinoBodegaId,setDestinoBodegaId]= useState('') // ID de bodega destino (transferencia interna)
   const [numeroOF,       setNumeroOF]       = useState('')
-  const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
-  const [todasBodegas,   setTodasBodegas]   = useState([])
+  const [firmaDataUrl,      setFirmaDataUrl]      = useState(null)
+  const [firmaEntradaUrl,   setFirmaEntradaUrl]   = useState(null)
+  const [todasBodegas,      setTodasBodegas]      = useState([])
   // ── Estado salida MECANIZADOS ──
   const [tipoSalidaMec,  setTipoSalidaMec]  = useState('externa')   // 'externa' | 'produccion'
   const [numeroOrden,    setNumeroOrden]    = useState('')
@@ -467,7 +368,7 @@ export default function RegistrarMovimientoAlmacenista() {
         pedido_id:             esCompra ? (pedidoId || null) : null,
         referencia:            referenciaFinal,
         fecha_movimiento:      fechaMov || null,
-        foto_remision_url: null, destino: null,
+        foto_remision_url: firmaEntradaUrl || null, destino: null,
         numero_of: null, serial_motor: null, motivo: null, cliente: null,
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
@@ -479,6 +380,7 @@ export default function RegistrarMovimientoAlmacenista() {
       setProductos([{ ...PROD0 }])
       setPedidoId('')
       setFechaMov(HOY_COL)
+      setFirmaEntradaUrl(null)
       setFormKey(k => k + 1)
       setExito(true)
       setTimeout(() => setExito(false), 2500)
@@ -828,6 +730,13 @@ export default function RegistrarMovimientoAlmacenista() {
               <Plus size={15} /> Agregar otro producto
             </button>
           </div>
+
+          {/* Firma del responsable - entradas */}
+          <FirmaCanvas
+            onFirma={setFirmaEntradaUrl}
+            firmaDataUrl={firmaEntradaUrl}
+            label="Firma del responsable"
+          />
 
           <button type="submit" disabled={guardando}
             className={`w-full text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity

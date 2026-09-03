@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { CheckCircle, Search, Upload, FileImage } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
+import FirmaCanvas from '../shared/FirmaCanvas'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
@@ -28,6 +29,7 @@ export default function RegistrarMovimiento() {
   const [subiendo,       setSubiendo]       = useState(false)
   const [exito,          setExito]          = useState(false)
   const [error,          setError]          = useState('')
+  const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
 
   const pedidoDesdeNav    = location.state?.pedido_id        || ''
   const cantidadDesdeNav  = location.state?.cantidad_sugerida || ''
@@ -148,7 +150,7 @@ export default function RegistrarMovimiento() {
       // Entrada
       proveedor:             form.tipo === 'entrada' ? (form.proveedor || null) : null,
       pedido_id:             form.tipo === 'entrada' ? (form.pedido_id || null) : null,
-      foto_remision_url:     form.tipo === 'entrada' ? (form.foto_remision_url || null) : null,
+      foto_remision_url:     firmaDataUrl || (form.tipo === 'entrada' ? (form.foto_remision_url || null) : null),
       // Salida
       destino:               form.tipo === 'salida'  ? form.destino       : null,
       numero_of:             form.tipo === 'salida'  ? (form.numero_of    || null) : null,
@@ -176,6 +178,7 @@ export default function RegistrarMovimiento() {
         numero_of: '', serial_motor: '', destino: '', proveedor: '', pedido_id: '', foto_remision_url: '',
       }))
       setBusqueda('')
+      setFirmaDataUrl(null)
     }, 2500)
   }
 
@@ -363,6 +366,9 @@ export default function RegistrarMovimiento() {
             </div>
           </>
         )}
+
+        {/* Firma del responsable */}
+        <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
 
         {error && <Alerta tipo="error" mensaje={error} />}
 
