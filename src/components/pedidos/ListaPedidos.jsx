@@ -402,12 +402,26 @@ export default function ListaPedidos() {
     if (conEntrada) {
       const itemsConId = (pedido.pedido_items || []).filter(it => it.item_id && parseFloat(cantRec[it.id]) > 0)
       if (itemsConId.length > 0) {
-        const { data: itemsData } = await supabase
+        // Fetch items sin join frágil de bodegas
+        const { data: itemsData, error: itemsErr } = await supabase
           .from('items')
-          .select('id, bodega_id, precio_costo, bodegas(nombre)')
+          .select('id, bodega_id, precio_costo')
           .in('id', itemsConId.map(it => it.item_id))
+
+        if (itemsErr || !itemsData?.length) {
+          setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al cargar productos para la entrada automática. Registra la entrada manualmente.' })
+          return
+        }
+
+        // Fetch nombres de bodegas por ID (evita inestabilidad del join PostgREST)
+        const uniqueBodegaIds = [...new Set(itemsData.map(i => i.bodega_id).filter(Boolean))]
+        const { data: bodegasData } = await supabase
+          .from('bodegas').select('id, nombre').in('id', uniqueBodegaIds)
+        const bodegaMap = {}
+        bodegasData?.forEach(b => { bodegaMap[b.id] = b.nombre })
+
         const itemMap = {}
-        itemsData?.forEach(i => { itemMap[i.id] = i })
+        itemsData.forEach(i => { itemMap[i.id] = i })
 
         const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
         const prefix = `MOV-${iniciales}-`
@@ -429,7 +443,7 @@ export default function ListaPedidos() {
             bodega_origen_id:      null,
             cantidad:              parseFloat(cantRec[it.id]),
             precio_costo_snapshot: info.precio_costo || 0,
-            centro_costo:          info.bodegas?.nombre || '',
+            centro_costo:          bodegaMap[info.bodega_id] || '',
             usuario_id:            perfil.id,
             pedido_id:             pedido.id,
             proveedor: null, foto_remision_url: null, destino: null,
@@ -440,6 +454,8 @@ export default function ListaPedidos() {
           const { error } = await supabase.from('movimientos').insert(payloads)
           if (error) setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al registrar entradas: ' + error.message })
           else setMsg({ tipo: 'exito', texto: `✅ Recibido + ${payloads.length} entrada(s) registrada(s) automáticamente.` })
+        } else {
+          setMsg({ tipo: 'error', texto: 'Pedido recibido, pero los ítems no tienen producto vinculado al catálogo. Registra la entrada manualmente.' })
         }
       }
     }
