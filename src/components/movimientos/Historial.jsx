@@ -60,9 +60,9 @@ export default function Historial() {
 
     if (!verTodo) {
       if (bodegasOperacion?.length) {
-        // Jefes de área: ver todos los movimientos que entran o salen de sus bodegas
+        // Jefes de área: solo movimientos que entran o salen de sus bodegas
         movsQ = movsQ.or(
-          `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')}),usuario_id.eq.${perfil.id}`
+          `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')})`
         )
       } else {
         movsQ = movsQ.eq('usuario_id', perfil.id)
