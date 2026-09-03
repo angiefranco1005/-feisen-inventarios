@@ -71,7 +71,7 @@ export default function Historial() {
 
     const [{ data: movs }, { data: its }] = await Promise.all([
       movsQ,
-      supabase.from('items').select('id, nombre, bodega_id').eq('activo', true).order('nombre').limit(2000),
+      supabase.from('items').select('id, nombre, bodega_id').order('nombre').limit(2000),
     ])
     setMovimientos(movs || [])
     setItems(its || [])
