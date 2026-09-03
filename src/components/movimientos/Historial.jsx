@@ -13,7 +13,7 @@ const TIPO_CONFIG = {
 }
 
 export default function Historial() {
-  const { perfil, esAdmin, esLogistica, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
   const [movimientos,  setMovimientos]  = useState([])
   const [items,        setItems]        = useState([])
@@ -59,7 +59,10 @@ export default function Historial() {
       .limit(400)
 
     if (!verTodo) {
-      if (bodegasOperacion?.length) {
+      if (esAlmacenista) {
+        // Almacenista: solo sus propios movimientos
+        movsQ = movsQ.eq('usuario_id', perfil.id)
+      } else if (bodegasOperacion?.length) {
         // Jefes de área: solo movimientos que entran o salen de sus bodegas
         movsQ = movsQ.or(
           `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')})`
