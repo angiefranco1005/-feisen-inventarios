@@ -56,7 +56,7 @@ export default function Historial() {
       .from('movimientos')
       .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
       .order('created_at', { ascending: false })
-      .limit(400)
+      .limit(2000)
 
     if (!verTodo) {
       if (esAlmacenista) {
