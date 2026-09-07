@@ -33,7 +33,7 @@ const HISTORIAL_LABELS = {
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, onTransito, onEliminar, onRecibido, onEditar, onToggleHistorial, historialAbierto, historial }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, onTransito, onEliminar, onRecibido, onEditar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
 
@@ -84,7 +84,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, o
             className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
             <Clock size={15} />
           </button>
-          {esAdmin && (
+          {puedeEliminar && (
             <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
               <Trash2 size={15} />
             </button>
@@ -542,9 +542,30 @@ export default function ListaPedidos() {
 
   async function eliminarPedido(pedido) {
     setMsg(null)
-    // Desvincular movimientos que apunten a este pedido (FK constraint)
+
+    // 1. Guardar log en pedidos_eliminados ANTES de borrar
+    const itemsLog = (pedido.pedido_items || []).map(it => ({
+      descripcion: it.descripcion,
+      cantidad:    it.cantidad,
+      unidad:      it.unidad,
+      item_id:     it.item_id || null,
+    }))
+    await supabase.from('pedidos_eliminados').insert({
+      pedido_numero:       pedido.numero,
+      pedido_id_original:  pedido.id,
+      solicitante_nombre:  pedido.profiles?.nombre || '',
+      estado_al_eliminar:  pedido.estado,
+      items:               itemsLog,
+      obs:                 pedido.obs || null,
+      eliminado_por_id:    perfil.id,
+      eliminado_por_nombre: perfil.nombre,
+    })
+
+    // 2. Desvincular movimientos que apunten a este pedido
     await supabase.from('movimientos').update({ pedido_id: null }).eq('pedido_id', pedido.id)
+    // 3. Borrar items (el historial del pedido se borra en cascade)
     await supabase.from('pedido_items').delete().eq('pedido_id', pedido.id)
+    // 4. Borrar pedido
     const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id)
     if (error) { setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message }); setConfirmElim(null); return }
     setConfirmElim(null)
@@ -620,6 +641,7 @@ export default function ListaPedidos() {
             puedeTransito={esAdmin || esLogistica}
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
+            puedeEliminar={esAdmin || p.solicitante_id === perfil?.id}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onRecibido={iniciarRecibido}
