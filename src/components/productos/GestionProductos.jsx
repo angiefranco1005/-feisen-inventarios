@@ -112,25 +112,7 @@ export default function GestionProductos() {
 
     let todosItems = (it || []).map(i => ({ ...i, stock: stockIdx[i.id] || [] }))
 
-    // Para usuarios no-admin/no-logistica: mostrar también ítems de otras bodegas con stock aquí
-    if (!esAdmin && !esLogistica && bodegasPermitidas && bodegasPermitidas.length > 0) {
-      const ownIds = new Set(todosItems.map(i => i.id))
-      const extraIds = (allStock || [])
-        .filter(s => bodegasPermitidas.includes(s.bodega_id) && s.cantidad_actual > 0 && !ownIds.has(s.item_id))
-        .map(s => s.item_id)
-      if (extraIds.length > 0) {
-        const { data: ext } = await supabase.from('items')
-          .select('*, categorias(nombre), bodegas!bodega_id(nombre)')
-          .in('id', extraIds).eq('activo', true)
-        const marcadas = (ext || []).map(item => ({
-          ...item,
-          stock: stockIdx[item.id] || [],
-          categorias: { nombre: 'Fundición' },
-          categoria_id: '__fundicion__',
-        }))
-        todosItems = [...todosItems, ...marcadas].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-      }
-    }
+    // Cada perfil solo ve los ítems de su propia bodega (bodega_id coincide con sus bodegas asignadas)
 
     setItems(todosItems)
     // Para no-admin: filtrar categorías y bodegas visibles
