@@ -51,7 +51,7 @@ export default function Historial() {
 
   async function cargar() {
     setCargando(true)
-    const verTodo = esAdmin || esLogistica
+    const verTodo = esAdmin
     let movsQ = supabase
       .from('movimientos')
       .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
@@ -582,7 +582,7 @@ export default function Historial() {
           )
         })}
       </div>
-      <p className="text-xs text-gray-400 text-right">Mostrando últimos 400 movimientos ({grupos.length} registros)</p>
+      <p className="text-xs text-gray-400 text-right">Mostrando últimos 2000 movimientos ({grupos.length} registros)</p>
 
       {/* Modal firma digital */}
       {firmaModal && (
