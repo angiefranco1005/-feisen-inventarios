@@ -670,7 +670,7 @@ export default function ListaPedidos() {
             puedeTransito={esAdmin || esLogistica}
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
-            puedeEliminar={esAdmin || p.solicitante_id === perfil?.id}
+            puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
