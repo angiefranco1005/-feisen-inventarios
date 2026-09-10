@@ -112,7 +112,7 @@ function agruparProductos(lista) {
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
-  const { perfil, bodegasOperacion, rolEfectivo, esAdmin } = useAuth()
+  const { perfil, bodegasOperacion, rolEfectivo, esAdmin, esAlmacenista } = useAuth()
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
@@ -406,7 +406,7 @@ export default function RegistrarMovimientoAlmacenista() {
     if (!esFundicion && !esMecanizados && !receptor.trim())                           { setError('Ingresa el nombre de quien recibe.'); return }
     if (esExternaFundic && !numeroOF.trim())                                          { setError('Ingresa el N° OF.'); return }
     if (esInterna && !destinoBodegaId)                                                { setError('Selecciona el destino interno.'); return }
-    if (!firmaDataUrl && !(esMecanizados && tipoSalidaMec === 'produccion'))           { setError('Se requiere la firma del responsable.'); return }
+    if (!esAlmacenista && !firmaDataUrl && !(esMecanizados && tipoSalidaMec === 'produccion')) { setError('Se requiere la firma del responsable.'); return }
     if (esMecanizados && tipoSalidaMec === 'externa' && !numeroOrden.trim())          { setError('Ingresa el N° de orden.'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !destinoMec)               { setError('Selecciona el destino (Almacén o Soldadura y Armado).'); return }
     if (esMecanizados && tipoSalidaMec === 'produccion' && !colaborador.trim())       { setError('Ingresa el colaborador que recibe.'); return }
@@ -734,12 +734,14 @@ export default function RegistrarMovimientoAlmacenista() {
             </button>
           </div>
 
-          {/* Firma del responsable - entradas */}
-          <FirmaCanvas
-            onFirma={setFirmaEntradaUrl}
-            firmaDataUrl={firmaEntradaUrl}
-            label="Firma del responsable"
-          />
+          {/* Firma del responsable - entradas (no aplica para almacenista) */}
+          {!esAlmacenista && (
+            <FirmaCanvas
+              onFirma={setFirmaEntradaUrl}
+              firmaDataUrl={firmaEntradaUrl}
+              label="Firma del responsable"
+            />
+          )}
 
           <button type="submit" disabled={guardando}
             className={`w-full text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity
@@ -984,8 +986,8 @@ export default function RegistrarMovimientoAlmacenista() {
             </button>
           </div>
 
-          {/* Firma del responsable — no aplica para mecanizados producción (ahí solo va la del receptor) */}
-          {!(esMecanizados && tipoSalidaMec === 'produccion') && (
+          {/* Firma del responsable — no aplica para mecanizados producción ni para almacenista */}
+          {!esAlmacenista && !(esMecanizados && tipoSalidaMec === 'produccion') && (
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                 <PenLine size={15} /> Firma del responsable *
