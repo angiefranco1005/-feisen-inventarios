@@ -957,7 +957,9 @@ export default function RegistrarMovimientoAlmacenista() {
                 <div key={idx} className="flex gap-2 items-center">
                   <SelectorItem
                     value={prod.item_nombre}
-                    items={items}
+                    items={esMecanizados
+                      ? items.filter(i => !i.nombre.toUpperCase().endsWith('- MECANIZADO'))
+                      : items}
                     onSelect={item => seleccionarSProducto(idx, item)}
                   />
                   <input
