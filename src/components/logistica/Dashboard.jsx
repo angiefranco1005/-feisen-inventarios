@@ -6,7 +6,7 @@ import { PackagePlus, PackageMinus, BarChart2 } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 
 export default function DashboardLogistica() {
-  const { perfil } = useAuth()
+  const { perfil, esAlmacenista } = useAuth()
   const [recientes, setRecientes] = useState([])
   const [cargando, setCargando]   = useState(true)
 
@@ -30,7 +30,7 @@ export default function DashboardLogistica() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]} 👋</h1>
-        <p className="text-gray-500 text-sm mt-1">Logística · Bodega Motores</p>
+        <p className="text-gray-500 text-sm mt-1">{esAlmacenista ? 'Almacenista · Bodega Almacén' : 'Logística · Bodega Motores'}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
