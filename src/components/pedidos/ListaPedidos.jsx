@@ -6,13 +6,14 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, XCircle } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
   en_transito:             { label: 'En tránsito',          color: 'bg-blue-100 text-blue-700',     icon: Truck        },
   recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
   parcialmente_recibido:   { label: 'Parcial ⚠️',           color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
+  cerrado:                 { label: 'Cerrado',              color: 'bg-gray-100 text-gray-500',     icon: XCircle      },
 }
 
 const PRIORIDAD_CONFIG = {
@@ -29,11 +30,18 @@ const HISTORIAL_LABELS = {
   en_transito:             '🚚 Marcado en tránsito',
   recibido:                '📦 Recibido',
   parcialmente_recibido:   '⚠️ Recibido parcialmente',
+  cerrado:                 '🔒 Pedido cerrado',
 }
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, onTransito, onEliminar, onRecibido, onEditar, onToggleHistorial, historialAbierto, historial }) {
+const MOTIVOS_CIERRE = [
+  'Ya no se necesita',
+  'El proveedor no lo tiene',
+  'Se creó otra orden para cambiar de proveedor',
+]
+
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
 
@@ -84,6 +92,12 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
             <Clock size={15} />
           </button>
+          {puedeCerrar && p.estado !== 'cerrado' && p.estado !== 'recibido' && (
+            <button onClick={() => onCerrar(p)} title="Cerrar pedido"
+              className="p-1.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+              <XCircle size={15} />
+            </button>
+          )}
           {puedeEliminar && (
             <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
               <Trash2 size={15} />
@@ -114,6 +128,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             )
           })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
+          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">🔒 Cerrado: {p.motivo_cierre}</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
           {p.foto_muestra_url && (
             <div className="mt-3">
@@ -213,6 +228,8 @@ export default function ListaPedidos() {
   const [modalRecibido, setModalRecibido] = useState(null)
   const [cantRec,       setCantRec]       = useState({})
   const [confirmElim,   setConfirmElim]   = useState(null)
+  const [confirmCerrar, setConfirmCerrar] = useState(null) // pedido a cerrar
+  const [motivoCierre,  setMotivoCierre]  = useState('')
   const [modalEditar,   setModalEditar]   = useState(null) // pedido que se edita
 
   // Form edición
@@ -572,6 +589,18 @@ export default function ListaPedidos() {
     cargar()
   }
 
+  async function cerrarPedido(pedido, motivo) {
+    setMsg(null)
+    const { error } = await supabase.from('pedidos')
+      .update({ estado: 'cerrado', motivo_cierre: motivo })
+      .eq('id', pedido.id)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al cerrar: ' + error.message }); return }
+    await registrarHistorial(pedido.id, 'cerrado', motivo)
+    setConfirmCerrar(null)
+    setMotivoCierre('')
+    cargar()
+  }
+
   const pedidosFiltrados = pedidos
     .filter(p => filtro === 'todos' || p.estado === filtro)
     .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1))
@@ -617,7 +646,7 @@ export default function ListaPedidos() {
 
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
-        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'recibido'].map(f => (
+        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'recibido', 'cerrado'].map(f => (
           <button key={f} onClick={() => setFiltro(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors
               ${filtro === f ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
@@ -642,8 +671,10 @@ export default function ListaPedidos() {
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || p.solicitante_id === perfil?.id}
+            puedeCerrar={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
+            onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
             onRecibido={iniciarRecibido}
             onEditar={abrirEditar}
             onToggleHistorial={toggleHistorial}
@@ -936,6 +967,37 @@ export default function ListaPedidos() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* MODAL CERRAR PEDIDO */}
+      {confirmCerrar && (
+        <Modal titulo={`Cerrar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">¿Por qué se cierra este pedido? Esta razón quedará registrada en el historial.</p>
+            <div className="space-y-2">
+              {MOTIVOS_CIERRE.map(m => (
+                <button key={m} type="button" onClick={() => setMotivoCierre(m)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-colors
+                    ${motivoCierre === m
+                      ? 'border-feisen-azul bg-blue-50 text-feisen-azul'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'}`}>
+                  {motivoCierre === m ? '✓ ' : ''}{m}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setConfirmCerrar(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
+                disabled={!motivoCierre}
+                className="flex-1 bg-gray-700 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
+                🔒 Cerrar pedido
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 
