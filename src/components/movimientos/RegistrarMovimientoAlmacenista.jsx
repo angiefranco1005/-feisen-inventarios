@@ -1057,12 +1057,11 @@ export default function RegistrarMovimientoAlmacenista() {
 
           {/* Firma del responsable — no aplica para mecanizados producción ni para almacenista */}
           {!esAlmacenista && !(esMecanizados && tipoSalidaMec === 'produccion') && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <PenLine size={15} /> Firma del responsable *
-              </label>
-              <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
-            </div>
+            <FirmaCanvas
+              onFirma={setFirmaDataUrl}
+              firmaDataUrl={firmaDataUrl}
+              label="Firma del responsable *"
+            />
           )}
 
           <button type="submit" disabled={guardando}

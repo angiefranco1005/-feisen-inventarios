@@ -84,9 +84,9 @@ const MOBILE_ALMACENISTA = [
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,          label: 'Mecanizado' },
-  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transferencias' },
+  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transf.' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/productos',                      icon: Package,          label: 'Productos' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
