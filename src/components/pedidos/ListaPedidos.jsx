@@ -213,7 +213,7 @@ function SelectorProducto({ value, onSelect, productos }) {
 export default function ListaPedidos() {
   const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion, rolEfectivo } = useAuth()
 
-  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION' }
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', CONSULTOR: 'INNOVACION' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])

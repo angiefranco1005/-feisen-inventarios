@@ -53,11 +53,14 @@ function AppRoutes() {
     )
   }
 
-  // CONSULTOR → solo ve su dashboard
+  // CONSULTOR → dashboard + pedidos propios
   if (rolEfectivo === 'CONSULTOR') {
     return (
       <Routes>
-        <Route path="*" element={<Layout><DashboardConsultor /></Layout>} />
+        <Route path="/"          element={<Layout><DashboardConsultor /></Layout>} />
+        <Route path="/dashboard" element={<Layout><DashboardConsultor /></Layout>} />
+        <Route path="/pedidos"   element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="*"          element={<Layout><DashboardConsultor /></Layout>} />
       </Routes>
     )
   }

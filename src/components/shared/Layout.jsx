@@ -92,6 +92,15 @@ const MOBILE_JEFE_FUNDICION = [
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
 ]
 
+const NAV_CONSULTOR = [
+  { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/pedidos',    icon: ShoppingCart,    label: 'Pedidos' },
+]
+const MOBILE_CONSULTOR = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/pedidos',   icon: ShoppingCart,    label: 'Pedidos' },
+]
+
 const BADGE = {
   ADMIN:             { color: 'bg-feisen-rojo text-white',   label: 'Admin' },
   LOGISTICA:         { color: 'bg-feisen-azul text-white',   label: 'Logística' },
@@ -103,7 +112,7 @@ const BADGE = {
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esConsultor, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -118,6 +127,7 @@ export default function Layout({ children }) {
     : esOperario         ? NAV_OPERARIO
     : esJefeFundicion    ? NAV_JEFE_FUNDICION
     : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
+    : esConsultor        ? NAV_CONSULTOR
     : []
 
   // Barra inferior móvil — curada para que las acciones clave siempre sean visibles
@@ -125,6 +135,7 @@ export default function Layout({ children }) {
     : esAlmacenista      ? MOBILE_ALMACENISTA
     : esJefeFundicion    ? MOBILE_JEFE_FUNDICION
     : esJefeMecanizados  ? MOBILE_JEFE_MECANIZADOS
+    : esConsultor        ? MOBILE_CONSULTOR
     : navItems.slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
