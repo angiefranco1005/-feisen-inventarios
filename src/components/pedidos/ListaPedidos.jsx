@@ -211,7 +211,7 @@ function SelectorProducto({ value, onSelect, productos }) {
 }
 
 export default function ListaPedidos() {
-  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion, rolEfectivo } = useAuth()
+  const { perfil, esAdmin, esLogistica, esAlmacenista, esConsultor, bodegasOperacion, rolEfectivo } = useAuth()
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', CONSULTOR: 'INNOVACION' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
@@ -271,7 +271,7 @@ export default function ListaPedidos() {
 
   async function cargar() {
     setCargando(true)
-    const verTodo = esAdmin || esLogistica
+    const verTodo = esAdmin || esLogistica || esConsultor
     const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
     let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
