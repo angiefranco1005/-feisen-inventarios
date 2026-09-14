@@ -40,6 +40,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
   { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
@@ -51,6 +52,7 @@ const NAV_JEFE_FUNDICION = [
 const NAV_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,           label: 'Mecanizado' },
+  { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
@@ -82,12 +84,14 @@ const MOBILE_ALMACENISTA = [
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,          label: 'Mecanizado' },
+  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transferencias' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transferencias' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
 ]

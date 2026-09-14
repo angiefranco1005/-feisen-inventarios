@@ -110,6 +110,8 @@ function agruparProductos(lista) {
   return Object.values(mapa)
 }
 
+const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
+
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion, rolEfectivo, esAdmin, esAlmacenista } = useAuth()
@@ -139,9 +141,10 @@ export default function RegistrarMovimientoAlmacenista() {
   const [items,       setItems]       = useState([])
   const [bodega,      setBodega]      = useState(null)
   const [cargando,    setCargando]    = useState(true)
-  const [guardando,   setGuardando]   = useState(false)
-  const [exito,       setExito]       = useState(false)
-  const [error,       setError]       = useState('')
+  const [guardando,        setGuardando]        = useState(false)
+  const [exito,            setExito]            = useState(false)
+  const [exitoPendiente,   setExitoPendiente]   = useState(false)
+  const [error,            setError]            = useState('')
   const [formKey,     setFormKey]     = useState(0)   // fuerza remonte de SelectorItem al resetear
 
   // ── Estado ENTRADA ──
@@ -417,6 +420,58 @@ export default function RegistrarMovimientoAlmacenista() {
 
     const destNombre = esInterna ? (todasBodegas.find(b => b.id === destinoBodegaId)?.nombre || '') : null
 
+    // ── CASO ESPECIAL: Fundición → Mecanizados = transferencia pendiente ──
+    const esTransferMecanizados = esInterna && destinoBodegaId === MECANIZADOS_BODEGA_ID
+    if (esTransferMecanizados) {
+      setGuardando(true)
+      try {
+        const { data: lastTrf } = await supabase
+          .from('transferencias_pendientes')
+          .select('numero')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const lastNum = lastTrf?.numero
+          ? parseInt(lastTrf.numero.replace(/^TRF-0*/, ''), 10) || 0
+          : 0
+        const numeroTrf = `TRF-${String(lastNum + 1).padStart(4, '0')}`
+
+        const itemsPayload = agrupados.map(p => ({
+          item_id:      p.item_id,
+          item_nombre:  p.item_nombre,
+          cantidad:     p.cantidad,
+          unidad:       p.unidad,
+          precio_costo: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+        }))
+
+        const { error: errTrf } = await supabase.from('transferencias_pendientes').insert({
+          numero:            numeroTrf,
+          estado:            'pendiente',
+          origen_bodega_id:  bodega.id,
+          destino_bodega_id: destinoBodegaId,
+          items:             itemsPayload,
+          creado_por:        perfil.id,
+          notas:             notas.trim() || null,
+          fecha_movimiento:  fechaMov || null,
+        })
+        if (errTrf) { setError('Error al registrar transferencia: ' + errTrf.message); return }
+
+        setSProductos([{ ...PROD0 }])
+        setNotas('')
+        setDestinoBodegaId('')
+        setFirmaDataUrl(null)
+        setFechaMov(HOY_COL)
+        setFormKey(k => k + 1)
+        setExitoPendiente(true)
+        setTimeout(() => setExitoPendiente(false), 5000)
+      } catch (err) {
+        setError('Error inesperado: ' + err.message)
+      } finally {
+        setGuardando(false)
+      }
+      return
+    }
+
     setGuardando(true)
 
     // Validar stock suficiente para cada producto antes de guardar
@@ -576,6 +631,15 @@ export default function RegistrarMovimientoAlmacenista() {
           <p className="text-green-700 font-medium text-sm">
             {tipo === 'entrada' ? '¡Entrada registrada exitosamente!' : '¡Salida registrada exitosamente!'}
           </p>
+        </div>
+      )}
+      {exitoPendiente && (
+        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <CheckCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-amber-800 font-semibold text-sm">¡Transferencia enviada a Mecanizados!</p>
+            <p className="text-amber-700 text-xs mt-0.5">El stock se moverá cuando Mecanizados la apruebe. Puedes hacer seguimiento en "Transferencias".</p>
+          </div>
         </div>
       )}
       {error && <Alerta tipo="error" mensaje={error} />}
@@ -940,9 +1004,14 @@ export default function RegistrarMovimientoAlmacenista() {
                     </button>
                   ))}
                 </div>
-                {destinoBodegaId && (
+                {destinoBodegaId && destinoBodegaId !== MECANIZADOS_BODEGA_ID && (
                   <p className="mt-1.5 text-xs text-feisen-azul font-medium">
                     → Se creará una entrada automática en <strong>{todasBodegas.find(b => b.id === destinoBodegaId)?.nombre}</strong>
+                  </p>
+                )}
+                {destinoBodegaId === MECANIZADOS_BODEGA_ID && (
+                  <p className="mt-1.5 text-xs text-amber-600 font-medium">
+                    ⏳ Quedará pendiente de aprobación — el stock se mueve solo cuando Mecanizados apruebe
                   </p>
                 )}
               </div>

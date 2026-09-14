@@ -27,7 +27,8 @@ import GestionBOM          from './components/fundicion/GestionBOM'
 import RecogidaFundida     from './components/fundicion/RecogidaFundida'
 import AnaliticaFundicion  from './components/fundicion/AnaliticaFundicion'
 import InformeNomina       from './components/reportes/InformeNomina'
-import RegistroMecanizado  from './components/mecanizados/RegistroMecanizado'
+import RegistroMecanizado       from './components/mecanizados/RegistroMecanizado'
+import TransferenciasPendientes from './components/transferencias/TransferenciasPendientes'
 
 function Cargando() {
   return (
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
         <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="/transferencias"    element={<Layout><TransferenciasPendientes /></Layout>} />
         <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
         <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
         <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
@@ -143,6 +145,7 @@ function AppRoutes() {
         <Route path="/movimientos/nuevo"    element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
         <Route path="/movimientos"          element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"              element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="/transferencias"       element={<Layout><TransferenciasPendientes /></Layout>} />
         <Route path="/mecanizados/registro" element={<Layout><RegistroMecanizado /></Layout>} />
         <Route path="*"                     element={<Navigate to="/dashboard" replace />} />
       </Routes>
