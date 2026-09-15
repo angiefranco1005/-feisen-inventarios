@@ -51,12 +51,12 @@ async function fetchDatosPeriodo(anio, mes, quincena) {
         id, asignado_a, cantidad_planeada, cantidad_conforme, cantidad_nc, motivo_nc,
         items(nombre, peso_unitario)
       )
-    `).gte('fecha', inicio).lte('fecha', fin).order('fecha'),
+    `).gte('fecha', inicio).lte('fecha', fin).order('fecha').limit(50000),
 
     // Fundidas del período
     supabase.from('fundidas')
       .select('id, numero, fecha, horneros, vaceadores, auxiliares')
-      .gte('fecha', inicio).lte('fecha', fin).order('fecha'),
+      .gte('fecha', inicio).lte('fecha', fin).order('fecha').limit(10000),
 
     // Avances diarios del período (via fecha del avance)
     supabase.from('ordenes_moldeo_avances').select(`
@@ -65,7 +65,7 @@ async function fetchDatosPeriodo(anio, mes, quincena) {
         id, asignado_a,
         items(nombre, peso_unitario)
       )
-    `).gte('fecha', inicio).lte('fecha', fin).order('fecha'),
+    `).gte('fecha', inicio).lte('fecha', fin).order('fecha').limit(50000),
   ])
 
   return { ordenes: ordenes || [], fundidas: fundidas || [], avances: avances || [] }
@@ -245,6 +245,7 @@ export default function InformeNomina() {
       .order('anio', { ascending: false })
       .order('mes',  { ascending: false })
       .order('quincena', { ascending: false })
+      .limit(500)
     setHistorial(data || [])
     setCargandoH(false)
   }, [])

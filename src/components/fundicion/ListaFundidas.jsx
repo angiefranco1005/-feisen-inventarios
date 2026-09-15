@@ -49,6 +49,7 @@ export default function ListaFundidas() {
       .from('fundidas')
       .select('*')
       .order('created_at', { ascending: false })
+      .limit(5000)
     setFundidas(data || [])
     setCargando(false)
   }

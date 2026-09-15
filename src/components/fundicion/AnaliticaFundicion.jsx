@@ -81,14 +81,14 @@ export default function AnaliticaFundicion() {
       `)
       .eq('estado', 'completada')
       .order('fecha', { ascending: false })
-      .range(0, 999)
+      .limit(50000)
     if (desde) qOrd = qOrd.gte('fecha', desde)
 
     let qFun = supabase
       .from('fundidas')
       .select('id, numero, fecha, hierro_colado, carbon, caliza, ferromolido, exlac, temperatura')
       .order('fecha', { ascending: false })
-      .range(0, 499)
+      .limit(50000)
     if (desde) qFun = qFun.gte('fecha', desde)
 
     let qMov = supabase
@@ -96,7 +96,7 @@ export default function AnaliticaFundicion() {
       .select('referencia, item_id, tipo, cantidad, fecha_movimiento')
       .in('item_id', [HIERRO_COLADO_ITEM_ID, VACEADERO_ITEM_ID])
       .eq('revertido', false)
-      .range(0, 999)
+      .limit(50000)
     if (desde) qMov = qMov.gte('fecha_movimiento', desde)
 
     const [{ data: ords }, { data: funs }, { data: movs }] = await Promise.all([qOrd, qFun, qMov])
