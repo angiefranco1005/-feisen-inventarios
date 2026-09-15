@@ -4,8 +4,9 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   ClipboardList, ChevronDown, ChevronUp, Search, PlusCircle,
-  AlertTriangle, TrendingUp, Plus, Calendar,
+  AlertTriangle, TrendingUp, Plus, Calendar, Pencil, XCircle, X,
 } from 'lucide-react'
+import Modal from '../shared/Modal'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 function fmtFecha(f) {
@@ -53,6 +54,17 @@ export default function ListaOrdenesMoldeo() {
   const [vistaAbierta, setVistaAbierta] = useState({})
   // Vista de orden completada: 'pieza' | 'moldeador'
   const [vistaOrden,   setVistaOrden]   = useState({})
+
+  // Cancelar
+  const [confirmCancelar,   setConfirmCancelar]   = useState(null)
+  const [cancelando,        setCancelando]        = useState(false)
+  // Editar
+  const [editModal,         setEditModal]         = useState(null)
+  const [editForm,          setEditForm]          = useState({ fecha: '', piezas: [] })
+  const [editGuardando,     setEditGuardando]     = useState(false)
+  const [msgEdit,           setMsgEdit]           = useState('')
+  // Mostrar canceladas
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
 
   useEffect(() => { cargar() }, [])
 
@@ -161,7 +173,60 @@ export default function ListaOrdenesMoldeo() {
     }
   }
 
+  // ── Cancelar orden ────────────────────────────────────────────────────────────
+  async function cancelarOrden(orden) {
+    setCancelando(true)
+    await supabase.from('ordenes_moldeo').update({ estado: 'cancelado' }).eq('id', orden.id)
+    setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, estado: 'cancelado' } : o))
+    setCancelando(false)
+    setConfirmCancelar(null)
+    setExpandido(null)
+  }
+
+  // ── Editar orden ──────────────────────────────────────────────────────────────
+  function abrirEdicion(orden) {
+    setEditForm({
+      fecha: orden.fecha || '',
+      piezas: (orden.ordenes_moldeo_piezas || []).map(p => ({
+        id: p.id,
+        nombre: p.items?.nombre || '',
+        cantidad_planeada: String(p.cantidad_planeada || ''),
+        asignado_a: p.asignado_a || '',
+      })),
+    })
+    setMsgEdit('')
+    setEditModal(orden)
+  }
+
+  async function guardarEdicion() {
+    setEditGuardando(true)
+    setMsgEdit('')
+    const { error: e1 } = await supabase.from('ordenes_moldeo')
+      .update({ fecha: editForm.fecha }).eq('id', editModal.id)
+    if (e1) { setMsgEdit('Error: ' + e1.message); setEditGuardando(false); return }
+
+    for (const p of editForm.piezas) {
+      const { error: e2 } = await supabase.from('ordenes_moldeo_piezas').update({
+        cantidad_planeada: Number(p.cantidad_planeada) || 0,
+        asignado_a: p.asignado_a.trim() || null,
+      }).eq('id', p.id)
+      if (e2) { setMsgEdit('Error en pieza: ' + e2.message); setEditGuardando(false); return }
+    }
+
+    setEditGuardando(false)
+    setEditModal(null)
+    cargar()
+  }
+
+  function setPieza(idx, campo, val) {
+    setEditForm(prev => ({
+      ...prev,
+      piezas: prev.piezas.map((p, i) => i === idx ? { ...p, [campo]: val } : p),
+    }))
+  }
+
   const filtradas = ordenes.filter(o => {
+    if (!mostrarCanceladas && o.estado === 'cancelado') return false
     const q = busqueda.toLowerCase().trim()
     if (!q) return true
     return (
@@ -184,6 +249,9 @@ export default function ListaOrdenesMoldeo() {
             <h1 className="text-xl font-bold text-gray-800">Órdenes de Moldeo</h1>
             <p className="text-xs text-gray-500">
               {ordenes.filter(o => o.estado === 'pendiente').length} en curso · {ordenes.filter(o => o.estado === 'completado').length} completadas
+              {ordenes.filter(o => o.estado === 'cancelado').length > 0 && (
+                <> · {ordenes.filter(o => o.estado === 'cancelado').length} canceladas</>
+              )}
             </p>
           </div>
         </div>
@@ -193,12 +261,21 @@ export default function ListaOrdenesMoldeo() {
         </button>
       </div>
 
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por N°, fecha, pieza, máquina…"
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-        />
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por N°, fecha, pieza, máquina…"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+          />
+        </div>
+        {ordenes.some(o => o.estado === 'cancelado') && (
+          <button onClick={() => setMostrarCanceladas(v => !v)}
+            className={`shrink-0 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors
+              ${mostrarCanceladas ? 'bg-gray-200 text-gray-700 border-gray-300' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
+            {mostrarCanceladas ? 'Ocultar canceladas' : 'Ver canceladas'}
+          </button>
+        )}
       </div>
 
       {cargando ? (
@@ -211,6 +288,7 @@ export default function ListaOrdenesMoldeo() {
         <div className="space-y-3">
           {filtradas.map(orden => {
             const completada = orden.estado === 'completado'
+            const cancelada  = orden.estado === 'cancelado'
             const piezas     = orden.ordenes_moldeo_piezas || []
             const maquinas   = orden.ordenes_moldeo_maquinas || []
             const avOrden    = avancesData[orden.id] || {}
@@ -252,13 +330,13 @@ export default function ListaOrdenesMoldeo() {
             const fechasDesc = Object.keys(historialPorFecha).sort((a, b) => b.localeCompare(a))
 
             return (
-              <div key={orden.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div key={orden.id} className={`bg-white rounded-2xl border overflow-hidden transition-opacity ${cancelada ? 'border-gray-200 opacity-60' : 'border-gray-200'}`}>
 
                 {/* Fila resumen */}
                 <button type="button" onClick={() => toggle(orden)}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left">
                   <div className="flex items-center gap-4 min-w-0">
-                    <span className="bg-blue-100 text-feisen-azul font-bold text-sm px-3 py-1 rounded-lg font-mono shrink-0">
+                    <span className={`font-bold text-sm px-3 py-1 rounded-lg font-mono shrink-0 ${cancelada ? 'bg-gray-100 text-gray-400 line-through' : 'bg-blue-100 text-feisen-azul'}`}>
                       {numOrden(orden.numero)}
                     </span>
                     <div className="min-w-0">
@@ -267,8 +345,8 @@ export default function ListaOrdenesMoldeo() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-3 shrink-0">
-                    {hayStockAlerta && <AlertTriangle size={15} className="text-orange-400" />}
-                    {!completada && avancesData[orden.id] && totalMoldeado > 0 && (
+                    {hayStockAlerta && !cancelada && <AlertTriangle size={15} className="text-orange-400" />}
+                    {!completada && !cancelada && avancesData[orden.id] && totalMoldeado > 0 && (
                       <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                         pctAvance >= 80 ? 'bg-green-100 text-green-700'
                         : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
@@ -278,10 +356,29 @@ export default function ListaOrdenesMoldeo() {
                       </span>
                     )}
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      completada ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                      cancelada  ? 'bg-gray-100 text-gray-500'
+                      : completada ? 'bg-green-100 text-green-700'
+                      : 'bg-yellow-100 text-yellow-700'
                     }`}>
-                      {completada ? '✓ Completada' : '⏳ En curso'}
+                      {cancelada ? '✗ Cancelada' : completada ? '✓ Completada' : '⏳ En curso'}
                     </span>
+                    {/* Botones editar/cancelar — solo en órdenes no terminadas */}
+                    {!completada && !cancelada && (
+                      <>
+                        <button type="button"
+                          onClick={e => { e.stopPropagation(); abrirEdicion(orden) }}
+                          title="Editar orden"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-feisen-azul hover:bg-blue-50 transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button type="button"
+                          onClick={e => { e.stopPropagation(); setConfirmCancelar(orden) }}
+                          title="Cancelar orden"
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-feisen-rojo hover:bg-red-50 transition-colors">
+                          <XCircle size={14} />
+                        </button>
+                      </>
+                    )}
                     {expandido === orden.id
                       ? <ChevronUp size={16} className="text-gray-400" />
                       : <ChevronDown size={16} className="text-gray-400" />}
@@ -679,6 +776,90 @@ export default function ListaOrdenesMoldeo() {
           })}
         </div>
       )}
+
+      {/* ── Modal confirmar cancelación ──────────────────────────────────────── */}
+      {confirmCancelar && (
+        <Modal titulo="Cancelar orden" onCerrar={() => setConfirmCancelar(null)}>
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+              ¿Cancelar <span className="font-bold">{numOrden(confirmCancelar.numero)}</span>?
+              La orden quedará como <span className="font-bold">cancelada</span> y no se borrará del historial.
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmCancelar(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                No, volver
+              </button>
+              <button onClick={() => cancelarOrden(confirmCancelar)} disabled={cancelando}
+                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {cancelando ? 'Cancelando...' : 'Sí, cancelar orden'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal editar orden ───────────────────────────────────────────────── */}
+      {editModal && (
+        <Modal titulo={`Editar ${numOrden(editModal.numero)}`} onCerrar={() => setEditModal(null)}>
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {msgEdit && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700">{msgEdit}</div>
+            )}
+
+            {/* Fecha */}
+            <div>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Fecha de la orden</label>
+              <input type="date" value={editForm.fecha}
+                onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            </div>
+
+            {/* Piezas */}
+            {editForm.piezas.length > 0 && (
+              <div>
+                <p className="text-xs text-gray-500 font-medium mb-2">Piezas</p>
+                <div className="space-y-2">
+                  {editForm.piezas.map((p, idx) => (
+                    <div key={p.id} className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-gray-700 mb-2 truncate">{p.nombre}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[11px] text-gray-400 block mb-0.5">Cantidad planeada</label>
+                          <input type="number" min="1" step="1"
+                            value={p.cantidad_planeada}
+                            onChange={e => setPieza(idx, 'cantidad_planeada', e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-gray-400 block mb-0.5">Moldeador asignado</label>
+                          <input type="text"
+                            value={p.asignado_a}
+                            onChange={e => setPieza(idx, 'asignado_a', e.target.value)}
+                            placeholder="Nombre..."
+                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditModal(null)}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                Cancelar
+              </button>
+              <button onClick={guardarEdicion} disabled={editGuardando}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
+                {editGuardando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </div>
   )
 }
