@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -14,6 +14,7 @@ const NAV_ADMIN = [
   { to: '/movimientos',           icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',     icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',               icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/calidad',               icon: ShieldAlert,      label: 'Calidad' },
   { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
   { to: '/config',                icon: Settings,         label: 'Configuración' },
 ]
@@ -24,6 +25,7 @@ const NAV_LOGISTICA = [
   { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/calidad',           icon: ShieldAlert,      label: 'Calidad' },
 ]
 
 const NAV_ALMACENISTA = [
@@ -41,6 +43,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
+  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
   { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
@@ -53,6 +56,7 @@ const NAV_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,           label: 'Mecanizado' },
   { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
+  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
