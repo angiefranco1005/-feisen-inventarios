@@ -271,8 +271,7 @@ export default function ListaPedidos() {
 
   async function cargar() {
     setCargando(true)
-    const esJefeFundicion = rolEfectivo === 'JEFE_FUNDICION'
-  const verTodo = esAdmin || esLogistica || esConsultor || esJefeFundicion
+    const verTodo = esAdmin || esLogistica || esConsultor
     const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
     let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
@@ -675,7 +674,7 @@ export default function ListaPedidos() {
             esAdmin={esAdmin}
             puedeTransito={esAdmin || esLogistica}
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
-            puedeEditar={esAdmin || esJefeFundicion || p.solicitante_id === perfil?.id}
+            puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
