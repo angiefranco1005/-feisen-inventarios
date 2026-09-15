@@ -44,6 +44,8 @@ const MOTIVOS_CIERRE = [
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
+  const diasTranscurridos = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
+  const diasColor = diasTranscurridos >= 6 ? 'bg-red-100 text-red-600' : diasTranscurridos >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -59,6 +61,9 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${diasColor}`}>
+            {diasTranscurridos === 0 ? 'Hoy' : `${diasTranscurridos}d`}
+          </span>
           {p.prioridad && PRIORIDAD_CONFIG[p.prioridad] && (
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${PRIORIDAD_CONFIG[p.prioridad].color}`}>
               {PRIORIDAD_CONFIG[p.prioridad].label}
@@ -109,19 +114,27 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
       {p.pedido_items?.length > 0 && (
         <div className="border-t border-gray-50 px-5 py-3 space-y-1">
           {p.pedido_items.map((it, i) => {
-            const recibido = it.cantidad_recibida || 0
-            const pendiente = it.cantidad - recibido
-            const esParcial = p.estado === 'parcialmente_recibido'
+            const recibido    = it.cantidad_recibida || 0
+            const pendiente   = it.cantidad - recibido
+            const esParcial   = p.estado === 'parcialmente_recibido'
+            const esRecibido  = p.estado === 'recibido'
+            const hayExcedente = recibido > it.cantidad
+            const mostrarRecepcion = (esParcial || esRecibido) && recibido > 0
             return (
               <div key={i} className="text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">{it.descripcion}</span>
                   <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
                 </div>
-                {esParcial && (
-                  <div className="flex justify-between text-xs mt-0.5">
+                {mostrarRecepcion && (
+                  <div className="flex flex-wrap gap-x-3 text-xs mt-0.5">
                     <span className="text-green-600">✓ Recibido: {recibido} {it.unidad}</span>
-                    {pendiente > 0 && <span className="text-orange-600 font-semibold">⏳ Pendiente: {pendiente} {it.unidad}</span>}
+                    {hayExcedente && (
+                      <span className="text-orange-600 font-semibold">⚠️ Excedente: +{recibido - it.cantidad} {it.unidad}</span>
+                    )}
+                    {esParcial && pendiente > 0 && (
+                      <span className="text-orange-600 font-semibold">⏳ Pendiente: {pendiente} {it.unidad}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -630,6 +643,33 @@ export default function ListaPedidos() {
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+      {/* Alerta pedidos pendientes > 3 días (solo logística/admin) */}
+      {(esAdmin || esLogistica) && (() => {
+        const viejos = pedidos.filter(p =>
+          p.estado === 'pendiente' &&
+          Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24)) >= 3
+        )
+        if (viejos.length === 0) return null
+        return (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+            <Clock size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                {viejos.length === 1
+                  ? '1 pedido lleva más de 3 días pendiente sin pasar a tránsito'
+                  : `${viejos.length} pedidos llevan más de 3 días pendientes sin pasar a tránsito`}
+              </p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                {viejos.map(p => {
+                  const dias = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
+                  return `${p.numero} (${dias}d)`
+                }).join(', ')}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Alerta pedidos incompletos (solo logística/admin) */}
       {(esAdmin || esLogistica) && (() => {
