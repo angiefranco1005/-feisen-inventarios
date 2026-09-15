@@ -1,6 +1,20 @@
 import * as XLSX from 'xlsx'
 import { formatFechaHora, formatCOP, TIPOS_MOVIMIENTO } from './formatters'
 
+// Aplica formato de moneda COP ($#,##0) a las columnas indicadas (índice 0-based)
+function fmtCOP(ws, colIndices) {
+  if (!ws['!ref']) return
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (const C of colIndices) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C })
+      if (ws[addr] && typeof ws[addr].v === 'number') {
+        ws[addr].z = '"$"#,##0'
+      }
+    }
+  }
+}
+
 export function exportarStockExcel(stock, nombreArchivo = 'stock_feisen') {
   const filas = stock.map(s => ({
     'Ítem': s.items?.nombre || '',
@@ -15,6 +29,7 @@ export function exportarStockExcel(stock, nombreArchivo = 'stock_feisen') {
 
   const ws = XLSX.utils.json_to_sheet(filas)
   ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 25 }, { wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 18 }]
+  fmtCOP(ws, [6, 7])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Stock')
   XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -39,6 +54,7 @@ export function exportarMovimientosExcel(movimientos, nombreArchivo = 'movimient
   }))
 
   const ws = XLSX.utils.json_to_sheet(filas)
+  fmtCOP(ws, [8, 9])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Movimientos')
   XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -62,6 +78,7 @@ export function exportarInventarioActual(items, nombreArchivo = 'inventario_feis
     { wch: 35 }, { wch: 20 }, { wch: 20 }, { wch: 10 },
     { wch: 13 }, { wch: 13 }, { wch: 18 }, { wch: 18 }, { wch: 10 },
   ]
+  fmtCOP(ws, [6, 7])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Inventario')
   XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -80,6 +97,7 @@ export function exportarCorteInventario(resultado) {
   ]
   const wsR = XLSX.utils.aoa_to_sheet(resumenRows)
   wsR['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 22 }]
+  fmtCOP(wsR, [2])
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
 
   // ── Una hoja por bodega, agrupada por categoría ───────────────────────────
@@ -134,6 +152,7 @@ export function exportarCorteInventario(resultado) {
 
     const ws = XLSX.utils.aoa_to_sheet(rows)
     ws['!cols'] = colWidths
+    fmtCOP(ws, [4, 5])
     XLSX.utils.book_append_sheet(wb, ws, b.nombre.substring(0, 31))
   })
 
@@ -191,6 +210,7 @@ export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'tod
     { wch: 14 }, { wch: 14 },
     { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
   ]
+  fmtCOP(ws, [10, 11, 12, 13, 14])
   XLSX.utils.book_append_sheet(wb, ws, 'Kardex')
 
   const sufijo = categoriaNombre ? `_${categoriaNombre.toLowerCase().replace(/\s+/g, '_')}` : ''
