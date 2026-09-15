@@ -271,7 +271,8 @@ export default function ListaPedidos() {
 
   async function cargar() {
     setCargando(true)
-    const verTodo = esAdmin || esLogistica || esConsultor
+    const esJefeFundicion = rolEfectivo === 'JEFE_FUNDICION'
+  const verTodo = esAdmin || esLogistica || esConsultor || esJefeFundicion
     const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
     let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
     if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
@@ -519,17 +520,21 @@ export default function ListaPedidos() {
     if (validos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto.' }); return }
     if (validos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
     setGuardandoEdit(true)
+    setMsg(null)
     try {
       // Actualizar campos del pedido
-      await supabase.from('pedidos').update({
+      const { error: errPed } = await supabase.from('pedidos').update({
         observaciones:    obsEdit || null,
         prioridad:        prioridadEdit,
         foto_muestra_url: fotoMuestraEdit || null,
       }).eq('id', modalEditar.id)
+      if (errPed) { setMsg({ tipo: 'error', texto: 'Error al actualizar pedido: ' + errPed.message }); return }
 
       // Reemplazar items
-      await supabase.from('pedido_items').delete().eq('pedido_id', modalEditar.id)
-      await supabase.from('pedido_items').insert(
+      const { error: errDel } = await supabase.from('pedido_items').delete().eq('pedido_id', modalEditar.id)
+      if (errDel) { setMsg({ tipo: 'error', texto: 'Error al actualizar productos: ' + errDel.message }); return }
+
+      const { error: errIns } = await supabase.from('pedido_items').insert(
         validos.map(i => ({
           pedido_id:   modalEditar.id,
           descripcion: i.descripcion,
@@ -538,6 +543,7 @@ export default function ListaPedidos() {
           item_id:     i.item_id || null,
         }))
       )
+      if (errIns) { setMsg({ tipo: 'error', texto: 'Error al insertar productos: ' + errIns.message }); return }
 
       // Armar detalle del cambio
       const itemsAntes = (modalEditar.pedido_items || []).map(i => `${i.descripcion} (${i.cantidad})`).join(', ')
@@ -669,7 +675,7 @@ export default function ListaPedidos() {
             esAdmin={esAdmin}
             puedeTransito={esAdmin || esLogistica}
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
-            puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
+            puedeEditar={esAdmin || esJefeFundicion || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
