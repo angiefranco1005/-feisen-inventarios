@@ -34,8 +34,10 @@ export default function Historial() {
   const [editGuardando,      setEditGuardando]      = useState(false)
   const [editHistorial,      setEditHistorial]      = useState([])
   const [editados,           setEditados]           = useState(new Set())
+  const [fechaInicio,        setFechaInicio]        = useState('')
+  const [fechaFin,           setFechaFin]           = useState('')
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar('', '') }, [])
 
   // Pre-filtrar por item si viene en la URL (?item=<id>)
   useEffect(() => {
@@ -49,14 +51,30 @@ export default function Historial() {
     }
   }, [items, searchParams])
 
-  async function cargar() {
+  async function cargar(fi, ff) {
+    // fi/ff: fechas explícitas (para evitar timing de estado React)
+    // si no se pasan, usa los valores del estado actual
+    const inicio = fi !== undefined ? fi : fechaInicio
+    const fin    = ff !== undefined ? ff : fechaFin
+    const conRango = !!(inicio && fin)
+
     setCargando(true)
     const verTodo = esAdmin
     let movsQ = supabase
       .from('movimientos')
       .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
       .order('created_at', { ascending: false })
-      .limit(2000)
+
+    if (conRango) {
+      // Filtro server-side por rango de fechas: usa fecha_movimiento, con fallback a created_at
+      movsQ = movsQ.or(
+        `and(fecha_movimiento.gte.${inicio},fecha_movimiento.lte.${fin}),` +
+        `and(fecha_movimiento.is.null,created_at.gte.${inicio}T00:00:00,created_at.lte.${fin}T23:59:59)`
+      )
+      // Sin LIMIT: trae TODOS los movimientos del rango
+    } else {
+      movsQ = movsQ.limit(2000)
+    }
 
     if (!verTodo) {
       if (esAlmacenista) {
@@ -345,7 +363,7 @@ export default function Historial() {
     <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Historial de movimientos</h1>
-        <button onClick={cargar} title="Refrescar"
+        <button onClick={() => cargar(fechaInicio, fechaFin)} title="Refrescar"
           className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
           <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
         </button>
@@ -416,6 +434,40 @@ export default function Historial() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Filtro por rango de fechas */}
+      <div className="flex flex-wrap items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide shrink-0">Rango de fechas</span>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500 whitespace-nowrap">Desde</label>
+          <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500 whitespace-nowrap">Hasta</label>
+          <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
+        </div>
+        <button onClick={() => cargar(fechaInicio, fechaFin)}
+          disabled={!fechaInicio || !fechaFin || cargando}
+          className="px-4 py-2 rounded-xl text-sm font-semibold bg-feisen-azul text-white disabled:opacity-40 hover:bg-blue-800 transition-colors">
+          Buscar
+        </button>
+        {(fechaInicio || fechaFin) && (
+          <button onClick={() => { setFechaInicio(''); setFechaFin(''); cargar('', '') }}
+            className="px-3 py-2 rounded-xl text-sm text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
+            <X size={13} /> Limpiar
+          </button>
+        )}
+        {fechaInicio && fechaFin && (
+          <span className="text-xs text-feisen-azul font-semibold ml-1">
+            ⚡ Sin límite — todos los movimientos del periodo
+          </span>
+        )}
+        {!fechaInicio && !fechaFin && (
+          <span className="text-xs text-gray-400 ml-1">Sin filtro: muestra los últimos 2.000 movimientos</span>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -582,7 +634,12 @@ export default function Historial() {
           )
         })}
       </div>
-      <p className="text-xs text-gray-400 text-right">Mostrando últimos 2000 movimientos ({grupos.length} registros)</p>
+      <p className="text-xs text-gray-400 text-right">
+        {fechaInicio && fechaFin
+          ? `Rango ${new Date(fechaInicio + 'T12:00:00').toLocaleDateString('es-CO')} – ${new Date(fechaFin + 'T12:00:00').toLocaleDateString('es-CO')} · ${grupos.length} registros (sin límite)`
+          : `Últimos 2.000 movimientos · ${grupos.length} registros`
+        }
+      </p>
 
       {/* Modal firma digital */}
       {firmaModal && (
