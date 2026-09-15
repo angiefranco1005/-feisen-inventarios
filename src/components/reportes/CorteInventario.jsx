@@ -34,14 +34,19 @@ export default function CorteInventario() {
           .order('nombre'),
         supabase
           .from('movimientos')
-          .select('item_id, tipo, cantidad, fecha_movimiento, created_at'),
+          .select('item_id, tipo, cantidad, fecha_movimiento, created_at')
+          // Filtro servidor: solo movimientos creados después del corte.
+          // Evita el límite de 1.000 filas de Supabase que hacía que siempre
+          // se devolviera el mismo valor sin importar la fecha elegida.
+          .gt('created_at', cutoffISO)
+          .limit(50000),
       ])
 
       if (e1) throw e1
       if (e2) throw e2
 
-      // Filtrar movimientos DESPUÉS de la fecha de corte
-      // Usa fecha_movimiento si existe, de lo contrario created_at
+      // Refinamiento cliente: excluir los que tienen fecha_movimiento <= fecha
+      // (movimientos creados después pero con fecha efectiva retrocedida al pasado)
       const movsDespues = (movs || []).filter(m => {
         const fechaEfectiva = m.fecha_movimiento
           ? new Date(`${m.fecha_movimiento}T23:59:59`)
