@@ -68,47 +68,72 @@ export function exportarInventarioActual(items, nombreArchivo = 'inventario_feis
 }
 
 export function exportarCorteInventario(resultado) {
-  const wb   = XLSX.utils.book_new()
+  const wb    = XLSX.utils.book_new()
   const fecha = resultado.fecha
 
-  // ── Hoja resumen ──
-  const resumen = resultado.bodegas.map(b => ({
-    'Bodega':             b.nombre,
-    'Productos':          b.items.length,
-    'Valor total (COP)':  Math.round(b.total_valor),
-  }))
-  resumen.push({
-    'Bodega':            'TOTAL GENERAL',
-    'Productos':          resultado.total_productos,
-    'Valor total (COP)':  Math.round(resultado.total_general),
-  })
-  const wsR = XLSX.utils.json_to_sheet(resumen)
-  wsR['!cols'] = [{ wch: 25 }, { wch: 12 }, { wch: 18 }]
+  // ── Hoja Resumen ──────────────────────────────────────────────────────────
+  const resumenRows = [
+    ['Bodega', 'Productos con stock', 'Valor total (COP)'],
+    ...resultado.bodegas.map(b => [b.nombre, b.items.filter(i => i.stock_en_fecha > 0).length, Math.round(b.total_valor)]),
+    ['', '', ''],
+    ['TOTAL GENERAL', resultado.total_productos, Math.round(resultado.total_general)],
+  ]
+  const wsR = XLSX.utils.aoa_to_sheet(resumenRows)
+  wsR['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 22 }]
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumen')
 
-  // ── Una hoja por bodega ──
-  resultado.bodegas.forEach(b => {
-    const filas = b.items.map(i => ({
-      'Producto':              i.nombre,
-      'Categoría':             i.categoria,
-      'Unidad':                i.unidad,
-      [`Stock al ${fecha}`]:   i.stock_en_fecha,
-      'Stock actual':          i.stock_actual,
-      'Precio costo (COP)':    i.precio || '',
-      'Valor (COP)':           Math.round(i.valor),
-    }))
-    filas.push({
-      'Producto': 'TOTAL', 'Categoría': '', 'Unidad': '',
-      [`Stock al ${fecha}`]: '', 'Stock actual': '',
-      'Precio costo (COP)': '',
-      'Valor (COP)': Math.round(b.total_valor),
-    })
+  // ── Una hoja por bodega, agrupada por categoría ───────────────────────────
+  const colWidths = [{ wch: 38 }, { wch: 10 }, { wch: 14 }, { wch: 13 }, { wch: 20 }, { wch: 20 }]
 
-    const ws = XLSX.utils.json_to_sheet(filas)
-    ws['!cols'] = [
-      { wch: 35 }, { wch: 18 }, { wch: 10 },
-      { wch: 14 }, { wch: 13 }, { wch: 18 }, { wch: 18 },
-    ]
+  resultado.bodegas.forEach(b => {
+    const rows = []
+
+    // Título y fecha de corte
+    rows.push([`INVENTARIO AL ${fecha} — ${b.nombre.toUpperCase()}`, '', '', '', '', ''])
+    rows.push(['', '', '', '', '', ''])
+
+    // Encabezado de columnas
+    rows.push(['Producto', 'Unidad', `Stock al ${fecha}`, 'Stock actual', 'Precio costo (COP)', 'Valor (COP)'])
+
+    // Agrupar ítems por categoría (orden alfabético)
+    const porCategoria = {}
+    for (const item of b.items) {
+      const cat = item.categoria || 'Sin categoría'
+      if (!porCategoria[cat]) porCategoria[cat] = []
+      porCategoria[cat].push(item)
+    }
+
+    for (const cat of Object.keys(porCategoria).sort()) {
+      const items = porCategoria[cat]
+
+      // Fila de encabezado de categoría
+      rows.push(['', '', '', '', '', ''])
+      rows.push([`  ▸ ${cat.toUpperCase()}`, '', '', '', '', ''])
+
+      // Ítems de la categoría
+      for (const i of items) {
+        rows.push([
+          `    ${i.nombre}`,
+          i.unidad,
+          i.stock_en_fecha,
+          i.stock_actual,
+          i.precio > 0 ? i.precio : '',
+          i.valor > 0  ? Math.round(i.valor) : 0,
+        ])
+      }
+
+      // Subtotal de la categoría
+      const subValor  = items.reduce((s, i) => s + i.valor, 0)
+      const subUnids  = items.reduce((s, i) => s + i.stock_en_fecha, 0)
+      rows.push([`  Subtotal ${cat}`, '', subUnids, '', '', Math.round(subValor)])
+    }
+
+    // Total bodega
+    rows.push(['', '', '', '', '', ''])
+    rows.push([`TOTAL ${b.nombre.toUpperCase()}`, '', '', '', '', Math.round(b.total_valor)])
+
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = colWidths
     XLSX.utils.book_append_sheet(wb, ws, b.nombre.substring(0, 31))
   })
 
