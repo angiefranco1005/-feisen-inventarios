@@ -124,7 +124,9 @@ export default function RegistroMecanizado() {
       const numeroMec = `MEC-${String((count || 0) + 1).padStart(4, '0')}`
 
       const destinos = await Promise.all(lineas.map(async (l) => {
-        const nombreDest = l.nombre.trim() + ' - MECANIZADO'
+        // .replace normaliza espacios dobles/triples a uno solo — algunos nombres del catálogo
+        // tienen espacios de más por error de tipeo, y eso hacía que la búsqueda exacta fallara.
+        const nombreDest = l.nombre.trim().replace(/\s+/g, ' ') + ' - MECANIZADO'
         const { data, error } = await supabase
           .from('items')
           .select('id')

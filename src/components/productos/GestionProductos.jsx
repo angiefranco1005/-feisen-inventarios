@@ -247,9 +247,12 @@ export default function GestionProductos() {
     }
 
     // Buscar el item destino "- MECANIZADO"
-    const nombreTarget = itemMecanizar.nombre + ' - MECANIZADO'
+    // normaliza() colapsa espacios dobles/triples a uno solo — algunos nombres del catálogo
+    // tienen espacios de más por error de tipeo, y eso hacía que la búsqueda exacta fallara.
+    const normaliza = (s) => s.toUpperCase().trim().replace(/\s+/g, ' ')
+    const nombreTarget = normaliza(itemMecanizar.nombre) + ' - MECANIZADO'
     const itemTarget = items.find(i =>
-      i.nombre.toUpperCase().trim() === nombreTarget.toUpperCase().trim() &&
+      normaliza(i.nombre) === nombreTarget &&
       i.categoria_id === CAT_PRODUCTO_MECANIZADO &&
       i.bodega_id === BODEGA_MECANIZADOS
     )
