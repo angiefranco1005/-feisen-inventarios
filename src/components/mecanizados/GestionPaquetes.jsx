@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Boxes } from 'lucide-react'
 
-const BODEGA_MECANIZADOS = '03a709ac-0bee-457a-80a1-0a1603218d34'
+const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
+const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
 
 // ── Input editable inline ─────────────────────────────────────────────────────
 function InlineEdit({ valor, onGuardar, placeholder = '', className = '' }) {
@@ -52,27 +53,27 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
   function elegir(item) { onSeleccionar(item); setBusqueda(''); setAbierto(false) }
 
   return (
-    <div className="relative flex-1">
+    <div className="relative w-full">
       <input value={busqueda}
         onChange={e => { setBusqueda(e.target.value); setAbierto(true) }}
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        placeholder="Buscar pieza…"
-        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        placeholder="Buscar pieza mecanizada…"
+        className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-72 overflow-y-auto">
           {filtrados.slice(0, 40).map(i => (
             <button key={i.id} type="button" onMouseDown={() => elegir(i)}
-              className="w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0 font-medium text-gray-800">
+              className="w-full text-left px-4 py-3.5 text-base hover:bg-blue-50 border-b border-gray-50 last:border-0 font-medium text-gray-800">
               {i.nombre}
             </button>
           ))}
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-3 py-2 text-sm text-gray-400">
-          Sin resultados
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-4 py-3 text-sm text-gray-400">
+          Sin resultados. Recuerda: solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.
         </div>
       )}
     </div>
@@ -109,6 +110,7 @@ export default function GestionPaquetes() {
       supabase.from('items')
         .select('id, nombre, unidad_medida')
         .eq('bodega_id', BODEGA_MECANIZADOS)
+        .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
         .eq('activo', true)
         .order('nombre'),
     ])
@@ -317,29 +319,30 @@ export default function GestionPaquetes() {
                   )}
 
                   <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-3">Agregar pieza</p>
-                    <div className="flex gap-3 items-center">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Agregar pieza</p>
+                    <p className="text-xs text-gray-400 mb-3">Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.</p>
+                    <div className="space-y-3">
                       <SelectorItem
                         items={items}
                         excluir={idsUsados}
                         onSeleccionar={item => setNP(paq.id, 'item', item)}
                       />
                       {np.item && (
-                        <span className="text-xs bg-blue-100 text-feisen-azul font-semibold px-2.5 py-1.5 rounded-lg shrink-0 max-w-40 truncate">
-                          {np.item.nombre}
+                        <span className="text-sm bg-blue-100 text-feisen-azul font-semibold px-3 py-2 rounded-lg inline-block max-w-full truncate">
+                          Seleccionada: {np.item.nombre}
                         </span>
                       )}
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-2">
                         <input type="number" min="0.001" step="0.001"
                           value={np.cantidad || ''}
                           onChange={e => setNP(paq.id, 'cantidad', e.target.value)}
-                          placeholder="Cant."
-                          className="w-20 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                          placeholder="Cantidad"
+                          className="flex-1 sm:flex-none sm:w-32 border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                         />
                         <button onClick={() => agregarPieza(paq.id)}
                           disabled={!np.item || !np.cantidad}
-                          className="bg-feisen-azul text-white rounded-xl p-2.5 hover:opacity-80 disabled:opacity-40 transition-opacity">
-                          <Plus size={18} />
+                          className="bg-feisen-azul text-white rounded-xl px-5 py-3.5 hover:opacity-80 disabled:opacity-40 transition-opacity flex items-center gap-2 font-semibold text-sm shrink-0">
+                          <Plus size={18} /> Agregar
                         </button>
                       </div>
                     </div>
