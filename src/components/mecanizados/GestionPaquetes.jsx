@@ -59,13 +59,13 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
         placeholder="Buscar pieza mecanizada…"
-        className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
+        className="w-full border-2 border-gray-300 rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-72 overflow-y-auto">
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1.5 max-h-80 overflow-y-auto">
           {filtrados.slice(0, 40).map(i => (
             <button key={i.id} type="button" onMouseDown={() => elegir(i)}
-              className="w-full text-left px-4 py-3.5 text-base hover:bg-blue-50 border-b border-gray-50 last:border-0 font-medium text-gray-800">
+              className="w-full text-left px-5 py-4 text-base hover:bg-blue-50 border-b border-gray-50 last:border-0 font-medium text-gray-800">
               {i.nombre}
             </button>
           ))}
@@ -193,22 +193,22 @@ export default function GestionPaquetes() {
   if (cargando) return <p className="text-center text-gray-400 py-20">Cargando…</p>
 
   return (
-    <div className="max-w-3xl mx-auto p-4 pb-20">
+    <div className="max-w-5xl mx-auto p-5 md:p-8 pb-24">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-2.5 rounded-xl">
-            <Boxes size={22} className="text-feisen-azul" />
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-100 p-3.5 rounded-xl">
+            <Boxes size={28} className="text-feisen-azul" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Paquetes de Mecanizados</h1>
-            <p className="text-xs text-gray-500">Kits de piezas para la salida de ensamble (producción interna)</p>
+            <h1 className="text-2xl font-bold text-gray-800">Paquetes de Mecanizados</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Kits de piezas para la salida de ensamble (producción interna)</p>
           </div>
         </div>
         <button onClick={() => setAgregandoPaq(v => !v)}
-          className="flex items-center gap-2 bg-feisen-rojo text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity">
-          <Plus size={16} /> Nuevo paquete
+          className="flex items-center gap-2 bg-feisen-rojo text-white rounded-xl px-5 py-3 text-base font-semibold hover:opacity-90 transition-opacity">
+          <Plus size={18} /> Nuevo paquete
         </button>
       </div>
 
@@ -220,21 +220,23 @@ export default function GestionPaquetes() {
 
       {/* Formulario nuevo paquete */}
       {agregandoPaq && (
-        <div className="mb-4 bg-white border border-feisen-azul/30 rounded-2xl p-4 flex gap-3 items-center shadow-sm">
+        <div className="mb-5 bg-white border border-feisen-azul/30 rounded-2xl p-5 flex flex-col sm:flex-row gap-3 sm:items-center shadow-sm">
           <input value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && crearPaquete()}
             placeholder="Nombre del paquete (ej: Mezcladora 1 Bulto)"
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+            className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             autoFocus
           />
-          <button onClick={crearPaquete}
-            className="bg-feisen-azul text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90 transition-opacity">
-            Crear
-          </button>
-          <button onClick={() => { setAgregandoPaq(false); setNuevoNombre('') }}
-            className="text-gray-400 hover:text-gray-600 p-2">
-            <X size={18} />
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={crearPaquete}
+              className="flex-1 sm:flex-none bg-feisen-azul text-white rounded-xl px-5 py-3.5 text-base font-semibold hover:opacity-90 transition-opacity">
+              Crear
+            </button>
+            <button onClick={() => { setAgregandoPaq(false); setNuevoNombre('') }}
+              className="text-gray-400 hover:text-gray-600 p-3">
+              <X size={20} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -243,7 +245,7 @@ export default function GestionPaquetes() {
       )}
 
       {/* Lista de paquetes */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {paquetes.map(paq => {
           const filas      = paq.paquete_items
           const abierto    = expandido === paq.id
@@ -255,57 +257,57 @@ export default function GestionPaquetes() {
               ${abierto ? 'border-feisen-azul/40 shadow-md' : 'border-gray-200'} ${!paq.activo ? 'opacity-60' : ''}`}>
 
               {/* Cabecera de paquete */}
-              <div className="flex items-center gap-3 px-5 py-4">
+              <div className="flex items-center gap-4 px-6 py-5">
                 <button onClick={() => toggleActivo(paq.id, paq.activo)}
                   title={paq.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}
-                  className={`w-3 h-3 rounded-full shrink-0 transition-colors ${paq.activo ? 'bg-green-400' : 'bg-gray-300'}`}
+                  className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors ${paq.activo ? 'bg-green-400' : 'bg-gray-300'}`}
                 />
 
                 <div className="flex-1 min-w-0">
                   <InlineEdit valor={paq.nombre}
                     onGuardar={nuevoNombre => renombrar(paq.id, nuevoNombre)}
-                    className="text-sm font-bold text-gray-800"
+                    className="text-base font-bold text-gray-800"
                   />
                   <InlineEdit valor={paq.descripcion} placeholder="Agregar descripción…"
                     onGuardar={desc => cambiarDescripcion(paq.id, desc)}
-                    className="text-xs text-gray-400 mt-0.5"
+                    className="text-sm text-gray-400 mt-1"
                   />
-                  <p className="text-xs text-gray-400 mt-0.5">{filas.length} pieza{filas.length !== 1 ? 's' : ''}</p>
+                  <p className="text-sm text-gray-400 mt-1">{filas.length} pieza{filas.length !== 1 ? 's' : ''}</p>
                 </div>
 
                 <button onClick={() => setConfirmElim(paq)}
-                  className="p-2 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors">
-                  <Trash2 size={16} />
+                  className="p-2.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors">
+                  <Trash2 size={18} />
                 </button>
 
                 <button onClick={() => setExpandido(abierto ? null : paq.id)}
-                  className="p-2 text-gray-400 hover:text-feisen-azul transition-colors rounded-lg hover:bg-blue-50">
-                  {abierto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  className="p-2.5 text-gray-400 hover:text-feisen-azul transition-colors rounded-lg hover:bg-blue-50">
+                  {abierto ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
               </div>
 
               {abierto && (
                 <div className="border-t border-gray-100">
                   {filas.length > 0 && (
-                    <table className="w-full text-sm">
+                    <table className="w-full text-base">
                       <thead>
                         <tr className="bg-gray-50 text-xs text-gray-500 font-bold uppercase border-b border-gray-100">
-                          <th className="text-left px-6 py-3">Pieza</th>
-                          <th className="text-center px-4 py-3 w-32">Cantidad</th>
-                          <th className="w-10 px-3" />
+                          <th className="text-left px-6 py-4">Pieza</th>
+                          <th className="text-center px-4 py-4 w-40">Cantidad</th>
+                          <th className="w-12 px-3" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {filas.map(row => (
                           <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
-                            <td className="px-6 py-3.5 font-medium text-gray-800">{row.items?.nombre || '(pieza eliminada)'}</td>
-                            <td className="px-4 py-3.5 text-center font-bold text-feisen-azul">
+                            <td className="px-6 py-4 font-medium text-gray-800">{row.items?.nombre || '(pieza eliminada)'}</td>
+                            <td className="px-4 py-4 text-center font-bold text-feisen-azul">
                               {row.cantidad} <span className="font-normal text-gray-400">{row.items?.unidad_medida || ''}</span>
                             </td>
-                            <td className="px-3 py-3.5">
+                            <td className="px-3 py-4">
                               <button onClick={() => eliminarFila(row.id, paq.id)}
-                                className="text-gray-200 hover:text-red-400 transition-colors p-1 opacity-0 group-hover:opacity-100">
-                                <Trash2 size={15} />
+                                className="text-gray-200 hover:text-red-400 transition-colors p-1.5 opacity-0 group-hover:opacity-100">
+                                <Trash2 size={17} />
                               </button>
                             </td>
                           </tr>
@@ -318,10 +320,10 @@ export default function GestionPaquetes() {
                     <p className="text-center text-gray-400 py-6 text-sm">Sin piezas aún. Agrega la primera abajo.</p>
                   )}
 
-                  <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Agregar pieza</p>
-                    <p className="text-xs text-gray-400 mb-3">Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.</p>
-                    <div className="space-y-3">
+                  <div className="px-6 py-6 bg-gray-50 border-t border-gray-100">
+                    <p className="text-sm font-bold text-gray-400 uppercase mb-1">Agregar pieza</p>
+                    <p className="text-sm text-gray-400 mb-4">Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.</p>
+                    <div className="space-y-4">
                       <SelectorItem
                         items={items}
                         excluir={idsUsados}
@@ -332,17 +334,17 @@ export default function GestionPaquetes() {
                           Seleccionada: {np.item.nombre}
                         </span>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
                         <input type="number" min="0.001" step="0.001"
                           value={np.cantidad || ''}
                           onChange={e => setNP(paq.id, 'cantidad', e.target.value)}
                           placeholder="Cantidad"
-                          className="flex-1 sm:flex-none sm:w-32 border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                          className="flex-1 sm:flex-none sm:w-40 border-2 border-gray-300 rounded-xl px-4 py-4 text-lg text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                         />
                         <button onClick={() => agregarPieza(paq.id)}
                           disabled={!np.item || !np.cantidad}
-                          className="bg-feisen-azul text-white rounded-xl px-5 py-3.5 hover:opacity-80 disabled:opacity-40 transition-opacity flex items-center gap-2 font-semibold text-sm shrink-0">
-                          <Plus size={18} /> Agregar
+                          className="bg-feisen-azul text-white rounded-xl px-6 py-4 hover:opacity-80 disabled:opacity-40 transition-opacity flex items-center gap-2 font-semibold text-base shrink-0">
+                          <Plus size={20} /> Agregar
                         </button>
                       </div>
                     </div>
