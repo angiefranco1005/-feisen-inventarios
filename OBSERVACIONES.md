@@ -24,6 +24,30 @@ Registro de decisiones, pendientes y "gotchas" para retomar el contexto rápido.
 
 6. **Almacenista no podía cancelar pedidos en tránsito o recibidos.** El botón de "cerrar pedido" (con los 3 motivos: ya no se necesita / proveedor no lo tiene / cambio de proveedor — que es exactamente el concepto de "cancelar" para el negocio) solo estaba habilitado para `esAdmin || esLogistica`, y además se ocultaba para pedidos en estado `recibido`. Corregido en `ListaPedidos.jsx`: se agregó `esAlmacenista` al permiso `puedeCerrar`, y se quitó la exclusión del estado `recibido` (solo se excluye `cerrado`, que ya no se puede volver a cancelar). Se renombró la UI de "Cerrar" a "Cancelar" en el modal y el botón para que coincida con el modelo mental del usuario (mismo estado `cerrado` en BD, no requirió cambios de constraint).
 
+## Módulo: Paquetes de Mecanizados (kits de piezas para ensamble)
+
+Agregado el 21-sept-2026. Antes, el jefe de Mecanizados (William) tenía que seleccionar pieza por pieza
+cada vez que Ensamble solicitaba las piezas de una máquina para armarla — aunque la salida ya soportaba
+varias líneas en una sola transacción, elegir cada pieza a mano era lento y repetitivo.
+
+- **Tablas nuevas** (mismo patrón ya usado en `maquinas_fundicion` / `bom_maquina_piezas`, ver `GestionBOM.jsx`):
+  `paquetes` (cabecera: nombre, descripcion, activo) y `paquete_items` (hija: paquete_id, item_id, cantidad).
+  RLS: cualquier autenticado puede leer (`SELECT`); solo `ADMIN` puede crear/editar/eliminar. Migración en
+  `supabase/migraciones/2026-09-21_paquetes.sql` (hay que correrla manualmente en el SQL Editor de Supabase —
+  igual que toda DDL, no se puede aplicar con la anon key).
+- **Módulo de gestión** (`src/components/mecanizados/GestionPaquetes.jsx`, ruta `/mecanizados/paquetes`,
+  solo visible en el nav de ADMIN — decisión explícita de Angie: solo admin crea/edita paquetes, William
+  solo los usa). Permite crear paquetes, renombrarlos, agregarles descripción, agregar/quitar piezas de su
+  catálogo (con cantidad "por 1 unidad" del paquete), activar/desactivar y eliminar.
+- **Uso en la salida** (`RegistrarMovimientoAlmacenista.jsx`, dentro de `tipoSalidaMec === 'produccion'`,
+  o sea la salida interna hacia Almacén/Soldadura y Armado — **no** aplica a la salida "Cliente externo"
+  por decisión de Angie): selector de paquete + un "multiplicador" (cuántas máquinas va a armar). Al
+  aplicar, reemplaza las líneas de "Productos" con las piezas del paquete × el multiplicador; William
+  puede seguir ajustando cantidades o agregando piezas sueltas después. La validación de stock por pieza
+  ya existente en `handleSalida()` corre igual sobre estas líneas, sin cambios.
+- **Pendiente:** Angie/William deben crear los paquetes reales (ej. "Mezcladora 1 Bulto") desde el módulo
+  antes de que el selector muestre algo — hoy no hay ninguno cargado.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).

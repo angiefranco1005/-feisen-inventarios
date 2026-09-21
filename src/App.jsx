@@ -28,6 +28,7 @@ import RecogidaFundida     from './components/fundicion/RecogidaFundida'
 import AnaliticaFundicion  from './components/fundicion/AnaliticaFundicion'
 import InformeNomina       from './components/reportes/InformeNomina'
 import RegistroMecanizado       from './components/mecanizados/RegistroMecanizado'
+import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
 import TransferenciasPendientes from './components/transferencias/TransferenciasPendientes'
 import NoConformidades          from './components/calidad/NoConformidades'
 
@@ -168,6 +169,7 @@ function AppRoutes() {
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
       <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
+      <Route path="/mecanizados/paquetes" element={<Layout><GestionPaquetes /></Layout>} />
       <Route path="/analitica"              element={<Layout><DashboardEjecutivo /></Layout>} />
       <Route path="/reportes"               element={<Layout><HubReportes /></Layout>} />
       <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />

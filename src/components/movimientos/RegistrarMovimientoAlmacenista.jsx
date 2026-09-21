@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine, Settings } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine, Settings, Boxes } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -169,6 +169,9 @@ export default function RegistrarMovimientoAlmacenista() {
   const [colaborador,    setColaborador]    = useState('')
   const [firmaReceptorUrl, setFirmaReceptorUrl] = useState(null)
   const [destinoMec,     setDestinoMec]     = useState('')  // 'ALMACEN' | 'SOLDADURA'
+  const [paquetesMec,    setPaquetesMec]    = useState([])   // paquetes activos con sus piezas
+  const [paqueteSelId,   setPaqueteSelId]   = useState('')
+  const [multiplicadorPaq, setMultiplicadorPaq] = useState(1)
 
   const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
   const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
@@ -330,6 +333,43 @@ export default function RegistrarMovimientoAlmacenista() {
     }
     cargar()
   }, [])
+
+  // ── Paquetes de Mecanizados (kits de piezas para salida de ensamble) ──
+  useEffect(() => {
+    if (!esMecanizados) return
+    async function cargarPaquetes() {
+      const { data } = await supabase
+        .from('paquetes')
+        .select('id, nombre, descripcion, activo, paquete_items(id, item_id, cantidad, items(nombre, unidad_medida))')
+        .eq('activo', true)
+        .order('nombre')
+      setPaquetesMec(data || [])
+    }
+    cargarPaquetes()
+  }, [esMecanizados])
+
+  // ── Aplicar un paquete a la lista de productos de la salida ──
+  function aplicarPaquete() {
+    const paq = paquetesMec.find(p => p.id === paqueteSelId)
+    if (!paq) return
+    const mult = Number(multiplicadorPaq)
+    if (!mult || mult <= 0) { setError('La cantidad de paquetes debe ser mayor a 0.'); return }
+
+    const filasValidas = (paq.paquete_items || []).filter(pi => pi.items)
+    if (filasValidas.length === 0) { setError('Este paquete no tiene piezas configuradas.'); return }
+
+    const nuevasLineas = filasValidas.map(pi => ({
+      item_id:       pi.item_id,
+      item_nombre:   pi.items.nombre,
+      unidad:        pi.items.unidad_medida || '',
+      cantidad:      String(Number(pi.cantidad) * mult),
+      peso_unitario: items.find(i => i.id === pi.item_id)?.peso_unitario ?? null,
+    }))
+    setSProductos(nuevasLineas)
+    setError('')
+    setPaqueteSelId('')
+    setMultiplicadorPaq(1)
+  }
 
   // ── Generador de número ──
   async function generarNumero(prefixBase) {
@@ -894,6 +934,35 @@ export default function RegistrarMovimientoAlmacenista() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Usar un paquete (kit de piezas) para no seleccionar pieza por pieza */}
+                  {paquetesMec.length > 0 && (
+                    <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-4 space-y-3">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-feisen-azul">
+                        <Boxes size={16} /> Usar un paquete de piezas (opcional)
+                      </label>
+                      <div className="flex gap-2">
+                        <select value={paqueteSelId} onChange={e => setPaqueteSelId(e.target.value)}
+                          className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                          <option value="">Selecciona un paquete…</option>
+                          {paquetesMec.map(p => (
+                            <option key={p.id} value={p.id}>{p.nombre} ({(p.paquete_items || []).length} piezas)</option>
+                          ))}
+                        </select>
+                        <input type="number" min="1" step="1" value={multiplicadorPaq}
+                          onChange={e => setMultiplicadorPaq(e.target.value)}
+                          title="Cuántas veces se arma el paquete"
+                          className="w-20 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                        <button type="button" onClick={aplicarPaquete} disabled={!paqueteSelId}
+                          className="bg-feisen-azul text-white rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-40 hover:opacity-90 shrink-0">
+                          Agregar
+                        </button>
+                      </div>
+                      <p className="text-xs text-feisen-azul/70">
+                        Reemplaza la lista de "Productos" de abajo con las piezas del paquete multiplicadas por la cantidad indicada. Puedes ajustar o agregar más después.
+                      </p>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
