@@ -91,6 +91,7 @@ const MOBILE_JEFE_MECANIZADOS = [
   { to: '/transferencias',                 icon: ClipboardList,   label: 'Transf.' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
@@ -98,6 +99,7 @@ const MOBILE_JEFE_FUNDICION = [
   { to: '/transferencias',                 icon: ClipboardList,   label: 'Transferencias' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
+  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
 ]
 
 const NAV_CONSULTOR = [

@@ -239,6 +239,7 @@ export default function ListaPedidos() {
   const [modalNuevo,    setModalNuevo]    = useState(false)
   const [modalTransito, setModalTransito] = useState(null)
   const [modalRecibido, setModalRecibido] = useState(null)
+  const [guardandoRecibido, setGuardandoRecibido] = useState(false)
   const [cantRec,       setCantRec]       = useState({})
   const [confirmElim,   setConfirmElim]   = useState(null)
   const [confirmCerrar, setConfirmCerrar] = useState(null) // pedido a cerrar
@@ -383,6 +384,9 @@ export default function ListaPedidos() {
   }
 
   async function confirmarRecibido() {
+    if (guardandoRecibido) return
+    setGuardandoRecibido(true)
+    try {
     const { pedido, conEntrada } = modalRecibido
     const items = pedido.pedido_items || []
 
@@ -488,6 +492,9 @@ export default function ListaPedidos() {
           setMsg({ tipo: 'error', texto: 'Pedido recibido, pero los ítems no tienen producto vinculado al catálogo. Registra la entrada manualmente.' })
         }
       }
+    }
+    } finally {
+      setGuardandoRecibido(false)
     }
   }
 
@@ -880,9 +887,9 @@ export default function ListaPedidos() {
                 className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
-              <button type="button" onClick={confirmarRecibido}
-                className="flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">
-                {modalRecibido.conEntrada ? '✅ Recibido + Entrada' : '✅ Confirmar recibido'}
+              <button type="button" onClick={confirmarRecibido} disabled={guardandoRecibido}
+                className="flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                {guardandoRecibido ? 'Guardando…' : (modalRecibido.conEntrada ? '✅ Recibido + Entrada' : '✅ Confirmar recibido')}
               </button>
             </div>
           </div>

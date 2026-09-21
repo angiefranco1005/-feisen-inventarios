@@ -86,6 +86,22 @@ export default function TransferenciasPendientes() {
         }
       }
 
+      // 1b. Ubicar el ítem correspondiente en el catálogo de la bodega destino.
+      // Cada bodega tiene su propio renglón de catálogo para el mismo nombre de producto
+      // (son ids distintos), así que la entrada NO puede reutilizar el item_id de origen.
+      const normaliza = (s) => (s || '').toUpperCase().trim().replace(/\s+/g, ' ')
+      const { data: itemsDestino } = await supabase
+        .from('items').select('id, nombre').eq('bodega_id', trf.destino_bodega_id)
+      const destinoPorNombre = {}
+      itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
+
+      const itemsSinCatalogar = trf.items.filter(item => !destinoPorNombre[normaliza(item.item_nombre)])
+      if (itemsSinCatalogar.length > 0) {
+        setError(`No existe en el catálogo de Mecanizados: ${itemsSinCatalogar.map(i => i.item_nombre).join(', ')}. Créalo primero en Mecanizados y vuelve a aprobar.`)
+        setProcesando(null)
+        return
+      }
+
       // 2. Generar número de movimiento
       const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
       const prefix = `SAL-${iniciales}-`
@@ -115,6 +131,36 @@ export default function TransferenciasPendientes() {
 
       const { error: errMov } = await supabase.from('movimientos').insert(payloads)
       if (errMov) { setError('Error al crear movimiento: ' + errMov.message); return }
+
+      // 3b. Crear la entrada correspondiente en la bodega destino (Mecanizados).
+      // El trigger de stock solo acredita bodega_destino_id cuando tipo='entrada';
+      // un movimiento tipo 'salida' solo resta en bodega_origen_id, nunca suma en destino.
+      const prefixRec = `REC-${iniciales}-`
+      const { data: lastRec } = await supabase
+        .from('movimientos').select('numero').like('numero', `${prefixRec}%`)
+        .order('numero', { ascending: false }).limit(1).maybeSingle()
+      const nRec = lastRec?.numero ? parseInt(lastRec.numero.replace(prefixRec, ''), 10) || 0 : 0
+      const numeroRec = `${prefixRec}${String(nRec + 1).padStart(4, '0')}`
+
+      const payloadsEntrada = trf.items.map(item => ({
+        numero:                numeroRec,
+        tipo:                  'entrada',
+        item_id:               destinoPorNombre[normaliza(item.item_nombre)],
+        bodega_origen_id:      trf.origen_bodega_id,
+        bodega_destino_id:     trf.destino_bodega_id,
+        cantidad:              item.cantidad,
+        precio_costo_snapshot: item.precio_costo || 0,
+        centro_costo:          'MECANIZADOS',
+        usuario_id:            perfil.id,
+        referencia:            `Aprobación ${trf.numero}${trf.notas ? ' — ' + trf.notas : ''}`,
+        destino:               null,
+        fecha_movimiento:      trf.fecha_movimiento || new Date().toISOString().slice(0, 10),
+        proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
+        foto_remision_url: null, firma_receptor_url: null, numero_of: null, cliente: null,
+      }))
+
+      const { error: errEnt } = await supabase.from('movimientos').insert(payloadsEntrada)
+      if (errEnt) { setError(`Salida creada (${numeroMov}), pero error al crear la entrada en Mecanizados: ` + errEnt.message); return }
 
       // 4. Marcar como aprobada
       const { error: errUpd } = await supabase
