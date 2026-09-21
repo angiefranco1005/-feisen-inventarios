@@ -253,11 +253,11 @@ export default function GestionPaquetes() {
           const np         = nuevaPieza[paq.id] || {}
 
           return (
-            <div key={paq.id} className={`bg-white rounded-2xl border overflow-hidden transition-all
+            <div key={paq.id} className={`bg-white rounded-2xl border transition-all
               ${abierto ? 'border-feisen-azul/40 shadow-md' : 'border-gray-200'} ${!paq.activo ? 'opacity-60' : ''}`}>
 
               {/* Cabecera de paquete */}
-              <div className="flex items-center gap-4 px-6 py-5">
+              <div className="flex items-center gap-4 px-6 py-5 rounded-t-2xl">
                 <button onClick={() => toggleActivo(paq.id, paq.activo)}
                   title={paq.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}
                   className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors ${paq.activo ? 'bg-green-400' : 'bg-gray-300'}`}
@@ -320,7 +320,7 @@ export default function GestionPaquetes() {
                     <p className="text-center text-gray-400 py-6 text-sm">Sin piezas aún. Agrega la primera abajo.</p>
                   )}
 
-                  <div className="px-6 py-6 bg-gray-50 border-t border-gray-100">
+                  <div className="px-6 py-6 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
                     <p className="text-sm font-bold text-gray-400 uppercase mb-1">Agregar pieza</p>
                     <p className="text-sm text-gray-400 mb-4">Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.</p>
                     <div className="space-y-4">
