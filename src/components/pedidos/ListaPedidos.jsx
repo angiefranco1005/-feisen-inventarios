@@ -97,8 +97,8 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
             <Clock size={15} />
           </button>
-          {puedeCerrar && p.estado !== 'cerrado' && p.estado !== 'recibido' && (
-            <button onClick={() => onCerrar(p)} title="Cerrar pedido"
+          {puedeCerrar && p.estado !== 'cerrado' && (
+            <button onClick={() => onCerrar(p)} title="Cancelar / cerrar pedido"
               className="p-1.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
               <XCircle size={15} />
             </button>
@@ -723,7 +723,7 @@ export default function ListaPedidos() {
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
-            puedeCerrar={esAdmin || esLogistica}
+            puedeCerrar={esAdmin || esLogistica || esAlmacenista}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
@@ -1024,9 +1024,9 @@ export default function ListaPedidos() {
 
       {/* MODAL CERRAR PEDIDO */}
       {confirmCerrar && (
-        <Modal titulo={`Cerrar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
+        <Modal titulo={`Cancelar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">¿Por qué se cierra este pedido? Esta razón quedará registrada en el historial.</p>
+            <p className="text-sm text-gray-600">¿Por qué se cancela este pedido? Esta razón quedará registrada en el historial.</p>
             <div className="space-y-2">
               {MOTIVOS_CIERRE.map(m => (
                 <button key={m} type="button" onClick={() => setMotivoCierre(m)}
@@ -1046,7 +1046,7 @@ export default function ListaPedidos() {
               <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
                 disabled={!motivoCierre}
                 className="flex-1 bg-gray-700 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
-                🔒 Cerrar pedido
+                🔒 Cancelar pedido
               </button>
             </div>
           </div>
