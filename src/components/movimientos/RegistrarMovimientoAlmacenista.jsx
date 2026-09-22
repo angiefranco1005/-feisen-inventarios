@@ -349,24 +349,44 @@ export default function RegistrarMovimientoAlmacenista() {
   }, [esMecanizados])
 
   // ── Aplicar un paquete a la lista de productos de la salida ──
+  // Nota: no confiamos únicamente en el "items(nombre, unidad_medida)" que viene
+  // embebido en la consulta de paquetes (puede venir vacío por caché de esquema
+  // de PostgREST u otros casos borde) — resolvemos cada pieza contra el catálogo
+  // `items` ya cargado para esta bodega, que es la misma fuente que usa el buscador
+  // de "Productos" de abajo y sabemos que funciona.
   function aplicarPaquete() {
     const paq = paquetesMec.find(p => p.id === paqueteSelId)
     if (!paq) return
     const mult = Number(multiplicadorPaq)
     if (!mult || mult <= 0) { setError('La cantidad de paquetes debe ser mayor a 0.'); return }
 
-    const filasValidas = (paq.paquete_items || []).filter(pi => pi.items)
-    if (filasValidas.length === 0) { setError('Este paquete no tiene piezas configuradas.'); return }
+    const piezas = paq.paquete_items || []
+    if (piezas.length === 0) { setError('Este paquete no tiene piezas configuradas.'); return }
 
-    const nuevasLineas = filasValidas.map(pi => ({
-      item_id:       pi.item_id,
-      item_nombre:   pi.items.nombre,
-      unidad:        pi.items.unidad_medida || '',
-      cantidad:      String(Number(pi.cantidad) * mult),
-      peso_unitario: items.find(i => i.id === pi.item_id)?.peso_unitario ?? null,
-    }))
+    const nuevasLineas = []
+    let faltantes = 0
+    for (const pi of piezas) {
+      const cat    = items.find(i => i.id === pi.item_id)
+      const nombre = cat?.nombre || pi.items?.nombre
+      if (!nombre) { faltantes++; continue }
+      nuevasLineas.push({
+        item_id:       pi.item_id,
+        item_nombre:   nombre,
+        unidad:        cat?.unidad_medida || pi.items?.unidad_medida || '',
+        cantidad:      String(Number(pi.cantidad) * mult),
+        peso_unitario: cat?.peso_unitario ?? null,
+      })
+    }
+
+    if (nuevasLineas.length === 0) {
+      setError('No se pudo cargar el paquete: sus piezas ya no están en el catálogo activo de Mecanizados.')
+      return
+    }
+
     setSProductos(nuevasLineas)
-    setError('')
+    setError(faltantes > 0
+      ? `Se agregaron ${nuevasLineas.length} de ${piezas.length} piezas del paquete — ${faltantes} ya no están en el catálogo activo.`
+      : '')
     setPaqueteSelId('')
     setMultiplicadorPaq(1)
   }
