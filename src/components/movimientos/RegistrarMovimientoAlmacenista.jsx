@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, PenLine, Settings, Boxes } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -941,21 +941,22 @@ export default function RegistrarMovimientoAlmacenista() {
                       <label className="flex items-center gap-2 text-sm font-semibold text-feisen-azul">
                         <Boxes size={16} /> Usar un paquete de piezas (opcional)
                       </label>
-                      <div className="flex gap-2">
-                        <select value={paqueteSelId} onChange={e => setPaqueteSelId(e.target.value)}
-                          className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                          <option value="">Selecciona un paquete…</option>
-                          {paquetesMec.map(p => (
-                            <option key={p.id} value={p.id}>{p.nombre} ({(p.paquete_items || []).length} piezas)</option>
-                          ))}
-                        </select>
+                      <select value={paqueteSelId} onChange={e => setPaqueteSelId(e.target.value)}
+                        className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                        <option value="">Selecciona un paquete…</option>
+                        {paquetesMec.map(p => (
+                          <option key={p.id} value={p.id}>{p.nombre} ({(p.paquete_items || []).length} piezas)</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2">
                         <input type="number" min="1" step="1" value={multiplicadorPaq}
                           onChange={e => setMultiplicadorPaq(e.target.value)}
                           title="Cuántas veces se arma el paquete"
-                          className="w-20 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                          placeholder="Cant."
+                          className="w-24 border-2 border-gray-300 rounded-xl px-3 py-3.5 text-base text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                         <button type="button" onClick={aplicarPaquete} disabled={!paqueteSelId}
-                          className="bg-feisen-azul text-white rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-40 hover:opacity-90 shrink-0">
-                          Agregar
+                          className="flex-1 bg-feisen-azul text-white rounded-xl px-4 py-3.5 text-base font-semibold disabled:opacity-40 hover:opacity-90">
+                          Agregar paquete
                         </button>
                       </div>
                       <p className="text-xs text-feisen-azul/70">
@@ -974,12 +975,8 @@ export default function RegistrarMovimientoAlmacenista() {
                       colorRing="feisen-azul"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                      <PenLine size={15} /> Firma del colaborador que recibe *
-                    </label>
-                    <FirmaCanvas onFirma={setFirmaReceptorUrl} firmaDataUrl={firmaReceptorUrl} />
-                  </div>
+                  <FirmaCanvas onFirma={setFirmaReceptorUrl} firmaDataUrl={firmaReceptorUrl}
+                    label="Firma del colaborador que recibe *" />
                 </>
               )}
 
