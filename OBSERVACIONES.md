@@ -47,6 +47,47 @@ varias líneas en una sola transacción, elegir cada pieza a mano era lento y re
   ya existente en `handleSalida()` corre igual sobre estas líneas, sin cambios.
 - **Pendiente:** Angie/William deben crear los paquetes reales (ej. "Mezcladora 1 Bulto") desde el módulo
   antes de que el selector muestre algo — hoy no hay ninguno cargado.
+- **Ronda de ajustes de UI (21-sept-2026), reportados por Angie con capturas:** buscador de piezas en
+  `GestionPaquetes.jsx` demasiado pequeño y sin filtrar por categoría "Producto mecanizado" (se agregó el
+  filtro `categoria_id` que faltaba); espaciado general muy apretado (se agrandó todo el módulo: contenedor,
+  paddings, tipografía); la lista desplegable del buscador se cortaba dentro de la tarjeta expandida del
+  paquete (la tarjeta tenía `overflow-hidden`, que recortaba el dropdown con `position: absolute` — se quitó
+  y se reaplicaron las esquinas redondeadas manualmente en header/footer de la tarjeta en vez de en el
+  contenedor). **Gotcha para el futuro:** cualquier dropdown/menú flotante dentro de una tarjeta con esquinas
+  redondeadas necesita que la tarjeta NO use `overflow-hidden`, o el menú se corta.
+- **Fila del selector de paquete en la salida muy angosta (botón cortado) + título de firma duplicado
+  (21-sept-2026).** En `RegistrarMovimientoAlmacenista.jsx`: se reestructuró el selector de paquete en dos
+  filas (select ancho completo, luego multiplicador + botón) en vez de una sola fila apretada. El título
+  duplicado era porque `FirmaCanvas.jsx` ya renderiza su propio `<label>` internamente (con default "Firma
+  del responsable" si no se le pasa `label`), y el sitio de uso además envolvía el componente en OTRO
+  `<label>` manual — se quitó el envoltorio manual y se pasa el texto directo por la prop `label`.
+  **Gotcha:** antes de envolver `<FirmaCanvas>` en un `<label>` propio, revisar si ya acepta la prop `label`.
+- **Al seleccionar un paquete no se agregaban los productos a la salida (21-sept-2026).** `aplicarPaquete()`
+  dependía 100% del embed anidado de PostgREST `paquete_items(...,items(nombre, unidad_medida))` para
+  resolver cada pieza; si ese embed venía vacío (posible por caché de esquema de PostgREST tras una
+  migración reciente, u otros casos borde), la función fallaba en silencio sin poblar `sProductos`. Se
+  corrigió resolviendo nombre/unidad de cada pieza contra el catálogo `items` de la bodega ya cargado en el
+  estado del componente (la misma fuente que usa el buscador de "Productos" de más abajo, que sí funciona
+  siempre), usando el embed solo como respaldo. **Gotcha:** no confiar únicamente en un embed anidado de
+  PostgREST recién creado para datos críticos de UI — preferir resolver contra un catálogo local ya probado
+  cuando esté disponible.
+
+## Módulo: Analítica — actualización en tiempo real (22-sept-2026)
+
+Angie reportó que el Dashboard ejecutivo (`/analitica`, `DashboardEjecutivo.jsx`) no se actualizaba en
+tiempo real — cargaba los datos solo al entrar o cambiar filtros, sin botón de refrescar ni actualización
+automática. La Analítica de Fundición (`AnaliticaFundicion.jsx`, `/analitica/fundicion`) ya tenía botón de
+refrescar manual, así que se usó como referencia de patrón.
+
+- **Solución elegida (Angie, entre opciones):** botón de refrescar manual + actualización automática
+  periódica cada 2 minutos mientras la pantalla está abierta.
+- Se agregó `useEffect` con `setInterval(() => cargarTodo(), 120000)` (limpia el interval al desmontar),
+  botón con ícono `RefreshCw` (gira mientras `cargando === true`) junto al título, y texto "Actualizado
+  HH:MM:SS" con la hora de la última carga (`ultimaActualizacion`, se actualiza al final de `cargarTodo()`).
+- No se tocó `AnaliticaFundicion.jsx` (ya tenía su propio botón de refrescar, no necesitaba cambios).
+- **Pendiente:** Angie va a revisar contenido/exactitud de las 4 pestañas de Analítica (Financiero,
+  Rotación, Pedidos & Lead Time, Alertas) y avisar si encuentra algo más para corregir — no se auditó el
+  contenido de las pestañas en esta ronda, solo el mecanismo de actualización.
 
 ## Pendiente de otras sesiones
 

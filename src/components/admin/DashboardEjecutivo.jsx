@@ -7,7 +7,7 @@ import {
 import {
   TrendingUp, Package, DollarSign, AlertTriangle, Clock,
   CheckCircle, XCircle, AlertCircle, MinusCircle, RotateCcw,
-  ChevronDown, ChevronUp, Info,
+  ChevronDown, ChevronUp, Info, RefreshCw,
 } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 
@@ -780,6 +780,7 @@ export default function DashboardEjecutivo() {
   const [bodegas,              setBodegas]              = useState([])
   const [categorias,           setCategorias]           = useState([])
   const [categoriasDisp,       setCategoriasDisp]       = useState([])
+  const [ultimaActualizacion,  setUltimaActualizacion]  = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -789,6 +790,13 @@ export default function DashboardEjecutivo() {
   }, [])
 
   useEffect(() => { cargarTodo() }, [filtros])
+
+  // Auto-refrescar cada 2 minutos mientras la pantalla esté abierta,
+  // más el botón de refrescar manual para verla al instante.
+  useEffect(() => {
+    const id = setInterval(() => cargarTodo(), 120000)
+    return () => clearInterval(id)
+  }, [filtros])
 
   async function cargarTodo() {
     setCargando(true)
@@ -840,13 +848,27 @@ export default function DashboardEjecutivo() {
 
     setDatos(procesarDatos(stocks || [], movimientos || [], allMovFechas || [], pedidos || [], filtros))
     setCargando(false)
+    setUltimaActualizacion(new Date())
   }
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold text-feisen-azul flex items-center gap-2">
-        <TrendingUp size={24} /> Dashboard ejecutivo
-      </h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-2xl font-bold text-feisen-azul flex items-center gap-2">
+          <TrendingUp size={24} /> Dashboard ejecutivo
+        </h1>
+        <div className="flex items-center gap-2">
+          {ultimaActualizacion && (
+            <span className="text-xs text-gray-400">
+              Actualizado {ultimaActualizacion.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+          <button onClick={cargarTodo} disabled={cargando} title="Refrescar ahora"
+            className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-50">
+            <RefreshCw size={16} className={`text-gray-500 ${cargando ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
 
       <FiltrosGlobales filtros={filtros} setFiltros={setFiltros} bodegas={bodegas} categorias={categorias} categoriasDisp={categoriasDisp} />
 
