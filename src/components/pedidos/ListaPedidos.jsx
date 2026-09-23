@@ -41,6 +41,11 @@ const MOTIVOS_CIERRE = [
   'Se creó otra orden para cambiar de proveedor',
 ]
 
+// Ignora mayúsculas/tildes para que "compresor" encuentre "Compresor" o "compresór"
+function normalizar(s) {
+  return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
@@ -233,6 +238,9 @@ export default function ListaPedidos() {
   const [productos, setProductos] = useState([])
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('todos')
+  const [busqueda,   setBusqueda]   = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
   const [msg,       setMsg]       = useState(null)
 
   // Modales
@@ -631,11 +639,25 @@ export default function ListaPedidos() {
   // destino final "terminado". "Recibido" sigue aparte para cuando se busca puntualmente
   // lo que sí llegó (cada tarjeta ya se distingue sola: pastilla verde "Recibido" vs
   // gris "Completado: <motivo>").
+  const hayBusqueda = busqueda.trim() || fechaDesde || fechaHasta
+
   const pedidosFiltrados = pedidos
     .filter(p => {
-      if (filtro === 'todos')   return true
-      if (filtro === 'cerrado') return p.estado === 'cerrado' || p.estado === 'recibido'
-      return p.estado === filtro
+      if (filtro === 'cerrado') { if (!(p.estado === 'cerrado' || p.estado === 'recibido')) return false }
+      else if (filtro !== 'todos') { if (p.estado !== filtro) return false }
+
+      if (busqueda.trim()) {
+        const q = normalizar(busqueda)
+        const enNumero      = normalizar(p.numero).includes(q)
+        const enSolicitante = normalizar(p.profiles?.nombre).includes(q)
+        const enProducto    = (p.pedido_items || []).some(it => normalizar(it.descripcion).includes(q))
+        if (!enNumero && !enSolicitante && !enProducto) return false
+      }
+
+      if (fechaDesde && new Date(p.created_at) < new Date(fechaDesde + 'T00:00:00')) return false
+      if (fechaHasta && new Date(p.created_at) > new Date(fechaHasta + 'T23:59:59')) return false
+
+      return true
     })
     .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1))
 
@@ -705,6 +727,34 @@ export default function ListaPedidos() {
         ) : null
       })()}
 
+      {/* Búsqueda: número de pedido, producto o quién lo hizo, y rango de fechas */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+        <div className="relative">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por número de pedido, producto o quién lo hizo…"
+            className="w-full border-2 border-gray-200 rounded-xl pl-11 pr-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            Desde
+            <input type="date" value={fechaDesde} onChange={e => setFechaDesde(e.target.value)}
+              className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            Hasta
+            <input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)}
+              className="border-2 border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          </label>
+          {hayBusqueda && (
+            <button onClick={() => { setBusqueda(''); setFechaDesde(''); setFechaHasta('') }}
+              className="text-xs text-gray-400 hover:text-feisen-rojo underline">
+              Limpiar búsqueda
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'recibido', 'cerrado'].map(f => (
@@ -721,7 +771,11 @@ export default function ListaPedidos() {
         {pedidosFiltrados.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100">
             <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
-            <p>No hay pedidos{filtro !== 'todos' ? ' en este estado' : ''}.</p>
+            <p>
+              {hayBusqueda
+                ? 'No hay pedidos que coincidan con la búsqueda.'
+                : `No hay pedidos${filtro !== 'todos' ? ' en este estado' : ''}.`}
+            </p>
           </div>
         ) : pedidosFiltrados.map(p => (
           <TarjetaPedido

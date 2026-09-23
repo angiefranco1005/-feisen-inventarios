@@ -121,6 +121,12 @@ solo admin/logística/almacenista.
   buscar puntualmente lo que sí llegó completo. Dentro de "Completado" cada tarjeta se distingue sola por
   su propia pastilla de estado (verde "Recibido" vs. gris "Completado: <motivo>"), sin necesidad de un
   badge adicional.
+- **Búsqueda en Pedidos (23-sept-2026):** se agregó una caja de búsqueda (número de pedido, producto o
+  quién hizo el pedido, todo en un solo campo de texto — normaliza tildes/mayúsculas) más un rango de
+  fechas (Desde/Hasta sobre `created_at`), combinable con el filtro de estado existente. Todo es
+  client-side sobre los pedidos ya cargados (no pega a la BD de nuevo por cada tecla) — si el número de
+  pedidos crece mucho en el futuro y se siente lento, ahí sí valdría la pena mover la búsqueda de texto a
+  una query a Supabase.
 - **Alerta para vigilar (no bloqueante):** `git fsck` reportó objetos corruptos (`bad sha1 file`) y entradas
   de reflog inválidas en el repo local de Angie — probablemente porque la carpeta del repo vive dentro de
   `Documents`, que suele sincronizarse con iCloud Drive, y un archivo de `.git/objects` se vio afectado por
