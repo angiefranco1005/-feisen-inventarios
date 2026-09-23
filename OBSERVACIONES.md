@@ -113,6 +113,13 @@ solo admin/logística/almacenista.
 - **Gotcha de la sesión:** `npm run build` falló con `EPERM: operation not permitted, unlink ... dist/...`
   porque el borrado de archivos en la carpeta conectada del Mac de Angie no estaba habilitado para esta
   sesión. Se resolvió pidiendo permiso de borrado (una sola vez por sesión) antes de reintentar el build.
+- **Alerta para vigilar (no bloqueante):** `git fsck` reportó objetos corruptos (`bad sha1 file`) y entradas
+  de reflog inválidas en el repo local de Angie — probablemente porque la carpeta del repo vive dentro de
+  `Documents`, que suele sincronizarse con iCloud Drive, y un archivo de `.git/objects` se vio afectado por
+  esa sincronización. El HEAD de `main` y el historial reciente están intactos (el push de este commit
+  funcionó bien), así que no se tocó nada por ahora — pero si en el futuro `git log`/`git push` empiezan a
+  fallar, este es el sospechoso número uno. Posible solución si pasa: mover el repo fuera de una carpeta
+  sincronizada por iCloud, o excluirlo de "Optimizar almacenamiento de Mac" en Ajustes > Apple ID > iCloud.
 
 ## Pendiente de otras sesiones
 
