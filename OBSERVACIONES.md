@@ -115,12 +115,17 @@ solo admin/logística/almacenista.
   sesión. Se resolvió pidiendo permiso de borrado (una sola vez por sesión) antes de reintentar el build.
 - **Ajuste del filtro (23-sept-2026):** Angie hizo notar que "Recibido" y "Completado" no son lo mismo
   (Recibido = sí llegó y generó movimiento de inventario real, con fecha_recibido para el lead time;
-  Completado = se cerró el pedido a mano por algún motivo, sin importar si llegó todo). Para el filtro de
-  `ListaPedidos.jsx` se decidió: el filtro **"Completado" ahora agrupa ambos** (`estado IN ('recibido',
-  'cerrado')`) — es el destino final único del embudo — pero **"Recibido" se dejó como filtro aparte** para
-  buscar puntualmente lo que sí llegó completo. Dentro de "Completado" cada tarjeta se distingue sola por
-  su propia pastilla de estado (verde "Recibido" vs. gris "Completado: <motivo>"), sin necesidad de un
-  badge adicional.
+  Completado = se cerró el pedido a mano por algún motivo, sin importar si llegó todo). Se probó primero
+  con "Completado" agrupando ambos (`estado IN ('recibido', 'cerrado')`) pero dejando "Recibido" como
+  pestaña aparte también — Angie prefirió, en una segunda vuelta, **un solo embudo sin pestaña "Recibido"
+  aparte**: se quitó `'recibido'` del arreglo de pestañas de filtro (queda `['todos', 'pendiente',
+  'en_transito', 'parcialmente_recibido', 'cerrado']`), y toda la distinción vive en la tarjeta:
+  - Pastilla de estado: verde "Recibido" vs. gris "Completado".
+  - Si un pedido se cerró (completó) sin que llegara todo lo pedido, se agrega un aviso naranja
+    "⚠️ Llegó incompleto" junto a la pastilla, y el desglose por producto (que antes solo se mostraba en
+    `parcialmente_recibido`/`recibido`) ahora también se muestra para `cerrado`, con "⏳ No llegó: X" en
+    vez de "Pendiente" cuando el pedido ya está cerrado (no va a llegar más).
+  - El motivo de cierre (`p.motivo_cierre`) se sigue mostrando siempre debajo, sin cambios.
 - **Búsqueda en Pedidos (23-sept-2026):** se agregó una caja de búsqueda (número de pedido, producto o
   quién hizo el pedido, todo en un solo campo de texto — normaliza tildes/mayúsculas) más un rango de
   fechas (Desde/Hasta sobre `created_at`), combinable con el filtro de estado existente. Todo es

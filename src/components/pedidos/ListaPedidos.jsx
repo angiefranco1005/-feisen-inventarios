@@ -49,6 +49,11 @@ function normalizar(s) {
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onToggleHistorial, historialAbierto, historial }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
+  // Un pedido "completado" (cerrado) puede haberse cerrado con todo recibido, con nada
+  // recibido (motivo puramente administrativo), o con parte del pedido sin llegar — esto
+  // último se marca aparte para distinguirlo de un vistazo dentro del embudo "Completado".
+  const cerradoIncompleto = p.estado === 'cerrado' &&
+    (p.pedido_items || []).some(it => (it.cantidad - (it.cantidad_recibida || 0)) > 0)
   const diasTranscurridos = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
   const diasColor = diasTranscurridos >= 6 ? 'bg-red-100 text-red-600' : diasTranscurridos >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'
 
@@ -66,6 +71,11 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
+          {cerradoIncompleto && (
+            <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
+              ⚠️ Llegó incompleto
+            </span>
+          )}
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${diasColor}`}>
             {diasTranscurridos === 0 ? 'Hoy' : `${diasTranscurridos}d`}
           </span>
@@ -123,8 +133,9 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             const pendiente   = it.cantidad - recibido
             const esParcial   = p.estado === 'parcialmente_recibido'
             const esRecibido  = p.estado === 'recibido'
+            const esCerrado   = p.estado === 'cerrado'
             const hayExcedente = recibido > it.cantidad
-            const mostrarRecepcion = (esParcial || esRecibido) && recibido > 0
+            const mostrarRecepcion = (esParcial || esRecibido || esCerrado) && recibido > 0
             return (
               <div key={i} className="text-sm">
                 <div className="flex justify-between">
@@ -137,8 +148,8 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
                     {hayExcedente && (
                       <span className="text-orange-600 font-semibold">⚠️ Excedente: +{recibido - it.cantidad} {it.unidad}</span>
                     )}
-                    {esParcial && pendiente > 0 && (
-                      <span className="text-orange-600 font-semibold">⏳ Pendiente: {pendiente} {it.unidad}</span>
+                    {(esParcial || esCerrado) && pendiente > 0 && (
+                      <span className="text-orange-600 font-semibold">⏳ {esCerrado ? 'No llegó' : 'Pendiente'}: {pendiente} {it.unidad}</span>
                     )}
                   </div>
                 )}
@@ -634,11 +645,11 @@ export default function ListaPedidos() {
     cargar()
   }
 
-  // El filtro "Completado" agrupa los que sí llegaron completos ('recibido') junto con
-  // los cerrados manualmente por algún motivo ('cerrado') — así el embudo tiene un solo
-  // destino final "terminado". "Recibido" sigue aparte para cuando se busca puntualmente
-  // lo que sí llegó (cada tarjeta ya se distingue sola: pastilla verde "Recibido" vs
-  // gris "Completado: <motivo>").
+  // El filtro "Completado" es el único destino final del embudo: agrupa tanto los que
+  // llegaron completos ('recibido') como los cerrados manualmente por algún motivo
+  // ('cerrado') — ya no hay una pestaña "Recibido" aparte. Dentro de "Completado" cada
+  // tarjeta se distingue sola: pastilla verde "Recibido" vs. gris "Completado: <motivo>",
+  // más el aviso naranja "⚠️ Llegó incompleto" cuando se cerró sin que llegara todo.
   const hayBusqueda = busqueda.trim() || fechaDesde || fechaHasta
 
   const pedidosFiltrados = pedidos
@@ -757,7 +768,7 @@ export default function ListaPedidos() {
 
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
-        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'recibido', 'cerrado'].map(f => (
+        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'cerrado'].map(f => (
           <button key={f} onClick={() => setFiltro(f)}
             className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors
               ${filtro === f ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
