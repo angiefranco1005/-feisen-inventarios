@@ -89,6 +89,31 @@ refrescar manual, así que se usó como referencia de patrón.
   Rotación, Pedidos & Lead Time, Alertas) y avisar si encuentra algo más para corregir — no se auditó el
   contenido de las pestañas en esta ronda, solo el mecanismo de actualización.
 
+## Módulo: Pedidos — "cerrar" pasó a ser "completar" (23-sept-2026)
+
+Antes, un pedido se podía "cerrar" (solo admin/logística/almacenista) con un motivo (ya no se necesita /
+proveedor no lo tiene / cambio de proveedor). Angie pidió quitar el concepto de "cerrar/cancelar" y
+dejarlo como **"marcar como completado"**: el pedido queda completado aunque haya llegado incompleto,
+porque ya no va a llegar más — y quien creó el pedido (el solicitante) también debe poder completarlo, no
+solo admin/logística/almacenista.
+
+- **Sin migración de BD:** se decidió NO tocar la columna `estado` ni el CHECK constraint — el valor en
+  base de datos sigue siendo `'cerrado'` (evita otra migración manual en Supabase). Solo se relabeleó en
+  toda la UI: el badge, el filtro, el historial y el texto del motivo ahora dicen "Completado" en vez de
+  "Cerrado"/"Cancelar". Así los pedidos que ya estaban cerrados aparecen automáticamente como completados,
+  sin correr nada en el SQL Editor.
+- `ListaPedidos.jsx`: `puedeCerrar` ahora también es `true` cuando `p.solicitante_id === perfil?.id` (antes
+  solo admin/logística/almacenista). Modal renombrado a "Completar pedido", con el mismo motivo obligatorio
+  (queda igual en el historial).
+- `DashboardEjecutivo.jsx` (Analítica → pestaña Pedidos & Lead Time): se agregó `'cerrado'` a las
+  exclusiones de `pedidosPendientes` / `pedidosRetrasados` (antes solo excluían `'recibido'` y
+  `'anulado'`) — un pedido completado ya no cuenta como pendiente ni dispara la alerta de "atrasado" o de
+  "comprometido sin stock". Este era un bug de arrastre: con el botón anterior ya existía la posibilidad
+  de cerrar un pedido y quedaba contando como pendiente en el dashboard.
+- **Gotcha de la sesión:** `npm run build` falló con `EPERM: operation not permitted, unlink ... dist/...`
+  porque el borrado de archivos en la carpeta conectada del Mac de Angie no estaba habilitado para esta
+  sesión. Se resolvió pidiendo permiso de borrado (una sola vez por sesión) antes de reintentar el build.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).

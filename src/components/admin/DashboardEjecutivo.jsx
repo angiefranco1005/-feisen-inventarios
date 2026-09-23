@@ -164,10 +164,13 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
 
   const pedidosRetrasados = (pedidos || []).filter(p =>
     p.fecha_estimada_llegada &&
-    !['recibido', 'anulado'].includes(p.estado) &&
+    !['recibido', 'anulado', 'cerrado'].includes(p.estado) &&
     new Date(p.fecha_estimada_llegada) < hoy
   )
-  const pedidosPendientes = (pedidos || []).filter(p => !['recibido', 'anulado'].includes(p.estado))
+  // 'cerrado' = pedido marcado como completado manualmente (llegó incompleto, ya no se
+  // necesita, cambio de proveedor, etc.) — ya no está "pendiente" de nada, no debe
+  // contarse como atrasado ni generar alertas de comprometido-sin-stock.
+  const pedidosPendientes = (pedidos || []).filter(p => !['recibido', 'anulado', 'cerrado'].includes(p.estado))
 
   // ── Alertas ───────────────────────────────────────────────────────────────
   const stockNegativo  = st.filter(s => (s.cantidad_actual || 0) < 0)

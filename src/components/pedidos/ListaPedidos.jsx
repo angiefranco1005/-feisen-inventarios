@@ -6,14 +6,14 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, XCircle } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen } from 'lucide-react'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
   en_transito:             { label: 'En tránsito',          color: 'bg-blue-100 text-blue-700',     icon: Truck        },
   recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
   parcialmente_recibido:   { label: 'Parcial ⚠️',           color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
-  cerrado:                 { label: 'Cerrado',              color: 'bg-gray-100 text-gray-500',     icon: XCircle      },
+  cerrado:                 { label: 'Completado',           color: 'bg-gray-100 text-gray-500',     icon: CheckCircle  },
 }
 
 const PRIORIDAD_CONFIG = {
@@ -30,7 +30,7 @@ const HISTORIAL_LABELS = {
   en_transito:             '🚚 Marcado en tránsito',
   recibido:                '📦 Recibido',
   parcialmente_recibido:   '⚠️ Recibido parcialmente',
-  cerrado:                 '🔒 Pedido cerrado',
+  cerrado:                 '✅ Pedido completado',
 }
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
@@ -98,9 +98,9 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             <Clock size={15} />
           </button>
           {puedeCerrar && p.estado !== 'cerrado' && (
-            <button onClick={() => onCerrar(p)} title="Cancelar / cerrar pedido"
-              className="p-1.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
-              <XCircle size={15} />
+            <button onClick={() => onCerrar(p)} title="Marcar como completado"
+              className="p-1.5 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded-lg">
+              <CheckCircle size={15} />
             </button>
           )}
           {puedeEliminar && (
@@ -141,7 +141,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             )
           })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
-          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">🔒 Cerrado: {p.motivo_cierre}</p>}
+          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">✅ Completado: {p.motivo_cierre}</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
           {p.foto_muestra_url && (
             <div className="mt-3">
@@ -723,7 +723,7 @@ export default function ListaPedidos() {
             puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
-            puedeCerrar={esAdmin || esLogistica || esAlmacenista}
+            puedeCerrar={esAdmin || esLogistica || esAlmacenista || p.solicitante_id === perfil?.id}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
@@ -1022,11 +1022,11 @@ export default function ListaPedidos() {
         </Modal>
       )}
 
-      {/* MODAL CERRAR PEDIDO */}
+      {/* MODAL COMPLETAR PEDIDO */}
       {confirmCerrar && (
-        <Modal titulo={`Cancelar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
+        <Modal titulo={`Completar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">¿Por qué se cancela este pedido? Esta razón quedará registrada en el historial.</p>
+            <p className="text-sm text-gray-600">¿Por qué se marca este pedido como completado, aunque no haya llegado todo? Esta razón quedará registrada en el historial.</p>
             <div className="space-y-2">
               {MOTIVOS_CIERRE.map(m => (
                 <button key={m} type="button" onClick={() => setMotivoCierre(m)}
@@ -1045,8 +1045,8 @@ export default function ListaPedidos() {
               </button>
               <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
                 disabled={!motivoCierre}
-                className="flex-1 bg-gray-700 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
-                🔒 Cancelar pedido
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
+                ✅ Marcar como completado
               </button>
             </div>
           </div>
