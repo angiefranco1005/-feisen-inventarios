@@ -626,8 +626,17 @@ export default function ListaPedidos() {
     cargar()
   }
 
+  // El filtro "Completado" agrupa los que sí llegaron completos ('recibido') junto con
+  // los cerrados manualmente por algún motivo ('cerrado') — así el embudo tiene un solo
+  // destino final "terminado". "Recibido" sigue aparte para cuando se busca puntualmente
+  // lo que sí llegó (cada tarjeta ya se distingue sola: pastilla verde "Recibido" vs
+  // gris "Completado: <motivo>").
   const pedidosFiltrados = pedidos
-    .filter(p => filtro === 'todos' || p.estado === filtro)
+    .filter(p => {
+      if (filtro === 'todos')   return true
+      if (filtro === 'cerrado') return p.estado === 'cerrado' || p.estado === 'recibido'
+      return p.estado === filtro
+    })
     .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1))
 
   if (cargando) return <Spinner texto="Cargando pedidos..." />

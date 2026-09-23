@@ -113,6 +113,14 @@ solo admin/logística/almacenista.
 - **Gotcha de la sesión:** `npm run build` falló con `EPERM: operation not permitted, unlink ... dist/...`
   porque el borrado de archivos en la carpeta conectada del Mac de Angie no estaba habilitado para esta
   sesión. Se resolvió pidiendo permiso de borrado (una sola vez por sesión) antes de reintentar el build.
+- **Ajuste del filtro (23-sept-2026):** Angie hizo notar que "Recibido" y "Completado" no son lo mismo
+  (Recibido = sí llegó y generó movimiento de inventario real, con fecha_recibido para el lead time;
+  Completado = se cerró el pedido a mano por algún motivo, sin importar si llegó todo). Para el filtro de
+  `ListaPedidos.jsx` se decidió: el filtro **"Completado" ahora agrupa ambos** (`estado IN ('recibido',
+  'cerrado')`) — es el destino final único del embudo — pero **"Recibido" se dejó como filtro aparte** para
+  buscar puntualmente lo que sí llegó completo. Dentro de "Completado" cada tarjeta se distingue sola por
+  su propia pastilla de estado (verde "Recibido" vs. gris "Completado: <motivo>"), sin necesidad de un
+  badge adicional.
 - **Alerta para vigilar (no bloqueante):** `git fsck` reportó objetos corruptos (`bad sha1 file`) y entradas
   de reflog inválidas en el repo local de Angie — probablemente porque la carpeta del repo vive dentro de
   `Documents`, que suele sincronizarse con iCloud Drive, y un archivo de `.git/objects` se vio afectado por
