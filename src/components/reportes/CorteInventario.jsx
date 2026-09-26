@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import Alerta from '../shared/Alerta'
 import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight, Download } from 'lucide-react'
@@ -17,6 +17,14 @@ export default function CorteInventario() {
   const [error,          setError]          = useState('')
   const [bodegasAbiertas,setBodegasAbiertas]= useState({})
   const [soloConStock,   setSoloConStock]   = useState(true)
+  const [bodegaId,       setBodegaId]       = useState('')   // '' = TODO (todas las bodegas)
+  const [bodegasDisp,    setBodegasDisp]    = useState([])
+
+  // Cargar bodegas activas una sola vez, para el selector
+  useEffect(() => {
+    supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
+      .then(({ data }) => setBodegasDisp(data || []))
+  }, [])
 
   async function calcular() {
     setCargando(true)
@@ -27,11 +35,14 @@ export default function CorteInventario() {
       // Fin del día en hora Colombia (UTC-5) → convertido a UTC para comparar con Supabase
       const cutoffISO = new Date(`${fecha}T23:59:59-05:00`).toISOString()
 
+      let itemsQ = supabase
+        .from('items')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, activo, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)')
+        .order('nombre')
+      if (bodegaId) itemsQ = itemsQ.eq('bodega_id', bodegaId)
+
       const [{ data: items, error: e1 }, { data: movs, error: e2 }] = await Promise.all([
-        supabase
-          .from('items')
-          .select('id, nombre, unidad_medida, precio_costo, bodega_id, activo, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)')
-          .order('nombre'),
+        itemsQ,
         supabase
           .from('movimientos')
           .select('item_id, tipo, cantidad, fecha_movimiento, created_at')
@@ -101,6 +112,7 @@ export default function CorteInventario() {
       setResultado({
         fecha,
         bodegas,
+        bodegaNombre:    bodegaId ? (bodegasDisp.find(b => b.id === bodegaId)?.nombre || null) : null,
         total_general:   snapshot.reduce((s, r) => s + r.valor, 0),
         total_productos: snapshot.length,
       })
@@ -126,8 +138,9 @@ export default function CorteInventario() {
       {/* ── Selector ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <p className="text-sm text-gray-500 mb-4">
-          Selecciona una fecha de corte para ver el stock de todas las bodegas tal como estaba ese día.
-          El cálculo parte del inventario actual y deshace todos los movimientos posteriores a la fecha.
+          Selecciona una fecha de corte para ver el stock tal como estaba ese día — de una bodega puntual
+          o de <strong>todas</strong> ("Todas las bodegas"). El cálculo parte del inventario actual y
+          deshace todos los movimientos posteriores a la fecha.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 items-end">
           <div className="flex-1">
@@ -139,6 +152,17 @@ export default function CorteInventario() {
               max={HOY}
               className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             />
+          </div>
+          <div className="flex-1">
+            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Bodega</label>
+            <select
+              value={bodegaId}
+              onChange={e => setBodegaId(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+            >
+              <option value="">Todas las bodegas</option>
+              {bodegasDisp.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
           </div>
           <button
             onClick={calcular}
@@ -162,7 +186,9 @@ export default function CorteInventario() {
           {/* Banner resumen */}
           <div className="bg-feisen-azul text-white rounded-2xl px-6 py-5 flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-200 mb-0.5">Inventario al {fechaLabel}</p>
+              <p className="text-sm text-blue-200 mb-0.5">
+                Inventario al {fechaLabel}{resultado.bodegaNombre ? ` · ${resultado.bodegaNombre}` : ' · Todas las bodegas'}
+              </p>
               <p className="text-3xl font-bold">{fmt(resultado.total_general)}</p>
               <p className="text-xs text-blue-300 mt-1">
                 {resultado.total_productos} productos · {resultado.bodegas.length} bodegas
@@ -174,7 +200,7 @@ export default function CorteInventario() {
           {/* Botón descargar */}
           <div className="flex justify-end">
             <button
-              onClick={() => exportarCorteInventario(resultado)}
+              onClick={() => exportarCorteInventario(resultado, resultado.bodegaNombre)}
               className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
               <Download size={16} /> Descargar Excel
             </button>

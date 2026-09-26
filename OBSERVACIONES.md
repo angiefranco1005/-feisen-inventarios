@@ -140,6 +140,19 @@ solo admin/logística/almacenista.
   fallar, este es el sospechoso número uno. Posible solución si pasa: mover el repo fuera de una carpeta
   sincronizada por iCloud, o excluirlo de "Optimizar almacenamiento de Mac" en Ajustes > Apple ID > iCloud.
 
+## Módulo: Inventario en fecha — filtro por bodega (26-sept-2026)
+
+Angie pidió poder correr el "Inventario en fecha" (`CorteInventario.jsx`, en Reportes) para una bodega
+puntual, o dejarlo en todas ("TODO") como funcionaba hasta ahora.
+
+- Se agregó un selector "Bodega" junto a la fecha de corte (mismo patrón que ya usa `InformeKardex.jsx`):
+  `''` = todas las bodegas, o el id de una bodega puntual. Se aplica como `.eq('bodega_id', bodegaId)` en
+  la consulta de `items` — la consulta de `movimientos` no necesita tocarse porque los deltas solo se
+  aplican sobre los items ya cargados (filtrados o no).
+- El banner de resultado y la hoja "Resumen" del Excel ahora dicen qué bodega se filtró (o "Todas las
+  bodegas"), y el nombre del archivo descargado incluye la bodega cuando se filtró una puntual
+  (`corte_inventario_<fecha>_<bodega>.xlsx`) — mismo patrón de sufijo que ya usa `exportarKardex`.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).

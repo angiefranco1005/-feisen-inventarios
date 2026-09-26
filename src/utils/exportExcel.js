@@ -246,7 +246,7 @@ export function exportarInventarioActual(items, nombreArchivo = 'inventario_feis
 // ─────────────────────────────────────────────────────────────
 //  EXPORTAR CORTE DE INVENTARIO  ← el que más se usa
 // ─────────────────────────────────────────────────────────────
-export function exportarCorteInventario(resultado) {
+export function exportarCorteInventario(resultado, bodegaNombre = null) {
   const wb    = XLSX.utils.book_new()
   const fecha = resultado.fecha
   const N     = 6  // columnas en hojas de bodega
@@ -254,7 +254,7 @@ export function exportarCorteInventario(resultado) {
   // ── Hoja Resumen ──────────────────────────────────────────
   const resRows = []
   resRows.push([`INVENTARIO EN FECHA — RESUMEN GENERAL`, '', ''])
-  resRows.push([`Fecha de corte: ${fecha}`, '', ''])
+  resRows.push([`Fecha de corte: ${fecha}${bodegaNombre ? ' · Bodega: ' + bodegaNombre : ' · Todas las bodegas'}`, '', ''])
   resRows.push(['', '', ''])
   resRows.push(['Bodega', 'Productos con stock', 'Valor total (COP)'])
   resultado.bodegas.forEach(b => {
@@ -407,7 +407,8 @@ export function exportarCorteInventario(resultado) {
     XLSX.utils.book_append_sheet(wb, ws, b.nombre.substring(0, 31))
   })
 
-  XLSX.writeFile(wb, `corte_inventario_${fecha}.xlsx`)
+  const sufijo = bodegaNombre ? `_${bodegaNombre.toLowerCase().replace(/\s+/g, '_')}` : ''
+  XLSX.writeFile(wb, `corte_inventario_${fecha}${sufijo}.xlsx`)
 }
 
 // ─────────────────────────────────────────────────────────────
