@@ -153,6 +153,21 @@ puntual, o dejarlo en todas ("TODO") como funcionaba hasta ahora.
   bodegas"), y el nombre del archivo descargado incluye la bodega cuando se filtró una puntual
   (`corte_inventario_<fecha>_<bodega>.xlsx`) — mismo patrón de sufijo que ya usa `exportarKardex`.
 
+## Módulo: Inventario Físico — título para reconocer cada conteo (26-sept-2026)
+
+Angie pidió poder ponerle un "título" a cada Inventario Físico para reconocer más fácil de qué se trata
+cada uno al verlos en la lista (antes solo se veían Número/Fecha/Estado/Creado por, sin ninguna pista de
+contexto).
+
+- **Sin migración de BD:** la tabla `inventarios_fisicos` ya tenía un campo `notas` que en la práctica se
+  usaba exactamente para esto (el placeholder ya decía "Ej: Conteo fin de mes agosto"), solo que no se
+  mostraba en ningún lado visible de la lista. Se decidió NO agregar una columna nueva — se reetiquetó el
+  campo existente como "Título" en el editor (con una ayuda: "Para reconocer este inventario más fácil en
+  la lista") y se agregó una columna "Título" en la tabla de la lista, en el título del modal de detalle, y
+  como subtítulo mientras se está llenando el conteo. Nada cambia en el esquema ni en cómo se guarda.
+  `notas` solo se usa en este archivo (`InventarioFisico.jsx`), así que renombrar su rol en la UI no afecta
+  nada más.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).

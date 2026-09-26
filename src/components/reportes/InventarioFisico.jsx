@@ -337,6 +337,7 @@ export default function InventarioFisico() {
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-gray-500">Número</th>
+                    <th className="text-left px-4 py-3 font-semibold text-gray-500">Título</th>
                     <th className="text-left px-4 py-3 font-semibold text-gray-500">Fecha</th>
                     <th className="text-left px-4 py-3 font-semibold text-gray-500">Estado</th>
                     <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Creado por</th>
@@ -347,6 +348,9 @@ export default function InventarioFisico() {
                   {inventarios.map(inv => (
                     <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-feisen-azul">{inv.numero}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {inv.notas || <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">
                         {new Date(inv.fecha + 'T12:00:00').toLocaleDateString('es-CO')}
                       </td>
@@ -382,7 +386,7 @@ export default function InventarioFisico() {
 
         {/* Modal detalle inventario anterior */}
         {verDetalle && (
-          <Modal titulo={`${verDetalle.numero} — Detalle`} onCerrar={() => setVerDetalle(null)}>
+          <Modal titulo={`${verDetalle.numero}${verDetalle.notas ? ' — ' + verDetalle.notas : ''}`} onCerrar={() => setVerDetalle(null)}>
             {cargandoDetalle ? <Spinner /> : (
               <div className="space-y-3 max-h-[65vh] overflow-y-auto">
                 <div className="flex gap-4 text-sm text-gray-600 pb-2 border-b border-gray-100">
@@ -441,7 +445,7 @@ export default function InventarioFisico() {
           <h1 className="text-xl font-bold text-gray-800">
             Inventario Físico — <span className="text-feisen-azul">{numero}</span>
           </h1>
-          <p className="text-xs text-gray-400">Ingresa las cantidades físicas contadas</p>
+          <p className="text-xs text-gray-400">{notas || 'Ingresa las cantidades físicas contadas'}</p>
         </div>
         <div className="flex gap-2">
           <button onClick={guardarBorrador} disabled={guardando}
@@ -467,9 +471,10 @@ export default function InventarioFisico() {
             className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
         <div className="col-span-2 sm:col-span-2">
-          <label className="text-xs font-medium text-gray-500 block mb-1">Notas (opcional)</label>
-          <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: Conteo fin de mes agosto"
+          <label className="text-xs font-medium text-gray-500 block mb-1">Título (opcional)</label>
+          <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: Bodega Mecanizados — cierre de mes"
             className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          <p className="text-[11px] text-gray-400 mt-1">Para reconocer este inventario más fácil en la lista.</p>
         </div>
       </div>
 
