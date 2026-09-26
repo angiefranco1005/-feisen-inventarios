@@ -36,6 +36,7 @@ export default function InventarioFisico() {
   const [conteos,      setConteos]     = useState({})        // { key: string }
   const [busqueda,     setBusqueda]    = useState('')
   const [filtroBodega, setFiltroBodega] = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('')
   const [notas,        setNotas]       = useState('')
   const [fecha,        setFecha]       = useState(HOY())
   const [invId,        setInvId]       = useState(null)
@@ -141,6 +142,7 @@ export default function InventarioFisico() {
     setConteos(conteosIniciales || {})
     setBusqueda('')
     setFiltroBodega('')
+    setFiltroCategoria('')
     setNotas(notas_)
     setFecha(fecha_)
     setInvId(id)
@@ -179,14 +181,20 @@ export default function InventarioFisico() {
     .filter(i => i.valor_diferencia !== null && i.valor_diferencia < 0)
     .reduce((s, i) => s + i.valor_diferencia, 0)
 
+  const categoriasDisp = useMemo(() => {
+    const set = new Set(items.map(i => i.categoria_nombre).filter(Boolean))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [items])
+
   const itemsFiltrados = useMemo(() => {
     return itemsConCalculo.filter(i => {
-      const matchB = !filtroBodega || i.bodega_id === filtroBodega
-      const matchQ = !busqueda    || i.item_nombre.toLowerCase().includes(busqueda.toLowerCase())
-      const matchD = !soloConDif  || (i.diferencia !== null && i.diferencia !== 0)
-      return matchB && matchQ && matchD
+      const matchB = !filtroBodega    || i.bodega_id === filtroBodega
+      const matchC = !filtroCategoria || i.categoria_nombre === filtroCategoria
+      const matchQ = !busqueda        || i.item_nombre.toLowerCase().includes(busqueda.toLowerCase())
+      const matchD = !soloConDif      || (i.diferencia !== null && i.diferencia !== 0)
+      return matchB && matchC && matchQ && matchD
     })
-  }, [itemsConCalculo, filtroBodega, busqueda, soloConDif])
+  }, [itemsConCalculo, filtroBodega, filtroCategoria, busqueda, soloConDif])
 
   const contados      = itemsConCalculo.filter(i => i.cantidad_fisica !== null).length
   const conDiferencia = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).length
@@ -512,6 +520,11 @@ export default function InventarioFisico() {
           className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
           <option value="">Todas las bodegas</option>
           {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+        </select>
+        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+          className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+          <option value="">Todas las categorías</option>
+          {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button onClick={() => setSoloConDif(v => !v)}
           className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl border font-medium transition-colors

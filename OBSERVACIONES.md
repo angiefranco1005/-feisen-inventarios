@@ -168,6 +168,17 @@ contexto).
   `notas` solo se usa en este archivo (`InventarioFisico.jsx`), así que renombrar su rol en la UI no afecta
   nada más.
 
+## Módulo: Inventario Físico — filtro por categoría (26-sept-2026)
+
+Angie pidió poder escoger por categoría al hacer el Inventario Físico, además del filtro de bodega y la
+búsqueda que ya existían.
+
+- Se agregó un selector "Todas las categorías" junto al de bodega, en la barra de filtros del editor de
+  conteo. Las categorías se derivan de los items ya cargados (`categoria_nombre`, que ya venía en la
+  consulta) — no hace falta ir de nuevo a la BD ni tocar el esquema.
+- Se combina con los filtros existentes (bodega, búsqueda de producto, "solo diferencias"): todos aplican
+  a la vez sobre la misma lista.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).
