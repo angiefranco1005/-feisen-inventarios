@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
@@ -6,7 +6,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import {
   ClipboardList, Plus, Search, AlertTriangle, CheckCircle,
-  ChevronLeft, RefreshCw, Package, FileText, Pencil, Eye
+  ChevronLeft, RefreshCw, Package, FileText, Pencil, Eye, Check, X
 } from 'lucide-react'
 
 const HOY = () => new Date().toLocaleDateString('en-CA')
@@ -16,6 +16,43 @@ function badge(estado) {
   return estado === 'confirmado'
     ? 'bg-green-100 text-green-700'
     : 'bg-amber-100 text-amber-700'
+}
+
+// Título editable en línea, desde la lista — funciona tanto para borradores
+// como para inventarios ya confirmados (antes no había forma de corregir el
+// título de uno ya confirmado sin volver a abrirlo).
+function TituloEditable({ valor, onGuardar }) {
+  const [editando, setEditando] = useState(false)
+  const [draft,    setDraft]    = useState(valor || '')
+  const ref = useRef()
+
+  function activar()  { setDraft(valor || ''); setEditando(true); setTimeout(() => ref.current?.focus(), 50) }
+  function cancelar()  { setDraft(valor || ''); setEditando(false) }
+  function guardar() {
+    const limpio = draft.trim()
+    if (limpio !== (valor || '')) onGuardar(limpio)
+    setEditando(false)
+  }
+
+  if (!editando) return (
+    <button onClick={activar} className="flex items-center gap-2 group text-left">
+      {valor
+        ? <span className="text-gray-700">{valor}</span>
+        : <span className="text-gray-300 italic">Sin título</span>}
+      <Pencil size={12} className="text-gray-300 group-hover:text-feisen-azul transition-colors shrink-0" />
+    </button>
+  )
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input ref={ref} value={draft} onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
+        placeholder="Ej: Bodega Mecanizados — cierre de mes"
+        className="border-b-2 border-feisen-azul bg-transparent text-sm text-gray-800 focus:outline-none px-1 py-0.5 min-w-0 w-56" />
+      <button onClick={guardar}  className="text-green-500 hover:text-green-600"><Check size={15} /></button>
+      <button onClick={cancelar} className="text-gray-400 hover:text-gray-600"><X size={15} /></button>
+    </div>
+  )
 }
 
 export default function InventarioFisico() {
@@ -62,6 +99,15 @@ export default function InventarioFisico() {
       .limit(100)
     setInventarios(data || [])
     setCargando(false)
+  }
+
+  // ── renombrar título desde la lista ─────────────────────────────────────
+  async function renombrarTitulo(inv, nuevoTitulo) {
+    const { error } = await supabase.from('inventarios_fisicos')
+      .update({ notas: nuevoTitulo || null })
+      .eq('id', inv.id)
+    if (error) { setMsg({ tipo: 'error', texto: 'Error al renombrar: ' + error.message }); return }
+    setInventarios(prev => prev.map(i => i.id === inv.id ? { ...i, notas: nuevoTitulo || null } : i))
   }
 
   // ── abrir detalle inventario anterior ───────────────────────────────────
@@ -331,6 +377,8 @@ export default function InventarioFisico() {
           </button>
         </div>
 
+        {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
         {cargando ? <Spinner /> : (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {inventarios.length === 0 ? (
@@ -357,7 +405,7 @@ export default function InventarioFisico() {
                     <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-feisen-azul">{inv.numero}</td>
                       <td className="px-4 py-3 text-gray-700">
-                        {inv.notas || <span className="text-gray-300">—</span>}
+                        <TituloEditable valor={inv.notas} onGuardar={val => renombrarTitulo(inv, val)} />
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         {new Date(inv.fecha + 'T12:00:00').toLocaleDateString('es-CO')}

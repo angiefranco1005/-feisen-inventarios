@@ -179,6 +179,23 @@ búsqueda que ya existían.
 - Se combina con los filtros existentes (bodega, búsqueda de producto, "solo diferencias"): todos aplican
   a la vez sobre la misma lista.
 
+## Módulo: Inventario Físico — título editable en la lista (28-sept-2026)
+
+Angie pidió corregir el título de un inventario ya confirmado (INV-FIS-0027) para agregarle "SEP" y saber
+que era de septiembre. Al revisar, ningún inventario confirmado se podía renombrar — `continuarBorrador()`
+solo aplica a `estado === 'borrador'`, así que un título ya confirmado quedaba fijo para siempre salvo que
+alguien editara la base de datos directamente.
+
+- Se agregó `TituloEditable` (mismo patrón `InlineEdit` que ya usan `GestionBOM.jsx`/`GestionPaquetes.jsx`):
+  click en el título (o el lápiz) en la lista, edita, Enter o ✓ para guardar — funciona para borradores y
+  para confirmados por igual, sin necesidad de abrir el inventario.
+- `renombrarTitulo()` hace un `update` directo sobre `inventarios_fisicos.notas` (sigue siendo el mismo
+  campo reetiquetado como "Título", ver entrada del 26-sept) y actualiza el estado local sin recargar toda
+  la lista.
+- Se agregó el bloque de mensajes de error/éxito (`{msg && <Alerta .../>}`) también en la vista de lista —
+  antes solo se mostraba dentro del editor, así que un error al renombrar no se hubiera visto en ningún
+  lado.
+
 ## Pendiente de otras sesiones
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).
