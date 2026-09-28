@@ -240,3 +240,56 @@ físicamente, porque las correcciones que debían bajarlo nunca se aplicaron.
   existente, no lo reemplaza. Hoy ningún flujo del código inserta ese tipo, así que es inofensivo, pero si en
   el futuro alguien lo usa asumiendo que "sobreescribe", va a duplicar cantidades — vale la pena revisarlo si
   se llega a usar ese tipo de movimiento.
+
+## Alcance real del bug del trigger: casi TODA la app usa tipo 'entrada'/'salida' (28-sept-2026, continuación)
+
+Al revisar más a fondo por qué "Inventario en fecha" y la página de inicio mostraban valores distintos
+para Mecanizados el mismo día, se hizo un inventario completo de quién inserta en `movimientos` en toda
+la app (`grep` de "from('movimientos').insert" en todo `src/`). Resultado: casi todos los módulos usan los
+tipos genéricos `'entrada'`/`'salida'` — no solo Registro de mecanizado e Inventario Físico (ya corregidos
+antes hoy):
+
+- `pedidos/ListaPedidos.jsx` — entrada automática al marcar un pedido como recibido.
+- `fundicion/RegistrarFundida.jsx` y `RecogidaFundida.jsx`.
+- `transferencias/TransferenciasPendientes.jsx`.
+- `movimientos/RegistrarMovimiento.jsx` y `RegistrarMovimientoAlmacenista.jsx` (registro manual de movimientos).
+- `productos/GestionProductos.jsx` (su propio flujo de mecanizado).
+
+Los únicos tipos "clasificados" del trigger original (`entrada_compra`, `devolucion`, `salida_produccion`,
+`salida_venta`, `traslado`, `ajuste_inventario`) casi no se usan en la práctica — solo apareció
+`salida_produccion` una vez, en `operario/Dashboard.jsx`.
+
+**Implicación importante**: el bug del trigger (ver entrada anterior de hoy) no afectaba solo a
+Mecanizados — afectaba prácticamente TODA la actualización de stock de la aplicación, en todas las
+bodegas, desde que existen estos módulos. El `stock.cantidad_actual` de la mayoría de los productos
+probablemente refleja solo lo que se cargó al crear el producto (`GestionProductos.jsx` sí escribe stock
+directo al crear), y no los movimientos posteriores de ventas, compras, producción o transferencias. El
+fix del trigger de hoy corrige esto hacia adelante para TODOS estos módulos (todos ya arman bien
+`bodega_origen_id`/`bodega_destino_id`), pero el stock histórico de cada bodega sigue desfasado hasta que
+se recuente físicamente — igual que se hizo hoy con Mecanizados.
+
+**Recomendación**: priorizar inventarios físicos de recuento en las demás bodegas (empezando por las de
+mayor valor o las que más movimiento tienen: pedidos, transferencias, fundición) para resincronizar el
+stock real ahora que el trigger ya lo permite.
+
+## Fix: "Inventario en fecha" (CorteInventario.jsx) daba un valor distinto al de la página de inicio (28-sept-2026)
+
+Para la misma bodega (Mecanizados) y la misma fecha (hoy), "Inventario en fecha" mostraba $80.326.647 y la
+página de inicio $74.060.747. Se encontraron dos bugs independientes en `calcular()`:
+
+1. La consulta de `items` traía el stock como embed anidado `stock(cantidad_actual)` sin filtrar por
+   bodega, y el código tomaba `item.stock?.[0]` (la primera fila del array, sin garantía de orden). Si un
+   producto tiene stock en más de una bodega (por ejemplo por una transferencia entre `TransferenciasPendientes.jsx`),
+   podía tomar el valor de la bodega equivocada. Se reemplazó por una consulta aparte a `stock` filtrada por
+   `item_id` + `bodega_id`, igual al patrón que ya usa `InventarioFisico.jsx` (`stockMap` por
+   `${item_id}_${bodega_id}`).
+2. El cálculo de "deltas" (para deshacer movimientos posteriores a la fecha de corte) solo trataba el tipo
+   literal `'entrada'` como aumento; cualquier otro tipo, incluidos `'entrada_compra'` y `'devolucion'`, se
+   restaba — quedaba al revés. Se listan explícitamente los tipos que aumentan/disminuyen stock, igual que
+   en `fn_actualizar_stock`. `'traslado'` no se intenta reconstruir aquí (esta función no distingue
+   bodega origen/destino por producto) — hoy ningún flujo lo usa, así que no aplica, pero queda anotado por
+   si se llega a usar.
+
+Con estos dos fixes, "Inventario en fecha" para hoy debería coincidir con la página de inicio (el corte a
+hoy no debería deshacer ningún movimiento). Falta que Angie confirme el número después de que Netlify
+despliegue este cambio.
