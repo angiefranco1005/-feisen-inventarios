@@ -21,7 +21,7 @@ function DesgloseBodega({ datos }) {
   return (
     <div className="bg-gray-50 border-t border-gray-100 px-4 pb-3 pt-2">
       {cats.map(cat => {
-        const items    = datos[cat]
+        const items    = [...datos[cat]].sort((a, b) => b.valor - a.valor)
         const subTotal = items.reduce((s, i) => s + i.valor, 0)
         const abierta  = catAbierta === cat
 
