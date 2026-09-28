@@ -6,7 +6,9 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download } from 'lucide-react'
+import ModalGenerarOC from './ModalGenerarOC'
+import { exportarOrdenCompraPDF } from '../../utils/exportOrdenCompraPDF'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -46,7 +48,7 @@ function normalizar(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onToggleHistorial, historialAbierto, historial }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
   // Un pedido "completado" (cerrado) puede haberse cerrado con todo recibido, con nada
@@ -108,6 +110,12 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
               <Edit2 size={15} />
             </button>
           )}
+          {puedeGenerarOC && (p.pedido_items?.length > 0) && (
+            <button onClick={() => onGenerarOC(p)} title="Generar orden de compra"
+              className="p-1.5 text-gray-300 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
+              <FileText size={15} />
+            </button>
+          )}
           <button onClick={() => onToggleHistorial(p.id)} title="Ver historial"
             className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
             <Clock size={15} />
@@ -136,6 +144,8 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             const esCerrado   = p.estado === 'cerrado'
             const hayExcedente = recibido > it.cantidad
             const mostrarRecepcion = (esParcial || esRecibido || esCerrado) && recibido > 0
+            const cubiertoOC   = coberturaPorItem?.[it.id] || 0
+            const pendienteOC  = Math.max(0, it.cantidad - cubiertoOC)
             return (
               <div key={i} className="text-sm">
                 <div className="flex justify-between">
@@ -153,12 +163,39 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
                     )}
                   </div>
                 )}
+                {cubiertoOC > 0 && (
+                  <div className="text-xs mt-0.5 text-feisen-azul">
+                    🧾 En orden de compra: {cubiertoOC} {it.unidad}
+                    {pendienteOC > 0 && ` · Falta pedir: ${pendienteOC} ${it.unidad}`}
+                  </div>
+                )}
               </div>
             )
           })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
           {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">✅ Completado: {p.motivo_cierre}</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+          {ordenesDelPedido?.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Órdenes de compra generadas</p>
+              {ordenesDelPedido.map(oc => {
+                const totalOC = (oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+                return (
+                  <div key={oc.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
+                    <div>
+                      <span className="font-semibold text-gray-700">{oc.numero}</span>
+                      <span className="text-gray-400"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${totalOC.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <button
+                      onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: p.numero }, oc.profiles?.nombre || '')}
+                      title="Descargar PDF" className="p-1 text-feisen-azul hover:bg-blue-100 rounded">
+                      <Download size={13} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           {p.foto_muestra_url && (
             <div className="mt-3">
               <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><ImageIcon size={11} /> Foto de muestra</p>
@@ -247,6 +284,8 @@ export default function ListaPedidos() {
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
+  const [ordenesCompra, setOrdenesCompra] = useState([])
+  const [modalGenerarOC, setModalGenerarOC] = useState(null)
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('todos')
   const [busqueda,   setBusqueda]   = useState('')
@@ -315,12 +354,19 @@ export default function ListaPedidos() {
       .order('created_at', { ascending: false })
     if (!verTodo) pedsQ = pedsQ.eq('solicitante_id', perfil.id)
 
-    const [{ data: peds }, { data: prods }] = await Promise.all([
+    const ocQ = supabase.from('ordenes_compra')
+      .select('*, proveedores(nombre, nit, contacto, telefono, direccion), profiles(nombre), orden_compra_items(*)')
+      .eq('anulada', false)
+      .order('created_at', { ascending: false })
+
+    const [{ data: peds }, { data: prods }, { data: ocs }] = await Promise.all([
       pedsQ,
       prodsQ,
+      ocQ,
     ])
     setPedidos(peds || [])
     setProductos(prods || [])
+    setOrdenesCompra(ocs || [])
     setCargando(false)
   }
 
@@ -650,6 +696,19 @@ export default function ListaPedidos() {
   // ('cerrado') — ya no hay una pestaña "Recibido" aparte. Dentro de "Completado" cada
   // tarjeta se distingue sola: pastilla verde "Recibido" vs. gris "Completado: <motivo>",
   // más el aviso naranja "⚠️ Llegó incompleto" cuando se cerró sin que llegara todo.
+  // Agrupar órdenes de compra por pedido, y sumar cuánta cantidad de cada línea del
+  // pedido ya quedó cubierta por alguna orden (puede repartirse entre varias)
+  const ocPorPedido = {}
+  const coberturaPorItem = {}
+  for (const oc of ordenesCompra) {
+    if (!ocPorPedido[oc.pedido_id]) ocPorPedido[oc.pedido_id] = []
+    ocPorPedido[oc.pedido_id].push(oc)
+    for (const it of (oc.orden_compra_items || [])) {
+      if (!it.pedido_item_id) continue
+      coberturaPorItem[it.pedido_item_id] = (coberturaPorItem[it.pedido_item_id] || 0) + it.cantidad
+    }
+  }
+
   const hayBusqueda = busqueda.trim() || fechaDesde || fechaHasta
 
   const pedidosFiltrados = pedidos
@@ -798,17 +857,30 @@ export default function ListaPedidos() {
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica || esAlmacenista || p.solicitante_id === perfil?.id}
+            puedeGenerarOC={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
             onRecibido={iniciarRecibido}
             onEditar={abrirEditar}
+            onGenerarOC={ped => setModalGenerarOC(ped)}
             onToggleHistorial={toggleHistorial}
             historialAbierto={!!historialOpen[p.id]}
             historial={historialData[p.id]}
+            ordenesDelPedido={ocPorPedido[p.id] || []}
+            coberturaPorItem={coberturaPorItem}
           />
         ))}
       </div>
+
+      {modalGenerarOC && (
+        <ModalGenerarOC
+          pedido={modalGenerarOC}
+          coberturaPorItem={coberturaPorItem}
+          onCerrar={() => setModalGenerarOC(null)}
+          onGuardado={() => { setModalGenerarOC(null); cargar() }}
+        />
+      )}
 
       {/* MODAL NUEVO PEDIDO */}
       {modalNuevo && (

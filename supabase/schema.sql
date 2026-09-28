@@ -242,3 +242,71 @@ CREATE POLICY "fotos_insert_admin" ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'productos-fotos' AND public.get_my_rol() = 'ADMIN');
 CREATE POLICY "fotos_delete_admin" ON storage.objects FOR DELETE
   USING (bucket_id = 'productos-fotos' AND public.get_my_rol() = 'ADMIN');
+
+-- ============================================================
+-- MÓDULO: ÓRDENES DE COMPRA (agregado 28-sept-2026)
+-- Ver supabase/migraciones/2026-09-28_ordenes_compra.sql para el detalle completo.
+-- NOTA: este schema.sql no tiene las tablas `pedidos`/`pedido_items` (se crearon en
+-- una sesión anterior directamente en el SQL Editor y nunca se agregaron aquí) — las
+-- tablas de este módulo las referencian por FK, así que ya existen en la base real.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.proveedores (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nombre      TEXT NOT NULL,
+  nit         TEXT,
+  contacto    TEXT,
+  telefono    TEXT,
+  email       TEXT,
+  direccion   TEXT,
+  activo      BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.ordenes_compra (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  numero         TEXT NOT NULL UNIQUE,
+  pedido_id      UUID REFERENCES public.pedidos(id),
+  proveedor_id   UUID REFERENCES public.proveedores(id),
+  fecha          DATE NOT NULL DEFAULT CURRENT_DATE,
+  razon_social   TEXT NOT NULL DEFAULT 'Feisen S.A.S.',
+  ciudad         TEXT NOT NULL DEFAULT 'Soacha',
+  observaciones  TEXT,
+  anulada        BOOLEAN NOT NULL DEFAULT false,
+  usuario_id     UUID REFERENCES public.profiles(id),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.orden_compra_items (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  orden_compra_id   UUID NOT NULL REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
+  pedido_item_id    UUID REFERENCES public.pedido_items(id),
+  descripcion       TEXT NOT NULL,
+  unidad            TEXT,
+  cantidad          NUMERIC(18, 3) NOT NULL CHECK (cantidad > 0),
+  precio_unitario   NUMERIC(18, 2) NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orden_compra_items_pedido_item ON public.orden_compra_items(pedido_item_id);
+CREATE INDEX IF NOT EXISTS idx_orden_compra_items_orden       ON public.orden_compra_items(orden_compra_id);
+CREATE INDEX IF NOT EXISTS idx_ordenes_compra_pedido           ON public.ordenes_compra(pedido_id);
+
+ALTER TABLE public.proveedores        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ordenes_compra     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orden_compra_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "proveedores_select" ON public.proveedores FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "proveedores_manage" ON public.proveedores FOR ALL
+  USING (public.get_my_rol() IN ('ADMIN', 'LOGISTICA'));
+
+CREATE POLICY "ordenes_compra_select" ON public.ordenes_compra FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "ordenes_compra_manage" ON public.ordenes_compra FOR ALL
+  USING (public.get_my_rol() IN ('ADMIN', 'LOGISTICA'));
+
+CREATE POLICY "orden_compra_items_select" ON public.orden_compra_items FOR SELECT
+  USING (auth.role() = 'authenticated');
+CREATE POLICY "orden_compra_items_manage" ON public.orden_compra_items FOR ALL
+  USING (public.get_my_rol() IN ('ADMIN', 'LOGISTICA'));

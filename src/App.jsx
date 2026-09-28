@@ -31,6 +31,7 @@ import RegistroMecanizado       from './components/mecanizados/RegistroMecanizad
 import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
 import TransferenciasPendientes from './components/transferencias/TransferenciasPendientes'
 import NoConformidades          from './components/calidad/NoConformidades'
+import OrdenesCompra            from './components/compras/OrdenesCompra'
 
 function Cargando() {
   return (
@@ -79,6 +80,7 @@ function AppRoutes() {
         <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
         <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
+        <Route path="/ordenes-compra"    element={<Layout><OrdenesCompra /></Layout>} />
         <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
       </Routes>
     )
@@ -168,6 +170,7 @@ function AppRoutes() {
       <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
       <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+      <Route path="/ordenes-compra"    element={<Layout><OrdenesCompra /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
       <Route path="/mecanizados/paquetes" element={<Layout><GestionPaquetes /></Layout>} />
       <Route path="/analitica"              element={<Layout><DashboardEjecutivo /></Layout>} />

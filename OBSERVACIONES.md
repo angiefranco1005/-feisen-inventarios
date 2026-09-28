@@ -298,3 +298,63 @@ página de inicio $74.060.747. Se encontraron dos bugs independientes en `calcul
 Con estos dos fixes, "Inventario en fecha" para hoy debería coincidir con la página de inicio (el corte a
 hoy no debería deshacer ningún movimiento). Falta que Angie confirme el número después de que Netlify
 despliegue este cambio.
+
+## Nuevo módulo: Órdenes de compra (28-sept-2026)
+
+Pedido de Angie: Efraín (Logística) necesita poder generar, desde un pedido, una o varias
+órdenes de compra — porque el mismo pedido a veces se compra en distintos proveedores, y a
+veces ni siquiera se genera orden (se va a comprar en persona al centro). Cada orden debe
+poder descargarse en PDF.
+
+Decisiones tomadas (todas confirmadas con Angie vía preguntas antes de construir):
+
+- **Proveedores**: catálogo reutilizable (tabla `proveedores`), no texto libre. Se puede crear
+  uno nuevo directamente desde el formulario de la orden.
+- **Precio unitario**: se sugiere desde `items.precio_costo` pero Efraín lo puede editar línea
+  por línea (el precio de compra real a un proveedor no siempre es el costo interno).
+- **Cobertura visible en el pedido**: cada línea del pedido muestra cuánto ya está cubierto por
+  alguna orden de compra y cuánto falta, para no volver a pedirlo por error.
+- **División de cantidad**: SÍ soportado — un mismo producto del pedido puede repartirse en
+  cantidades distintas entre varias órdenes/proveedores (ej. 50 unidades → 30 a un proveedor,
+  20 a otro). Por eso cada línea de una orden de compra (`orden_compra_items`) referencia la
+  línea original del pedido (`pedido_item_id`) y solo guarda la cantidad de ESA orden, no la
+  cantidad total del pedido.
+
+### Modelo de datos (migración `supabase/migraciones/2026-09-28_ordenes_compra.sql`, falta correrla)
+
+- `proveedores` (nombre, nit, contacto, telefono, email, direccion, activo).
+- `ordenes_compra` (numero OC-XXXX, pedido_id, proveedor_id, fecha, razon_social, ciudad,
+  observaciones, anulada, usuario_id). `razon_social`/`ciudad` se eligen en el formulario cada
+  vez (por defecto Feisen S.A.S. / Soacha) — el NIT es el mismo para ambas razones sociales
+  (900.595.456-2, mismo ente jurídico desde el cambio de nombre) así que va fijo en el PDF.
+- `orden_compra_items` (orden_compra_id, pedido_item_id, descripcion, unidad, cantidad,
+  precio_unitario) — snapshot de la línea, no depende de que el pedido_item original no cambie.
+- RLS: todos los autenticados leen; solo ADMIN y LOGISTICA administran (crear/editar/anular).
+
+### UI
+
+- `ModalGenerarOC.jsx` (dentro de `pedidos/`): se abre desde un ícono nuevo en la tarjeta del
+  pedido (visible para ADMIN/LOGISTICA). Lista los productos del pedido con checkbox, cantidad
+  editable (con validación de que no exceda lo pendiente de cubrir) y precio sugerido/editable;
+  selector de proveedor o alta rápida de uno nuevo; selector de razón social/ciudad;
+  observaciones. Al guardar, genera y descarga el PDF de una vez.
+- `compras/OrdenesCompra.jsx`, ruta `/ordenes-compra` (ADMIN y LOGISTICA): lista todas las
+  órdenes generadas, con búsqueda, re-descarga de PDF, y anular/reactivar (soft-delete —
+  `anulada`, no se borra el registro).
+- `utils/exportOrdenCompraPDF.js`: genera el PDF con jsPDF + jspdf-autotable (nueva dependencia,
+  agregada a package.json), con los colores de marca (azul #064794, rojo #B4271D, nunca negro).
+- `ListaPedidos.jsx`: cada línea del pedido ahora muestra "🧾 En orden de compra: X / Falta
+  pedir: Y" cuando aplica, y debajo del pedido se listan las órdenes ya generadas para ese
+  pedido con su propio botón de descarga.
+
+### Pendiente / notas
+
+- El campo suelto `pedidos.numero_oc` (texto libre, ya existía desde antes, se llenaba al
+  marcar "en tránsito") se deja tal cual, sin migrar a este nuevo modelo — son cosas separadas;
+  no se quitó porque no se pidió y no estorba.
+- El bundle de la PWA subió de ~2.42 MB a ~3.23 MB de precache por las nuevas dependencias
+  (jsPDF trae html2canvas y dompurify como sub-dependencias) — sigue bien debajo del límite de
+  5 MB, pero vale la pena vigilarlo si se siguen agregando librerías pesadas.
+- No se construyó una pantalla de administración de proveedores aparte (editar/desactivar un
+  proveedor ya creado) — por ahora solo se crean desde el modal de generar orden. Si Angie o
+  Efraín necesitan editarlos después, se puede agregar una pantalla simple tipo CRUD.
