@@ -278,11 +278,16 @@ Para la misma bodega (Mecanizados) y la misma fecha (hoy), "Inventario en fecha"
 página de inicio $74.060.747. Se encontraron dos bugs independientes en `calcular()`:
 
 1. La consulta de `items` traía el stock como embed anidado `stock(cantidad_actual)` sin filtrar por
-   bodega, y el código tomaba `item.stock?.[0]` (la primera fila del array, sin garantía de orden). Si un
-   producto tiene stock en más de una bodega (por ejemplo por una transferencia entre `TransferenciasPendientes.jsx`),
-   podía tomar el valor de la bodega equivocada. Se reemplazó por una consulta aparte a `stock` filtrada por
-   `item_id` + `bodega_id`, igual al patrón que ya usa `InventarioFisico.jsx` (`stockMap` por
-   `${item_id}_${bodega_id}`).
+   bodega, y el código tomaba `item.stock?.[0]` (la primera fila del array, sin garantía de orden).
+   **Corrección sobre la causa**: en este modelo de datos cada producto pertenece a una sola bodega
+   (confirmado por Angie) — una transferencia mueve cantidad hacia OTRO item_id ya existente en la bodega
+   destino, no reparte el mismo item_id entre dos bodegas (ver `TransferenciasPendientes.jsx`, que busca el
+   item destino por nombre en `destino_bodega_id`). Así que "stock en dos bodegas para el mismo producto"
+   no debería pasar en el flujo normal, y no fue la causa confirmada de la diferencia que vio Angie. Aun así
+   se dejó la consulta filtrada explícitamente por `item_id` + `bodega_id` (igual al patrón que ya usa
+   `InventarioFisico.jsx`, `stockMap` por `${item_id}_${bodega_id}`) en vez de confiar en el orden de un
+   embed sin filtrar — más seguro ante cualquier fila huérfana o mal cargada, aunque no cambie el resultado
+   en el caso normal.
 2. El cálculo de "deltas" (para deshacer movimientos posteriores a la fecha de corte) solo trataba el tipo
    literal `'entrada'` como aumento; cualquier otro tipo, incluidos `'entrada_compra'` y `'devolucion'`, se
    restaba — quedaba al revés. Se listan explícitamente los tipos que aumentan/disminuyen stock, igual que
