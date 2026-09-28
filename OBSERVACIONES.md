@@ -200,3 +200,43 @@ alguien editara la base de datos directamente.
 
 - Modelo de avance diario para órdenes de moldeo (tabla `ordenes_moldeo_avances`: `orden_pieza_id`, `fecha`, `cantidad_moldeada`, `usuario_id`; cierre manual, no automático).
 - Límite de precache del PWA subido a 5 MB (16-sept) porque el build fallaba silenciosamente al desplegar — vigilar si el bundle sigue creciendo (ya va en ~2.3 MB precacheados).
+
+## BUG encontrado y corregido: stock nunca se actualizaba con mecanizado ni con correcciones de inventario físico (28-sept-2026)
+
+Angie reportó que el valor de bodega Mecanizados → categoría "Producto Mecanizado" en la página de inicio
+le parecía muy alto. Al revisar el trigger `fn_actualizar_stock` (el que recalcula `stock.cantidad_actual`
+cada vez que se inserta un movimiento), se encontró que su `IF/ELSIF` solo reconocía los tipos
+`entrada_compra`, `devolucion`, `salida_produccion`, `salida_venta`, `traslado` y `ajuste_inventario`.
+
+Se revisó todo `src/` buscando quién más inserta movimientos (no solo el punto que ella señaló) y aparecieron
+dos flujos completos que usan tipos genéricos `'entrada'` / `'salida'`, que el trigger **no reconocía en
+absoluto**:
+
+- `RegistroMecanizado.jsx` — al registrar un mecanizado (consumir materia prima → crear producto mecanizado).
+- `InventarioFisico.jsx`, en `aplicarCorrecciones()` — el botón "aplicar correcciones" de un inventario físico
+  contado (el código incluso tenía un comentario diciendo que el trigger actualizaba el stock automáticamente,
+  lo cual no era cierto para estos dos tipos).
+
+Efecto: el movimiento sí quedaba guardado en el historial (por eso nunca hubo un error visible), pero
+`stock.cantidad_actual` **nunca se tocaba**. Cada inventario físico "corregido" y cada mecanizado registrado
+desde que existen estas dos funcionalidades no tuvo ningún efecto real sobre el stock del sistema — lo que
+explica que el valor mostrado en el dashboard quede desfasado (generalmente por encima) de lo que hay
+físicamente, porque las correcciones que debían bajarlo nunca se aplicaron.
+
+- **Fix**: se agregó `'entrada'` y `'salida'` a las dos primeras ramas del trigger (no hace falta tocar el
+  código de React — ambos archivos ya arman correctamente `bodega_origen_id`/`bodega_destino_id`). El SQL
+  completo quedó en `supabase/migraciones/2026-09-28_fix_trigger_stock_entrada_salida.sql` y `schema.sql`
+  ya refleja la función corregida — falta que Angie lo corra manualmente en el SQL Editor de Supabase (DDL,
+  no se aplica solo).
+- **Pendiente después de correr el fix**: el stock actual de las bodegas/categorías afectadas (sobre todo
+  Mecanizados → Producto Mecanizado, y las materias primas mecanizables) sigue desfasado de la realidad,
+  porque los ajustes históricos nunca pegaron. La forma más segura de resincronizar es hacer un inventario
+  físico nuevo de esas bodegas/categorías DESPUÉS de aplicar el fix — con el trigger corregido, "aplicar
+  correcciones" sí va a mover el stock real y quedará al día. (Alternativa más agresiva y riesgosa: recalcular
+  `stock` desde cero repitiendo todo el historial de `movimientos` — no se hizo por el riesgo de tocar datos
+  de producción sin poder verlos en vivo desde esta sesión.)
+- **Nota aparte, no corregida (no se está usando actualmente)**: el comentario de la rama `ajuste_inventario`
+  dice "sobreescribe el stock directamente", pero el `DO UPDATE` en realidad SUMA `NEW.cantidad` al valor
+  existente, no lo reemplaza. Hoy ningún flujo del código inserta ese tipo, así que es inofensivo, pero si en
+  el futuro alguien lo usa asumiendo que "sobreescribe", va a duplicar cantidades — vale la pena revisarlo si
+  se llega a usar ese tipo de movimiento.

@@ -118,16 +118,16 @@ CREATE TABLE public.movimientos (
 CREATE OR REPLACE FUNCTION public.fn_actualizar_stock()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Entrada de compra o devolución → aumenta stock en bodega_destino
-  IF NEW.tipo IN ('entrada_compra', 'devolucion') THEN
+  -- Entrada de compra, devolución, o entrada genérica (mecanizado / ajuste inv. físico) → aumenta stock en bodega_destino
+  IF NEW.tipo IN ('entrada_compra', 'devolucion', 'entrada') THEN
     INSERT INTO public.stock (item_id, bodega_id, cantidad_actual)
     VALUES (NEW.item_id, NEW.bodega_destino_id, NEW.cantidad)
     ON CONFLICT (item_id, bodega_id)
     DO UPDATE SET cantidad_actual = public.stock.cantidad_actual + NEW.cantidad,
                   updated_at = NOW();
 
-  -- Salida a producción o salida por venta → disminuye stock en bodega_origen
-  ELSIF NEW.tipo IN ('salida_produccion', 'salida_venta') THEN
+  -- Salida a producción, por venta, o salida genérica (mecanizado / ajuste inv. físico) → disminuye stock en bodega_origen
+  ELSIF NEW.tipo IN ('salida_produccion', 'salida_venta', 'salida') THEN
     INSERT INTO public.stock (item_id, bodega_id, cantidad_actual)
     VALUES (NEW.item_id, NEW.bodega_origen_id, 0)
     ON CONFLICT (item_id, bodega_id) DO NOTHING;
