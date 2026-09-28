@@ -6,9 +6,6 @@ import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF } from '../../utils/exportOrdenCompraPDF'
 import { FileDown, Loader2 } from 'lucide-react'
 
-const RAZONES_SOCIALES = ['Feisen S.A.S.', 'Construequipos Franco S.A.S.']
-const CIUDADES         = ['Soacha', 'Bogotá']
-
 export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onGuardado }) {
   const { perfil } = useAuth()
 
@@ -20,8 +17,6 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
   const [npContacto, setNpContacto] = useState('')
   const [npTelefono, setNpTelefono] = useState('')
 
-  const [razonSocial, setRazonSocial] = useState('Feisen S.A.S.')
-  const [ciudad,       setCiudad]     = useState('Soacha')
   const [observaciones, setObservaciones] = useState('')
 
   const [precios,   setPrecios]   = useState({})   // item_id -> precio_costo
@@ -111,7 +106,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
       const { data: orden, error: eOrden } = await supabase.from('ordenes_compra').insert({
         numero, pedido_id: pedido.id, proveedor_id: provId,
         fecha: new Date().toISOString().slice(0, 10),
-        razon_social: razonSocial, ciudad, observaciones: observaciones.trim() || null,
+        razon_social: 'Feisen S.A.S.', ciudad: 'Soacha', observaciones: observaciones.trim() || null,
         usuario_id: perfil.id,
       }).select().single()
       if (eOrden) throw eOrden
@@ -224,24 +219,6 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
                   className="text-xs text-gray-500 font-medium">Usar un proveedor ya guardado</button>
               </div>
             )}
-          </div>
-
-          {/* Datos del documento */}
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-xs text-gray-500 block mb-0.5">Razón social</label>
-              <select value={razonSocial} onChange={e => setRazonSocial(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">
-                {RAZONES_SOCIALES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="text-xs text-gray-500 block mb-0.5">Ciudad</label>
-              <select value={ciudad} onChange={e => setCiudad(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">
-                {CIUDADES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
           </div>
 
           <div>

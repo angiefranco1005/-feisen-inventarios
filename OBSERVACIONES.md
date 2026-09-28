@@ -358,3 +358,25 @@ Decisiones tomadas (todas confirmadas con Angie vía preguntas antes de construi
 - No se construyó una pantalla de administración de proveedores aparte (editar/desactivar un
   proveedor ya creado) — por ahora solo se crean desde el modal de generar orden. Si Angie o
   Efraín necesitan editarlos después, se puede agregar una pantalla simple tipo CRUD.
+
+## Órdenes de compra: logo institucional + simplificación de razón social (28-sept-2026)
+
+Ajustes pedidos por Angie tras la primera versión del módulo de órdenes de compra:
+
+- **Logo**: Angie subió el manual de marca (PDF). Se extrajo el ícono del cubo "CF" del
+  manual (página 1, versión a color) con `pdftoppm` + recorte por bounding box en Python, y
+  se embebió como PNG en base64 directamente en `exportOrdenCompraPDF.js` (self-contained,
+  no depende de un archivo en `public/`). El wordmark "FEISEN" se dibuja con texto nativo de
+  jsPDF, letra por letra, en los colores de marca (F-E-I azul #064794, S-E-N rojo #B4271D) en
+  vez de usar una imagen — más nítido a cualquier tamaño y coincide exacto con los hex que ya
+  usa el resto de la app (los del manual son levemente distintos: #09407C/#B5241C — se usaron
+  los de la app/preferencias de Angie por consistencia).
+- **Razón social y ciudad fijas**: por pedido explícito de Angie, se quitó el selector de
+  razón social/ciudad del formulario — ya no se pregunta, siempre queda "Feisen S.A.S." y
+  "Soacha" en el PDF (el NIT es el mismo para ambas razones sociales así que no cambiaba de
+  todas formas). Las columnas `razon_social`/`ciudad` se mantienen en la tabla por si en el
+  futuro hace falta volver a variarlas, pero el formulario ya no las expone.
+- **Número de orden más visible**: el N.° de OC ahora va en un recuadro azul sólido en la
+  esquina superior derecha, con la fecha debajo — mucho más prominente que antes.
+- Se agregó una franja roja de pie de página con NIT/ciudad y el número de orden repetido,
+  para que el documento se vea como un formato institucional completo, no una lista simple.
