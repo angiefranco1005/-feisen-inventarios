@@ -37,11 +37,11 @@ export default function CorteInventario() {
 
       let itemsQ = supabase
         .from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, activo, categorias(nombre), bodegas!bodega_id(nombre), stock(cantidad_actual)')
+        .select('id, nombre, unidad_medida, precio_costo, bodega_id, activo, categorias(nombre), bodegas!bodega_id(nombre)')
         .order('nombre')
       if (bodegaId) itemsQ = itemsQ.eq('bodega_id', bodegaId)
 
-      const [{ data: items, error: e1 }, { data: movs, error: e2 }] = await Promise.all([
+      const [{ data: items, error: e1 }, { data: movs, error: e2 }, { data: stockRows, error: e3 }] = await Promise.all([
         itemsQ,
         supabase
           .from('movimientos')
@@ -51,10 +51,22 @@ export default function CorteInventario() {
           // se devolviera el mismo valor sin importar la fecha elegida.
           .gt('created_at', cutoffISO)
           .limit(50000),
+        // Consulta aparte de `stock`, filtrada por item_id + bodega_id (igual que en
+        // InventarioFisico.jsx). El embed anidado `stock(cantidad_actual)` que se usaba
+        // antes no filtraba por bodega: si un producto tenía stock en más de una bodega
+        // (por ejemplo por una transferencia), tomaba una fila cualquiera, no
+        // necesariamente la de la bodega que se estaba consultando.
+        supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 19999),
       ])
 
       if (e1) throw e1
       if (e2) throw e2
+      if (e3) throw e3
+
+      const stockMap = {}
+      for (const s of stockRows || []) {
+        stockMap[`${s.item_id}_${s.bodega_id}`] = Number(s.cantidad_actual ?? 0)
+      }
 
       // Refinamiento cliente: excluir los que tienen fecha_movimiento <= fecha
       // (movimientos creados después pero con fecha efectiva retrocedida al pasado)
@@ -67,16 +79,28 @@ export default function CorteInventario() {
 
       // delta[item_id] = entradas_after - salidas_after
       // stock_en_fecha = stock_actual - delta
+      // Antes solo se reconocía el tipo literal 'entrada' como aumento y CUALQUIER
+      // otro tipo (incluido 'entrada_compra', 'devolucion') como si fuera una salida
+      // — quedaban al revés. Se listan explícitamente los tipos que aumentan y los
+      // que disminuyen, igual que en el trigger fn_actualizar_stock.
+      const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion'])
+      const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta'])
       const deltas = {}
       for (const m of movsDespues) {
         if (!m.item_id) continue
-        deltas[m.item_id] = (deltas[m.item_id] || 0) + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad)
+        let signo = 0
+        if (TIPOS_ENTRADA.has(m.tipo)) signo = 1
+        else if (TIPOS_SALIDA.has(m.tipo)) signo = -1
+        else if (m.tipo === 'ajuste_inventario') signo = Math.sign(m.cantidad) // cantidad ya viene con signo
+        // 'traslado' no se puede reconstruir bien aquí (no distingue bodega origen/destino
+        // por item), así que se ignora en vez de adivinar mal — hoy ningún flujo lo usa.
+        deltas[m.item_id] = (deltas[m.item_id] || 0) + signo * Math.abs(m.cantidad)
       }
 
       const snapshot = (items || [])
         .filter(i => i.activo)
         .map(item => {
-          const stockActual  = item.stock?.[0]?.cantidad_actual ?? 0
+          const stockActual  = stockMap[`${item.id}_${item.bodega_id}`] ?? 0
           const delta        = deltas[item.id] || 0
           const stockEnFecha = Math.max(0, stockActual - delta)
           return {
