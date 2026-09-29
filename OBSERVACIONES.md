@@ -414,3 +414,17 @@ archivos que insertan movimientos con tipo `'entrada'`/`'salida'` (`ListaPedidos
 `RegistrarMovimientoAlmacenista.jsx`) y todos los demás sí asignan correctamente
 `bodega_origen_id`/`bodega_destino_id` según el tipo — el bug estaba solo en los dos flujos
 de mecanizado. Corregido agregando `bodega_destino_id: BODEGA_MECANIZADOS` a ambos.
+
+## Bug: eliminar pedido fallaba si ya tenía una orden de compra generada (29-sept-2026)
+
+Angie intentó borrar un pedido de prueba (PED-0105) y le salió
+`update or delete on table "pedidos" violates foreign key constraint
+"ordenes_compra_pedido_id_fkey"`. Causa: `eliminarPedido()` en
+`ListaPedidos.jsx` desvincula `movimientos.pedido_id` antes de borrar,
+pero nunca hacía lo mismo con `ordenes_compra.pedido_id` — si el
+pedido ya tenía al menos una OC generada, Postgres rechazaba el borrado
+por la llave foránea. Corregido agregando el mismo paso de
+desvinculación (`ordenes_compra.pedido_id = null`) antes de borrar
+`pedido_items` y el pedido — la OC en sí no se borra, solo pierde la
+referencia al pedido eliminado, igual que ya pasaba con los
+movimientos.

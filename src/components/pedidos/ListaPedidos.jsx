@@ -670,9 +670,12 @@ export default function ListaPedidos() {
 
     // 2. Desvincular movimientos que apunten a este pedido
     await supabase.from('movimientos').update({ pedido_id: null }).eq('pedido_id', pedido.id)
-    // 3. Borrar items (el historial del pedido se borra en cascade)
+    // 3. Desvincular órdenes de compra generadas desde este pedido (se conservan, solo
+    //    pierden la referencia — igual que los movimientos, no se borran).
+    await supabase.from('ordenes_compra').update({ pedido_id: null }).eq('pedido_id', pedido.id)
+    // 4. Borrar items (el historial del pedido se borra en cascade)
     await supabase.from('pedido_items').delete().eq('pedido_id', pedido.id)
-    // 4. Borrar pedido
+    // 5. Borrar pedido
     const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id)
     if (error) { setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message }); setConfirmElim(null); return }
     setConfirmElim(null)
