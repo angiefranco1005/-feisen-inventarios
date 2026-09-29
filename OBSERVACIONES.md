@@ -380,3 +380,37 @@ Ajustes pedidos por Angie tras la primera versión del módulo de órdenes de co
   esquina superior derecha, con la fecha debajo — mucho más prominente que antes.
 - Se agregó una franja roja de pie de página con NIT/ciudad y el número de orden repetido,
   para que el documento se vea como un formato institucional completo, no una lista simple.
+
+## Logo horizontal oficial en la OC + bug de mecanizado con bodega nula (29-sept-2026)
+
+**Logo de la OC**: Angie reportó que el ícono del cubo quedaba desalineado (aparecía debajo
+del wordmark "FEISEN" en vez de al lado) y sugirió usar el logo horizontal que ya existe
+armado en el manual de marca, en vez de dibujar el ícono y el texto por separado. Se extrajo
+esa variante exacta ("PRINCIPAL HORIZONTAL SIN SLOGAN", a color, página 07 del manual) como
+una sola imagen PNG (ícono + wordmark ya combinados, fondo transparente) y se reemplazó el
+enfoque anterior (imagen del ícono + texto "FEISEN" dibujado letra por letra con jsPDF) por
+un único `doc.addImage(...)` de esa imagen. Elimina de raíz cualquier bug de alineación entre
+ícono y texto, y usa el logo tal como está diseñado en el manual (con sus colores impresos
+originales, #09407C/#B5241C, en vez de los hex de la app — para un asset de marca oficial
+como este tiene más sentido usarlo tal cual que reconstruirlo).
+
+**Bug: `null value in column "bodega_id" of relation "stock"` al mecanizar**: William
+(Jefe Mecanizados) reportó que al intentar mecanizar una pieza (chumacera mediana) la app le
+tiraba ese error de Postgres y no dejaba guardar nada. Causa raíz: tanto
+`RegistroMecanizado.jsx` como la opción de mecanizar dentro de `GestionProductos.jsx` arman
+el movimiento `tipo: 'entrada'` (el producto ya mecanizado que entra a inventario) sin
+asignarle `bodega_destino_id` — solo le ponían `bodega_origen_id`. El trigger
+`fn_actualizar_stock` necesita `bodega_destino_id` para las entradas (ver el fix del
+28-sept), así que al intentar insertar en `stock` con `bodega_id = NULL` Postgres rechaza el
+insert por la restricción NOT NULL.
+
+Este bug ya existía en el código desde antes, pero quedaba oculto porque el trigger viejo no
+hacía nada con los movimientos `tipo: 'entrada'`/`'salida'` genéricos (ese fue justamente el
+bug que se corrigió el 28-sept). Al arreglar el trigger para que sí actualizara el stock con
+esos tipos, quedó expuesto este segundo bug independiente. Se revisaron TODOS los demás
+archivos que insertan movimientos con tipo `'entrada'`/`'salida'` (`ListaPedidos.jsx`,
+`RegistrarFundida.jsx`, `RecogidaFundida.jsx`, `InventarioFisico.jsx`,
+`TransferenciasPendientes.jsx`, `RegistrarMovimiento.jsx`,
+`RegistrarMovimientoAlmacenista.jsx`) y todos los demás sí asignan correctamente
+`bodega_origen_id`/`bodega_destino_id` según el tipo — el bug estaba solo en los dos flujos
+de mecanizado. Corregido agregando `bodega_destino_id: BODEGA_MECANIZADOS` a ambos.

@@ -284,6 +284,7 @@ export default function GestionProductos() {
     const { error: e2 } = await supabase.from('movimientos').insert({
       item_id:               itemTarget.id,
       bodega_origen_id:      BODEGA_MECANIZADOS,
+      bodega_destino_id:     BODEGA_MECANIZADOS,
       tipo:                  'entrada',
       cantidad,
       precio_costo_snapshot: itemTarget.precio_costo || 0,
