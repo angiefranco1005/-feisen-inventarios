@@ -428,3 +428,37 @@ desvinculación (`ordenes_compra.pedido_id = null`) antes de borrar
 `pedido_items` y el pedido — la OC en sí no se borra, solo pierde la
 referencia al pedido eliminado, igual que ya pasaba con los
 movimientos.
+
+## Diagnóstico: "las OC no salen con el logo" tras el fix del logo horizontal (01-oct-2026)
+
+Angie reportó que después del fix del logo horizontal (commit 50217e6) las
+órdenes de compra generadas en producción no muestran el logo en absoluto.
+
+Verificación hecha directamente contra el bundle JS que está sirviendo
+Netlify en https://erpfeisen.netlify.app (sin tocar el código, por
+navegador):
+- El archivo `assets/index-*.js` servido en producción SÍ contiene la
+  imagen del logo embebida en base64, con exactamente los mismos 52.908
+  caracteres que el archivo fuente local — es decir, el deploy de
+  50217e6/ab4d9d6 está vivo y el dato no llegó corrupto ni truncado.
+- Decodificando ese base64 en el navegador y cargándolo como `<img>`, la
+  imagen es válida y mide 900×196px — exactamente el logo esperado.
+- Conclusión: el problema NO está en el código ni en el deploy. Es casi
+  seguro un tema de caché de la PWA (service worker de Workbox,
+  `registerType: 'autoUpdate'`) sirviendo todavía la versión anterior del
+  bundle en los dispositivos de los usuarios. `autoUpdate` no siempre
+  refresca al instante — a veces necesita que el usuario cierre y vuelva
+  a abrir la app, o un refresh forzado, para tomar la versión nueva.
+- Pendiente: confirmar con Angie después de que ella (o quien generó la
+  OC) haga un refresh forzado / cierre y reabra la PWA, que el logo ya
+  aparece. Si after eso persiste, revisar entonces si hay algo específico
+  del entorno de `jsPDF.addImage()` en el navegador real que no se
+  reproduce en Node.
+
+### Hallazgo aparte (no corregido, solo detectado): pantalla de login
+Mientras se revisaba el bundle en vivo se confirmó que la pantalla de
+login todavía muestra "Construequipos Franco S.A.S." como subtítulo (un
+único ícono de letra "F", no el logo real) en vez de "Feisen S.A.S." —
+es texto plano hardcodeado, un solo lugar en el código. No se tocó
+porque no fue lo que Angie pidió corregir; queda anotado para cuando se
+revise el login o se le pregunte si quiere actualizarlo.
