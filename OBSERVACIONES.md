@@ -537,3 +537,20 @@ como lo hace el trigger en vivo. Para el 99% de los casos da exactamente
 igual; solo podría diferir si el stock real de algún producto llegó a cero
 y se "clampeó" en algún punto intermedio de su historia — caso raro, pero
 queda anotado por transparencia.
+
+## Reconciliación de INV-FIS-0026 (piezas mecanizadas) (01-oct-2026)
+
+Las piezas ya mecanizadas (ej. "POLEA 4 X 2B - MECANIZADO") se cuentan en
+un inventario físico aparte del de materia prima — INV-FIS-0026, no
+INV-FIS-0029. Se agregó
+`supabase/migraciones/2026-10-01_reconciliar_stock_inv_fis_0026.sql`, igual
+al de INV-FIS-0029 pero apuntando a ese número de inventario.
+
+Nota sobre el resultado de INV-FIS-0029: al correr el PASO 1 de ese script,
+todos los productos (incluyendo POLEA 4 X 2B, materia prima) dieron
+diferencia 0.000 — es decir, el stock actual YA coincide con el recálculo
+completo del historial de movimientos. Posibles explicaciones: (a) Angie ya
+había aplicado la corrección manual sugerida antes de correr el script, o
+(b) el problema real estaba más acotado de lo que parecía al principio.
+Pendiente confirmar con ella si alcanzó a correr también el PASO 2 (el
+UPDATE) de ese script o si no hizo falta.
