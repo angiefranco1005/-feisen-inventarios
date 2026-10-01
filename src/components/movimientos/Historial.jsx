@@ -12,6 +12,53 @@ const TIPO_CONFIG = {
   salida:  { label: 'Salida',  color: 'bg-red-100 text-red-700'   },
 }
 
+// Devuelve los ajustes de stock que corresponden a un movimiento, con el
+// mismo criterio que usa el trigger fn_actualizar_stock en la base de datos
+// (ver supabase/schema.sql). `cantidad` puede ser negativa para revertir un
+// efecto ya aplicado (eliminar) o positiva para aplicar un delta (editar).
+// Usa SIEMPRE bodega_origen_id / bodega_destino_id (las foreign keys reales
+// del movimiento) — nunca centro_costo, que es un snapshot de texto que deja
+// de coincidir si la bodega se renombra después de crear el movimiento.
+function ajustesStockPorTipo(tipo, bodega_origen_id, bodega_destino_id, cantidad) {
+  if (['entrada_compra', 'devolucion', 'entrada', 'ajuste_inventario'].includes(tipo)) {
+    return bodega_destino_id ? [{ bodega_id: bodega_destino_id, delta: cantidad }] : []
+  }
+  if (['salida_produccion', 'salida_venta', 'salida'].includes(tipo)) {
+    return bodega_origen_id ? [{ bodega_id: bodega_origen_id, delta: -cantidad }] : []
+  }
+  if (tipo === 'traslado') {
+    const ajustes = []
+    if (bodega_origen_id)  ajustes.push({ bodega_id: bodega_origen_id,  delta: -cantidad })
+    if (bodega_destino_id) ajustes.push({ bodega_id: bodega_destino_id, delta:  cantidad })
+    return ajustes
+  }
+  return []
+}
+
+// Aplica una lista de ajustes de ajustesStockPorTipo contra la tabla stock.
+// Devuelve un array de mensajes de error (vacío si todo salió bien) — nunca
+// falla en silencio como hacía el código anterior.
+async function aplicarAjustesStock(item_id, ajustes) {
+  const fallos = []
+  if (ajustes.length === 0) {
+    fallos.push('no se pudo determinar la bodega del movimiento para ajustar el stock')
+    return fallos
+  }
+  for (const aj of ajustes) {
+    const { data: stockRow, error: errBuscar } = await supabase.from('stock')
+      .select('id, cantidad_actual').eq('item_id', item_id).eq('bodega_id', aj.bodega_id).maybeSingle()
+    if (errBuscar || !stockRow) {
+      fallos.push(`no se encontró el stock del producto en la bodega afectada (bodega_id: ${aj.bodega_id})`)
+      continue
+    }
+    const { error: errUpd } = await supabase.from('stock')
+      .update({ cantidad_actual: Math.max(0, stockRow.cantidad_actual + aj.delta) })
+      .eq('id', stockRow.id)
+    if (errUpd) fallos.push(`error al actualizar stock: ${errUpd.message}`)
+  }
+  return fallos
+}
+
 export default function Historial() {
   const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
@@ -148,20 +195,14 @@ export default function Historial() {
 
     const updates = Object.fromEntries(Object.entries(cambios).map(([k, v]) => [k, v.a]))
 
-    // Ajustar stock si cambió la cantidad
+    // Ajustar stock si cambió la cantidad — usa las FKs reales del
+    // movimiento (bodega_origen_id/bodega_destino_id), nunca centro_costo.
+    let fallosStock = []
     if (cambios.cantidad) {
       const diff = cambios.cantidad.a - cambios.cantidad.de
-      if (diff !== 0) {
-        const { data: bodegasData } = await supabase.from('bodegas').select('id').ilike('nombre', m.centro_costo || '').limit(1)
-        const bid = bodegasData?.[0]?.id
-        if (bid && m.item_id) {
-          const { data: stockRow } = await supabase.from('stock').select('id, cantidad_actual')
-            .eq('item_id', m.item_id).eq('bodega_id', bid).maybeSingle()
-          if (stockRow) {
-            const ajuste = m.tipo === 'entrada' ? diff : -diff
-            await supabase.from('stock').update({ cantidad_actual: Math.max(0, stockRow.cantidad_actual + ajuste) }).eq('id', stockRow.id)
-          }
-        }
+      if (diff !== 0 && m.item_id) {
+        const ajustes = ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, diff)
+        fallosStock = await aplicarAjustesStock(m.item_id, ajustes)
       }
     }
 
@@ -169,6 +210,10 @@ export default function Historial() {
     if (error) { setMsg({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); setEditGuardando(false); return }
 
     await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
+
+    if (fallosStock.length > 0) {
+      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se editó, pero el stock no se pudo ajustar automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
+    }
 
     setEditados(prev => new Set([...prev, m.id]))
     setEditGuardando(false)
@@ -253,22 +298,12 @@ export default function Historial() {
     setEliminando(true)
     setMsg(null)
 
-    // 1. Buscar bodega por centro_costo
-    const { data: bodegasData } = await supabase
-      .from('bodegas').select('id').ilike('nombre', m.centro_costo || '').limit(1)
-    const bodegaId = bodegasData?.[0]?.id
-
-    // 2. Revertir stock
-    if (bodegaId && m.item_id) {
-      const { data: stockRow } = await supabase
-        .from('stock').select('id, cantidad_actual')
-        .eq('item_id', m.item_id).eq('bodega_id', bodegaId).maybeSingle()
-      if (stockRow) {
-        const nueva = m.tipo === 'entrada'
-          ? Math.max(0, stockRow.cantidad_actual - m.cantidad)
-          : stockRow.cantidad_actual + m.cantidad
-        await supabase.from('stock').update({ cantidad_actual: nueva }).eq('id', stockRow.id)
-      }
+    // 1-2. Revertir stock usando las FKs reales del movimiento (nunca
+    // centro_costo — ver ajustesStockPorTipo).
+    let fallosStock = []
+    if (m.item_id) {
+      const ajustes = ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, -m.cantidad)
+      fallosStock = await aplicarAjustesStock(m.item_id, ajustes)
     }
 
     // 3. Eliminar
@@ -312,6 +347,9 @@ export default function Historial() {
     }
 
     setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
+    if (fallosStock.length > 0) {
+      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se eliminó, pero el stock no se pudo revertir automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
+    }
     setConfirmDelete(null)
     setEliminando(false)
   }
