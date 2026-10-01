@@ -637,3 +637,16 @@ para -0029, así que no hay nada que deshacer ahí, solo confirmar).
 **Lección para futuras reconciliaciones de stock**: siempre anclar en el conteo físico
 más reciente de cada producto/bodega como punto de partida, nunca reconstruir sumando
 el historial completo desde el inicio.
+
+## 2026-10-01 — Corrección aplicada y confirmada: INV-FIS-0026
+
+Angie corrió `2026-10-01_corregir_stock_inv_fis_0026_checkpoint.sql` en Supabase.
+RETURNING confirmó 67 filas corregidas con el método de checkpoint (cantidad_fisica +
+movimientos desde la fecha del inventario). Stock de las piezas "-MECANIZADO" queda
+ahora correcto. Ejemplo validado antes de aplicar: POLEA 4 X 2B - MECANIZADO quedó en 19
+(el método viejo lo había dejado en 8).
+
+Pendiente: correr `2026-10-01_verificar_stock_inv_fis_0029_checkpoint.sql` (solo lectura)
+para confirmar que INV-FIS-0029 no necesita corrección bajo este mismo método correcto
+(el método viejo había mostrado diferencia 0 para todos sus productos, pero nunca se
+confirmó con la fórmula de checkpoint).
