@@ -661,3 +661,10 @@ para corregirlo — pendiente de que Angie lo corra.
 
 Con esto, los dos inventarios físicos (INV-FIS-0026 y INV-FIS-0029) quedan reconciliados
 bajo el método correcto (checkpoint), cerrando el tema de la reconciliación de stock.
+
+## 2026-10-01 — Cierre: ambos inventarios físicos reconciliados correctamente
+
+Angie corrió el UPDATE para INV-FIS-0029: 1 fila corregida (POLEA ARRASTRE PLUMA
+LITEMIX → 25, confirmado por RETURNING). Con esto, INV-FIS-0026 (67 filas) e
+INV-FIS-0029 (1 fila) quedan reconciliados con el método correcto (checkpoint). Tema
+de reconciliación de stock cerrado.
