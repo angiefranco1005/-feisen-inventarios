@@ -550,8 +550,36 @@ export default function RegistrarMovimientoAlmacenista() {
         return
       }
     }
+
+    // Transferencia interna a una bodega con catálogo propio (no Mecanizados,
+    // que usa aprobación): cada bodega tiene su propio item_id para el mismo
+    // nombre de producto (ver aprobar() en TransferenciasPendientes.jsx), así
+    // que hay que mapear cada producto al renglón de catálogo del destino
+    // ANTES de guardar nada, para poder crear la entrada pareada después.
+    let entradaPareadaPayloads = null
+    if (esInterna) {
+      const normaliza = (s) => (s || '').toUpperCase().trim().replace(/\s+/g, ' ')
+      const { data: itemsDestino } = await supabase
+        .from('items').select('id, nombre').eq('bodega_id', destinoBodegaId)
+      const destinoPorNombre = {}
+      itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
+
+      const sinCatalogar = agrupados.filter(p => !destinoPorNombre[normaliza(p.item_nombre)])
+      if (sinCatalogar.length > 0) {
+        setError(`No existe en el catálogo de ${destNombre}: ${sinCatalogar.map(p => p.item_nombre).join(', ')}. Créalo primero ahí y vuelve a intentar.`)
+        setGuardando(false)
+        return
+      }
+      entradaPareadaPayloads = agrupados.map(p => ({
+        item_id:               destinoPorNombre[normaliza(p.item_nombre)],
+        cantidad:               p.cantidad,
+        precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+      }))
+    }
+
     try {
       const numero = await generarNumero('SAL')
+      const referenciaPar = notas.trim() || null
       const payloads = agrupados.map(p => ({
         numero,
         tipo:                  'salida',
@@ -565,7 +593,7 @@ export default function RegistrarMovimientoAlmacenista() {
         cliente:               esMecanizados && tipoSalidaMec === 'produccion'
                                  ? colaborador.trim()
                                  : (!esFundicion && !esMecanizados ? receptor.trim() : null),
-        referencia:            notas.trim() || null,
+        referencia:            referenciaPar,
         destino:               esMecanizados && tipoSalidaMec === 'produccion' ? destinoMec : destNombre,
         numero_of:             esExternaFundic ? numeroOF.trim()
                                  : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
@@ -576,6 +604,32 @@ export default function RegistrarMovimientoAlmacenista() {
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
       if (err) { setError('Error al guardar: ' + err.message); return }
+
+      // Crear la entrada pareada en la bodega destino — el trigger de stock
+      // solo acredita bodega_destino_id cuando tipo='entrada'; un movimiento
+      // tipo='salida' solo resta en bodega_origen_id y nunca suma en destino,
+      // así que sin esto el stock del destino nunca sube (bug ya corregido).
+      if (esInterna && entradaPareadaPayloads) {
+        const numeroRec = await generarNumero('REC')
+        const payloadsEntrada = entradaPareadaPayloads.map(p => ({
+          numero:                numeroRec,
+          tipo:                  'entrada',
+          item_id:               p.item_id,
+          bodega_origen_id:      bodega.id,
+          bodega_destino_id:     destinoBodegaId,
+          cantidad:              p.cantidad,
+          precio_costo_snapshot: p.precio_costo_snapshot,
+          centro_costo:          destNombre,
+          usuario_id:            perfil.id,
+          referencia:            referenciaPar,
+          fecha_movimiento:      fechaMov || null,
+          proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
+          cliente: null, foto_remision_url: null, firma_receptor_url: null,
+          destino: null, numero_of: null,
+        }))
+        const { error: errEnt } = await supabase.from('movimientos').insert(payloadsEntrada)
+        if (errEnt) { setError(`Salida creada (${numero}), pero error al crear la entrada en ${destNombre}: ` + errEnt.message); return }
+      }
 
       if (!esInterna && !esMecanizados) guardarSugerencia('feisen_receptores', receptor.trim())
       // Resetear formulario inmediatamente

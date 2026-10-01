@@ -7,6 +7,12 @@ import {
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
+// Antes se buscaba por nombre (ilike 'nombre','%FUNDICIÓN%'): si la bodega se
+// renombraba, la búsqueda fallaba en silencio y los 3 movimientos de stock de
+// esta pantalla se saltaban sin ningún aviso, aunque la orden igual quedaba
+// marcada como completada. Se usa el id fijo (mismo que en
+// TransferenciasPendientes.jsx) para que nunca dependa de un nombre editable.
+const FUNDICION_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 function numFun(n)   { return `FUN-${String(n).padStart(4, '0')}` }
@@ -37,7 +43,6 @@ export default function RecogidaFundida() {
   const [expandido,    setExpandido]    = useState(null)
   const [busqueda,     setBusqueda]     = useState('')
   const [busquedaComp, setBusquedaComp] = useState('')
-  const [fundBodegaId, setFundBodegaId] = useState(null)
 
   // avances por orden: { [ordenId]: { [piezaId]: totalMoldeado } }
   const [avancesRef,   setAvancesRef]   = useState({})
@@ -64,8 +69,7 @@ export default function RecogidaFundida() {
       cantidad_conforme, cantidad_nc, motivo_nc,
       items(id, nombre, precio_costo, peso_unitario)
     `
-    const [{ data: bods }, { data: ords }, { data: comps }, { data: funs }] = await Promise.all([
-      supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
+    const [{ data: ords }, { data: comps }, { data: funs }] = await Promise.all([
       supabase.from('ordenes_moldeo')
         .select(`id, numero, fecha, estado, ordenes_moldeo_piezas(${piezasSelect}), ordenes_moldeo_maquinas(cantidad_maquinas, maquinas_fundicion(nombre))`)
         .eq('estado', 'pendiente')
@@ -82,7 +86,6 @@ export default function RecogidaFundida() {
         .order('fecha', { ascending: false })
         .limit(90),
     ])
-    setFundBodegaId(bods?.id || null)
     setOrdenes(ords || [])
     setCompletadas(comps || [])
     setFundidas(funs || [])
@@ -212,14 +215,14 @@ export default function RecogidaFundida() {
 
       // 2. Movimientos de entrada por piezas conformes
       const piezasConformes = piezas.filter(p => Number(getField(orden.id, p.id, 'conforme') || 0) > 0)
-      if (piezasConformes.length > 0 && fundBodegaId) {
+      if (piezasConformes.length > 0) {
         const numero = await generarNumero(perfil, 'ENT')
         const { error: errMov } = await supabase.from('movimientos').insert(
           piezasConformes.map(p => ({
             numero,
             tipo:                  'entrada',
             item_id:               p.item_id,
-            bodega_destino_id:     fundBodegaId,
+            bodega_destino_id:     FUNDICION_BODEGA_ID,
             bodega_origen_id:      null,
             cantidad:              Number(getField(orden.id, p.id, 'conforme')),
             precio_costo_snapshot: p.items?.precio_costo || 0,
@@ -237,7 +240,7 @@ export default function RecogidaFundida() {
 
       // 3. Salida automática de HIERRO COLADO si hay fundida vinculada
       const fundidaId = fundidaSel[orden.id]
-      if (fundidaId && fundBodegaId) {
+      if (fundidaId) {
         const fundida = fundidas.find(f => f.id === fundidaId)
         if (fundida?.hierro_colado > 0) {
           const numSal = await generarNumero(perfil, 'SAL')
@@ -245,7 +248,7 @@ export default function RecogidaFundida() {
             numero:                numSal,
             tipo:                  'salida',
             item_id:               HIERRO_COLADO_ITEM_ID,
-            bodega_origen_id:      fundBodegaId,
+            bodega_origen_id:      FUNDICION_BODEGA_ID,
             bodega_destino_id:     null,
             cantidad:              fundida.hierro_colado,
             precio_costo_snapshot: 0,
@@ -269,13 +272,13 @@ export default function RecogidaFundida() {
         return s + nc * peso
       }, 0)
       const kgVacTotal = kgManual + kgNC
-      if (kgVacTotal > 0 && fundBodegaId) {
+      if (kgVacTotal > 0) {
         const numVac = await generarNumero(perfil, 'ENT')
         const { error: errVac } = await supabase.from('movimientos').insert({
           numero:                numVac,
           tipo:                  'entrada',
           item_id:               VACEADERO_ITEM_ID,
-          bodega_destino_id:     fundBodegaId,
+          bodega_destino_id:     FUNDICION_BODEGA_ID,
           bodega_origen_id:      null,
           cantidad:              kgVacTotal,
           precio_costo_snapshot: 0,

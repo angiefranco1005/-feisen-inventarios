@@ -251,7 +251,7 @@ export default function RegistrarFundida() {
       if (matSalidas.length > 0) {
         const numSal = await generarNumSalida(perfil)
         const numFun = `FUN-${String(data.numero).padStart(4, '0')}`
-        await supabase.from('movimientos').insert(
+        const { error: errMat } = await supabase.from('movimientos').insert(
           matSalidas.map(([key, itemId]) => ({
             numero:                numSal,
             tipo:                  'salida',
@@ -269,6 +269,10 @@ export default function RegistrarFundida() {
             numero_of: null, serial_motor: null, cliente: null, proveedor: null,
           }))
         )
+        if (errMat) {
+          setError(`La fundida ${numFun} se guardó, pero no se pudo registrar el consumo de materiales en el stock: ${errMat.message}. Corrígelo manualmente.`)
+          return
+        }
       }
 
       setExito({ numero: data.numero })

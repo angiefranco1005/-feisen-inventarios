@@ -59,6 +59,38 @@ async function aplicarAjustesStock(item_id, ajustes) {
   return fallos
 }
 
+// Busca el movimiento "par" de una transferencia entre bodegas (el otro lado
+// de la misma operación: una salida y su entrada correspondiente). Los pares
+// reales que crea la app comparten el mismo `referencia` (ver aprobar() en
+// TransferenciasPendientes.jsx y handleSalida() en
+// RegistrarMovimientoAlmacenista.jsx) — NUNCA comparten item_id, porque cada
+// bodega tiene su propio renglón de catálogo para el mismo producto. Se
+// intenta primero por referencia; si no hay referencia o no aparece nada, cae
+// al criterio antiguo (mismo item_id), por compatibilidad con pares viejos
+// entre bodegas que comparten catálogo. opts.soloNoRevertidos filtra a
+// revertido=false (solo lo usa revertir()).
+async function buscarMovimientoPar(m, opts = {}) {
+  const base = () => {
+    let q = supabase.from('movimientos')
+      .select('id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, centro_costo, numero, referencia')
+      .eq('cantidad', m.cantidad)
+      .eq('bodega_origen_id', m.bodega_origen_id || m.bodega_destino_id)
+      .eq('bodega_destino_id', m.bodega_destino_id || m.bodega_origen_id)
+      .neq('tipo', m.tipo)
+      .neq('id', m.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    if (opts.soloNoRevertidos) q = q.eq('revertido', false)
+    return q
+  }
+  if (m.referencia) {
+    const { data } = await base().eq('referencia', m.referencia).maybeSingle()
+    if (data) return data
+  }
+  const { data } = await base().eq('item_id', m.item_id).maybeSingle()
+  return data
+}
+
 export default function Historial() {
   const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
@@ -258,19 +290,7 @@ export default function Historial() {
     // El trigger fn_actualizar_stock ajusta el stock automáticamente al insertar el contramovimiento
 
     // ── Si es transferencia interna, revertir también el movimiento par ──
-    const parQuery = await supabase.from('movimientos')
-      .select('id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, centro_costo, numero')
-      .eq('item_id', m.item_id)
-      .eq('cantidad', m.cantidad)
-      .eq('bodega_origen_id', m.bodega_origen_id || m.bodega_destino_id)
-      .eq('bodega_destino_id', m.bodega_destino_id || m.bodega_origen_id)
-      .neq('tipo', m.tipo)
-      .eq('revertido', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const parMov = parQuery.data
+    const parMov = await buscarMovimientoPar(m, { soloNoRevertidos: true })
     if (parMov && m.bodega_destino_id) {
       const numeroPar = await generarNumero()
       const contrapar = {
@@ -285,8 +305,13 @@ export default function Historial() {
         referencia:            `REVERSIÓN PAR ${parMov.numero || parMov.id}`,
         numero:                numeroPar,
       }
-      await supabase.from('movimientos').insert(contrapar)
-      await supabase.from('movimientos').update({ revertido: true }).eq('id', parMov.id)
+      const { error: e3 } = await supabase.from('movimientos').insert(contrapar)
+      if (e3) {
+        setMsg({ tipo: 'error', texto: `Reversión principal creada, pero falló la del par: ${e3.message}. Corrígelo manualmente.` })
+      } else {
+        const { error: e4 } = await supabase.from('movimientos').update({ revertido: true }).eq('id', parMov.id)
+        if (e4) setMsg({ tipo: 'error', texto: `Reversión del par creada, pero no se pudo marcar como revertido: ${e4.message}` })
+      }
     }
 
     setRevirtiendo(false)
@@ -316,33 +341,20 @@ export default function Historial() {
 
     // 4. Si es transferencia interna, también eliminar el movimiento par y revertir su stock
     if (m.bodega_destino_id && m.bodega_origen_id) {
-      const { data: parMov } = await supabase.from('movimientos')
-        .select('id, bodega_destino_id, bodega_origen_id')
-        .eq('item_id', m.item_id)
-        .eq('cantidad', m.cantidad)
-        .eq('bodega_origen_id', m.bodega_origen_id)
-        .eq('bodega_destino_id', m.bodega_destino_id)
-        .neq('tipo', m.tipo)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
+      const parMov = await buscarMovimientoPar(m, {})
       if (parMov) {
-        // Revertir stock del par: si era REC (entrada) hay que descontar del destino; si era SAL hay que sumar al origen
-        const esPar_entrada = m.tipo === 'salida' // el par es entrada si el original era salida
-        const bodegaParId   = esPar_entrada ? parMov.bodega_destino_id : parMov.bodega_origen_id
-        if (bodegaParId && m.item_id) {
-          const { data: stockPar } = await supabase.from('stock').select('id, cantidad_actual')
-            .eq('item_id', m.item_id).eq('bodega_id', bodegaParId).maybeSingle()
-          if (stockPar) {
-            const nuevaCantPar = esPar_entrada
-              ? Math.max(0, stockPar.cantidad_actual - m.cantidad)
-              : stockPar.cantidad_actual + m.cantidad
-            await supabase.from('stock').update({ cantidad_actual: nuevaCantPar }).eq('id', stockPar.id)
-          }
+        const ajustesPar = ajustesStockPorTipo(parMov.tipo, parMov.bodega_origen_id, parMov.bodega_destino_id, -parMov.cantidad)
+        const fallosPar = await aplicarAjustesStock(parMov.item_id, ajustesPar)
+        if (fallosPar.length > 0) {
+          fallosStock = [...fallosStock, ...fallosPar.map(f => `par (${parMov.numero || parMov.id}): ${f}`)]
         }
-        await supabase.from('movimientos').delete().eq('id', parMov.id)
-        setMovimientos(prev => prev.filter(mov => mov.id !== parMov.id))
+
+        const { error: errPar } = await supabase.from('movimientos').delete().eq('id', parMov.id)
+        if (errPar) {
+          fallosStock = [...fallosStock, `no se pudo eliminar el movimiento par (${parMov.numero || parMov.id}): ${errPar.message}`]
+        } else {
+          setMovimientos(prev => prev.filter(mov => mov.id !== parMov.id))
+        }
       }
     }
 
