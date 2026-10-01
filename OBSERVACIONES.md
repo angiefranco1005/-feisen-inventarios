@@ -566,3 +566,28 @@ menos "POLEA 4 X 2B - MECANIZADO" quedó con un número que tiene sentido.
 INV-FIS-0029 no necesitó corrección — el PASO 1 de ese script ya había
 mostrado diferencia 0 en todos sus productos (incluida POLEA 4 X 2B cruda),
 así que no se corrió el PASO 2 ahí.
+
+## Corrección de enfoque en los scripts de reconciliación (01-oct-2026)
+
+Angie señaló un error conceptual en los scripts anteriores
+(2026-10-01_reconciliar_stock_inv_fis_0026.sql y ...0029.sql): sumaban TODO
+el historial de movimientos desde el principio de los tiempos para
+"demostrar" el valor correcto. Eso está mal — un inventario físico es un
+punto de control confiable: lo que se contó ese día es la verdad a partir
+de ahí, sin importar si el historial de antes replica exactamente ese
+número (puede haber drift de otras causas, no solo el bug del trigger).
+Reconstruir desde cero todo el historial corre el riesgo de pisar el
+conteo físico real con un número inventado a partir de movimientos previos
+que pueden estar mal por otras razones.
+
+Se agregó `2026-10-01_verificar_stock_desde_inventario_fisico.sql` con la
+fórmula correcta: `stock_correcto = cantidad_fisica (lo contado ese día) +
+entradas desde esa fecha − salidas desde esa fecha`, excluyendo el propio
+movimiento de ajuste de ese inventario (se identifica por
+`referencia = numero_del_inventario`) para no contarlo dos veces.
+
+Pendiente: Angie va a correr este script (de solo lectura) para
+INV-FIS-0026 (donde YA se aplicó un UPDATE con el método viejo, hay que
+confirmar si con el método correcto da lo mismo o si hace falta ajustar
+algo) y también para INV-FIS-0029 (donde no se aplicó nada, solo para
+confirmar que con el método bueno también da diferencia 0).
