@@ -706,3 +706,46 @@ MECANIZADOS) se creó con cantidad 1 (stock correcto en ese momento). Angie lo e
 18 el 2026-10-01, pero el ajuste de stock se saltó por el bug de `centro_costo` (ya
 corregido en Historial.jsx, commit b6d9380). Se aplicó UPDATE puntual: stock pasó de 1
 a 18, confirmado por RETURNING. Caso cerrado.
+
+## 2026-10-01 — Auditoría completa de la app tras el caso MOV-WA-0020
+
+Angie pidió revisar toda la app en busca de la misma clase de error (ajustes de stock
+que se saltan en silencio). Se encontraron y corrigieron 4 casos reales (commit e1db157):
+
+1. **Historial.jsx (`revertir`/`eliminarMovimiento`)**: el "movimiento par" de una
+   transferencia se buscaba comparando `item_id` — pero cada bodega tiene su propio
+   renglón de catálogo para el mismo producto (ids distintos), así que esa búsqueda
+   casi nunca encontraba nada. Al revertir o eliminar un lado de una transferencia real,
+   el stock del otro lado quedaba sin corregir, sin aviso. Ahora busca primero por
+   `referencia` compartida (el identificador real que usan los pares que crea la app,
+   confirmado en `TransferenciasPendientes.jsx`), con el criterio viejo como respaldo.
+   De paso, el ajuste de stock del par ahora usa `ajustesStockPorTipo()` (ya no asume
+   binario entrada/salida) y reporta cualquier fallo.
+
+2. **RegistrarMovimientoAlmacenista.jsx (`handleSalida`)**: una transferencia interna de
+   Fundición a cualquier bodega que NO fuera Mecanizados solo registraba la salida —
+   nunca creaba la entrada en el destino, a pesar de que la pantalla decía "se creará
+   una entrada automática". El stock de origen bajaba, el de destino nunca subía. Ahora
+   mapea cada producto al catálogo de la bodega destino (mismo criterio que ya usa la
+   aprobación de transferencias a Mecanizados) y crea la entrada pareada; si algún
+   producto no existe en el catálogo del destino, avisa ANTES de guardar nada.
+
+3. **RecogidaFundida.jsx**: la bodega de Fundición se resolvía buscando por nombre
+   (`ilike '%FUNDICIÓN%'`). Si se renombraba, los 3 movimientos de stock de la recogida
+   (piezas conformes, consumo de hierro colado, vaceadero) se saltaban completos y en
+   silencio, mientras la orden igual quedaba "completado" con pantalla de éxito. Ahora
+   usa el id fijo de la bodega (igual que `TransferenciasPendientes.jsx`).
+
+4. **RegistrarFundida.jsx**: el insert de las salidas automáticas de materiales de horno
+   no verificaba su error — si fallaba, la fundida se guardaba igual sin que el consumo
+   de materiales se reflejara en stock, sin aviso. Ahora se verifica y se avisa.
+
+**Patrón general identificado y ya corregido donde aparecía**: cualquier código que
+ajusta `stock` a mano (porque el trigger de la BD solo corre en INSERT, nunca en UPDATE/
+DELETE) debe usar las FKs reales del movimiento (`bodega_origen_id`/`bodega_destino_id`,
+o para pares, `referencia` compartida) — nunca texto (`centro_costo`, nombre de bodega) —
+y debe verificar y mostrar cualquier error, nunca fallar en silencio.
+
+**Revisado y sin hallazgos** (ver auditoría completa): `InventarioFisico.jsx`,
+`ListaPedidos.jsx`, `TransferenciasPendientes.jsx`, `RegistrarMovimiento.jsx`,
+`RegistroMecanizado.jsx`, `GestionProductos.jsx`, todos los Dashboards (solo lectura).
