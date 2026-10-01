@@ -591,3 +591,49 @@ INV-FIS-0026 (donde YA se aplicó un UPDATE con el método viejo, hay que
 confirmar si con el método correcto da lo mismo o si hace falta ajustar
 algo) y también para INV-FIS-0029 (donde no se aplicó nada, solo para
 confirmar que con el método bueno también da diferencia 0).
+
+## 2026-10-01 — Corrección del método de reconciliación de stock (checkpoint, no replay completo)
+
+**Error cometido y corregido**: los scripts `2026-10-01_reconciliar_stock_inv_fis_0029.sql` y
+`2026-10-01_reconciliar_stock_inv_fis_0026.sql` recalculaban el stock sumando/restando
+TODO el historial de movimientos desde el principio de los tiempos, ignorando la fecha
+del inventario físico. Esto es conceptualmente incorrecto: un inventario físico es un
+punto de control confiable — lo que se contó ese día ES la verdad a partir de ahí, no
+hay que "demostrarlo" reconstruyendo todo el pasado (que puede tener su propio desfase
+por causas no relacionadas al bug del trigger).
+
+Angie detectó el error: "recuerda que el inventario fisico modifica el stock actual así
+hayan movimientos antes, no afectarían el stock actual, porque hay que contar a partir
+del stock que modificó el inventario físico."
+
+**Fórmula correcta** (implementada en `2026-10-01_verificar_stock_desde_inventario_fisico.sql`
+y aplicada en `2026-10-01_corregir_stock_inv_fis_0026_checkpoint.sql`):
+
+```
+stock_correcto = cantidad_fisica (el conteo, tal cual se registró)
+                + entradas DESDE la fecha del inventario
+                − salidas   DESDE la fecha del inventario
+                + ajustes   DESDE la fecha del inventario
+```
+
+excluyendo de esas sumas los movimientos cuyo `referencia` = el número del propio
+inventario (son las correcciones que generó ese mismo conteo — ya están incluidas en
+`cantidad_fisica`, sumarlas aparte sería contarlas dos veces).
+
+**Impacto**: el UPDATE de `...reconciliar_stock_inv_fis_0026.sql` (64 filas) quedó
+confirmado como incorrecto para la mayoría de los productos "-MECANIZADO" — la mayoría
+demasiado bajos, algunos demasiado altos. Validado con POLEA 4 X 2B - MECANIZADO:
+contado 36, método correcto da 19 (coincide con el cálculo manual hecho con Angie),
+el método anterior lo había dejado en 8.
+
+**Corregido con**: `2026-10-01_corregir_stock_inv_fis_0026_checkpoint.sql` — un solo
+UPDATE con la fórmula de checkpoint, pendiente de que Angie lo corra en Supabase.
+
+**Pendiente**: re-verificar INV-FIS-0029 con el método correcto (el método anterior
+había mostrado diferencia 0 para todos sus productos bajo el método viejo —
+aún no confirmado bajo el método correcto; no se llegó a aplicar ningún UPDATE
+para -0029, así que no hay nada que deshacer ahí, solo confirmar).
+
+**Lección para futuras reconciliaciones de stock**: siempre anclar en el conteo físico
+más reciente de cada producto/bodega como punto de partida, nunca reconstruir sumando
+el historial completo desde el inicio.
