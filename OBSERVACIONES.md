@@ -508,3 +508,32 @@ porque el trigger ya está arreglado).
 Pendiente: Angie necesita hacer un recuento físico puntual de POLEA 4 X 2B
 (y revisar si hay más productos de esa sesión de septiembre con el mismo
 problema) para corregir el stock real en el sistema.
+
+## Script de reconciliación de stock para INV-FIS-0029 (01-oct-2026)
+
+Angie pidió que la corrección de stock por el bug del trigger (ver sección
+de arriba) se hiciera de una sola vez para TODO lo que ingresó en el
+inventario físico "INV-FIS-0029" (Mecanizados/Fundición, sept-2026), no
+producto por producto con "Registrar Movimiento".
+
+Se agregó `supabase/migraciones/2026-10-01_reconciliar_stock_inv_fis_0029.sql`.
+No recalcula deltas a mano: para cada producto+bodega que esté en
+`inventario_fisico_items` de ese inventario (exactamente lo que ella contó e
+ingresó), recalcula el stock correcto sumando/restando el histórico
+COMPLETO de `movimientos` (que nunca se borra) con la misma lógica que ya
+usa el trigger `fn_actualizar_stock` hoy. Primero un SELECT de vista previa
+(no cambia nada), y si los números cuadran, un UPDATE que solo toca las
+filas con diferencia real.
+
+No lo pude ejecutar yo — necesita una sesión autenticada contra Supabase
+(RLS exige `auth.uid()`, y no entro con credenciales a producción). Hay
+que correrlo manualmente en el SQL Editor del panel de Supabase del
+proyecto (mismo patrón que la migración del trigger del 28-sept, que
+también se corrió a mano ahí).
+
+Simplificación a tener en cuenta: el recálculo suma todo el histórico y
+aplica el piso en cero (GREATEST 0) solo al total final, no paso a paso
+como lo hace el trigger en vivo. Para el 99% de los casos da exactamente
+igual; solo podría diferir si el stock real de algún producto llegó a cero
+y se "clampeó" en algún punto intermedio de su historia — caso raro, pero
+queda anotado por transparencia.
