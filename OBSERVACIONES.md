@@ -650,3 +650,14 @@ Pendiente: correr `2026-10-01_verificar_stock_inv_fis_0029_checkpoint.sql` (solo
 para confirmar que INV-FIS-0029 no necesita corrección bajo este mismo método correcto
 (el método viejo había mostrado diferencia 0 para todos sus productos, pero nunca se
 confirmó con la fórmula de checkpoint).
+
+## 2026-10-01 — INV-FIS-0029 verificado con método correcto: solo 1 diferencia real
+
+Se corrió `2026-10-01_verificar_stock_inv_fis_0029_checkpoint.sql` (solo lectura). De
+~115 productos del inventario, 114 ya cuadraban (diferencia 0). Solo uno tenía
+diferencia real: POLEA ARRASTRE PLUMA LITEMIX (contado: 25, sistema: 55, correcto: 25
+→ sistema tenía 30 de más). Se generó `2026-10-01_corregir_stock_inv_fis_0029_checkpoint.sql`
+para corregirlo — pendiente de que Angie lo corra.
+
+Con esto, los dos inventarios físicos (INV-FIS-0026 y INV-FIS-0029) quedan reconciliados
+bajo el método correcto (checkpoint), cerrando el tema de la reconciliación de stock.
