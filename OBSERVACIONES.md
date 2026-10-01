@@ -554,3 +554,15 @@ había aplicado la corrección manual sugerida antes de correr el script, o
 (b) el problema real estaba más acotado de lo que parecía al principio.
 Pendiente confirmar con ella si alcanzó a correr también el PASO 2 (el
 UPDATE) de ese script o si no hizo falta.
+
+## INV-FIS-0026 reconciliado (01-oct-2026)
+
+Angie corrió el PASO 2 del script de INV-FIS-0026 — quedaron corregidos 64
+productos en la bodega Mecanizados (bodega_id 03a709ac-0bee-457a-80a1-0a1603218d34),
+cada uno con su stock recalculado desde el historial completo de
+movimientos. Pendiente de que ella confirme visualmente en la app que al
+menos "POLEA 4 X 2B - MECANIZADO" quedó con un número que tiene sentido.
+
+INV-FIS-0029 no necesitó corrección — el PASO 1 de ese script ya había
+mostrado diferencia 0 en todos sus productos (incluida POLEA 4 X 2B cruda),
+así que no se corrió el PASO 2 ahí.
