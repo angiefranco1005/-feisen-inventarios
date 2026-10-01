@@ -668,3 +668,33 @@ Angie corrió el UPDATE para INV-FIS-0029: 1 fila corregida (POLEA ARRASTRE PLUM
 LITEMIX → 25, confirmado por RETURNING). Con esto, INV-FIS-0026 (67 filas) e
 INV-FIS-0029 (1 fila) quedan reconciliados con el método correcto (checkpoint). Tema
 de reconciliación de stock cerrado.
+
+## 2026-10-01 — Bug: editar/eliminar un movimiento no ajustaba stock (MOV-WA--0020)
+
+Angie editó MOV-WA--0020 (cambió la cantidad) y el stock no se actualizó. Causa raíz:
+`guardarEdicion()` y `eliminarMovimiento()` en Historial.jsx buscaban la bodega afectada
+comparando `centro_costo` (snapshot de texto del movimiento) contra `bodegas.nombre`
+actual con `ilike`. Si la bodega fue renombrada después de crear el movimiento (posible,
+ya que `GestionConfig.jsx` permite renombrar bodegas libremente y ese cambio no se
+propaga a `centro_costo` en movimientos históricos), la búsqueda no encuentra nada y el
+ajuste de stock se salta SIN NINGÚN AVISO — el movimiento se guarda/elimina bien, pero
+`stock.cantidad_actual` nunca se toca.
+
+Además, el signo del ajuste solo reconocía `tipo === 'entrada'` vs "cualquier otra cosa"
+como salida — con signo invertido para tipos reales usados en la app como
+`entrada_compra`, `devolucion`, `salida_produccion`, `salida_venta`, `ajuste_inventario`.
+
+**Fix** (commit b6d9380): nueva función `ajustesStockPorTipo()` que replica el criterio
+del trigger `fn_actualizar_stock` de la BD (mismo mapeo de tipos), usando siempre
+`bodega_origen_id`/`bodega_destino_id` (FKs reales) en vez de `centro_costo`. Nueva
+`aplicarAjustesStock()` reporta en el mensaje de pantalla si no pudo ajustar el stock,
+en vez de fallar en silencio. Aplicado tanto a editar como a eliminar movimientos.
+
+**Pendiente**: corregir manualmente el stock puntual de MOV-WA--0020 (la edición ya
+hecha no se reflejó) — diagnóstico de solo lectura en
+`2026-10-01_diagnostico_mov_wa_0020.sql`, corrección pendiente de los datos que arroje.
+
+**Nota para revisar después**: `TIPO_CONFIG` en Historial.jsx (badges de color) solo
+tiene `entrada`/`salida` — los demás tipos reales (entrada_compra, salida_produccion,
+etc.) se muestran sin badge propio. No afecta el stock, es solo visual — pendiente de
+mejora si Angie lo pide.
