@@ -462,3 +462,49 @@ login todavía muestra "Construequipos Franco S.A.S." como subtítulo (un
 es texto plano hardcodeado, un solo lugar en el código. No se tocó
 porque no fue lo que Angie pidió corregir; queda anotado para cuando se
 revise el login o se le pregunte si quiere actualizarlo.
+
+## Diagnóstico: stock inconsistente de POLEA 4 X 2B en Mecanizados (01-oct-2026)
+
+Angie reportó que el stock de "POLEA 4 X 2B" en bodega Mecanizados no
+cuadraba: contó físicamente 23 el 28-sept, y sabiendo de 2 salidas
+posteriores (6 y 7 unidades), esperaba 10 — pero el sistema mostraba 38.
+
+Diagnóstico (sin acceso a los datos en vivo, por revisión de código +
+aritmética): la causa casi segura es el bug del trigger `fn_actualizar_stock`
+que arregamos ese mismo 28-sept (migración
+`2026-09-28_fix_trigger_stock_entrada_salida.sql`). Antes de ese fix, un
+movimiento de tipo genérico 'entrada'/'salida' (que es justo lo que genera
+"Aplicar correcciones" de Inventario Físico) se guardaba bien en
+`movimientos` — aparece en el historial — pero el trigger NUNCA actualizaba
+la tabla `stock`, en silencio, sin ningún error visible.
+
+La aritmética cuadra exactamente con esa teoría: si el stock antes de la
+corrección del 28 era 51, y las 2 salidas posteriores (6+7=13) sí se
+aplicaron bien (después del fix), 51-13=38 — el número que ve Angie. Y si
+la corrección de ese día (bajar de 51 a 23, un ajuste de -28) se hubiera
+aplicado correctamente, hoy sería 23-13=10, lo que ella esperaba. La
+diferencia entre lo que ve (38) y lo que espera (10) es exactamente 28 —
+el tamaño del ajuste que se perdió en silencio.
+
+Esto probablemente afecta a TODOS los productos de esa misma sesión de
+inventario físico de septiembre si se aplicaron antes de las 10:21am del
+28-sept (hora Bogotá, cuando se corrió el fix del trigger) — vale la pena
+revisar si hay otros productos de ese mismo inventario con el mismo
+síntoma.
+
+### Fix aplicado (commit 97d4474)
+`aplicarCorrecciones()` en InventarioFisico.jsx no revisaba el error del
+INSERT de cada movimiento de ajuste — si fallaba, se ignoraba en silencio
+y el inventario se marcaba "confirmado" y "ajustado" igual, mostrando
+"✅ todo bien" al usuario sin que fuera cierto. Ahora se captura el error
+por producto, solo se marca `ajustado=true` el que sí se corrigió de
+verdad, y si algo falla se avisa explícitamente con el detalle de qué
+productos quedaron pendientes de corregir a mano. Esto no arregla el daño
+histórico del bug del trigger (ya no pasará de nuevo, pero el stock viejo
+sigue mal) — para corregir productos ya afectados hay que volver a hacer
+un inventario físico puntual de esos productos (ahora sí va a aplicar bien
+porque el trigger ya está arreglado).
+
+Pendiente: Angie necesita hacer un recuento físico puntual de POLEA 4 X 2B
+(y revisar si hay más productos de esa sesión de septiembre con el mismo
+problema) para corregir el stock real en el sistema.
