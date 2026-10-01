@@ -698,3 +698,11 @@ hecha no se reflejó) — diagnóstico de solo lectura en
 tiene `entrada`/`salida` — los demás tipos reales (entrada_compra, salida_produccion,
 etc.) se muestran sin badge propio. No afecta el stock, es solo visual — pendiente de
 mejora si Angie lo pide.
+
+## 2026-10-01 — Cierre: MOV-WA-0020 corregido
+
+Confirmado: el movimiento (PASADOR - PLUMA 300 KG 1 3/8x1200MM 1045, bodega
+MECANIZADOS) se creó con cantidad 1 (stock correcto en ese momento). Angie lo editó a
+18 el 2026-10-01, pero el ajuste de stock se saltó por el bug de `centro_costo` (ya
+corregido en Historial.jsx, commit b6d9380). Se aplicó UPDATE puntual: stock pasó de 1
+a 18, confirmado por RETURNING. Caso cerrado.
