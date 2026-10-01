@@ -297,6 +297,15 @@ export default function InventarioFisico() {
     let seqEnt = lastEnt?.numero ? parseInt(lastEnt.numero.replace(preENT, ''), 10) || 0 : 0
     let seqSal = lastSal?.numero ? parseInt(lastSal.numero.replace(preSAL, ''), 10) || 0 : 0
 
+    // Items cuyo movimiento de ajuste falló al insertarse — antes esto se
+    // ignoraba en silencio: el inventario quedaba "confirmado" y se mostraba
+    // el mensaje de éxito igual, pero el stock de ese ítem nunca se corregía.
+    // Eso fue justo lo que pasó con varios ítems el 28-sept (antes de que el
+    // trigger reconociera 'entrada'/'salida'): el movimiento quedó bien
+    // guardado en el historial, pero el stock nunca se movió.
+    const fallos = []
+    const itemsAjustados = []
+
     for (const item of conDif) {
       const esSalida = item.diferencia < 0
       // Número único por movimiento
@@ -305,7 +314,7 @@ export default function InventarioFisico() {
         : `${preENT}${String(++seqEnt).padStart(4, '0')}`
 
       // Insertar movimiento → el trigger fn_actualizar_stock actualiza stock automáticamente
-      await supabase.from('movimientos').insert({
+      const { error: errMov } = await supabase.from('movimientos').insert({
         numero:            numMov,
         tipo:              esSalida ? 'salida' : 'entrada',
         item_id:           item.item_id,
@@ -321,9 +330,17 @@ export default function InventarioFisico() {
         revertido:         false,
         foto_remision_url: null, destino: null, numero_of: null, serial_motor: null, cliente: null, proveedor: null,
       })
+
+      if (errMov) {
+        // No restamos la secuencia reservada (numMov) para no reutilizar el
+        // número en un reintento futuro — simplemente queda "saltado".
+        fallos.push({ nombre: item.item_nombre, bodega: item.bodega_nombre, error: errMov.message })
+      } else {
+        itemsAjustados.push(item)
+      }
     }
 
-    // Confirmar inventario
+    // Confirmar inventario — "ajustado" solo para los que de verdad se aplicaron
     let id = invId
     if (!id) {
       const { data: h } = await supabase.from('inventarios_fisicos').insert({
@@ -335,20 +352,33 @@ export default function InventarioFisico() {
         .map(i => ({
           inventario_id: id, item_id: i.item_id, bodega_id: i.bodega_id,
           item_nombre: i.item_nombre, bodega_nombre: i.bodega_nombre,
-          cantidad_sistema: i.cantidad_sistema, cantidad_fisica: i.cantidad_fisica, ajustado: i.diferencia !== 0,
+          cantidad_sistema: i.cantidad_sistema, cantidad_fisica: i.cantidad_fisica,
+          ajustado: itemsAjustados.includes(i),
         }))
       if (rows.length > 0) await supabase.from('inventario_fisico_items').insert(rows)
     } else {
       await supabase.from('inventarios_fisicos')
         .update({ estado: 'confirmado', updated_at: new Date().toISOString() }).eq('id', id)
-      await supabase.from('inventario_fisico_items')
-        .update({ ajustado: true }).eq('inventario_id', id)
+      // Solo marcamos ajustado=true los ítems cuyo movimiento sí se insertó bien
+      for (const item of itemsAjustados) {
+        await supabase.from('inventario_fisico_items')
+          .update({ ajustado: true })
+          .eq('inventario_id', id).eq('item_id', item.item_id).eq('bodega_id', item.bodega_id)
+      }
     }
 
     setAplicando(false)
     setModalConfirm(false)
-    setMsg({ tipo: 'exito', texto: `✅ ${conDif.length} productos ajustados en el sistema.` })
-    setTimeout(() => { setVista('lista'); cargarLista() }, 2200)
+    if (fallos.length > 0) {
+      const detalle = fallos.map(f => `${f.nombre} (${f.bodega})`).join(', ')
+      setMsg({
+        tipo: 'error',
+        texto: `⚠️ Inventario confirmado, pero ${fallos.length} producto(s) NO se pudieron ajustar — corrígelos manualmente: ${detalle}.`,
+      })
+    } else {
+      setMsg({ tipo: 'exito', texto: `✅ ${conDif.length} productos ajustados en el sistema.` })
+    }
+    setTimeout(() => { setVista('lista'); cargarLista() }, fallos.length > 0 ? 5000 : 2200)
   }
 
   // ── guard ────────────────────────────────────────────────────────────────
