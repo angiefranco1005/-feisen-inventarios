@@ -749,3 +749,20 @@ y debe verificar y mostrar cualquier error, nunca fallar en silencio.
 **Revisado y sin hallazgos** (ver auditoría completa): `InventarioFisico.jsx`,
 `ListaPedidos.jsx`, `TransferenciasPendientes.jsx`, `RegistrarMovimiento.jsx`,
 `RegistroMecanizado.jsx`, `GestionProductos.jsx`, todos los Dashboards (solo lectura).
+
+## 2026-10-02 — Bug: "Generar orden de compra" con pedido_item_id obsoleto (PED-0116)
+
+Error: `insert or update on table "orden_compra_items" violates foreign key constraint
+"orden_compra_items_pedido_item_id_fkey"` al generar la OC de PED-0116.
+
+Causa: editar un pedido (`guardarEdicion()` en ListaPedidos.jsx) borra todos sus
+`pedido_items` y los vuelve a crear con ids nuevos. El modal "Generar OC"
+(`ModalGenerarOC.jsx`) armaba el INSERT de `orden_compra_items` usando
+`pedido.pedido_items` — el objeto tal como llegó de la lista en memoria del
+componente padre — así que si el pedido se editó mientras la lista no se había
+refrescado en pantalla (o el usuario tenía la pestaña abierta desde antes de la
+edición), el modal seguía viendo ids de `pedido_items` que ya no existen.
+
+Fix (commit 94efe8c): el modal ahora recarga `pedido_items` directo de la base por
+`pedido_id` al abrirse, en vez de confiar en el prop en memoria — así siempre usa los
+ids reales y vigentes.
