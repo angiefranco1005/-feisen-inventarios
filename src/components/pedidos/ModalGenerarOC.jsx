@@ -19,15 +19,27 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
 
   const [observaciones, setObservaciones] = useState('')
 
-  const [precios,   setPrecios]   = useState({})   // item_id -> precio_costo
-  const [seleccion, setSeleccion] = useState({})   // pedido_item_id -> { incluir, cantidad, precio }
-  const [cargando,  setCargando]  = useState(true)
-  const [guardando, setGuardando] = useState(false)
-  const [msg,       setMsg]       = useState(null)
+  const [precios,     setPrecios]     = useState({})   // item_id -> precio_costo
+  const [seleccion,   setSeleccion]   = useState({})   // pedido_item_id -> { incluir, cantidad, precio }
+  const [pedidoItems, setPedidoItems] = useState([])   // pedido_items frescos (ver nota abajo)
+  const [cargando,    setCargando]    = useState(true)
+  const [guardando,   setGuardando]   = useState(false)
+  const [msg,         setMsg]         = useState(null)
 
   useEffect(() => {
     async function cargar() {
-      const itemIds = (pedido.pedido_items || []).map(it => it.item_id).filter(Boolean)
+      // Se recarga pedido_items directo de la base en vez de confiar en
+      // `pedido.pedido_items` (el prop que llega de la lista en memoria): si el
+      // pedido se editó (lo que borra y re-crea sus pedido_items con ids
+      // nuevos) mientras la lista no se había refrescado, el prop trae ids
+      // viejos que ya no existen — y el INSERT de orden_compra_items truena
+      // con "violates foreign key constraint ...pedido_item_id_fkey".
+      const { data: itemsFrescos } = await supabase
+        .from('pedido_items').select('*').eq('pedido_id', pedido.id)
+      const itemsPedido = itemsFrescos || []
+      setPedidoItems(itemsPedido)
+
+      const itemIds = itemsPedido.map(it => it.item_id).filter(Boolean)
       const [{ data: provs }, { data: itemsData }] = await Promise.all([
         supabase.from('proveedores').select('id, nombre, nit, contacto, telefono, direccion').eq('activo', true).order('nombre'),
         itemIds.length
@@ -40,7 +52,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
       setPrecios(pMap)
 
       const sel = {}
-      ;(pedido.pedido_items || []).forEach(it => {
+      itemsPedido.forEach(it => {
         const cubierto  = coberturaPorItem[it.id] || 0
         const pendiente = Math.max(0, it.cantidad - cubierto)
         sel[it.id] = {
@@ -60,8 +72,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
   }
 
   const lineasIncluidas = useMemo(
-    () => (pedido.pedido_items || []).filter(it => seleccion[it.id]?.incluir),
-    [pedido.pedido_items, seleccion]
+    () => pedidoItems.filter(it => seleccion[it.id]?.incluir),
+    [pedidoItems, seleccion]
   )
 
   const total = useMemo(
@@ -149,7 +161,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-2">Productos a incluir en esta orden</p>
             <div className="space-y-2.5">
-              {(pedido.pedido_items || []).map(it => {
+              {pedidoItems.map(it => {
                 const cubierto  = coberturaPorItem[it.id] || 0
                 const pendiente = Math.max(0, it.cantidad - cubierto)
                 const sel = seleccion[it.id] || {}
