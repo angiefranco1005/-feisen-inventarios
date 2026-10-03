@@ -988,3 +988,45 @@ reconstruir desde los movimientos, pero el **inventario de cierre** de un
 mes pasado no, porque no se guardan fotos de stock por fecha) seguiría
 necesitando una tabla de snapshots mensuales de stock si algún día se quiere
 mostrar el inventario de cierre de un mes específico, no solo el de hoy.
+
+## 2026-10-03 (continuación 2) — Inicio no coincidía con Analítica (mismo bug del tope de 1.000 filas)
+
+Angie reportó: filtrando por bodega Almacén, el inventario que ve en
+Analítica no coincide con el de Inicio. Al revisar el módulo completo en
+busca del mismo patrón de error (no solo el punto que ella señaló), se
+encontró que **`Dashboard.jsx` (la pantalla de Inicio) nunca recibió el
+arreglo de paginación** que sí se aplicó hoy a Analítica/Kardex/Reportes/
+Productos: sus dos consultas a `stock` usaban `.limit(50000)`, que el
+servidor de Supabase/PostgREST sigue recortando a su tope real (1000 filas
+por respuesta) sin importar el número pedido desde el cliente. Si la
+empresa tiene más de 1000 combinaciones ítem+bodega en `stock` (muy
+probable dado el volumen ya confirmado en `movimientos`), Inicio estaba
+trabajando con una porción incompleta y desordenada del inventario — de ahí
+el desajuste.
+
+**Corregido con el mismo patrón ya establecido (`fetchAllPages()`):**
+- `src/components/admin/Dashboard.jsx` — las dos consultas a `stock` (el
+  desglose por bodega y la de stock bajo) ahora paginan completo. También se
+  alineó la valoración con Analítica: el stock negativo ya no resta del
+  valor total (`Math.max(0, cantidad_actual)`), igual que en
+  DashboardEjecutivo.
+- `src/components/reportes/CorteInventario.jsx` — su consulta a `stock`
+  usaba `.range(0, 19999)`, que tiene el mismo problema (el rango pedido no
+  cambia el tope real del servidor). Ahora pagina con `fetchAllPages()`.
+- `src/components/fundicion/AnaliticaFundicion.jsx` — sus 3 consultas
+  (órdenes de moldeo, fundidas, movimientos de hierro/vaceadero) usaban
+  `.limit(50000)` sin paginar; con el filtro de período en "Todo el tiempo"
+  (sin fecha mínima) quedaban expuestas al mismo recorte. Ahora paginan.
+
+**Revisado y dejado igual (riesgo bajo, no se tocó):**
+- `InformeNomina.jsx` usa `.limit(50000)`/`.limit(10000)` pero siempre
+  acotado a un período de nómina (mes/quincena), volumen chico — no se
+  encontró evidencia de que se esté recortando.
+- Varias pantallas (GestionItems, RegistrarMovimiento,
+  RegistrarMovimientoAlmacenista, ListaPedidos, NoConformidades) usan
+  `.limit(10000)`/`.limit(2000)` para listar `items` en selectores de
+  producto. Mientras el catálogo de ítems activos tenga menos de 1000 filas
+  no hay problema, pero si algún día supera esa cifra, esos selectores
+  empezarían a "perder" productos en silencio (los que queden después de la
+  fila 1000). **Pendiente**: confirmar cuántos ítems activos hay hoy y, si
+  se acerca a 1000, aplicar el mismo arreglo de paginación ahí también.

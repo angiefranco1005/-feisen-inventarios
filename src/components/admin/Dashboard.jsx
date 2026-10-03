@@ -7,6 +7,7 @@ import {
   TrendingUp, AlertTriangle, ChevronDown, ChevronRight, Tag,
 } from 'lucide-react'
 import Spinner from '../shared/Spinner'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 function fmt(n) {
   return '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -86,6 +87,12 @@ export default function DashboardAdmin() {
     async function cargar() {
       const hoy = new Date(); hoy.setHours(0,0,0,0)
 
+      // Un .limit() más alto desde el cliente NO puede superar el tope de filas
+      // por request que impone el servidor de Supabase/PostgREST (por defecto
+      // 1000) — .limit(50000) por sí solo seguía recortando en silencio, igual
+      // que el bug ya corregido en Analítica/Kardex/Reportes/Productos (ver
+      // OBSERVACIONES.md). Se pagina con fetchAllPages() para traer TODO el
+      // stock, sin importar cuántas bodegas o ítems tenga la empresa.
       const [
         { count: productos },
         { count: movHoy },
@@ -96,12 +103,12 @@ export default function DashboardAdmin() {
         supabase.from('items').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('movimientos').select('*', { count: 'exact', head: true }).gte('created_at', hoy.toISOString()),
         supabase.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
-        supabase.from('stock')
+        fetchAllPages((desde, hasta) => supabase.from('stock')
           .select('cantidad_actual, bodegas(id, nombre), items(id, nombre, precio_costo, unidad_medida, activo, categorias(nombre))')
-          .limit(50000),
-        supabase.from('stock')
+          .range(desde, hasta)),
+        fetchAllPages((desde, hasta) => supabase.from('stock')
           .select('cantidad_actual, items(id, nombre, stock_minimo, unidad_medida, activo), bodegas(nombre)')
-          .limit(50000),
+          .range(desde, hasta)),
       ])
 
       setStats({ productos: productos || 0, movHoy: movHoy || 0, pedidos: pedidos || 0 })
@@ -114,7 +121,9 @@ export default function DashboardAdmin() {
         const bnomb = s.bodegas?.nombre
         if (!bid) return
 
-        const valor   = (s.cantidad_actual || 0) * (s.items?.precio_costo || 0)
+        // Math.max(0, ...): igual que en Analítica, el stock negativo (ajustes
+        // o errores de captura) no debe restar del valor total del inventario.
+        const valor   = Math.max(0, s.cantidad_actual || 0) * (s.items?.precio_costo || 0)
         const cat     = s.items?.categorias?.nombre || 'Sin categoría'
 
         if (!mapa[bid]) mapa[bid] = { nombre: bnomb, valor: 0, unidades: 0, categorias: {} }

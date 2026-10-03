@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import Alerta from '../shared/Alerta'
 import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight, Download } from 'lucide-react'
 import { exportarCorteInventario } from '../../utils/exportExcel'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const HOY = new Date().toISOString().split('T')[0]
 
@@ -56,7 +57,15 @@ export default function CorteInventario() {
         // antes no filtraba por bodega: si un producto tenía stock en más de una bodega
         // (por ejemplo por una transferencia), tomaba una fila cualquiera, no
         // necesariamente la de la bodega que se estaba consultando.
-        supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 19999),
+        // .range(0, 19999) por sí solo no alcanza: el servidor de Supabase/
+        // PostgREST sigue topando la respuesta a su máximo de filas (por
+        // defecto 1000), sin importar el rango pedido — mismo bug ya
+        // corregido en Analítica/Kardex/Reportes/Productos/Inicio (ver
+        // OBSERVACIONES.md). Se pagina con fetchAllPages() para traer TODO
+        // el stock real.
+        fetchAllPages((desde, hasta) =>
+          supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(desde, hasta)
+        ),
       ])
 
       if (e1) throw e1

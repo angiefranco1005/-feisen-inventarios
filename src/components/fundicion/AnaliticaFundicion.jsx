@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import {
   BarChart2, Users, Package, Flame, AlertTriangle,
   RefreshCw, TrendingDown, Scale, Recycle,
@@ -69,37 +70,52 @@ export default function AnaliticaFundicion() {
     setCargando(true)
     const desde = periodo ? fechaHace(periodo) : null
 
-    let qOrd = supabase
-      .from('ordenes_moldeo')
-      .select(`
-        id, numero, fecha, estado, created_at,
-        ordenes_moldeo_piezas(
-          id, item_id, asignado_a, cantidad_planeada,
-          cantidad_conforme, cantidad_nc,
-          items(id, nombre, peso_unitario)
-        )
-      `)
-      .eq('estado', 'completada')
-      .order('fecha', { ascending: false })
-      .limit(50000)
-    if (desde) qOrd = qOrd.gte('fecha', desde)
+    // Un .limit() más alto desde el cliente NO puede superar el tope de filas
+    // por request que impone el servidor de Supabase/PostgREST (por defecto
+    // 1000) — con "Todo el tiempo" (desde = null) esto se recortaba en
+    // silencio. Se pagina con fetchAllPages() (ver OBSERVACIONES.md).
+    const qOrd = (desde_, hasta_) => {
+      let q = supabase
+        .from('ordenes_moldeo')
+        .select(`
+          id, numero, fecha, estado, created_at,
+          ordenes_moldeo_piezas(
+            id, item_id, asignado_a, cantidad_planeada,
+            cantidad_conforme, cantidad_nc,
+            items(id, nombre, peso_unitario)
+          )
+        `)
+        .eq('estado', 'completada')
+        .order('fecha', { ascending: false })
+        .range(desde_, hasta_)
+      if (desde) q = q.gte('fecha', desde)
+      return q
+    }
 
-    let qFun = supabase
-      .from('fundidas')
-      .select('id, numero, fecha, hierro_colado, carbon, caliza, ferromolido, exlac, temperatura')
-      .order('fecha', { ascending: false })
-      .limit(50000)
-    if (desde) qFun = qFun.gte('fecha', desde)
+    const qFun = (desde_, hasta_) => {
+      let q = supabase
+        .from('fundidas')
+        .select('id, numero, fecha, hierro_colado, carbon, caliza, ferromolido, exlac, temperatura')
+        .order('fecha', { ascending: false })
+        .range(desde_, hasta_)
+      if (desde) q = q.gte('fecha', desde)
+      return q
+    }
 
-    let qMov = supabase
-      .from('movimientos')
-      .select('referencia, item_id, tipo, cantidad, fecha_movimiento')
-      .in('item_id', [HIERRO_COLADO_ITEM_ID, VACEADERO_ITEM_ID])
-      .eq('revertido', false)
-      .limit(50000)
-    if (desde) qMov = qMov.gte('fecha_movimiento', desde)
+    const qMov = (desde_, hasta_) => {
+      let q = supabase
+        .from('movimientos')
+        .select('referencia, item_id, tipo, cantidad, fecha_movimiento')
+        .in('item_id', [HIERRO_COLADO_ITEM_ID, VACEADERO_ITEM_ID])
+        .eq('revertido', false)
+        .range(desde_, hasta_)
+      if (desde) q = q.gte('fecha_movimiento', desde)
+      return q
+    }
 
-    const [{ data: ords }, { data: funs }, { data: movs }] = await Promise.all([qOrd, qFun, qMov])
+    const [{ data: ords }, { data: funs }, { data: movs }] = await Promise.all([
+      fetchAllPages(qOrd), fetchAllPages(qFun), fetchAllPages(qMov),
+    ])
 
     const movsList = movs || []
     setOrdenes(ords || [])
