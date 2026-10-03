@@ -929,18 +929,27 @@ export default function DashboardEjecutivo() {
     // 365 días hacia atrás para obsolescencia (fijo, independiente del filtro)
     const desde365 = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0]
 
+    // .limit(50000) explícito en las 3 consultas: sin límite, Supabase/PostgREST
+    // corta en su tope por defecto (1000 filas) sin avisar — con ~4.000+
+    // movimientos históricos y creciendo, esto venía recortando en silencio
+    // los meses/datos más recientes (reportado por Angie: septiembre no
+    // aparecía en "Entradas vs. Salidas"). Mismo límite ya usado en
+    // InformeKardex.jsx para esta misma razón.
     let stockQ = supabase.from('stock')
       .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo, categoria_id, centro_costo, categorias(nombre)), bodegas(id, nombre)')
+      .limit(50000)
     if (filtros.bodegaId) stockQ = stockQ.eq('bodega_id', filtros.bodegaId)
 
     let movsQ = supabase.from('movimientos')
       .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, centro_costo, fecha_movimiento, created_at')
       .or(`fecha_movimiento.gte.${desdeStr},and(fecha_movimiento.is.null,created_at.gte.${desdeStr}T00:00:00)`)
+      .limit(50000)
     if (filtros.bodegaId) movsQ = movsQ.or(`bodega_origen_id.eq.${filtros.bodegaId},bodega_destino_id.eq.${filtros.bodegaId}`)
 
     const allMovQ = supabase.from('movimientos')
       .select('item_id, fecha_movimiento, created_at')
       .or(`fecha_movimiento.gte.${desde365},and(fecha_movimiento.is.null,created_at.gte.${desde365}T00:00:00)`)
+      .limit(50000)
 
     const pedidosQ = supabase.from('pedidos')
       .select('id, numero, area, estado, fecha_solicitud, fecha_estimada_llegada, fecha_recibido, pedido_items(item_id, cantidad, cantidad_recibida)')
