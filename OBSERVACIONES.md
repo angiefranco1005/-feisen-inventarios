@@ -867,3 +867,28 @@ archivo — mismo límite que `InformeKardex.jsx` ya usa para esto mismo.
 `items` sin `.limit()` explícito puede recortarse en silencio a medida que la
 base de datos crece. Revisar esto en cualquier componente nuevo que liste o
 agregue estas tablas.
+
+## 2026-10-03 — Revisión del tope de 1000 filas en el resto de la app
+
+A raíz del bug anterior, se revisaron todas las consultas a `movimientos`,
+`stock` e `items` en busca del mismo patrón (consulta sin `.limit()` que
+Supabase/PostgREST recorta en silencio a 1000 filas). Se encontraron y
+corrigieron dos más (commit d2b8461):
+
+- **Reportes.jsx** (pestañas Stock actual / Stock bajo / Valorización): sin
+  límite — podía ocultar alertas de stock bajo o subestimar el valor total
+  de inventario. Se agregó `.limit(50000)`.
+- **GestionProductos.jsx**: tenía un workaround manual de dos `.range()`
+  (0-999 y 1000-1999) que solo cubre 2000 filas — se reemplazó por un
+  `.limit(50000)` único.
+
+Revisado y sin el mismo problema (ya tenían `.limit()` adecuado o la
+consulta es inherentemente de una sola fila): `InformeKardex.jsx`,
+`AnaliticaFundicion.jsx`, `Historial.jsx`, `InventarioFisico.jsx`,
+`ListaPedidos.jsx`, `GestionItems.jsx`, `Dashboard.jsx` (admin).
+
+Nota aparte, no es el mismo bug: `Reportes.jsx` pestaña "Movimientos" usa
+`.limit(200)` ordenado por fecha descendente — es un límite intencional
+("últimos 200"), no un recorte accidental, pero vale la pena que Angie sepa
+que esa pestaña no muestra el historial completo si filtra un rango de
+fechas amplio.
