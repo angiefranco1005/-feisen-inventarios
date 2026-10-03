@@ -40,9 +40,15 @@ export default function Reportes() {
     let data = []
 
     if (tab === 'stock' || tab === 'stock_bajo' || tab === 'valor') {
+      // .limit(50000) explícito: sin esto, Supabase/PostgREST corta en
+      // silencio en su tope por defecto de 1000 filas — encontrado y
+      // corregido 2026-10-03 en Analítica por la misma razón (ver
+      // OBSERVACIONES.md). Aquí afectaría "Stock bajo" (alertas de
+      // reabastecimiento) y "Valorización" (valor total de inventario).
       let q = supabase.from('stock')
         .select('cantidad_actual, item_id, bodega_id, items(nombre, unidad_medida, precio_costo, centro_costo, stock_minimo, activo, categorias(nombre)), bodegas(nombre)')
         .eq('items.activo', true)
+        .limit(50000)
       if (filtroBodega) q = q.eq('bodega_id', filtroBodega)
       const { data: d } = await q
       data = d || []

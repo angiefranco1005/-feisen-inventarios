@@ -97,11 +97,13 @@ export default function GestionProductos() {
     }
 
     // También traemos stock separado para la lógica de "extra items" (usuarios con bodegas limitadas)
+    // .limit(50000) en vez del doble .range(0,999)/.range(1000,1999): ese
+    // workaround solo cubría hasta 2000 filas — si el stock ya pasó de ahí,
+    // volvía a recortarse en silencio. Mismo límite usado en el resto de la
+    // app para esto (ver OBSERVACIONES.md, 2026-10-03).
     const { data: stockData } = await supabase
-      .from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 999)
-    const { data: stockData2 } = await supabase
-      .from('stock').select('item_id, bodega_id, cantidad_actual').range(1000, 1999)
-    const allStock = [...(stockData || []), ...(stockData2 || [])]
+      .from('stock').select('item_id, bodega_id, cantidad_actual').limit(50000)
+    const allStock = stockData || []
     for (const s of allStock) {
       if (!stockIdx[s.item_id]) stockIdx[s.item_id] = []
       // Evitar duplicados si ya lo tenemos del join embebido
