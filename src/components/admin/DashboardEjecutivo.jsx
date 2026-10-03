@@ -33,6 +33,46 @@ const fmtDias = (n) => `${Math.round(n || 0)} días`
 const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion', 'ajuste_inventario', 'traslado'])
 const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta', 'traslado'])
 
+// ── Agrupación de centro_costo en los centros de costo reales de la empresa ──
+// centro_costo es texto libre a nivel de movimiento/ítem (no una FK a una
+// tabla de 3 valores), y en datos reales aparece con variantes de mayúsculas/
+// acentos/prefijos ("01 ALMACEN", "ALMACEN", "Motores", "MOTORES"...).
+// normalizaCentro() quita acentos, mayúsculas y un posible prefijo numérico,
+// para agrupar sin depender de una coincidencia exacta de texto.
+function normalizaCentro(raw) {
+  return (raw || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .toUpperCase()
+    .replace(/^\d+\s*/, '') // quita prefijo tipo "01 "
+    .trim()
+}
+
+// Fundición es hoy un solo centro operativo en el sistema: no hay bodega,
+// categoría ni centro_costo que distinga hierro de aluminio (confirmado
+// 2026-10-03: la bodega de Fundición solo tiene categorías "MATERIAL FUNDIDO
+// HIERRO" y "MATERIA PRIMA" genérica — cero productos de aluminio). Por
+// indicación de Angie se deja como "Fundición Hierro" sin desglosar aluminio.
+// Si algún día se etiqueta aluminio por separado, agregar su mapeo aquí en
+// vez de dejarlo caer en "Sin clasificar".
+const GRUPO_CENTRO_COSTO = {
+  'ALMACEN':             'Construequipos / Maquinaria',
+  'MECANIZADOS':         'Construequipos / Maquinaria',
+  'MECANIZADO':          'Construequipos / Maquinaria',
+  'MOTORES':             'Construequipos / Maquinaria',
+  'CORTE Y DOBLEZ':      'Construequipos / Maquinaria',
+  'ARMADO Y SOLDADURA':  'Construequipos / Maquinaria',
+  'CONSTRUEQUIPOS':      'Construequipos / Maquinaria',
+  'LAMINA':              'Construequipos / Maquinaria',
+  'FERRETERIA':          'Construequipos / Maquinaria',
+  'FUNDICION':           'Fundición Hierro',
+  'FUNDICION HIERRO':    'Fundición Hierro',
+}
+// Nunca se descarta un centro_costo sin reconocer: cae en "Sin clasificar",
+// visible en el tablero, en vez de desaparecer del total en silencio.
+function grupoCentro(raw) {
+  return GRUPO_CENTRO_COSTO[normalizaCentro(raw)] || 'Sin clasificar'
+}
+
 // ── Procesamiento de datos ────────────────────────────────────────────────────
 function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
   const hoy = new Date()
@@ -78,6 +118,41 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
       entradas: Math.round(d.valorEnt),
       salidas:  Math.round(d.valorSal),
       dio: d.valorSal > 0 ? Math.round(valorTotal / (d.valorSal / 30)) : 0,
+    }))
+
+  // ── Costeo mensual por centro de costo (mes en curso) ────────────────────
+  // Compras y consumo del mes en curso, agrupados por centro de costo real,
+  // valorados con el costo histórico (precio_costo_snapshot) de cada
+  // movimiento — mismo criterio TIPOS_ENTRADA/TIPOS_SALIDA de arriba.
+  const mesActual = hoy.toISOString().substring(0, 7)
+  const mesActualLabel = hoy.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+  const costeoAcc = {}
+  function getCosteo(centro) {
+    if (!costeoAcc[centro]) costeoAcc[centro] = { compras: 0, consumo: 0, inventario: 0 }
+    return costeoAcc[centro]
+  }
+  for (const m of mv) {
+    const fecha = m.fecha_movimiento || m.created_at?.split('T')[0]
+    if (fecha?.substring(0, 7) !== mesActual) continue
+    const val    = (m.cantidad || 0) * (m.precio_costo_snapshot || 0)
+    const centro = grupoCentro(m.centro_costo)
+    if (TIPOS_ENTRADA.has(m.tipo) && !m.bodega_origen_id)  getCosteo(centro).compras += val
+    if (TIPOS_SALIDA.has(m.tipo)  && !m.bodega_destino_id) getCosteo(centro).consumo += val
+  }
+  // Inventario a HOY por centro de costo (no hay fotos históricas de cierre
+  // de mes todavía — ver OBSERVACIONES.md).
+  for (const s of st) {
+    const val = Math.max(0, s.cantidad_actual || 0) * (s.items?.precio_costo || 0)
+    getCosteo(grupoCentro(s.items?.centro_costo)).inventario += val
+  }
+  const ORDEN_CENTROS = ['Construequipos / Maquinaria', 'Fundición Hierro', 'Sin clasificar']
+  const costeoCentros = ORDEN_CENTROS
+    .filter(c => costeoAcc[c])
+    .map(c => ({
+      centro:     c,
+      compras:    Math.round(costeoAcc[c].compras),
+      consumo:    Math.round(costeoAcc[c].consumo),
+      inventario: Math.round(costeoAcc[c].inventario),
     }))
 
   // ── Última fecha de movimiento por ítem ──────────────────────────────────
@@ -238,7 +313,7 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
 
   return {
     valorTotal, totalItems: st.length, itemsConStock,
-    catChart, mensual,
+    catChart, mensual, costeoCentros, mesActualLabel,
     pctSinMov90:  activos.length ? sinMov90.length  / activos.length * 100 : 0,
     pctSinMov180: activos.length ? sinMov180.length / activos.length * 100 : 0,
     sinMov90, sinMov180,
@@ -357,6 +432,40 @@ function SeccionFinanciero({ d }) {
               <Bar dataKey="salidas"  name="Salidas"  fill={RJ}  radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Costeo mensual por centro de costo */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <SectionTitle>Costeo del mes por centro de costo — {d.mesActualLabel}</SectionTitle>
+        <p className="text-xs text-gray-400 mb-4">
+          Compras y consumo son el acumulado del mes en curso, valorado al costo histórico de cada movimiento.
+          El inventario es el saldo de <strong>hoy</strong>, no el del cierre de mes — todavía no se guardan fotos mensuales.
+        </p>
+        {d.costeoCentros.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">Sin movimientos este mes</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {d.costeoCentros.map(c => (
+              <div key={c.centro} className="border border-gray-100 rounded-xl p-4">
+                <p className="text-xs font-semibold text-gray-500 mb-2">{c.centro}</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Compras</span>
+                    <span className="font-semibold text-green-700">{fmtCOP(c.compras)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Consumo (costeo)</span>
+                    <span className="font-semibold text-feisen-rojo">{fmtCOP(c.consumo)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-100 pt-1 mt-1">
+                    <span className="text-gray-500">Inventario (hoy)</span>
+                    <span className="font-bold text-feisen-azul">{fmtCOP(c.inventario)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -821,7 +930,7 @@ export default function DashboardEjecutivo() {
     const desde365 = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0]
 
     let stockQ = supabase.from('stock')
-      .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo, categoria_id, categorias(nombre)), bodegas(id, nombre)')
+      .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo, categoria_id, centro_costo, categorias(nombre)), bodegas(id, nombre)')
     if (filtros.bodegaId) stockQ = stockQ.eq('bodega_id', filtros.bodegaId)
 
     let movsQ = supabase.from('movimientos')
