@@ -892,3 +892,50 @@ Nota aparte, no es el mismo bug: `Reportes.jsx` pestaña "Movimientos" usa
 ("últimos 200"), no un recorte accidental, pero vale la pena que Angie sepa
 que esa pestaña no muestra el historial completo si filtra un rango de
 fechas amplio.
+
+## 2026-10-03 — Corrección real: el límite de filas no servía (tope del servidor)
+
+El fix de esta mañana (`.limit(50000)`, commits 23af516/d2b8461) no resolvió
+nada: Angie confirmó que septiembre (2.464 movimientos, el mes con más
+movimiento) seguía sin aparecer en "Entradas vs. Salidas" después de ese
+cambio. Causa real: **un `.limit()` más alto desde el cliente no puede
+superar el tope de filas por request que Supabase/PostgREST impone en el
+servidor** (por defecto 1000) — pedir 50000 simplemente se ignora y el
+servidor sigue devolviendo máximo 1000 filas. El `.limit(50000)` de esta
+mañana nunca tuvo efecto real.
+
+Fix (commit 5210f6a): se agrega `src/utils/fetchAllPages.js`, que pagina
+cualquier consulta en bloques de 1000 filas hasta traerlas todas, sin
+importar el tope del servidor. Se reemplaza en los 4 archivos afectados
+(`DashboardEjecutivo.jsx`, `InformeKardex.jsx`, `Reportes.jsx`,
+`GestionProductos.jsx`), incluyendo el viejo doble `.range()` de
+GestionProductos que tenía el mismo problema de fondo.
+
+**Patrón a recordar**: cualquier consulta nueva a `movimientos`, `stock` o
+`items` que pueda superar 1000 filas debe usar `fetchAllPages()`, nunca
+`.limit(N)` con N > 1000 — ese límite no hace nada.
+
+## 2026-10-03 — Incidente: repo de git corrupto por sincronización de iCloud Drive
+
+Durante la sesión se cortó la conexión varias veces a mitad de operaciones
+de git/esbuild. La carpeta del proyecto está dentro de Documents, que
+Angie tiene sincronizado con iCloud Drive — eso generó archivos de
+conflicto de sincronización dentro de `.git/` (lock files duplicados tipo
+`HEAD 10.lock`, `HEAD 11.lock`...) y, más grave, corrompió un objeto real
+del historial de git (`InformeNomina.jsx`), bloqueando cualquier commit
+nuevo con "invalid object" / "error: Error building trees".
+
+Se reparó clonando una copia limpia desde GitHub (`git clone` +
+reutilizar las credenciales del remoto original), copiando ahí los
+archivos recién editados, haciendo commit/push desde la copia limpia, y
+reemplazando el `.git` corrupto de la carpeta real por el de la copia
+limpia (los archivos de trabajo de Angie no se tocaron, solo el historial
+interno de git). `git fsck --full` quedó sin errores después.
+
+**Recomendación pendiente, no urgente**: un repo de git activamente usado
+dentro de una carpeta sincronizada por iCloud Drive (o Dropbox/Google
+Drive) es una combinación propensa a esto — iCloud puede evaluar/evictar
+archivos mientras git los está escribiendo. Si se repite, lo más robusto
+sería mover el clon del proyecto a una carpeta fuera de Documents/Desktop
+(p. ej. `~/Proyectos` sin sincronización), y conectar esa carpeta nueva en
+vez de la actual.
