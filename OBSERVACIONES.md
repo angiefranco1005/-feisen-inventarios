@@ -849,3 +849,21 @@ actual del mes en curso, por centro de costo real. Decisiones:
   solo se consulta el mes en curso.
 
 Commit 97e3fef.
+
+## 2026-10-03 — Bug: Analítica recortaba en silencio al tope de 1000 filas de PostgREST
+
+Angie reportó que la gráfica "Entradas vs. Salidas" de Analítica no mostraba
+nada de septiembre. Causa: `stockQ`/`movsQ`/`allMovQ` en `DashboardEjecutivo.jsx`
+no tenían `.limit()` explícito — PostgREST corta cualquier consulta sin límite
+en su tope por defecto (1000 filas) sin devolver error ni aviso. Con ~4.000+
+movimientos históricos y creciendo, la consulta del período (`movsQ`) se
+quedaba corta, y sin `.order()` explícito el corte se quedaba con filas más
+viejas, dejando fuera el mes más reciente.
+
+Fix (commit 23af516): se agregó `.limit(50000)` a las 3 consultas de este
+archivo — mismo límite que `InformeKardex.jsx` ya usa para esto mismo.
+
+**Patrón a vigilar**: cualquier consulta nueva a `movimientos`, `stock` o
+`items` sin `.limit()` explícito puede recortarse en silencio a medida que la
+base de datos crece. Revisar esto en cualquier componente nuevo que liste o
+agregue estas tablas.
