@@ -139,15 +139,27 @@ export default function InformeKardex() {
         if (m.items && !itemInfoMap[m.item_id]) itemInfoMap[m.item_id] = m.items
       }
 
+      // Clasificación por tipo — debe reflejar lo mismo que el trigger
+      // fn_actualizar_stock() en la base de datos (ver supabase/schema.sql),
+      // para que este informe cuente exactamente lo mismo que realmente
+      // mueve el stock. Antes solo reconocía 'entrada'/'salida' literales y
+      // excluía en silencio 'entrada_compra', 'devolucion', 'salida_produccion',
+      // 'salida_venta' y 'ajuste_inventario' — el mismo tipo de bug ya
+      // corregido en Historial/RecogidaFundida/RegistrarFundida/RegistrarMovimientoAlmacenista.
+      // Hoy en producción solo se usa 'salida_produccion' además de 'entrada'/'salida',
+      // pero se deja preparado para los demás tipos que reconoce el trigger.
+      const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion', 'ajuste_inventario', 'traslado'])
+      const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta', 'traslado'])
+
       // net post-período por item_id::bodega_id
       // positivo = más entradas que salidas después del fin → stockFinal < stockActual
       const postNet = {}
       for (const m of (movsPost || [])) {
-        if (m.tipo === 'entrada' && m.bodega_destino_id) {
+        if (TIPOS_ENTRADA.has(m.tipo) && m.bodega_destino_id) {
           const k = `${m.item_id}::${m.bodega_destino_id}`
           postNet[k] = (postNet[k] || 0) + m.cantidad
         }
-        if (m.tipo === 'salida' && m.bodega_origen_id) {
+        if (TIPOS_SALIDA.has(m.tipo) && m.bodega_origen_id) {
           const k = `${m.item_id}::${m.bodega_origen_id}`
           postNet[k] = (postNet[k] || 0) - m.cantidad
         }
@@ -162,10 +174,10 @@ export default function InformeKardex() {
 
       for (const m of (movsPeriod || [])) {
         const precio = m.precio_costo_snapshot || 0
-        const esEntradaExterna = m.tipo === 'entrada' && !m.bodega_origen_id && m.bodega_destino_id
-        const esSalidaExterna  = m.tipo === 'salida'  && !m.bodega_destino_id && m.bodega_origen_id
-        const esTransfSalida   = m.tipo === 'salida'  && m.bodega_destino_id  && m.bodega_origen_id
-        const esTransfEntrada  = m.tipo === 'entrada' && m.bodega_origen_id   && m.bodega_destino_id
+        const esEntradaExterna = TIPOS_ENTRADA.has(m.tipo) && !m.bodega_origen_id && m.bodega_destino_id
+        const esSalidaExterna  = TIPOS_SALIDA.has(m.tipo)  && !m.bodega_destino_id && m.bodega_origen_id
+        const esTransfSalida   = TIPOS_SALIDA.has(m.tipo)  && m.bodega_destino_id  && m.bodega_origen_id
+        const esTransfEntrada  = TIPOS_ENTRADA.has(m.tipo) && m.bodega_origen_id   && m.bodega_destino_id
 
         if (esEntradaExterna) {
           const a = getAcc(`${m.item_id}::${m.bodega_destino_id}`)

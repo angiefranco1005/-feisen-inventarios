@@ -23,6 +23,16 @@ const fmtCOP  = (n) => '$' + Math.round(n || 0).toLocaleString('es-CO')
 const fmtPct  = (n) => `${(n || 0).toFixed(1)}%`
 const fmtDias = (n) => `${Math.round(n || 0)} días`
 
+// Clasificación por tipo de movimiento — debe reflejar lo mismo que el
+// trigger fn_actualizar_stock() en la base de datos (supabase/schema.sql).
+// Antes esta gráfica solo reconocía 'entrada'/'salida' literales y excluía
+// en silencio 'salida_produccion' (el consumo que registran los operarios
+// desde su pantalla), además de 'entrada_compra'/'devolucion'/'salida_venta'/
+// 'ajuste_inventario', que el trigger también reconoce. Mismo bug ya
+// corregido en Historial/RecogidaFundida/RegistrarFundida/InformeKardex.
+const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion', 'ajuste_inventario', 'traslado'])
+const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta', 'traslado'])
+
 // ── Procesamiento de datos ────────────────────────────────────────────────────
 function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
   const hoy = new Date()
@@ -58,8 +68,8 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
     if (!month) continue
     if (!byMonth[month]) byMonth[month] = { valorEnt: 0, valorSal: 0 }
     const val = (m.cantidad || 0) * (m.precio_costo_snapshot || 0)
-    if (m.tipo === 'entrada' && !m.bodega_origen_id)   byMonth[month].valorEnt += val
-    if (m.tipo === 'salida'  && !m.bodega_destino_id)  byMonth[month].valorSal += val
+    if (TIPOS_ENTRADA.has(m.tipo) && !m.bodega_origen_id)   byMonth[month].valorEnt += val
+    if (TIPOS_SALIDA.has(m.tipo)  && !m.bodega_destino_id)  byMonth[month].valorSal += val
   }
   const mensual = Object.entries(byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -815,7 +825,7 @@ export default function DashboardEjecutivo() {
     if (filtros.bodegaId) stockQ = stockQ.eq('bodega_id', filtros.bodegaId)
 
     let movsQ = supabase.from('movimientos')
-      .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, created_at')
+      .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, centro_costo, fecha_movimiento, created_at')
       .or(`fecha_movimiento.gte.${desdeStr},and(fecha_movimiento.is.null,created_at.gte.${desdeStr}T00:00:00)`)
     if (filtros.bodegaId) movsQ = movsQ.or(`bodega_origen_id.eq.${filtros.bodegaId},bodega_destino_id.eq.${filtros.bodegaId}`)
 
