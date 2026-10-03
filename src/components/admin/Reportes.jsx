@@ -7,6 +7,7 @@ import Spinner from '../shared/Spinner'
 import { BarChart2, Download, Package, ArrowUpDown, AlertTriangle, RotateCcw } from 'lucide-react'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const TABS_ADMIN = [
   { key: 'stock',       label: 'Stock actual',  icon: Package },
@@ -40,17 +41,20 @@ export default function Reportes() {
     let data = []
 
     if (tab === 'stock' || tab === 'stock_bajo' || tab === 'valor') {
-      // .limit(50000) explícito: sin esto, Supabase/PostgREST corta en
-      // silencio en su tope por defecto de 1000 filas — encontrado y
-      // corregido 2026-10-03 en Analítica por la misma razón (ver
-      // OBSERVACIONES.md). Aquí afectaría "Stock bajo" (alertas de
-      // reabastecimiento) y "Valorización" (valor total de inventario).
-      let q = supabase.from('stock')
-        .select('cantidad_actual, item_id, bodega_id, items(nombre, unidad_medida, precio_costo, centro_costo, stock_minimo, activo, categorias(nombre)), bodegas(nombre)')
-        .eq('items.activo', true)
-        .limit(50000)
-      if (filtroBodega) q = q.eq('bodega_id', filtroBodega)
-      const { data: d } = await q
+      // Un .limit() más alto desde el cliente no puede superar el tope de
+      // filas por request del servidor (1000 por defecto) — se pagina con
+      // fetchAllPages() para no recortar en silencio "Stock bajo" (alertas
+      // de reabastecimiento) ni "Valorización" (valor total de inventario).
+      // Ver OBSERVACIONES.md, 2026-10-03.
+      const buildQ = (desde, hasta) => {
+        let q = supabase.from('stock')
+          .select('cantidad_actual, item_id, bodega_id, items(nombre, unidad_medida, precio_costo, centro_costo, stock_minimo, activo, categorias(nombre)), bodegas(nombre)')
+          .eq('items.activo', true)
+          .range(desde, hasta)
+        if (filtroBodega) q = q.eq('bodega_id', filtroBodega)
+        return q
+      }
+      const { data: d } = await fetchAllPages(buildQ)
       data = d || []
       if (tab === 'stock_bajo') {
         data = data.filter(s => s.items?.stock_minimo > 0 && s.cantidad_actual < s.items.stock_minimo)

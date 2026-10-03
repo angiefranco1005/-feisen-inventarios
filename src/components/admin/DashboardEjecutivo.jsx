@@ -10,6 +10,7 @@ import {
   ChevronDown, ChevronUp, Info, RefreshCw,
 } from 'lucide-react'
 import Spinner from '../shared/Spinner'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 // ── Colores ──────────────────────────────────────────────────────────────────
 const AZ = '#064794'
@@ -929,27 +930,34 @@ export default function DashboardEjecutivo() {
     // 365 días hacia atrás para obsolescencia (fijo, independiente del filtro)
     const desde365 = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0]
 
-    // .limit(50000) explícito en las 3 consultas: sin límite, Supabase/PostgREST
-    // corta en su tope por defecto (1000 filas) sin avisar — con ~4.000+
-    // movimientos históricos y creciendo, esto venía recortando en silencio
-    // los meses/datos más recientes (reportado por Angie: septiembre no
-    // aparecía en "Entradas vs. Salidas"). Mismo límite ya usado en
-    // InformeKardex.jsx para esta misma razón.
-    let stockQ = supabase.from('stock')
-      .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo, categoria_id, centro_costo, categorias(nombre)), bodegas(id, nombre)')
-      .limit(50000)
-    if (filtros.bodegaId) stockQ = stockQ.eq('bodega_id', filtros.bodegaId)
+    // Un .limit() más alto desde el cliente NO puede superar el tope de filas
+    // por request que el servidor de Supabase/PostgREST impone (por defecto
+    // 1000) — así que .limit(50000) por sí solo seguía recortando en
+    // silencio (confirmado 2026-10-03: septiembre, con 2.464 movimientos,
+    // seguía sin aparecer en "Entradas vs. Salidas" después de ese primer
+    // intento). La solución real es paginar con fetchAllPages(), que trae
+    // todas las filas en bloques, sin importar el tope del servidor.
+    const stockQ = (desde, hasta) => {
+      let q = supabase.from('stock')
+        .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo, categoria_id, centro_costo, categorias(nombre)), bodegas(id, nombre)')
+        .range(desde, hasta)
+      if (filtros.bodegaId) q = q.eq('bodega_id', filtros.bodegaId)
+      return q
+    }
 
-    let movsQ = supabase.from('movimientos')
-      .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, centro_costo, fecha_movimiento, created_at')
-      .or(`fecha_movimiento.gte.${desdeStr},and(fecha_movimiento.is.null,created_at.gte.${desdeStr}T00:00:00)`)
-      .limit(50000)
-    if (filtros.bodegaId) movsQ = movsQ.or(`bodega_origen_id.eq.${filtros.bodegaId},bodega_destino_id.eq.${filtros.bodegaId}`)
+    const movsQ = (desde, hasta) => {
+      let q = supabase.from('movimientos')
+        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, centro_costo, fecha_movimiento, created_at')
+        .or(`fecha_movimiento.gte.${desdeStr},and(fecha_movimiento.is.null,created_at.gte.${desdeStr}T00:00:00)`)
+        .range(desde, hasta)
+      if (filtros.bodegaId) q = q.or(`bodega_origen_id.eq.${filtros.bodegaId},bodega_destino_id.eq.${filtros.bodegaId}`)
+      return q
+    }
 
-    const allMovQ = supabase.from('movimientos')
+    const allMovQ = (desde, hasta) => supabase.from('movimientos')
       .select('item_id, fecha_movimiento, created_at')
       .or(`fecha_movimiento.gte.${desde365},and(fecha_movimiento.is.null,created_at.gte.${desde365}T00:00:00)`)
-      .limit(50000)
+      .range(desde, hasta)
 
     const pedidosQ = supabase.from('pedidos')
       .select('id, numero, area, estado, fecha_solicitud, fecha_estimada_llegada, fecha_recibido, pedido_items(item_id, cantidad, cantidad_recibida)')
@@ -961,7 +969,12 @@ export default function DashboardEjecutivo() {
       { data: movimientos },
       { data: allMovFechas },
       { data: pedidos },
-    ] = await Promise.all([stockQ, movsQ, allMovQ, pedidosQ])
+    ] = await Promise.all([
+      fetchAllPages(stockQ),
+      fetchAllPages(movsQ),
+      fetchAllPages(allMovQ),
+      pedidosQ,
+    ])
 
     // Derivar categorías disponibles según los stocks cargados (ya filtrados por bodega)
     const catMap = new Map()

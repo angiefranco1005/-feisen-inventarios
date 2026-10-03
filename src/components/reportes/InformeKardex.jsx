@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { exportarKardex } from '../../utils/exportExcel'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { TrendingUp, Download, RefreshCw } from 'lucide-react'
 
 function primerDiaMes() {
@@ -85,35 +86,52 @@ export default function InformeKardex() {
         }
       }
 
+      // Un .limit() más alto desde el cliente NO puede superar el tope de
+      // filas por request del servidor de Supabase/PostgREST (por defecto
+      // 1000) — .limit(50000) por sí solo no alcanza. Se pagina con
+      // fetchAllPages() para traer todo sin importar ese tope (mismo bug
+      // encontrado y corregido 2026-10-03 en Analítica/Reportes/
+      // GestionProductos — ver OBSERVACIONES.md).
+
       // ── 1. Stock actual ──────────────────────────────────────────────────────
-      let stockQ = supabase
-        .from('stock')
-        .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo), bodegas(id, nombre)')
-      if (bodegaId)      stockQ = stockQ.eq('bodega_id', bodegaId)
-      if (filtroItemIds) stockQ = stockQ.in('item_id', filtroItemIds)
+      const stockQ = (desde, hasta) => {
+        let q = supabase
+          .from('stock')
+          .select('item_id, bodega_id, cantidad_actual, items(id, nombre, unidad_medida, precio_costo, activo), bodegas(id, nombre)')
+          .range(desde, hasta)
+        if (bodegaId)      q = q.eq('bodega_id', bodegaId)
+        if (filtroItemIds) q = q.in('item_id', filtroItemIds)
+        return q
+      }
 
       // ── 2. Movimientos en el período ────────────────────────────────────────
-      let movsQ = supabase
-        .from('movimientos')
-        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, created_at, items(id, nombre, unidad_medida, precio_costo, activo)')
-        .or(`and(fecha_movimiento.gte.${fechaInicio},fecha_movimiento.lte.${fechaFin}),and(fecha_movimiento.is.null,created_at.gte.${fechaInicio}T00:00:00,created_at.lte.${fechaFin}T23:59:59)`)
-        .limit(50000)
-      if (bodegaId)      movsQ = movsQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
-      if (filtroItemIds) movsQ = movsQ.in('item_id', filtroItemIds)
+      const movsQ = (desde, hasta) => {
+        let q = supabase
+          .from('movimientos')
+          .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, precio_costo_snapshot, fecha_movimiento, created_at, items(id, nombre, unidad_medida, precio_costo, activo)')
+          .or(`and(fecha_movimiento.gte.${fechaInicio},fecha_movimiento.lte.${fechaFin}),and(fecha_movimiento.is.null,created_at.gte.${fechaInicio}T00:00:00,created_at.lte.${fechaFin}T23:59:59)`)
+          .range(desde, hasta)
+        if (bodegaId)      q = q.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
+        if (filtroItemIds) q = q.in('item_id', filtroItemIds)
+        return q
+      }
 
       // ── 3. Movimientos DESPUÉS del período (para retrotraer stock actual) ───
-      let movsPostQ = supabase
-        .from('movimientos')
-        .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, fecha_movimiento, created_at')
-        .or(`fecha_movimiento.gt.${fechaFin},and(fecha_movimiento.is.null,created_at.gt.${fechaFin}T23:59:59)`)
-        .limit(50000)
-      if (bodegaId) movsPostQ = movsPostQ.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
+      const movsPostQ = (desde, hasta) => {
+        let q = supabase
+          .from('movimientos')
+          .select('tipo, item_id, bodega_origen_id, bodega_destino_id, cantidad, fecha_movimiento, created_at')
+          .or(`fecha_movimiento.gt.${fechaFin},and(fecha_movimiento.is.null,created_at.gt.${fechaFin}T23:59:59)`)
+          .range(desde, hasta)
+        if (bodegaId) q = q.or(`bodega_origen_id.eq.${bodegaId},bodega_destino_id.eq.${bodegaId}`)
+        return q
+      }
 
       const [
         { data: stocks,     error: e1 },
         { data: movsPeriod, error: e2 },
         { data: movsPost,   error: e3 },
-      ] = await Promise.all([stockQ, movsQ, movsPostQ])
+      ] = await Promise.all([fetchAllPages(stockQ), fetchAllPages(movsQ), fetchAllPages(movsPostQ)])
 
       if (e1) throw e1
       if (e2) throw e2

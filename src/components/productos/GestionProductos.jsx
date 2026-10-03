@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History, Wrench } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 
@@ -97,12 +98,14 @@ export default function GestionProductos() {
     }
 
     // También traemos stock separado para la lógica de "extra items" (usuarios con bodegas limitadas)
-    // .limit(50000) en vez del doble .range(0,999)/.range(1000,1999): ese
-    // workaround solo cubría hasta 2000 filas — si el stock ya pasó de ahí,
-    // volvía a recortarse en silencio. Mismo límite usado en el resto de la
-    // app para esto (ver OBSERVACIONES.md, 2026-10-03).
-    const { data: stockData } = await supabase
-      .from('stock').select('item_id, bodega_id, cantidad_actual').limit(50000)
+    // Se pagina con fetchAllPages(): un .limit() no puede superar el tope de
+    // filas por request del servidor (1000 por defecto), y el viejo doble
+    // .range(0,999)/.range(1000,1999) solo cubría 2000 filas en total — si
+    // el stock ya pasó de ahí, igual se recortaba. Ver OBSERVACIONES.md,
+    // 2026-10-03.
+    const { data: stockData } = await fetchAllPages((desde, hasta) =>
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(desde, hasta)
+    )
     const allStock = stockData || []
     for (const s of allStock) {
       if (!stockIdx[s.item_id]) stockIdx[s.item_id] = []
