@@ -766,3 +766,53 @@ edición), el modal seguía viendo ids de `pedido_items` que ya no existen.
 Fix (commit 94efe8c): el modal ahora recarga `pedido_items` directo de la base por
 `pedido_id` al abrirse, en vez de confiar en el prop en memoria — así siempre usa los
 ids reales y vigentes.
+
+## 2026-10-03 — Bug: Kardex y Analítica no contaban `salida_produccion` (mismo patrón del 10-02)
+
+El informe Kardex (`InformeKardex.jsx`) y la gráfica "Entradas vs salidas" de
+Analítica (`DashboardEjecutivo.jsx`) clasificaban movimientos comparando
+`m.tipo === 'entrada'` / `'salida'` de forma literal. Eso excluía en silencio
+`salida_produccion` (el consumo que registran los operarios desde su pantalla —
+`operario/Dashboard.jsx`), y de paso los demás tipos que el trigger
+`fn_actualizar_stock()` sí reconoce (`entrada_compra`, `devolucion`,
+`salida_venta`, `ajuste_inventario`, `traslado` — hoy sin uso real en el código,
+pero ya contemplados por si se usan más adelante). Resultado: para cualquier
+ítem con historial de `salida_produccion`, el Kardex subestimaba salidas/costeo
+y el stock inicial retrotraído quedaba mal, y la gráfica mensual de Analítica
+subestimaba el valor de salidas de ese mes.
+
+Fix (commit 27d9e74): se reemplazó la comparación literal por conjuntos
+`TIPOS_ENTRADA`/`TIPOS_SALIDA` que reflejan la misma lógica del trigger, en las
+4 clasificaciones del Kardex y en el acumulado mensual de Analítica. Se agregó
+`centro_costo` a la consulta de movimientos de Analítica.
+
+**Patrón reafirmado**: el trigger de stock reconoce más tipos de movimiento de
+los que cualquier reporte/vista nueva suele probar — cualquier código nuevo que
+clasifique movimientos por `tipo` debe usar estos mismos conjuntos, no
+comparar contra `'entrada'`/`'salida'` directamente.
+
+### En diseño: costeo mensual por centro de costo (pedido de Angie, 2026-10-03)
+
+Angie quiere ver, mes a mes, el valor de lo comprado/consumido y el valor de
+inventario final — por centro de costo (Construequipos/Maquinaria, Fundición
+Hierro, Fundición de Aluminio) — visible en Analítica. Decisiones ya acordadas:
+valorar el consumo con `precio_costo_snapshot` (costo histórico ya guardado en
+cada movimiento, no el precio actual del catálogo), desglosado por centro de
+costo (no un solo total de empresa).
+
+Pendiente antes de construir la parte de agrupación: `centro_costo` es texto
+libre a nivel de movimiento (no una FK a una tabla de 3 valores) — en el código
+ya se ven valores como `'MECANIZADOS'`, `'Almacén'`, `'Construequipos'`, y la
+constante `CENTROS_COSTO` en `utils/formatters.js` tiene 7 valores más finos
+(`Lámina, Ferretería, Mecanizado, Almacén, Motores, Fundición Hierro, Fundición
+de Aluminio`). Antes de mapear esos valores a los 3 centros reales de la
+empresa, se le pidió a Angie una consulta de solo lectura para ver los valores
+reales y cuántos movimientos tiene cada uno — para no repetir el mismo error
+de este informe (asumir un mapeo de texto sin verificar los datos reales).
+
+También falta decidir cómo trackear el *inventario final* mes a mes hacia
+atrás: hoy `stock` solo guarda el saldo actual (no hay saldos históricos por
+cierre de mes), así que un "valor de inventario final" para un mes que ya
+pasó requiere o bien retrotraer desde movimientos posteriores (como ya hace el
+Kardex por ítem) o bien crear una tabla de snapshot mensual que se alimente al
+cerrar cada mes. Sin resolver aún.
