@@ -34,48 +34,14 @@ const fmtDias = (n) => `${Math.round(n || 0)} días`
 const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion', 'ajuste_inventario', 'traslado'])
 const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta', 'traslado'])
 
-// ── Agrupación de centro_costo en los centros de costo reales de la empresa ──
-// centro_costo es texto libre a nivel de movimiento/ítem (no una FK a una
-// tabla de 3 valores), y en datos reales aparece con variantes de mayúsculas/
-// acentos/prefijos ("01 ALMACEN", "ALMACEN", "Motores", "MOTORES"...).
-// normalizaCentro() quita acentos, mayúsculas y un posible prefijo numérico,
-// para agrupar sin depender de una coincidencia exacta de texto.
-function normalizaCentro(raw) {
-  return (raw || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
-    .toUpperCase()
-    .replace(/^\d+\s*/, '') // quita prefijo tipo "01 "
-    .trim()
-}
-
-// Fundición es hoy un solo centro operativo en el sistema: no hay bodega,
-// categoría ni centro_costo que distinga hierro de aluminio (confirmado
-// 2026-10-03: la bodega de Fundición solo tiene categorías "MATERIAL FUNDIDO
-// HIERRO" y "MATERIA PRIMA" genérica — cero productos de aluminio). Por
-// indicación de Angie se deja como "Fundición Hierro" sin desglosar aluminio.
-// Si algún día se etiqueta aluminio por separado, agregar su mapeo aquí en
-// vez de dejarlo caer en "Sin clasificar".
-const GRUPO_CENTRO_COSTO = {
-  'ALMACEN':             'Construequipos / Maquinaria',
-  'MECANIZADOS':         'Construequipos / Maquinaria',
-  'MECANIZADO':          'Construequipos / Maquinaria',
-  'MOTORES':             'Construequipos / Maquinaria',
-  'CORTE Y DOBLEZ':      'Construequipos / Maquinaria',
-  'ARMADO Y SOLDADURA':  'Construequipos / Maquinaria',
-  'CONSTRUEQUIPOS':      'Construequipos / Maquinaria',
-  'LAMINA':              'Construequipos / Maquinaria',
-  'FERRETERIA':          'Construequipos / Maquinaria',
-  'FUNDICION':           'Fundición Hierro',
-  'FUNDICION HIERRO':    'Fundición Hierro',
-}
-// Nunca se descarta un centro_costo sin reconocer: cae en "Sin clasificar",
-// visible en el tablero, en vez de desaparecer del total en silencio.
-function grupoCentro(raw) {
-  return GRUPO_CENTRO_COSTO[normalizaCentro(raw)] || 'Sin clasificar'
-}
+// NOTA (2026-10-03): el costeo se agrupaba antes por centro_costo, texto
+// libre con variantes de mayúsculas/acentos/prefijos que tocaba normalizar
+// a mano (ver git log de este archivo si hace falta recuperar esa lógica).
+// A pedido de Angie se cambió a agrupar por BODEGA: bodega_id es una FK
+// real y limpia en movimientos/stock, sin ambigüedad de texto libre.
 
 // ── Procesamiento de datos ────────────────────────────────────────────────────
-function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
+function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros, bodegas) {
   const hoy = new Date()
 
   // Filtro de categoría en JS
@@ -121,40 +87,43 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
       dio: d.valorSal > 0 ? Math.round(valorTotal / (d.valorSal / 30)) : 0,
     }))
 
-  // ── Costeo mensual por centro de costo (mes en curso) ────────────────────
-  // Compras y consumo del mes en curso, agrupados por centro de costo real,
-  // valorados con el costo histórico (precio_costo_snapshot) de cada
-  // movimiento — mismo criterio TIPOS_ENTRADA/TIPOS_SALIDA de arriba.
-  const mesActual = hoy.toISOString().substring(0, 7)
-  const mesActualLabel = hoy.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
-  const costeoAcc = {}
-  function getCosteo(centro) {
-    if (!costeoAcc[centro]) costeoAcc[centro] = { compras: 0, consumo: 0, inventario: 0 }
-    return costeoAcc[centro]
+  // ── Costeo por bodega, para TODOS los meses cargados ─────────────────────
+  // Compras y consumo valorados al costo histórico (precio_costo_snapshot),
+  // agrupados por bodega real (bodega_destino_id en compras, bodega_origen_id
+  // en consumo) y por mes — así el selector de mes/año en pantalla puede
+  // mostrar cualquier mes del período cargado sin volver a consultar
+  // Supabase. Antes solo se calculaba el mes en curso (hoy), lo que no
+  // dejaba revisar un mes específico ya cerrado.
+  const mesActualKey = hoy.toISOString().substring(0, 7)
+  const bodegaNombrePorId = new Map((bodegas || []).map(b => [b.id, b.nombre]))
+  function nombreBodega(id) {
+    return bodegaNombrePorId.get(id) || 'Bodega desconocida'
+  }
+  const costeoPorMes = {}
+  function getCosteoMes(mes, bodega) {
+    if (!costeoPorMes[mes]) costeoPorMes[mes] = {}
+    if (!costeoPorMes[mes][bodega]) costeoPorMes[mes][bodega] = { compras: 0, consumo: 0 }
+    return costeoPorMes[mes][bodega]
   }
   for (const m of mv) {
     const fecha = m.fecha_movimiento || m.created_at?.split('T')[0]
-    if (fecha?.substring(0, 7) !== mesActual) continue
-    const val    = (m.cantidad || 0) * (m.precio_costo_snapshot || 0)
-    const centro = grupoCentro(m.centro_costo)
-    if (TIPOS_ENTRADA.has(m.tipo) && !m.bodega_origen_id)  getCosteo(centro).compras += val
-    if (TIPOS_SALIDA.has(m.tipo)  && !m.bodega_destino_id) getCosteo(centro).consumo += val
+    const mes = fecha?.substring(0, 7)
+    if (!mes) continue
+    const val = (m.cantidad || 0) * (m.precio_costo_snapshot || 0)
+    if (TIPOS_ENTRADA.has(m.tipo) && !m.bodega_origen_id)
+      getCosteoMes(mes, nombreBodega(m.bodega_destino_id)).compras += val
+    if (TIPOS_SALIDA.has(m.tipo) && !m.bodega_destino_id)
+      getCosteoMes(mes, nombreBodega(m.bodega_origen_id)).consumo += val
   }
-  // Inventario a HOY por centro de costo (no hay fotos históricas de cierre
-  // de mes todavía — ver OBSERVACIONES.md).
+  // Inventario a HOY por bodega (no hay fotos históricas de cierre de mes
+  // todavía — ver OBSERVACIONES.md). Solo tiene sentido mostrarlo cuando el
+  // mes elegido en pantalla es el mes en curso.
+  const inventarioPorBodegaHoy = {}
   for (const s of st) {
+    const b   = s.bodegas?.nombre || 'Bodega desconocida'
     const val = Math.max(0, s.cantidad_actual || 0) * (s.items?.precio_costo || 0)
-    getCosteo(grupoCentro(s.items?.centro_costo)).inventario += val
+    inventarioPorBodegaHoy[b] = (inventarioPorBodegaHoy[b] || 0) + val
   }
-  const ORDEN_CENTROS = ['Construequipos / Maquinaria', 'Fundición Hierro', 'Sin clasificar']
-  const costeoCentros = ORDEN_CENTROS
-    .filter(c => costeoAcc[c])
-    .map(c => ({
-      centro:     c,
-      compras:    Math.round(costeoAcc[c].compras),
-      consumo:    Math.round(costeoAcc[c].consumo),
-      inventario: Math.round(costeoAcc[c].inventario),
-    }))
 
   // ── Última fecha de movimiento por ítem ──────────────────────────────────
   const lastMov = {}
@@ -314,7 +283,7 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros) {
 
   return {
     valorTotal, totalItems: st.length, itemsConStock,
-    catChart, mensual, costeoCentros, mesActualLabel,
+    catChart, mensual, costeoPorMes, inventarioPorBodegaHoy, mesActualKey,
     pctSinMov90:  activos.length ? sinMov90.length  / activos.length * 100 : 0,
     pctSinMov180: activos.length ? sinMov180.length / activos.length * 100 : 0,
     sinMov90, sinMov180,
@@ -372,6 +341,18 @@ const TooltipCOP = ({ active, payload, label }) => {
 
 // ── Sección 1: Financiero ─────────────────────────────────────────────────────
 function SeccionFinanciero({ d }) {
+  const mesesDisponibles = Object.keys(d.costeoPorMes).sort().reverse()
+  const [mesSel, setMesSel] = useState(mesesDisponibles[0] || d.mesActualKey)
+  useEffect(() => {
+    if (mesesDisponibles.length && !mesesDisponibles.includes(mesSel)) setMesSel(mesesDisponibles[0])
+  }, [d])
+  const bodegasMes    = d.costeoPorMes[mesSel] || {}
+  const esMesActual   = mesSel === d.mesActualKey
+  const mesSelLabel   = mesSel ? new Date(mesSel + '-15').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }) : ''
+  const nombresBodega = (esMesActual
+    ? [...new Set([...Object.keys(bodegasMes), ...Object.keys(d.inventarioPorBodegaHoy)])]
+    : Object.keys(bodegasMes)
+  ).sort()
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -436,36 +417,55 @@ function SeccionFinanciero({ d }) {
         )}
       </div>
 
-      {/* Costeo mensual por centro de costo */}
+      {/* Costeo por bodega */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <SectionTitle>Costeo del mes por centro de costo — {d.mesActualLabel}</SectionTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <SectionTitle>Costeo por bodega</SectionTitle>
+          {mesesDisponibles.length > 0 && (
+            <select value={mesSel} onChange={e => setMesSel(e.target.value)}
+              className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+              {mesesDisponibles.map(m => (
+                <option key={m} value={m}>
+                  {new Date(m + '-15').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         <p className="text-xs text-gray-400 mb-4">
-          Compras y consumo son el acumulado del mes en curso, valorado al costo histórico de cada movimiento.
-          El inventario es el saldo de <strong>hoy</strong>, no el del cierre de mes — todavía no se guardan fotos mensuales.
+          Compras y consumo son el acumulado de <strong>{mesSelLabel}</strong>, valorado al costo histórico de cada movimiento.
+          {esMesActual
+            ? ' El inventario es el saldo de hoy — todavía no se guardan fotos de cierre de mes.'
+            : ' El inventario de cierre de ese mes no se muestra: no se guardan fotos históricas de stock, solo el saldo de hoy.'}
         </p>
-        {d.costeoCentros.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">Sin movimientos este mes</p>
+        {nombresBodega.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">Sin movimientos en {mesSelLabel || 'ese mes'}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {d.costeoCentros.map(c => (
-              <div key={c.centro} className="border border-gray-100 rounded-xl p-4">
-                <p className="text-xs font-semibold text-gray-500 mb-2">{c.centro}</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Compras</span>
-                    <span className="font-semibold text-green-700">{fmtCOP(c.compras)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Consumo (costeo)</span>
-                    <span className="font-semibold text-feisen-rojo">{fmtCOP(c.consumo)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-gray-100 pt-1 mt-1">
-                    <span className="text-gray-500">Inventario (hoy)</span>
-                    <span className="font-bold text-feisen-azul">{fmtCOP(c.inventario)}</span>
+            {nombresBodega.map(b => {
+              const c = bodegasMes[b] || { compras: 0, consumo: 0 }
+              return (
+                <div key={b} className="border border-gray-100 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">{b}</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Compras</span>
+                      <span className="font-semibold text-green-700">{fmtCOP(c.compras)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Consumo (costeo)</span>
+                      <span className="font-semibold text-feisen-rojo">{fmtCOP(c.consumo)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-100 pt-1 mt-1">
+                      <span className="text-gray-500">Inventario</span>
+                      <span className="font-bold text-feisen-azul">
+                        {esMesActual ? fmtCOP(d.inventarioPorBodegaHoy[b] || 0) : '—'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -990,7 +990,7 @@ export default function DashboardEjecutivo() {
     if (filtros.categoriaId && !catMap.has(filtros.categoriaId))
       setFiltros(f => ({ ...f, categoriaId: '' }))
 
-    setDatos(procesarDatos(stocks || [], movimientos || [], allMovFechas || [], pedidos || [], filtros))
+    setDatos(procesarDatos(stocks || [], movimientos || [], allMovFechas || [], pedidos || [], filtros, bodegas))
     setCargando(false)
     setUltimaActualizacion(new Date())
   }

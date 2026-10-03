@@ -939,3 +939,52 @@ archivos mientras git los está escribiendo. Si se repite, lo más robusto
 sería mover el clon del proyecto a una carpeta fuera de Documents/Desktop
 (p. ej. `~/Proyectos` sin sincronización), y conectar esa carpeta nueva en
 vez de la actual.
+
+## 2026-10-03 (continuación) — Costeo por bodega + selector de mes específico
+
+Angie pidió dos ajustes al costeo que se había agregado unas horas antes:
+
+1. **Poder elegir un mes y año específico**, no solo una ventana corrediza
+   ("últimos N meses"). Antes el bloque de costeo siempre mostraba el mes en
+   curso (`hoy`), sin forma de ver un mes ya cerrado (ej. revisar septiembre
+   estando ya en octubre).
+2. **Agrupar el costeo por bodega en vez de por centro de costo.** Se
+   abandona el mapeo `centro_costo → "Construequipos/Maquinaria" |
+   "Fundición Hierro" | "Sin clasificar"` (texto libre, con normalización de
+   acentos/mayúsculas/prefijos). `bodega_id` es una FK real y limpia tanto en
+   `movimientos` (bodega_origen_id/bodega_destino_id) como en `stock`
+   (bodega_id) — no hay texto que adivinar ni variantes que mapear.
+
+### Qué cambió (`DashboardEjecutivo.jsx`)
+
+- `procesarDatos()` ahora calcula el costeo (compras/consumo) para **todos
+  los meses presentes en los movimientos cargados**, agrupado por bodega:
+  `costeoPorMes = { 'YYYY-MM': { 'Nombre bodega': {compras, consumo} } }`.
+  Compras se atribuye a `bodega_destino_id`, consumo a `bodega_origen_id`
+  (mismo criterio TIPOS_ENTRADA/TIPOS_SALIDA ya usado para "externas" vs.
+  traslados). Una bodega con id que no aparece en la lista de bodegas
+  activas cae en "Bodega desconocida" (visible, nunca se descarta en
+  silencio).
+- El inventario de HOY por bodega se calcula aparte
+  (`inventarioPorBodegaHoy`) y solo se muestra cuando el mes seleccionado en
+  pantalla es el mes en curso — para un mes pasado se muestra "—", porque
+  **no se guardan fotos de cierre de mes todavía** (mismo límite ya
+  documentado antes, ahora más visible porque sí se puede navegar a meses
+  pasados).
+- `SeccionFinanciero` (el componente de la pantalla) agrega un selector de
+  mes local (`useState`), con las opciones = los meses que ya vinieron en
+  los datos cargados. **Importante:** ese selector solo puede mostrar meses
+  dentro de la ventana del filtro "Últimos N meses" de arriba — si Angie
+  quiere ver un mes más atrás del que esa ventana cubre, primero tiene que
+  ampliar ese filtro (ej. de "Últimos 6 meses" a "Últimos 12 meses"), porque
+  los datos de meses fuera de esa ventana ni siquiera se traen de Supabase.
+  No se cambió esa ventana de carga en este ajuste — quedó como posible
+  mejora futura si hace falta.
+
+### Pendiente de diseño (sigue abierto)
+
+El costeo histórico real de un mes cerrado (compras/consumo sí se pueden
+reconstruir desde los movimientos, pero el **inventario de cierre** de un
+mes pasado no, porque no se guardan fotos de stock por fecha) seguiría
+necesitando una tabla de snapshots mensuales de stock si algún día se quiere
+mostrar el inventario de cierre de un mes específico, no solo el de hoy.
