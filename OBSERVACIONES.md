@@ -816,3 +816,36 @@ cierre de mes), así que un "valor de inventario final" para un mes que ya
 pasó requiere o bien retrotraer desde movimientos posteriores (como ya hace el
 Kardex por ítem) o bien crear una tabla de snapshot mensual que se alimente al
 cerrar cada mes. Sin resolver aún.
+
+## 2026-10-03 — Costeo mensual por centro de costo (shippeado)
+
+Nueva sección en Analítica (`DashboardEjecutivo.jsx`, `SeccionFinanciero`):
+"Costeo del mes por centro de costo" — compras, consumo (costeo) e inventario
+actual del mes en curso, por centro de costo real. Decisiones:
+
+- **Valoración**: `precio_costo_snapshot` de cada movimiento (costo histórico
+  ya guardado), no el precio actual del catálogo.
+- **Centros**: `centro_costo` es texto libre a nivel de movimiento/ítem (no
+  una FK), con variantes reales ("01 ALMACEN", "ALMACEN", "Motores",
+  "MOTORES"...). Se agregó `normalizaCentro()` (quita acentos/mayúsculas/
+  prefijo numérico) + `GRUPO_CENTRO_COSTO`, un mapa explícito que agrupa esas
+  variantes en los centros reales de la empresa. Cualquier valor no
+  reconocido cae en "Sin clasificar" — visible, nunca se descarta en
+  silencio (mismo patrón de cuidado que el resto de esta auditoría).
+- **Fundición Hierro vs. Aluminio**: se investigó si bodega, categoría o
+  centro_costo distinguen hierro de aluminio hoy — no lo hacen (la bodega de
+  Fundición solo tiene categorías "MATERIAL FUNDIDO HIERRO" y "MATERIA PRIMA"
+  genérica, cero productos de aluminio en ningún lado del sistema). Por
+  indicación de Angie se deja un solo centro, "Fundición Hierro", sin
+  desglosar aluminio por ahora. Si se decide etiquetar aluminio por separado
+  más adelante (bodega nueva, categoría nueva, o en la orden de moldeo/
+  fundida), agregar su mapeo en `GRUPO_CENTRO_COSTO` en vez de dejarlo caer
+  en "Sin clasificar".
+- **Inventario**: el valor de inventario mostrado es el saldo de HOY, no una
+  foto del cierre del mes. Pendiente: para ver el inventario final de un mes
+  que ya pasó, hay que retrotraer desde movimientos posteriores (como ya hace
+  el Kardex por ítem, generalizado por centro de costo) o guardar una foto
+  mensual al cierre — sin resolver aún, no bloquea lo ya entregado porque hoy
+  solo se consulta el mes en curso.
+
+Commit 97e3fef.
