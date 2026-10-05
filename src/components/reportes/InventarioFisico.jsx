@@ -289,25 +289,13 @@ export default function InventarioFisico() {
   async function aplicarCorrecciones() {
     setAplicando(true)
     const hoy = HOY()
-    // El conteo físico es la verdad: el stock debe quedar EXACTAMENTE igual al
-    // conteo, sin importar los movimientos anteriores. Por eso la diferencia se
-    // recalcula aquí contra el stock real de este instante (no contra la foto
-    // que se cargó al abrir la pantalla, que puede estar vieja o incompleta).
-    const { data: stockFresco, error: errStock } = await fetchAllPages((d, h) =>
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(d, h))
-    if (errStock) {
-      setMsg({ tipo: 'error', texto: 'No se pudo leer el stock actual para ajustar: ' + errStock.message })
-      setAplicando(false); setModalConfirm(false); return
-    }
-    const stockFrescoMap = {}
-    for (const s of (stockFresco || [])) stockFrescoMap[`${s.item_id}_${s.bodega_id}`] = Number(s.cantidad_actual ?? 0)
-    const conDif = itemsConCalculo
-      .filter(i => i.cantidad_fisica !== null)
-      .map(i => {
-        const sis = stockFrescoMap[i.key] ?? 0
-        return { ...i, cantidad_sistema: sis, diferencia: i.cantidad_fisica - sis }
-      })
-      .filter(i => i.diferencia !== 0)
+    // La diferencia se calcula contra el stock que se cargó al abrir el conteo
+    // (cantidad_sistema), que ahora sí es completo (paginado). Así el stock final
+    // = conteo físico + los movimientos que ocurrieron MIENTRAS se contaba
+    // (ej. una recogida de fundición registrada a media jornada), en vez de
+    // pisarlos. No se recalcula contra el stock "fresco" al confirmar: eso
+    // borraría movimientos legítimos hechos durante el conteo.
+    const conDif = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0)
 
     // Generar número de movimiento base
     const iniciales = (perfil?.nombre || 'ADM').trim().split(/\s+/).map(n => n[0].toUpperCase()).join('')

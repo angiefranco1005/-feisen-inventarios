@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { Wrench, Plus, Minus, Trash2, CheckCircle, AlertTriangle, Search, Check } from 'lucide-react'
 import Spinner from '../shared/Spinner'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
@@ -49,23 +50,27 @@ export default function RegistroMecanizado() {
       const mecanizables = rawItems.filter(i => CATEGORIAS_MECANIZABLES.has(i.categoria_id))
       if (!mecanizables.length) { setCatalogo([]); return }
 
-      const ids = mecanizables.map(i => i.id)
-      const { data: movs, error: eM } = await supabase
-        .from('movimientos')
-        .select('item_id, tipo, cantidad')
-        .in('item_id', ids)
-
+      // El stock disponible sale de la tabla `stock` (la misma que ven Inicio,
+      // Inventario y Reportes), no de sumar movimientos. Antes se sumaban todos
+      // los movimientos (solo 'entrada' sumaba, todo lo demás restaba, y topado
+      // a 1000 filas), así que NO respetaba el inventario físico ni las
+      // correcciones de stock: productos con stock real aparecían en 0 y no se
+      // podían mecanizar (ej. pines de pluma, 05/10/2026).
+      const { data: stockRows, error: eM } = await fetchAllPages((d, h) =>
+        supabase.from('stock')
+          .select('item_id, cantidad_actual')
+          .eq('bodega_id', BODEGA_MECANIZADOS)
+          .range(d, h)
+      )
       if (eM) throw eM
 
-      const neto = {}
-      for (const m of movs) {
-        neto[m.item_id] = (neto[m.item_id] || 0) + (m.tipo === 'entrada' ? m.cantidad : -m.cantidad)
-      }
+      const stockPorItem = {}
+      for (const r of stockRows) stockPorItem[r.item_id] = Number(r.cantidad_actual ?? 0)
 
       setCatalogo(mecanizables.map(i => ({
         ...i,
         unidad: i.unidad_medida || 'und',
-        stock: Math.max(0, neto[i.id] || 0),
+        stock: Math.max(0, stockPorItem[i.id] || 0),
       })))
     } catch (e) {
       setAlerta({ tipo: 'error', msg: 'Error cargando productos: ' + e.message })

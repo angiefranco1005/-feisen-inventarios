@@ -1060,3 +1060,25 @@ INV-FIS-0026 y 0029 (ver scripts reconciliar_stock_*).
 salidas de corrección (referencia INV-FIS-0033) por la cantidad que sobra.
 Ojo: esas salidas y las entradas erróneas originales aparecen como
 compras/consumo de octubre en Analítica (costeo Fundición).
+
+## 2026-10-05 (cont.) — Mecanizar calculaba stock sumando movimientos + ajuste a Inventario Físico
+
+**Mecanizar (`RegistroMecanizado.jsx`):** el stock disponible se calculaba sumando
+TODOS los movimientos del producto (solo 'entrada' sumaba, todo lo demás
+restaba, topado a 1000 filas), sin mirar la tabla `stock`. Por eso no respetaba
+inventarios físicos ni correcciones: los pines de pluma tenían 71 en `stock`
+(MECANIZADOS) pero la pantalla mostraba 0 y no dejaba mecanizarlos. Ahora lee
+`stock` filtrado por la bodega Mecanizados (paginado). Ninguna otra pantalla
+calculaba stock sumando movimientos (grep `neto[`).
+
+**Inventario Físico (corrige lo del lunes, ca1dc05):** se revierte el recálculo
+"contra stock fresco al confirmar": habría pisado movimientos legítimos hechos
+MIENTRAS se contaba (caso real: REC-WA-0051, +15 DISCO SUELTO BASE DE PLUMA,
+el 28/09 durante INV-FIS-0028). La diferencia vuelve a calcularse contra el
+stock cargado al abrir el conteo (ahora completo, paginado): stock final =
+conteo + movimientos ocurridos durante el conteo.
+
+**Auditoría de inventarios desde el 25/09:** 8 inventarios, 568 productos; solo
+3 marcados como descuadrados y los 3 resultaron falsos positivos (cadena de
+movimientos cuadra: CHUMACERA VOLTEO y CHUMACERA GRANDE consumidas por
+mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
