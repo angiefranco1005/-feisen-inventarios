@@ -1030,3 +1030,33 @@ el desajuste.
   empezarían a "perder" productos en silencio (los que queden después de la
   fila 1000). **Pendiente**: confirmar cuántos ítems activos hay hoy y, si
   se acerca a 1000, aplicar el mismo arreglo de paginación ahí también.
+
+## 2026-10-05 — Inventario físico sumaba el conteo encima del stock anterior (INV-FIS-0033)
+
+Angie notó que el inventario físico del sábado quedó "teniendo en cuenta los
+movimientos antiguos": el conteo físico debe ser la verdad y el stock debe
+quedar IGUAL al conteo, sin importar lo anterior.
+
+**Causa:** `InventarioFisico.jsx` cargaba el stock con `.range(0, 9999)`, que el
+servidor sigue topando a 1000 filas (mismo bug del tope de PostgREST). Los
+productos fuera de esas filas aparecían con "Sistema = 0", así que la
+diferencia salía igual al conteo completo y se registraba como ENTRADA encima
+del stock real (stock final = stock previo + conteo). Cuando el conteo era 0
+la diferencia era 0 y no se ajustaba nada (el stock previo se quedaba).
+Confirmado con `diagnostico_inventario_fisico.sql`: en INV-FIS-0033 (Fundición)
+13 productos con "sistema_al_contar = 0" y stock_hoy = stock previo + conteo
+(ej. CHUMACERA VOLTEO: conteo 39, stock hoy 194, sobraban 155). Los demás
+productos quedaron exactos. Es probable que explique también los descuadres de
+INV-FIS-0026 y 0029 (ver scripts reconciliar_stock_*).
+
+**Arreglo en código:**
+- La carga de stock y de ítems por bodega ahora pagina (`fetchAllPages`).
+- Al CONFIRMAR, la diferencia se recalcula contra el stock real de ese
+  instante (relectura completa), no contra la foto cargada al abrir la
+  pantalla → el stock queda exactamente igual al conteo aunque hayan pasado
+  movimientos mientras se contaba.
+
+**Datos ya dañados:** `correccion_inventario_fisico_INV-FIS-0033.sql` registra
+salidas de corrección (referencia INV-FIS-0033) por la cantidad que sobra.
+Ojo: esas salidas y las entradas erróneas originales aparecen como
+compras/consumo de octubre en Analítica (costeo Fundición).

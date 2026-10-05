@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import {
   ClipboardList, Plus, Search, AlertTriangle, CheckCircle,
   ChevronLeft, RefreshCw, Package, FileText, Pencil, Eye, Check, X
@@ -147,19 +148,22 @@ export default function InventarioFisico() {
       { data: stockData },
       { data: bodegasData },
     ] = await Promise.all([
-      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(0, 9999),
+      // Se pagina: .range(0, 9999) no supera el tope de 1000 filas del servidor, y
+      // los productos que quedaban fuera aparecían con Sistema = 0 → el conteo se
+      // sumaba encima del stock real (bug INV-FIS-0033, 05/10/2026).
+      fetchAllPages((d, h) => supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(d, h)),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
 
     let itemsData = []
     const bodegaIds = (bodegasData || []).map(b => b.id)
     for (const bodegaId of bodegaIds) {
-      const { data: lote, error: err } = await supabase.from('items')
+      const { data: lote, error: err } = await fetchAllPages((d, h) => supabase.from('items')
         .select('id, nombre, unidad_medida, precio_costo, bodega_id, categorias(nombre)')
         .eq('activo', true)
         .eq('bodega_id', bodegaId)
         .order('nombre')
-        .limit(2000)
+        .range(d, h))
       if (err) { setMsg({ tipo: 'error', texto: 'Error: ' + err.message }); setCargando(false); setVista('editor'); return }
       itemsData = itemsData.concat(lote || [])
     }
@@ -285,7 +289,25 @@ export default function InventarioFisico() {
   async function aplicarCorrecciones() {
     setAplicando(true)
     const hoy = HOY()
-    const conDif = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0)
+    // El conteo físico es la verdad: el stock debe quedar EXACTAMENTE igual al
+    // conteo, sin importar los movimientos anteriores. Por eso la diferencia se
+    // recalcula aquí contra el stock real de este instante (no contra la foto
+    // que se cargó al abrir la pantalla, que puede estar vieja o incompleta).
+    const { data: stockFresco, error: errStock } = await fetchAllPages((d, h) =>
+      supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(d, h))
+    if (errStock) {
+      setMsg({ tipo: 'error', texto: 'No se pudo leer el stock actual para ajustar: ' + errStock.message })
+      setAplicando(false); setModalConfirm(false); return
+    }
+    const stockFrescoMap = {}
+    for (const s of (stockFresco || [])) stockFrescoMap[`${s.item_id}_${s.bodega_id}`] = Number(s.cantidad_actual ?? 0)
+    const conDif = itemsConCalculo
+      .filter(i => i.cantidad_fisica !== null)
+      .map(i => {
+        const sis = stockFrescoMap[i.key] ?? 0
+        return { ...i, cantidad_sistema: sis, diferencia: i.cantidad_fisica - sis }
+      })
+      .filter(i => i.diferencia !== 0)
 
     // Generar número de movimiento base
     const iniciales = (perfil?.nombre || 'ADM').trim().split(/\s+/).map(n => n[0].toUpperCase()).join('')
@@ -353,7 +375,7 @@ export default function InventarioFisico() {
           inventario_id: id, item_id: i.item_id, bodega_id: i.bodega_id,
           item_nombre: i.item_nombre, bodega_nombre: i.bodega_nombre,
           cantidad_sistema: i.cantidad_sistema, cantidad_fisica: i.cantidad_fisica,
-          ajustado: itemsAjustados.includes(i),
+          ajustado: itemsAjustados.some(a => a.key === i.key),
         }))
       if (rows.length > 0) await supabase.from('inventario_fisico_items').insert(rows)
     } else {
