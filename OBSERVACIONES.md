@@ -1091,3 +1091,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Las conformes extra generan igual la entrada de inventario a Fundición; los kg de NC al vaceadero no cambian.
 - Efecto en reportes: el % de conformidad por pieza/moldeador (AnaliticaFundicion, ListaOrdenesMoldeo) puede superar 100 %. Es esperado cuando entran piezas de otras fundidas.
 - Pendiente de decisión: si algún día se quiere trazar de qué orden vienen las piezas extra, habría que agregar un campo (hoy no existe).
+
+### Actualización (07/10/2026): faltantes con aclaración obligatoria
+- Si conformes + NC queda **por debajo** de lo planeado, ya no se bloquea sin salida: aparece un recuadro ámbar "No salió todo lo planeado: faltan N de M" con un campo de **aclaración obligatoria** (mín. 3 caracteres) por pieza.
+- La aclaración se guarda en `ordenes_moldeo_piezas.motivo_nc` con el formato `Faltante N de M: texto` (junto al motivo de calidad si lo hay, separado por ` | `). No se creó columna nueva para no exigir migración; si se quiere reportar faltantes por separado, conviene agregar `motivo_faltante` y migrar.
+- Una orden con faltantes aclarados se cierra igual como "completado" y solo los conformes entran a inventario. Ojo: al digitar conformes el campo NC se autocompleta con (planeadas − conformes); si lo planeado no se moldeó (no son NC reales), hay que poner NC en 0 para que esos kg no vuelvan al vaceadero y escribir la aclaración.
+- Pendiente de diseño: si la orden es de largo plazo y debe quedar abierta para seguir moldeando, eso es el flujo de avances diarios (`ordenes_moldeo_avances`), no este cierre.

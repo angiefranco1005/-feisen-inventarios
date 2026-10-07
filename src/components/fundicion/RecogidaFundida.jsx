@@ -184,19 +184,23 @@ export default function RecogidaFundida() {
         setErrores(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
         return
       }
-      // Solo se bloquea si la suma queda POR DEBAJO de lo planeado (faltan piezas por
-      // contabilizar). Si supera lo planeado SÍ se permite: a veces salen piezas de
-      // otras fundidas que solo se identifican (conformes / NC) al pulirlas.
+      // Si la suma supera lo planeado SÍ se permite (piezas de otras fundidas que solo
+      // se identifican al pulir). Si queda POR DEBAJO también se permite, pero exige
+      // una aclaración de por qué no salió todo lo planeado.
       if (plan > 0 && conf + nc < plan) {
-        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": conformes (${conf}) + NC (${nc}) = ${conf + nc}, pero la orden tiene ${plan} planeadas. Faltan ${plan - conf - nc} por contabilizar.` }))
-        return
+        const aclar = String(getField(orden.id, p.id, 'faltante') || '').trim()
+        if (aclar.length < 3) {
+          setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": faltan ${plan - conf - nc} por contabilizar (conformes ${conf} + NC ${nc} de ${plan} planeadas). Escribe la aclaración de por qué no salió todo lo planeado.` }))
+          return
+        }
       }
     }
 
     const hayAlgo = piezas.some(p => {
       const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
       const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-      return conf > 0 || nc > 0
+      const aclar = String(getField(orden.id, p.id, 'faltante') || '').trim()
+      return conf > 0 || nc > 0 || aclar.length >= 3
     })
     if (!hayAlgo) {
       setErrores(prev => ({ ...prev, [orden.id]: 'Ingresa al menos una cantidad de conformes o NC.' }))
@@ -209,9 +213,15 @@ export default function RecogidaFundida() {
       for (const p of piezas) {
         const conf   = Number(getField(orden.id, p.id, 'conforme') || 0)
         const nc     = Number(getField(orden.id, p.id, 'nc') || 0)
-        const motivo = getField(orden.id, p.id, 'motivo') || null
+        const motivoNC = String(getField(orden.id, p.id, 'motivo') || '').trim()
+        const plan   = Number(p.cantidad_planeada || 0)
+        const falta  = plan > 0 ? plan - conf - nc : 0
+        const aclar  = String(getField(orden.id, p.id, 'faltante') || '').trim()
+        // La aclaración del faltante se guarda junto al motivo (no requiere columna nueva)
+        const motivo = [motivoNC, falta > 0 && aclar ? `Faltante ${falta} de ${plan}: ${aclar}` : '']
+          .filter(Boolean).join(' | ') || null
         const { error } = await supabase.from('ordenes_moldeo_piezas')
-          .update({ cantidad_conforme: conf, cantidad_nc: nc, motivo_nc: motivo || null })
+          .update({ cantidad_conforme: conf, cantidad_nc: nc, motivo_nc: motivo })
           .eq('id', p.id)
         if (error) throw error
       }
@@ -742,16 +752,32 @@ export default function RecogidaFundida() {
                             </div>
                           </div>
 
-                          {/* Alerta si conformes + NC > planeado */}
+                          {/* Avisos: suma por encima o por debajo de lo planeado */}
                           {(() => {
                             const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
                             const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
                             const plan = Number(p.cantidad_planeada || 0)
-                            if (conf + nc > plan && plan > 0) {
+                            if (plan <= 0) return null
+                            if (conf + nc > plan) {
                               return (
                                 <p className="text-xs text-orange-500 mt-2 font-medium flex items-center gap-1">
                                   <AlertTriangle size={12} /> Aviso: la suma ({conf + nc}) supera lo planeado ({plan}) en {conf + nc - plan}. Se puede guardar (piezas de otras fundidas).
                                 </p>
+                              )
+                            }
+                            if (conf + nc < plan) {
+                              return (
+                                <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                                  <p className="text-xs text-amber-700 font-semibold flex items-center gap-1 mb-1.5">
+                                    <AlertTriangle size={12} /> No salió todo lo planeado: faltan {plan - conf - nc} de {plan}
+                                  </p>
+                                  <input type="text"
+                                    value={getField(orden.id, p.id, 'faltante')}
+                                    onChange={e => setField(orden.id, p.id, 'faltante', e.target.value)}
+                                    placeholder="Aclaración obligatoria. Ej: no se moldeó, se rompió el molde, falta arena…"
+                                    className="w-full border-2 border-amber-200 bg-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-400 focus:ring-0"
+                                  />
+                                </div>
                               )
                             }
                             return null
