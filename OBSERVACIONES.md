@@ -1082,3 +1082,12 @@ conteo + movimientos ocurridos durante el conteo.
 3 marcados como descuadrados y los 3 resultaron falsos positivos (cadena de
 movimientos cuadra: CHUMACERA VOLTEO y CHUMACERA GRANDE consumidas por
 mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
+
+
+## Recogida de fundición: conformes por encima de lo planeado (07/10/2026)
+- Antes: `guardarRecogida` exigía conformes + NC === planeadas ("Deben sumar exactamente") y bloqueaba el guardado.
+- Realidad de planta: a veces salen piezas de otras fundidas y solo se sabe si son conformes o NC al pulirlas.
+- Ahora: se permite conformes + NC **mayor** que lo planeado (aviso naranja informativo, no bloquea). Sigue bloqueando si la suma es **menor** (faltan piezas por contabilizar) y si hay negativos.
+- Las conformes extra generan igual la entrada de inventario a Fundición; los kg de NC al vaceadero no cambian.
+- Efecto en reportes: el % de conformidad por pieza/moldeador (AnaliticaFundicion, ListaOrdenesMoldeo) puede superar 100 %. Es esperado cuando entran piezas de otras fundidas.
+- Pendiente de decisión: si algún día se quiere trazar de qué orden vienen las piezas extra, habría que agregar un campo (hoy no existe).

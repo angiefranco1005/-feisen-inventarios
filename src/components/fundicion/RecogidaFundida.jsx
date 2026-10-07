@@ -184,8 +184,11 @@ export default function RecogidaFundida() {
         setErrores(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
         return
       }
-      if (plan > 0 && conf + nc !== plan) {
-        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": conformes (${conf}) + NC (${nc}) = ${conf + nc}, pero la orden tiene ${plan} planeadas. Deben sumar exactamente.` }))
+      // Solo se bloquea si la suma queda POR DEBAJO de lo planeado (faltan piezas por
+      // contabilizar). Si supera lo planeado SÍ se permite: a veces salen piezas de
+      // otras fundidas que solo se identifican (conformes / NC) al pulirlas.
+      if (plan > 0 && conf + nc < plan) {
+        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": conformes (${conf}) + NC (${nc}) = ${conf + nc}, pero la orden tiene ${plan} planeadas. Faltan ${plan - conf - nc} por contabilizar.` }))
         return
       }
     }
@@ -747,7 +750,7 @@ export default function RecogidaFundida() {
                             if (conf + nc > plan && plan > 0) {
                               return (
                                 <p className="text-xs text-orange-500 mt-2 font-medium flex items-center gap-1">
-                                  <AlertTriangle size={12} /> La suma ({conf + nc}) supera lo planeado ({plan}).
+                                  <AlertTriangle size={12} /> Aviso: la suma ({conf + nc}) supera lo planeado ({plan}) en {conf + nc - plan}. Se puede guardar (piezas de otras fundidas).
                                 </p>
                               )
                             }
