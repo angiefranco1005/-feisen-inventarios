@@ -48,7 +48,7 @@ function normalizar(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
   // Un pedido "completado" (cerrado) puede haberse cerrado con todo recibido, con nada
@@ -179,6 +179,14 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Órdenes de compra generadas</p>
               {ordenesDelPedido.map(oc => {
+                // Otras áreas: solo el número de la OC (sin proveedor, precio ni PDF)
+                if (!puedeVerDetalleOC) {
+                  return (
+                    <div key={oc.id} className="text-xs bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="font-semibold text-gray-700">{oc.numero}</span>
+                    </div>
+                  )
+                }
                 const totalOC = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)).total
                 return (
                   <div key={oc.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
@@ -354,8 +362,14 @@ export default function ListaPedidos() {
       .order('created_at', { ascending: false })
     if (!verTodo) pedsQ = pedsQ.eq('solicitante_id', perfil.id)
 
+    // Confidencialidad: el proveedor y los precios de las órdenes de compra solo los traen
+    // ADMIN y LOGÍSTICA. El resto de áreas recibe únicamente número de OC y las cantidades
+    // por línea (para saber qué está cubierto), sin proveedor ni precio.
+    const puedeVerDetalleOC = esAdmin || esLogistica
     const ocQ = supabase.from('ordenes_compra')
-      .select('*, proveedores(nombre, nit, contacto, telefono, direccion), profiles(nombre), orden_compra_items(*)')
+      .select(puedeVerDetalleOC
+        ? '*, proveedores(nombre, nit, contacto, telefono, direccion), profiles(nombre), orden_compra_items(*)'
+        : 'id, numero, pedido_id, orden_compra_items(pedido_item_id, cantidad)')
       .eq('anulada', false)
       .order('created_at', { ascending: false })
 
@@ -861,6 +875,7 @@ export default function ListaPedidos() {
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica || esAlmacenista || p.solicitante_id === perfil?.id}
             puedeGenerarOC={esAdmin || esLogistica}
+            puedeVerDetalleOC={esAdmin || esLogistica}
             onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
             onEliminar={ped => setConfirmElim(ped)}
             onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
