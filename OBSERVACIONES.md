@@ -1114,3 +1114,12 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - La consulta también cambió: para roles distintos de ADMIN/LOGÍSTICA ya no se trae `proveedores`, `precio_unitario` ni el nombre de quien generó; solo `id, numero, pedido_id` y, por línea, `pedido_item_id` + `cantidad` (para mostrar "En orden de compra: N · Falta pedir: N", que no es confidencial).
 - La pantalla `/ordenes-compra` ya estaba disponible solo para ADMIN y LOGÍSTICA (rutas en `App.jsx`).
 - **Pendiente de seguridad (no es de interfaz):** las políticas RLS de `proveedores`, `ordenes_compra` y `orden_compra_items` permiten SELECT a cualquier usuario autenticado (migración `2026-09-28_ordenes_compra.sql`). Con la app normal ya no se ve, pero alguien con conocimientos técnicos podría consultar esas tablas directo contra la API de Supabase. Para cerrarlo de verdad hay que cambiar esas políticas SELECT a solo ADMIN y LOGISTICA (y revisar que ListaPedidos siga leyendo `ordenes_compra` con la consulta reducida, que entonces se tendría que mover a una vista o función sin precios).
+
+
+## Operario puede recibir sus propios pedidos (08/10/2026)
+- Reporte: al operario de corte y doblez no le aparecía el botón "Recibido + Entrada" en un pedido En tránsito (PED-0112).
+- Causa: `puedeRecibir` en `ListaPedidos.jsx` solo incluía ADMIN, ALMACENISTA, y LOGISTICA / JEFE_MECANIZADOS cuando son el solicitante. OPERARIO no estaba.
+- Cambio: se agregó OPERARIO a ese segundo grupo (solo pedidos donde `solicitante_id` es él). La entrada de inventario va a la bodega del producto (`items.bodega_id`), que para un operario es la de su área porque los productos que puede pedir se filtran por `profile_bodegas`.
+- La política RLS de `movimientos` ya permite insertar movimientos propios (`usuario_id = auth.uid()`), así que no requirió SQL. Si al probar el botón sale un error de permisos al actualizar `pedidos`, el problema sería la política de UPDATE de esa tabla (no está en `schema.sql`).
+- Otros roles que son solicitantes (p. ej. JEFE_FUNDICION) siguen sin poder recibir sus pedidos; si se necesita, agregarlos al mismo grupo.
+- Nota de caché: el teléfono del operario mostraba proveedor y precio de la OC en formato anterior (sin "IVA incl."), señal de que tenía en caché una versión vieja de la app (PWA). Hay que cerrar la app por completo y reabrirla, o borrar los datos del sitio, para que cargue la versión nueva.

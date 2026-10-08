@@ -870,7 +870,7 @@ export default function ListaPedidos() {
             p={p}
             esAdmin={esAdmin}
             puedeTransito={esAdmin || esLogistica}
-            puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS') && p.solicitante_id === perfil?.id)}
+            puedeRecibir={esAdmin || esAlmacenista || ((esLogistica || rolEfectivo === 'JEFE_MECANIZADOS' || rolEfectivo === 'OPERARIO') && p.solicitante_id === perfil?.id)}
             puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
             puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
             puedeCerrar={esAdmin || esLogistica || esAlmacenista || p.solicitante_id === perfil?.id}
