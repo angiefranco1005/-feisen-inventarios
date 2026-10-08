@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download } from 'lucide-react'
 import ModalGenerarOC from './ModalGenerarOC'
-import { exportarOrdenCompraPDF } from '../../utils/exportOrdenCompraPDF'
+import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -179,12 +179,12 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Órdenes de compra generadas</p>
               {ordenesDelPedido.map(oc => {
-                const totalOC = (oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+                const totalOC = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)).total
                 return (
                   <div key={oc.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
                     <div>
                       <span className="font-semibold text-gray-700">{oc.numero}</span>
-                      <span className="text-gray-400"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${totalOC.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-gray-400"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${totalOC.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (IVA incl.)</span>
                     </div>
                     <button
                       onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: p.numero }, oc.profiles?.nombre || '')}

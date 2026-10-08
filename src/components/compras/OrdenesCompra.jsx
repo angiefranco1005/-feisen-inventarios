@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
-import { exportarOrdenCompraPDF } from '../../utils/exportOrdenCompraPDF'
+import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
 import { FileText, Search, Download, Ban, RotateCcw } from 'lucide-react'
 
 function normalizar(s) {
@@ -84,7 +84,7 @@ export default function OrdenesCompra() {
       ) : (
         <div className="space-y-2.5">
           {filtradas.map(oc => {
-            const total = (oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+            const totales = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0))
             return (
               <div key={oc.id} className={`bg-white rounded-2xl border shadow-sm px-5 py-4 flex items-center justify-between gap-3 flex-wrap ${oc.anulada ? 'border-gray-100 opacity-60' : 'border-gray-100'}`}>
                 <div>
@@ -103,9 +103,14 @@ export default function OrdenesCompra() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="font-bold text-feisen-azul">
-                    ${total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
+                  <div className="text-right">
+                    <p className="font-bold text-feisen-azul">
+                      ${totales.total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-[11px] text-gray-400">
+                      Subtotal ${totales.subtotal.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} + IVA {Math.round(IVA_TARIFA * 100)}% ${totales.iva.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
                   <button
                     onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, oc.pedidos, oc.profiles?.nombre || '')}
                     title="Descargar PDF" className="p-2 text-feisen-azul hover:bg-blue-50 rounded-lg">

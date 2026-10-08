@@ -3,8 +3,10 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { exportarOrdenCompraPDF } from '../../utils/exportOrdenCompraPDF'
+import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
 import { FileDown, Loader2 } from 'lucide-react'
+
+const fmtCOP = n => '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onGuardado }) {
   const { perfil } = useAuth()
@@ -80,6 +82,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
     () => lineasIncluidas.reduce((s, it) => s + (parseFloat(seleccion[it.id]?.cantidad) || 0) * (parseFloat(seleccion[it.id]?.precio) || 0), 0),
     [lineasIncluidas, seleccion]
   )
+
+  const totales = useMemo(() => calcularTotalesOC(total), [total])
 
   async function guardar() {
     setMsg(null)
@@ -240,9 +244,12 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
           </div>
 
           <div className="flex items-center justify-between border-t pt-4">
-            <p className="text-sm text-gray-500">
-              {lineasIncluidas.length} producto{lineasIncluidas.length !== 1 ? 's' : ''} · Total: <strong className="text-feisen-azul">${total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-            </p>
+            <div className="text-sm text-gray-500 space-y-0.5">
+              <p>{lineasIncluidas.length} producto{lineasIncluidas.length !== 1 ? 's' : ''}</p>
+              <p>Subtotal: <span className="text-gray-700">{fmtCOP(totales.subtotal)}</span></p>
+              <p>IVA ({Math.round(IVA_TARIFA * 100)}%): <span className="text-gray-700">{fmtCOP(totales.iva)}</span></p>
+              <p>Total a pagar: <strong className="text-feisen-azul text-base">{fmtCOP(totales.total)}</strong></p>
+            </div>
             <button type="button" onClick={guardar} disabled={guardando}
               className="flex items-center gap-2 bg-feisen-azul text-white px-5 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-60">
               {guardando ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}

@@ -1097,3 +1097,12 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - La aclaración se guarda en `ordenes_moldeo_piezas.motivo_nc` con el formato `Faltante N de M: texto` (junto al motivo de calidad si lo hay, separado por ` | `). No se creó columna nueva para no exigir migración; si se quiere reportar faltantes por separado, conviene agregar `motivo_faltante` y migrar.
 - Una orden con faltantes aclarados se cierra igual como "completado" y solo los conformes entran a inventario. Ojo: al digitar conformes el campo NC se autocompleta con (planeadas − conformes); si lo planeado no se moldeó (no son NC reales), hay que poner NC en 0 para que esos kg no vuelvan al vaceadero y escribir la aclaración.
 - Pendiente de diseño: si la orden es de largo plazo y debe quedar abierta para seguir moldeando, eso es el flujo de avances diarios (`ordenes_moldeo_avances`), no este cierre.
+
+
+## Orden de compra: subtotal, IVA 19 % y total a pagar (08/10/2026)
+- Angie pidió que las "cotizaciones" de Logística muestren subtotal, IVA 19 % y total a pagar. En el código lo que genera Logística es la **orden de compra (OC)** (`ModalGenerarOC.jsx` → `utils/exportOrdenCompraPDF.js`); no existe un módulo llamado "cotizaciones". Si más adelante se crea uno distinto, reutilizar `calcularTotalesOC`.
+- `calcularTotalesOC(subtotal)` (en `exportOrdenCompraPDF.js`) devuelve `{ subtotal, iva, total }` redondeado a 2 decimales; `IVA_TARIFA = 0.19` (tarifa general, Art. 468 Estatuto Tributario).
+- Supuesto: los precios unitarios de la OC son **sin IVA** (vienen de `items.precio_costo`) y el IVA se suma al final sobre el subtotal.
+- Se ve en: el PDF (bloque Subtotal / IVA (19%) / Total a pagar en recuadro azul), el modal de generar OC (resumen), la lista de órdenes de compra (total con IVA y detalle debajo) y el detalle del pedido (total "IVA incl.").
+- Limitación conocida: el IVA se aplica siempre al 19 %. Si un proveedor no es responsable de IVA o el producto es excluido/exento, el total saldría de más. Solución futura: columna `aplica_iva` en `ordenes_compra` (migración) con casilla en el modal.
+- Las OC ya generadas no guardan el IVA: se recalcula al vuelo, así que al re-descargar un PDF antiguo ya sale con IVA.
