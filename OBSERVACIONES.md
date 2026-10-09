@@ -1131,3 +1131,10 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - No cambió la base de datos: el estado interno sigue siendo `cerrado`, así que no hay migración y los pedidos antiguos se ven con la etiqueta nueva.
 - La pestaña "Cerrado" agrupa, como antes, los pedidos `cerrado` y `recibido` (destino final del embudo).
 - Pendiente menor: en `DashboardEjecutivo.jsx` (lead time) todavía dice "pedidos completados"; es una métrica sobre pedidos terminados, se dejó igual.
+
+## Fecha del movimiento: respetar la fecha elegida (09/10/2026)
+- Reporte: al registrar entradas/salidas/transferencias "de días atrás", todo quedaba con la fecha de hoy.
+- Causas encontradas: (1) `RegistrarMovimiento.jsx` (ADMIN y LOGISTICA) no tenía selector y guardaba hoy en UTC (después de las 7 p. m. en Colombia quedaba mañana); (2) la recepción de pedido con "Recibido + Entrada" (`ListaPedidos.jsx`) no mandaba `fecha_movimiento`; (3) la lista de transferencias y los "últimos movimientos" de los dashboards de bodeguero/jefe de área mostraban `created_at` (fecha de registro) en vez de `fecha_movimiento`.
+- Cambios: selector "Fecha del movimiento" en el formulario de Admin/Logística y en el modal de recepción de pedido (solo cuando hay entrada); fecha por defecto en hora Colombia (`America/Bogota`); `TransferenciasPendientes` muestra la fecha del movimiento y la usa como respaldo en hora Colombia; dashboards muestran `fecha_movimiento` y, si no hay, `created_at`.
+- El formulario de Almacenista/Jefes (`RegistrarMovimientoAlmacenista.jsx`) ya enviaba la fecha elegida; la transferencia Fundición→Mecanizados la guarda en `transferencias_pendientes.fecha_movimiento` y se usa al aprobar. Migración opcional `2026-10-09_transferencias_fecha_movimiento.sql` (idempotente) por si esa columna no existe en producción.
+- Gotcha: `created_at` siempre es la hora real de registro (auditoría); `fecha_movimiento` es la fecha contable. Los reportes (Kardex, Historial, corte) ya usan `fecha_movimiento` con respaldo a `created_at`.

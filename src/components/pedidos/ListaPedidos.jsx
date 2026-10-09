@@ -307,6 +307,8 @@ export default function ListaPedidos() {
   const [modalRecibido, setModalRecibido] = useState(null)
   const [guardandoRecibido, setGuardandoRecibido] = useState(false)
   const [cantRec,       setCantRec]       = useState({})
+  const hoyCol = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+  const [fechaRecepcion, setFechaRecepcion] = useState(hoyCol())
   const [confirmElim,   setConfirmElim]   = useState(null)
   const [confirmCerrar, setConfirmCerrar] = useState(null) // pedido a cerrar
   const [motivoCierre,  setMotivoCierre]  = useState('')
@@ -459,6 +461,7 @@ export default function ListaPedidos() {
       inicial[it.id] = String(Math.max(0, pendiente))
     })
     setCantRec(inicial)
+    setFechaRecepcion(hoyCol())
     setModalRecibido({ pedido, conEntrada })
   }
 
@@ -559,6 +562,7 @@ export default function ListaPedidos() {
             centro_costo:          bodegaMap[info.bodega_id] || '',
             usuario_id:            perfil.id,
             pedido_id:             pedido.id,
+            fecha_movimiento:      fechaRecepcion || hoyCol(),
             proveedor: null, foto_remision_url: null, destino: null,
             numero_of: null, serial_motor: null, referencia: null, motivo: null, cliente: null,
           })
@@ -1020,6 +1024,15 @@ export default function ListaPedidos() {
               </div>
             )}
             <p className="text-sm text-gray-500">Ingresa la cantidad que llegó realmente de cada ítem.</p>
+            {modalRecibido.conEntrada && (
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Fecha de la entrada</label>
+                <input type="date" value={fechaRecepcion} max={hoyCol()}
+                  onChange={e => setFechaRecepcion(e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                <p className="text-xs text-gray-400 mt-1">Por defecto hoy. Cámbiala si el material llegó otro día.</p>
+              </div>
+            )}
             {modalRecibido.pedido.pedido_items?.map(it => {
               const yaRecibido = it.cantidad_recibida || 0
               const pendiente = it.cantidad - yaRecibido

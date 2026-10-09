@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { formatNumero, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
+import { formatNumero, formatFecha, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import { Link } from 'react-router-dom'
 import { ArrowUpDown, MoveRight, PackagePlus } from 'lucide-react'
@@ -74,7 +74,7 @@ export default function DashboardJefeArea() {
               <div key={m.id} className="px-5 py-3 flex justify-between items-center">
                 <div>
                   <p className="text-sm font-medium text-feisen-gris-oscuro">{m.items?.nombre}</p>
-                  <p className="text-xs text-feisen-gris-medio">{TIPOS_MOVIMIENTO[m.tipo]} · {formatFechaHora(m.created_at)}</p>
+                  <p className="text-xs text-feisen-gris-medio">{TIPOS_MOVIMIENTO[m.tipo]} · {m.fecha_movimiento ? formatFecha(m.fecha_movimiento + 'T12:00:00') : formatFechaHora(m.created_at)}</p>
                 </div>
                 <span className="font-bold text-feisen-azul text-sm">
                   {formatNumero(m.cantidad)} {m.items?.unidad_medida}

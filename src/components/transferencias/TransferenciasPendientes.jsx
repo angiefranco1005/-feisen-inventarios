@@ -124,7 +124,7 @@ export default function TransferenciasPendientes() {
         usuario_id:            perfil.id,
         referencia:            `Aprobación ${trf.numero}${trf.notas ? ' — ' + trf.notas : ''}`,
         destino:               'MECANIZADOS',
-        fecha_movimiento:      trf.fecha_movimiento || new Date().toISOString().slice(0, 10),
+        fecha_movimiento:      trf.fecha_movimiento || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
         foto_remision_url: null, firma_receptor_url: null, numero_of: null, cliente: null,
       }))
@@ -154,7 +154,7 @@ export default function TransferenciasPendientes() {
         usuario_id:            perfil.id,
         referencia:            `Aprobación ${trf.numero}${trf.notas ? ' — ' + trf.notas : ''}`,
         destino:               null,
-        fecha_movimiento:      trf.fecha_movimiento || new Date().toISOString().slice(0, 10),
+        fecha_movimiento:      trf.fecha_movimiento || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
         foto_remision_url: null, firma_receptor_url: null, numero_of: null, cliente: null,
       }))
@@ -209,7 +209,9 @@ export default function TransferenciasPendientes() {
 
   function fmtFecha(iso) {
     if (!iso) return '—'
-    return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+    // Fecha sola (YYYY-MM-DD) se ancla al mediodía para que la zona horaria no la corra un día
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso)
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Bogota' })
   }
 
   const pendientes  = transferencias.filter(t => t.estado === 'pendiente').length
@@ -276,7 +278,7 @@ export default function TransferenciasPendientes() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {fmtFecha(trf.created_at)}
+                      {fmtFecha(trf.fecha_movimiento || trf.created_at)}
                       {trf.creado_por_perfil?.nombre && ` · ${trf.creado_por_perfil.nombre}`}
                       {' · '}{trf.items?.length} {trf.items?.length === 1 ? 'ítem' : 'ítems'}
                     </p>

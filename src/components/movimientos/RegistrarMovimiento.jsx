@@ -30,6 +30,9 @@ export default function RegistrarMovimiento() {
   const [exito,          setExito]          = useState(false)
   const [error,          setError]          = useState('')
   const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
+  // Fecha en que ocurrió el movimiento (hora de Colombia). Por defecto hoy; se puede mover hacia atrás.
+  const HOY_COL = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+  const [fechaMov, setFechaMov] = useState(HOY_COL)
 
   const pedidoDesdeNav    = location.state?.pedido_id        || ''
   const cantidadDesdeNav  = location.state?.cantidad_sugerida || ''
@@ -157,7 +160,7 @@ export default function RegistrarMovimiento() {
       serial_motor:          form.tipo === 'salida'  ? (form.serial_motor || null) : null,
       referencia:            form.tipo === 'salida'  ? (form.referencia   || null) : null,
       motivo: null, cliente: null,
-      fecha_movimiento:      new Date().toISOString().split('T')[0],
+      fecha_movimiento:      fechaMov || HOY_COL,
     }
 
     const { error: err } = await supabase.from('movimientos').insert(payload)
@@ -179,6 +182,7 @@ export default function RegistrarMovimiento() {
       }))
       setBusqueda('')
       setFirmaDataUrl(null)
+      setFechaMov(HOY_COL)
     }, 2500)
   }
 
@@ -369,6 +373,15 @@ export default function RegistrarMovimiento() {
 
         {/* Firma del responsable */}
         <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
+
+        {/* Fecha del movimiento */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Fecha del movimiento</label>
+          <input type="date" value={fechaMov} max={HOY_COL}
+            onChange={e => setFechaMov(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          <p className="text-xs text-gray-400 mt-1">Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.</p>
+        </div>
 
         {error && <Alerta tipo="error" mensaje={error} />}
 
