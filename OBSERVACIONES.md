@@ -1123,3 +1123,11 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - La política RLS de `movimientos` ya permite insertar movimientos propios (`usuario_id = auth.uid()`), así que no requirió SQL. Si al probar el botón sale un error de permisos al actualizar `pedidos`, el problema sería la política de UPDATE de esa tabla (no está en `schema.sql`).
 - **Ampliado el mismo día a todos los roles:** `puedeRecibir = esAdmin || esAlmacenista || p.solicitante_id === perfil?.id`. Es decir, ADMIN y ALMACENISTA reciben cualquier pedido y cualquier otro rol (JEFE_FUNDICION, JEFE_MECANIZADOS, LOGISTICA, OPERARIO, CONSULTOR) recibe los pedidos que él mismo solicitó. Nadie recibe pedidos de otro (salvo Admin/Almacén).
 - Nota de caché: el teléfono del operario mostraba proveedor y precio de la OC en formato anterior (sin "IVA incl."), señal de que tenía en caché una versión vieja de la app (PWA). Hay que cerrar la app por completo y reabrirla, o borrar los datos del sitio, para que cargue la versión nueva.
+
+
+## "Completar pedido" pasa a "Cerrar pedido" (09/10/2026)
+- Motivo: la gente confundía "recibir" con "completar" el pedido.
+- `ListaPedidos.jsx`: el botón (antes un ícono de check verde sin texto) ahora es un botón gris con candado y el texto "Cerrar pedido"; el modal se llama "Cerrar pedido PED-XXXX" y su botón "🔒 Cerrar pedido"; el texto aclara que cerrar NO registra entrada de inventario. El estado `cerrado` se muestra como "Cerrado" (pastilla, pestaña del filtro, historial "🔒 Pedido cerrado" y "🔒 Cerrado: <motivo>" en la tarjeta).
+- No cambió la base de datos: el estado interno sigue siendo `cerrado`, así que no hay migración y los pedidos antiguos se ven con la etiqueta nueva.
+- La pestaña "Cerrado" agrupa, como antes, los pedidos `cerrado` y `recibido` (destino final del embudo).
+- Pendiente menor: en `DashboardEjecutivo.jsx` (lead time) todavía dice "pedidos completados"; es una métrica sobre pedidos terminados, se dejó igual.

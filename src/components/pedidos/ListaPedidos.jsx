@@ -6,7 +6,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download, Lock } from 'lucide-react'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 
@@ -15,7 +15,7 @@ const ESTADO_CONFIG = {
   en_transito:             { label: 'En tránsito',          color: 'bg-blue-100 text-blue-700',     icon: Truck        },
   recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
   parcialmente_recibido:   { label: 'Parcial ⚠️',           color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
-  cerrado:                 { label: 'Completado',           color: 'bg-gray-100 text-gray-500',     icon: CheckCircle  },
+  cerrado:                 { label: 'Cerrado',              color: 'bg-gray-100 text-gray-500',     icon: CheckCircle  },
 }
 
 const PRIORIDAD_CONFIG = {
@@ -32,7 +32,7 @@ const HISTORIAL_LABELS = {
   en_transito:             '🚚 Marcado en tránsito',
   recibido:                '📦 Recibido',
   parcialmente_recibido:   '⚠️ Recibido parcialmente',
-  cerrado:                 '✅ Pedido completado',
+  cerrado:                 '🔒 Pedido cerrado',
 }
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
@@ -51,9 +51,9 @@ function normalizar(s) {
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
-  // Un pedido "completado" (cerrado) puede haberse cerrado con todo recibido, con nada
+  // Un pedido "cerrado" puede haberse cerrado con todo recibido, con nada
   // recibido (motivo puramente administrativo), o con parte del pedido sin llegar — esto
-  // último se marca aparte para distinguirlo de un vistazo dentro del embudo "Completado".
+  // último se marca aparte para distinguirlo de un vistazo dentro del embudo "Cerrado".
   const cerradoIncompleto = p.estado === 'cerrado' &&
     (p.pedido_items || []).some(it => (it.cantidad - (it.cantidad_recibida || 0)) > 0)
   const diasTranscurridos = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
@@ -121,9 +121,9 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             <Clock size={15} />
           </button>
           {puedeCerrar && p.estado !== 'cerrado' && (
-            <button onClick={() => onCerrar(p)} title="Marcar como completado"
-              className="p-1.5 text-gray-300 hover:text-green-600 hover:bg-green-50 rounded-lg">
-              <CheckCircle size={15} />
+            <button onClick={() => onCerrar(p)} title="Cerrar pedido"
+              className="flex items-center gap-1 text-xs border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 px-2.5 py-1.5 rounded-lg font-medium">
+              <Lock size={12} /> Cerrar pedido
             </button>
           )}
           {puedeEliminar && (
@@ -173,7 +173,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             )
           })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
-          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">✅ Completado: {p.motivo_cierre}</p>}
+          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">🔒 Cerrado: {p.motivo_cierre}</p>}
           {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
           {ordenesDelPedido?.length > 0 && (
             <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
@@ -708,10 +708,10 @@ export default function ListaPedidos() {
     cargar()
   }
 
-  // El filtro "Completado" es el único destino final del embudo: agrupa tanto los que
+  // El filtro "Cerrado" es el único destino final del embudo: agrupa tanto los que
   // llegaron completos ('recibido') como los cerrados manualmente por algún motivo
   // ('cerrado') — ya no hay una pestaña "Recibido" aparte. Dentro de "Completado" cada
-  // tarjeta se distingue sola: pastilla verde "Recibido" vs. gris "Completado: <motivo>",
+  // tarjeta se distingue sola: pastilla verde "Recibido" vs. gris "Cerrado: <motivo>",
   // más el aviso naranja "⚠️ Llegó incompleto" cuando se cerró sin que llegara todo.
   // Agrupar órdenes de compra por pedido, y sumar cuánta cantidad de cada línea del
   // pedido ya quedó cubierta por alguna orden (puede repartirse entre varias)
@@ -1186,11 +1186,11 @@ export default function ListaPedidos() {
         </Modal>
       )}
 
-      {/* MODAL COMPLETAR PEDIDO */}
+      {/* MODAL CERRAR PEDIDO */}
       {confirmCerrar && (
-        <Modal titulo={`Completar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
+        <Modal titulo={`Cerrar pedido ${confirmCerrar.numero}`} onCerrar={() => setConfirmCerrar(null)}>
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">¿Por qué se marca este pedido como completado, aunque no haya llegado todo? Esta razón quedará registrada en el historial.</p>
+            <p className="text-sm text-gray-600">¿Por qué se cierra este pedido sin que haya llegado todo? Cerrar no es recibir: no registra entrada de inventario. Esta razón quedará registrada en el historial.</p>
             <div className="space-y-2">
               {MOTIVOS_CIERRE.map(m => (
                 <button key={m} type="button" onClick={() => setMotivoCierre(m)}
@@ -1210,7 +1210,7 @@ export default function ListaPedidos() {
               <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
                 disabled={!motivoCierre}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
-                ✅ Marcar como completado
+                🔒 Cerrar pedido
               </button>
             </div>
           </div>
