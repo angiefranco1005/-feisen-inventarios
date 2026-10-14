@@ -1138,3 +1138,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Cambios: selector "Fecha del movimiento" en el formulario de Admin/Logística y en el modal de recepción de pedido (solo cuando hay entrada); fecha por defecto en hora Colombia (`America/Bogota`); `TransferenciasPendientes` muestra la fecha del movimiento y la usa como respaldo en hora Colombia; dashboards muestran `fecha_movimiento` y, si no hay, `created_at`.
 - El formulario de Almacenista/Jefes (`RegistrarMovimientoAlmacenista.jsx`) ya enviaba la fecha elegida; la transferencia Fundición→Mecanizados la guarda en `transferencias_pendientes.fecha_movimiento` y se usa al aprobar. Migración opcional `2026-10-09_transferencias_fecha_movimiento.sql` (idempotente) por si esa columna no existe en producción.
 - Gotcha: `created_at` siempre es la hora real de registro (auditoría); `fecha_movimiento` es la fecha contable. Los reportes (Kardex, Historial, corte) ya usan `fecha_movimiento` con respaldo a `created_at`.
+
+## Mecanizado: "No se encontró <producto> - MECANIZADO" (14/10/2026)
+- Síntoma: el Jefe de Mecanizados tenía stock (35 und) de EJE DE CATALINA - 2 B - 1 1/2 B -1 B(2X160MM 1045) y al confirmar salía "No se encontró ... - MECANIZADO".
+- Causa: `RegistroMecanizado.jsx` busca el producto destino `<nombre origen> - MECANIZADO` en la categoría "producto mecanizado" con `ilike` exacto. Falla si ese producto no existe, está inactivo o su nombre difiere (espacios alrededor de guiones/paréntesis, tildes).
+- Cambio: se trae la categoría completa y se compara normalizado (mayúsculas, sin tildes, sin espacios). Si el destino existe pero está inactivo, el error lo dice; si no existe, el error sugiere nombres parecidos y cómo crearlo. Además `hoyISO()` ahora usa hora de Colombia.
+- Pendiente: si el destino de verdad no existe, hay que crearlo (categoría producto mecanizado, bodega MECANIZADOS) — idea futura: crearlo automáticamente al mecanizar por primera vez.

@@ -14,7 +14,8 @@ const CATEGORIAS_MECANIZABLES = new Set([
 ])
 
 function hoyISO() {
-  return new Date().toISOString().slice(0, 10)
+  // Fecha de hoy en hora de Colombia (toISOString usa UTC y después de las 7 p. m. daba mañana)
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
 
 export default function RegistroMecanizado() {
@@ -128,21 +129,36 @@ export default function RegistroMecanizado() {
         .like('numero', 'MEC-%')
       const numeroMec = `MEC-${String((count || 0) + 1).padStart(4, '0')}`
 
-      const destinos = await Promise.all(lineas.map(async (l) => {
-        // .replace normaliza espacios dobles/triples a uno solo — algunos nombres del catálogo
-        // tienen espacios de más por error de tipeo, y eso hacía que la búsqueda exacta fallara.
-        const nombreDest = l.nombre.trim().replace(/\s+/g, ' ') + ' - MECANIZADO'
-        const { data, error } = await supabase
-          .from('items')
-          .select('id')
+      // Productos destino ("<nombre> - MECANIZADO"): se traen todos los de la categoría
+      // "producto mecanizado" y se comparan normalizados (mayúsculas, sin tildes y SIN
+      // espacios), porque el nombre del catálogo suele diferir en espacios alrededor de
+      // guiones o paréntesis ("B(2X160MM" vs "B (2X160MM") y la búsqueda exacta fallaba
+      // aunque el producto existiera.
+      const { data: destCat, error: eDest } = await fetchAllPages((d, h) =>
+        supabase.from('items')
+          .select('id, nombre, activo')
           .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
-          .ilike('nombre', nombreDest)
-          .eq('activo', true)
-          .limit(1)
-        if (error) throw error
-        if (!data?.length) throw new Error(`No se encontró "${nombreDest}".`)
-        return data[0].id
-      }))
+          .range(d, h)
+      )
+      if (eDest) throw eDest
+      const clave = (t) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '')
+
+      const destinos = lineas.map((l) => {
+        const nombreDest = l.nombre.trim().replace(/\s+/g, ' ') + ' - MECANIZADO'
+        const k = clave(nombreDest)
+        const coincidencias = (destCat || []).filter(d => clave(d.nombre) === k)
+        const activo = coincidencias.find(d => d.activo)
+        if (activo) return activo.id
+        if (coincidencias.length) {
+          throw new Error(`El producto "${nombreDest}" existe pero está INACTIVO. Actívalo en Productos y vuelve a intentar.`)
+        }
+        const prefijo = clave(l.nombre).slice(0, 12)
+        const parecidos = (destCat || []).filter(d => d.activo && clave(d.nombre).startsWith(prefijo)).slice(0, 3).map(d => d.nombre)
+        throw new Error(
+          `No existe el producto destino "${nombreDest}" en la categoría de productos mecanizados. ` +
+          (parecidos.length ? `Nombres parecidos que sí existen: ${parecidos.join(' | ')}. Corrige el nombre o créalo igual al de origen + " - MECANIZADO".` : 'Créalo en Productos (categoría producto mecanizado) con el nombre del origen + " - MECANIZADO".')
+        )
+      })
 
       const motivo = `Mecanizado por: ${operario.trim()}`
       const movs   = []
