@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download, Lock } from 'lucide-react'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -48,7 +49,7 @@ function normalizar(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem }) {
+function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem, entradasDelPedido }) {
   const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
   const Ico = ec.icon
   // Un pedido "cerrado" puede haberse cerrado con todo recibido, con nada
@@ -204,6 +205,20 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
               })}
             </div>
           )}
+          {entradasDelPedido?.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Entradas de inventario</p>
+              {entradasDelPedido.map(en => (
+                <div key={en.numero} className="flex items-center justify-between text-xs bg-green-50 rounded-lg px-3 py-2">
+                  <span className="font-mono font-semibold text-green-800">{en.numero}</span>
+                  <span className="text-green-700">
+                    {en.lineas} {en.lineas === 1 ? 'ítem' : 'ítems'} · {en.fecha ? new Date(en.fecha + 'T12:00:00').toLocaleDateString('es-CO') : '—'}
+                  </span>
+                </div>
+              ))}
+              <p className="text-[11px] text-gray-400">Búscalo en Movimientos por este número si hay que corregir algo.</p>
+            </div>
+          )}
           {p.foto_muestra_url && (
             <div className="mt-3">
               <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><ImageIcon size={11} /> Foto de muestra</p>
@@ -293,6 +308,7 @@ export default function ListaPedidos() {
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
   const [ordenesCompra, setOrdenesCompra] = useState([])
+  const [entradas,       setEntradas]       = useState([]) // movimientos tipo entrada ligados a pedidos
   const [modalGenerarOC, setModalGenerarOC] = useState(null)
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('todos')
@@ -384,6 +400,18 @@ export default function ListaPedidos() {
     setProductos(prods || [])
     setOrdenesCompra(ocs || [])
     setCargando(false)
+
+    // Entradas de inventario ligadas a pedidos (para mostrar el N° de movimiento en cada pedido).
+    // Solo columnas no sensibles (sin precios). Si el rol no puede leerlas, simplemente no se muestran.
+    const { data: ents } = await fetchAllPages((d, h) =>
+      supabase.from('movimientos')
+        .select('numero, pedido_id, fecha_movimiento, created_at')
+        .eq('tipo', 'entrada')
+        .not('pedido_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(d, h)
+    )
+    setEntradas(ents || [])
   }
 
   // Generar número correlativo
@@ -471,6 +499,10 @@ export default function ListaPedidos() {
     try {
     const { pedido, conEntrada } = modalRecibido
     const items = pedido.pedido_items || []
+    // El historial se escribe al final (en el finally) para poder incluir el N° de movimiento de la entrada
+    let pedidoActualizado = false
+    let historialPendiente = null
+    let numeroEntrada = null
 
     // 1. Sumar a la cantidad_recibida existente (para re-recepciones)
     const nuevasCantidades = {}
@@ -502,10 +534,15 @@ export default function ListaPedidos() {
       .update({ estado: nuevoEstado, ...(esCompleto ? { fecha_recibido: new Date().toISOString() } : {}) })
       .eq('id', pedido.id)
 
-    await registrarHistorial(pedido.id, nuevoEstado,
-      esCompleto
+    pedidoActualizado = true
+    historialPendiente = async () => {
+      await registrarHistorial(pedido.id, nuevoEstado,
+      (esCompleto
         ? (conEntrada ? 'Recibido completo con entrada de inventario' : 'Recibido completo sin entrada de inventario')
-        : `Llegó incompleto. ${detalleItems}`)
+        : `Llegó incompleto. ${detalleItems}`) + (numeroEntrada ? ` · Movimiento ${numeroEntrada}` : ''))
+      // El historial cacheado queda desactualizado: se recarga al abrirlo
+      setHistorialData(h => { const n = { ...h }; delete n[pedido.id]; return n })
+    }
 
     setPedidos(prev => prev.map(p =>
       p.id === pedido.id
@@ -544,15 +581,16 @@ export default function ListaPedidos() {
         const { data: lastMov } = await supabase
           .from('movimientos').select('numero').like('numero', `${prefix}%`)
           .order('numero', { ascending: false }).limit(1).maybeSingle()
-        let lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
+        const lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
+        // Un solo N° de movimiento por recepción (todas las líneas lo comparten), para poder rastrearla completa
+        const numeroMov = `${prefix}${String(lastNum + 1).padStart(4, '0')}`
 
         const payloads = []
         for (const it of itemsConId) {
           const info = itemMap[it.item_id]
           if (!info) continue
-          lastNum++
           payloads.push({
-            numero:                `${prefix}${String(lastNum).padStart(4, '0')}`,
+            numero:                numeroMov,
             tipo:                  'entrada',
             item_id:               it.item_id,
             bodega_destino_id:     info.bodega_id,
@@ -570,13 +608,21 @@ export default function ListaPedidos() {
         if (payloads.length > 0) {
           const { error } = await supabase.from('movimientos').insert(payloads)
           if (error) setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al registrar entradas: ' + error.message })
-          else setMsg({ tipo: 'exito', texto: `✅ Recibido + ${payloads.length} entrada(s) registrada(s) automáticamente.` })
+          else {
+            numeroEntrada = numeroMov
+            const filas = payloads.map(() => ({ numero: numeroMov, pedido_id: pedido.id, fecha_movimiento: fechaRecepcion || hoyCol(), created_at: new Date().toISOString() }))
+            setEntradas(prev => [...filas, ...prev])
+            setMsg({ tipo: 'exito', texto: `✅ Recibido + entrada ${numeroMov} (${payloads.length} ${payloads.length === 1 ? 'ítem' : 'ítems'}) registrada automáticamente.` })
+          }
         } else {
           setMsg({ tipo: 'error', texto: 'Pedido recibido, pero los ítems no tienen producto vinculado al catálogo. Registra la entrada manualmente.' })
         }
       }
     }
     } finally {
+      if (pedidoActualizado && historialPendiente) {
+        try { await historialPendiente() } catch { /* el historial es informativo; no bloquea la recepción */ }
+      }
       setGuardandoRecibido(false)
     }
   }
@@ -728,6 +774,16 @@ export default function ListaPedidos() {
       if (!it.pedido_item_id) continue
       coberturaPorItem[it.pedido_item_id] = (coberturaPorItem[it.pedido_item_id] || 0) + it.cantidad
     }
+  }
+
+  // Entradas agrupadas por pedido y N° de movimiento
+  const entradasPorPedido = {}
+  for (const m of entradas) {
+    if (!m.numero) continue
+    const lista = (entradasPorPedido[m.pedido_id] ||= [])
+    let g = lista.find(x => x.numero === m.numero)
+    if (!g) { g = { numero: m.numero, lineas: 0, fecha: m.fecha_movimiento || (m.created_at || '').slice(0, 10) }; lista.push(g) }
+    g.lineas += 1
   }
 
   const hayBusqueda = busqueda.trim() || fechaDesde || fechaHasta
@@ -891,6 +947,7 @@ export default function ListaPedidos() {
             historial={historialData[p.id]}
             ordenesDelPedido={ocPorPedido[p.id] || []}
             coberturaPorItem={coberturaPorItem}
+            entradasDelPedido={entradasPorPedido[p.id] || []}
           />
         ))}
       </div>

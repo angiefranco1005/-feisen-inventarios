@@ -1152,3 +1152,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Pendiente: si el producto de verdad no existe en el destino hay que crearlo ahí. Idea futura: crearlo automático con una función SECURITY DEFINER (las políticas de `items` solo dejan crear en bodegas propias).
 
 - **Decisión (15/10/2026, opción 1):** en la salida con "Transferencia interna" (no Mecanizados), si un producto NO existe en el catálogo de la bodega destino ya no se bloquea: se registra solo la salida (como antes del 03/10) y la pantalla avisa en amarillo cuáles productos quedaron sin entrada en el destino. Los que sí existen siguen creando su entrada pareada. Motivo: ARMADO Y SOLDADURA aún no tiene perfil ni catálogo. Cuando una bodega empiece a operar, pasar a la opción 2 (crear el producto en destino con función SECURITY DEFINER). Las transferencias a Mecanizados (aprobación) siguen exigiendo catálogo.
+
+## Pedidos: N° de movimiento de la entrada visible en el pedido (15/10/2026)
+- Pedido del usuario: al dar "Recibido + Entrada", que el pedido muestre el N° de movimiento de esa entrada para poder rastrear y corregir.
+- `ListaPedidos.jsx`: (1) cada recepción ahora genera UN solo N° `MOV-XX-NNNN` compartido por todas sus líneas (antes cada línea tenía uno distinto); (2) la tarjeta del pedido (al expandirla) muestra "Entradas de inventario" con N° de movimiento, # de ítems y fecha de cada entrada, leyendo `movimientos` por `pedido_id` (incluye recepciones anteriores y las registradas desde Movimientos); (3) el historial del pedido agrega " · Movimiento MOV-XX-NNNN" al registro de recibido; (4) el mensaje de éxito muestra el N°.
+- El historial se escribe al final de la recepción para poder incluir el N° (si la entrada falla, queda sin N°).
+- Gotcha: las recepciones previas a esta fecha tienen un N° distinto por línea; en la tarjeta salen como entradas separadas (una por línea). Los roles que por RLS no lean `movimientos` no verán la sección.
