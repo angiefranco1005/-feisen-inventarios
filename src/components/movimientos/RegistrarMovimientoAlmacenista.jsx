@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes, AlertTriangle } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -145,6 +145,7 @@ export default function RegistrarMovimientoAlmacenista() {
   const [guardando,        setGuardando]        = useState(false)
   const [exito,            setExito]            = useState(false)
   const [exitoPendiente,   setExitoPendiente]   = useState(false)
+  const [avisoSinEntrada,  setAvisoSinEntrada]  = useState([]) // productos de la transferencia que no existen en el catálogo del destino
   const [error,            setError]            = useState('')
   const [formKey,     setFormKey]     = useState(0)   // fuerza remonte de SelectorItem al resetear
 
@@ -558,6 +559,7 @@ export default function RegistrarMovimientoAlmacenista() {
     // que hay que mapear cada producto al renglón de catálogo del destino
     // ANTES de guardar nada, para poder crear la entrada pareada después.
     let entradaPareadaPayloads = null
+    let sinCatalogarNombres = []
     if (esInterna) {
       const normaliza = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '') // sin tildes ni espacios: tolera "-1 B(" vs "- 1B ("
       const { data: itemsDestino } = await fetchAllPages((d, h) =>
@@ -566,17 +568,18 @@ export default function RegistrarMovimientoAlmacenista() {
       const destinoPorNombre = {}
       itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
 
-      const sinCatalogar = agrupados.filter(p => !destinoPorNombre[normaliza(p.item_nombre)])
-      if (sinCatalogar.length > 0) {
-        setError(`No existe en el catálogo de ${destNombre}: ${sinCatalogar.map(p => p.item_nombre).join(', ')}. Créalo primero ahí y vuelve a intentar.`)
-        setGuardando(false)
-        return
+      // Si el producto no existe en el catálogo del destino NO se bloquea: se registra
+      // solo la salida (comportamiento anterior al 03/10/2026) y se avisa cuáles
+      // quedaron sin entrada. Pasa p. ej. con bodegas que aún no usan la app.
+      const conCatalogo = agrupados.filter(p => destinoPorNombre[normaliza(p.item_nombre)])
+      sinCatalogarNombres = agrupados.filter(p => !destinoPorNombre[normaliza(p.item_nombre)]).map(p => p.item_nombre)
+      if (conCatalogo.length > 0) {
+        entradaPareadaPayloads = conCatalogo.map(p => ({
+          item_id:               destinoPorNombre[normaliza(p.item_nombre)],
+          cantidad:              p.cantidad,
+          precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
+        }))
       }
-      entradaPareadaPayloads = agrupados.map(p => ({
-        item_id:               destinoPorNombre[normaliza(p.item_nombre)],
-        cantidad:               p.cantidad,
-        precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
-      }))
     }
 
     try {
@@ -650,6 +653,10 @@ export default function RegistrarMovimientoAlmacenista() {
       setFormKey(k => k + 1)
       setExito(true)
       setTimeout(() => setExito(false), 2500)
+      if (sinCatalogarNombres.length > 0) {
+        setAvisoSinEntrada(sinCatalogarNombres.map(n => ({ n, d: destNombre })))
+        setTimeout(() => setAvisoSinEntrada([]), 15000)
+      }
     } catch (err) {
       setError('Error inesperado: ' + err.message)
     } finally {
@@ -747,6 +754,17 @@ export default function RegistrarMovimientoAlmacenista() {
           <p className="text-green-700 font-medium text-sm">
             {tipo === 'entrada' ? '¡Entrada registrada exitosamente!' : '¡Salida registrada exitosamente!'}
           </p>
+        </div>
+      )}
+      {avisoSinEntrada.length > 0 && (
+        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-amber-800 font-semibold text-sm">Salida registrada. Sin entrada en {avisoSinEntrada[0].d}:</p>
+            <p className="text-amber-700 text-xs mt-0.5">
+              {avisoSinEntrada.map(a => a.n).join(', ')} no existe(n) en el catálogo de {avisoSinEntrada[0].d}, así que su stock allá no se actualizó.
+            </p>
+          </div>
         </div>
       )}
       {exitoPendiente && (
