@@ -1144,3 +1144,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Causa: `RegistroMecanizado.jsx` busca el producto destino `<nombre origen> - MECANIZADO` en la categoría "producto mecanizado" con `ilike` exacto. Falla si ese producto no existe, está inactivo o su nombre difiere (espacios alrededor de guiones/paréntesis, tildes).
 - Cambio: se trae la categoría completa y se compara normalizado (mayúsculas, sin tildes, sin espacios). Si el destino existe pero está inactivo, el error lo dice; si no existe, el error sugiere nombres parecidos y cómo crearlo. Además `hoyISO()` ahora usa hora de Colombia.
 - Pendiente: si el destino de verdad no existe, hay que crearlo (categoría producto mecanizado, bodega MECANIZADOS) — idea futura: crearlo automáticamente al mecanizar por primera vez.
+
+## Salida con "Transferencia interna": "No existe en el catálogo de <bodega>: ..." (15/10/2026)
+- Síntoma: el Jefe de Fundición, al sacar CORONA 1/2 BULTO LITEMIX, CORONA 1 1/2 BULTO y PLANCHA RANA CONVENCIONAL hacia ARMADO Y SOLDADURA, recibía ese error. En "Transferencia interna" el destino SÍ son bodegas.
+- Causa de fondo: cada bodega tiene su propio catálogo (ids distintos para el mismo producto). Al transferir se debe crear una entrada pareada en la bodega destino, así que el producto tiene que existir allí con el mismo nombre. Si no existe (o difiere), se bloquea antes de guardar para no dejar la salida sin su entrada.
+- Cambio: la comparación de nombres ahora ignora espacios, tildes y mayúsculas (igual que en Mecanizado), solo toma productos activos del destino y pagina (límite 1000 filas) — en `RegistrarMovimientoAlmacenista.jsx` y `TransferenciasPendientes.jsx`.
+- Pendiente: si el producto de verdad no existe en el destino hay que crearlo ahí. Idea futura: crearlo automático con una función SECURITY DEFINER (las políticas de `items` solo dejan crear en bodegas propias).

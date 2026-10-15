@@ -7,6 +7,7 @@ import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import FirmaCanvas from '../shared/FirmaCanvas'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const PROD0 = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
 
@@ -558,9 +559,10 @@ export default function RegistrarMovimientoAlmacenista() {
     // ANTES de guardar nada, para poder crear la entrada pareada después.
     let entradaPareadaPayloads = null
     if (esInterna) {
-      const normaliza = (s) => (s || '').toUpperCase().trim().replace(/\s+/g, ' ')
-      const { data: itemsDestino } = await supabase
-        .from('items').select('id, nombre').eq('bodega_id', destinoBodegaId)
+      const normaliza = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '') // sin tildes ni espacios: tolera "-1 B(" vs "- 1B ("
+      const { data: itemsDestino } = await fetchAllPages((d, h) =>
+        supabase.from('items').select('id, nombre').eq('bodega_id', destinoBodegaId).eq('activo', true).range(d, h)
+      )
       const destinoPorNombre = {}
       itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 
 const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const FUNDICION_BODEGA_ID   = 'a0604489-2768-445b-8e68-e450ef8520ed'
@@ -89,9 +90,10 @@ export default function TransferenciasPendientes() {
       // 1b. Ubicar el ítem correspondiente en el catálogo de la bodega destino.
       // Cada bodega tiene su propio renglón de catálogo para el mismo nombre de producto
       // (son ids distintos), así que la entrada NO puede reutilizar el item_id de origen.
-      const normaliza = (s) => (s || '').toUpperCase().trim().replace(/\s+/g, ' ')
-      const { data: itemsDestino } = await supabase
-        .from('items').select('id, nombre').eq('bodega_id', trf.destino_bodega_id)
+      const normaliza = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '') // sin tildes ni espacios: tolera "-1 B(" vs "- 1B ("
+      const { data: itemsDestino } = await fetchAllPages((d, h) =>
+        supabase.from('items').select('id, nombre').eq('bodega_id', trf.destino_bodega_id).eq('activo', true).range(d, h)
+      )
       const destinoPorNombre = {}
       itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
 
