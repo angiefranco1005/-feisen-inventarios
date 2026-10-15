@@ -70,12 +70,19 @@ async function aplicarAjustesStock(item_id, ajustes) {
 // entre bodegas que comparten catálogo. opts.soloNoRevertidos filtra a
 // revertido=false (solo lo usa revertir()).
 async function buscarMovimientoPar(m, opts = {}) {
+  // Solo una TRANSFERENCIA entre dos bodegas distintas tiene movimiento par. Una entrada de
+  // compra/producción (sin bodega origen), una salida externa (sin destino) o un mecanizado
+  // (origen = destino = Mecanizados) NO tienen par. Antes se rellenaba la bodega faltante con
+  // la otra (`origen || destino`), y entonces una entrada normal "encontraba" como par cualquier
+  // movimiento del mismo producto y cantidad dentro de la misma bodega, lo revertía por error y
+  // volvía a sumar stock (caso MOV-WA-0026, 15/10/2026).
+  if (!m.bodega_origen_id || !m.bodega_destino_id || m.bodega_origen_id === m.bodega_destino_id) return null
   const base = () => {
     let q = supabase.from('movimientos')
       .select('id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, centro_costo, numero, referencia')
       .eq('cantidad', m.cantidad)
-      .eq('bodega_origen_id', m.bodega_origen_id || m.bodega_destino_id)
-      .eq('bodega_destino_id', m.bodega_destino_id || m.bodega_origen_id)
+      .eq('bodega_origen_id', m.bodega_origen_id)
+      .eq('bodega_destino_id', m.bodega_destino_id)
       .neq('tipo', m.tipo)
       .neq('id', m.id)
       .order('created_at', { ascending: false })
