@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
 
 const TIPO_CONFIG = {
@@ -146,40 +147,58 @@ export default function Historial() {
 
     setCargando(true)
     const verTodo = esAdmin
-    let movsQ = supabase
-      .from('movimientos')
-      .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
-      .order('created_at', { ascending: false })
+    // Se arma la consulta con .range() para paginar: el servidor corta en 1000
+    // filas por request, así que sin paginar se perdían movimientos en silencio.
+    const armarQuery = (desde, hasta) => {
+      let q = supabase
+        .from('movimientos')
+        .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
 
-    if (conRango) {
-      // Filtro server-side por rango de fechas: usa fecha_movimiento, con fallback a created_at
-      movsQ = movsQ.or(
-        `and(fecha_movimiento.gte.${inicio},fecha_movimiento.lte.${fin}),` +
-        `and(fecha_movimiento.is.null,created_at.gte.${inicio}T00:00:00,created_at.lte.${fin}T23:59:59)`
-      )
-      // Sin LIMIT: trae TODOS los movimientos del rango
-    } else {
-      movsQ = movsQ.limit(2000)
-    }
-
-    if (!verTodo) {
-      if (esAlmacenista) {
-        // Almacenista: solo sus propios movimientos
-        movsQ = movsQ.eq('usuario_id', perfil.id)
-      } else if (bodegasOperacion?.length) {
-        // Jefes de área: solo movimientos que entran o salen de sus bodegas
-        movsQ = movsQ.or(
-          `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')})`
+      if (conRango) {
+        // Filtro server-side por rango de fechas: usa fecha_movimiento, con fallback a created_at
+        q = q.or(
+          `and(fecha_movimiento.gte.${inicio},fecha_movimiento.lte.${fin}),` +
+          `and(fecha_movimiento.is.null,created_at.gte.${inicio}T00:00:00,created_at.lte.${fin}T23:59:59)`
         )
-      } else {
-        movsQ = movsQ.eq('usuario_id', perfil.id)
       }
+
+      if (!verTodo) {
+        if (esAlmacenista) {
+          // Almacenista: solo sus propios movimientos
+          q = q.eq('usuario_id', perfil.id)
+        } else if (bodegasOperacion?.length) {
+          // Jefes de área: solo movimientos que entran o salen de sus bodegas
+          q = q.or(
+            `bodega_origen_id.in.(${bodegasOperacion.join(',')}),bodega_destino_id.in.(${bodegasOperacion.join(',')})`
+          )
+        } else {
+          q = q.eq('usuario_id', perfil.id)
+        }
+      }
+      return q.range(desde, hasta)
     }
 
-    const [{ data: movs }, { data: its }] = await Promise.all([
-      movsQ,
-      supabase.from('items').select('id, nombre, bodega_id').order('nombre').limit(2000),
+    // Sin rango: los últimos 5.000 (5 páginas). Con rango: todos los del periodo.
+    const [{ data: movs, error: errMovs }, { data: its }] = await Promise.all([
+      conRango
+        ? fetchAllPages(armarQuery)
+        : (async () => {
+            let todas = []
+            for (let p = 0; p < 5; p++) {
+              const { data, error } = await armarQuery(p * 1000, p * 1000 + 999)
+              if (error) return { data: todas, error }
+              todas = todas.concat(data || [])
+              if (!data || data.length < 1000) break
+            }
+            return { data: todas, error: null }
+          })(),
+      fetchAllPages((d, h) => supabase.from('items').select('id, nombre, bodega_id').order('nombre').range(d, h)),
     ])
+    if (errMovs) {
+      setMsg({ tipo: 'error', texto: 'No se pudo cargar el historial: ' + errMovs.message })
+    }
     setMovimientos(movs || [])
     setItems(its || [])
 
@@ -523,7 +542,7 @@ export default function Historial() {
           </span>
         )}
         {!fechaInicio && !fechaFin && (
-          <span className="text-xs text-gray-400 ml-1">Sin filtro: muestra los últimos 2.000 movimientos</span>
+          <span className="text-xs text-gray-400 ml-1">Sin filtro: muestra los últimos 5.000 movimientos</span>
         )}
       </div>
 

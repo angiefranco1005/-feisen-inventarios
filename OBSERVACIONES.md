@@ -1164,3 +1164,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Causa: `buscarMovimientoPar` (Historial.jsx) rellenaba la bodega faltante con la otra (`bodega_origen_id || bodega_destino_id`). Una entrada normal (sin bodega origen) terminaba buscando un "par" con origen = destino = Mecanizados, mismo producto y cantidad → encontraba un movimiento de mecanizado (salida) que no tenía nada que ver, lo "revertía" con una entrada y lo marcaba `revertido=true`.
 - Arreglo: solo hay par si el movimiento tiene bodega origen Y destino y son distintas (transferencia real). Entradas de compra/producción, salidas externas y mecanizados ya no buscan par. También protege "Eliminar".
 - Datos a corregir a mano: revertir MOV-5076 (queda neto 0) y poner `revertido=false` al movimiento que fue marcado por error (ver SQL de diagnóstico `diagnostico_reversion_MOV-WA-0026.sql`).
+
+## 2026-10-15 — Historial: paginación y errores visibles
+- `Historial.jsx` ahora pagina la carga de movimientos (`.range()` + `fetchAllPages`; sin rango trae hasta 5.000, con rango todos) y también pagina el catálogo de items. Antes el servidor cortaba en 1.000 filas en silencio.
+- Si la consulta de movimientos falla, se muestra el mensaje de error (antes se ignoraba y la lista quedaba vacía).
+- Orden estable: created_at desc, luego id desc.
+- Caso investigado: `REC-JA-0024` existía en BD (entrada, Fundición, fecha_movimiento 05/10/2026) pero no aparecía en Historial para ADMIN. RLS descartada (`movimientos_select` deja leer todo a ADMIN).
