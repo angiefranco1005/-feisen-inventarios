@@ -19,6 +19,7 @@ import HubReportes        from './components/reportes/HubReportes'
 import CorteInventario    from './components/reportes/CorteInventario'
 import InventarioFisico   from './components/reportes/InventarioFisico'
 import InformeKardex      from './components/reportes/InformeKardex'
+import InformeVentasInternasFundicion from './components/reportes/InformeVentasInternasFundicion'
 import RegistrarFundida    from './components/fundicion/RegistrarFundida'
 import ListaFundidas       from './components/fundicion/ListaFundidas'
 import CrearOrdenMoldeo    from './components/fundicion/CrearOrdenMoldeo'
@@ -178,6 +179,7 @@ function AppRoutes() {
       <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />
       <Route path="/reportes/inventario-fisico" element={<Layout><InventarioFisico /></Layout>} />
       <Route path="/reportes/kardex"        element={<Layout><InformeKardex /></Layout>} />
+      <Route path="/reportes/ventas-internas-fundicion" element={<Layout><InformeVentasInternasFundicion /></Layout>} />
       <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
       <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
       <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />

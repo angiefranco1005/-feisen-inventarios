@@ -1176,3 +1176,12 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - `ListaPedidos.jsx`: la sección "Entradas de inventario" del pedido ahora ignora entradas con `revertido = true`.
 - Se revirtieron por SQL 7 de 11 entradas (MOV-WA-0024/25/29/30/32/33/34), con movimientos `REV-<numero>`. MOV-WA-0026 ya estaba revertida. MOV-WA-0027, 0028 y 0031 NO se tocaron: su stock ya estaba en 0 (revertir las dejaba en negativo). Pendiente entender quién consumió ese material.
 - Gotcha: MOV-WA-0026 aparece `revertido=true` pero su producto tiene stock 15; por revisar.
+
+## 2026-10-16 — Informe "Ventas internas de Fundición" (para PyG por centro de costo)
+- Nuevo informe en Informes > "Ventas internas de Fundición" (`/reportes/ventas-internas-fundicion`), solo ADMIN (muestra valores en COP). Exporta Excel con hojas Resumen (por destino) y Detalle.
+- Criterio acordado con Angie: las salidas de Fundición a OTRAS bodegas (tipo `salida`, bodega_origen = Fundición, bodega_destino distinta) son "ventas internas" a producción; su valor se lleva como COSTO al centro de costos Construequipos.
+- Solo se cuenta la SALIDA (no la entrada pareada REC- del destino) para no duplicar valor.
+- Valor = cantidad × `precio_costo_snapshot` (costo guardado en el movimiento). Líneas con costo 0 se marcan "SIN COSTO" (con el costo actual del catálogo como referencia) y valen $0 en el total.
+- Se excluyen movimientos revertidos (`revertido = true`), movimientos de reversión (`revertido_en` no nulo) y salidas sin bodega destino (ventas externas, consumos, correcciones).
+- Fecha contable: `fecha_movimiento`, con fallback a `created_at`. Pagina con `fetchAllPages` (tope 1.000 filas de PostgREST).
+- Pendiente (siguientes informes): resto de centros de costo / conciliación de inventario. Posible mejora: precio de transferencia con margen si se quiere que Fundición muestre utilidad en su PyG.

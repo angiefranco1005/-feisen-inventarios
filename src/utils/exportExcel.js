@@ -491,6 +491,85 @@ export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'tod
   XLSX.writeFile(wb, `kardex_${periodo}${sufijo}.xlsx`)
 }
 
+// ─────────────────────────────────────────────────────────────
+//  EXPORTAR VENTAS INTERNAS DE FUNDICIÓN (salidas a otras bodegas)
+//  Valor = cantidad × costo guardado en el movimiento. Se lleva como costo
+//  al centro de costos Construequipos.
+// ─────────────────────────────────────────────────────────────
+export function exportarVentasInternasFundicion(res, fechaInicio, fechaFin, bodegaNombre = 'Fundición') {
+  const wb = XLSX.utils.book_new()
+  const fFecha = (iso) => { const [a, m, d] = (iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${a}` : '' }
+  const periodo = `${fFecha(fechaInicio)} al ${fFecha(fechaFin)}`
+  const COP = '"$"#,##0'
+  const rojoPale = 'FDE8E6'
+
+  // ── Hoja 1: Resumen por destino ──
+  const aoa1 = [
+    [`VENTAS INTERNAS DE FUNDICIÓN — ${bodegaNombre}`],
+    [`Período: ${periodo}`],
+    ['Valor al costo registrado en cada movimiento. Se lleva como COSTO al centro de costos Construequipos.'],
+    [],
+    ['Destino', 'Movimientos', 'Líneas', 'Líneas sin costo', 'Valor (COP)'],
+    ...res.resumen.map(r => [r.destino, r.movimientos, r.lineas, r.sinCosto, Math.round(r.valor)]),
+    ['TOTAL', res.totalMovimientos, res.totalLineas, res.sinCosto.length, Math.round(res.totalValor)],
+  ]
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1)
+  ws1['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 20 }]
+  estRow(ws1, 0, 5, S.titulo); mergeFila(ws1, 0, 0, 4)
+  estRow(ws1, 1, 5, S.info);   mergeFila(ws1, 1, 0, 4)
+  estRow(ws1, 2, 5, S.info);   mergeFila(ws1, 2, 0, 4)
+  estRow(ws1, 4, 5, S.encabezado)
+  const ult1 = aoa1.length - 1
+  for (let R = 5; R < ult1; R++) {
+    const par = R % 2 === 0
+    estRow(ws1, R, 5, par ? S.itemImpar : S.itemPar)
+    for (const c of [1, 2, 3]) ws1[XLSX.utils.encode_cell({ r: R, c })].s = S.itemNum(par)
+    ws1[XLSX.utils.encode_cell({ r: R, c: 4 })].s = { ...S.itemNum(par), numFmt: COP }
+  }
+  estRow(ws1, ult1, 5, S.total)
+  for (const c of [1, 2, 3]) ws1[XLSX.utils.encode_cell({ r: ult1, c })].s = { ...S.totalNum, numFmt: '#,##0' }
+  ws1[XLSX.utils.encode_cell({ r: ult1, c: 4 })].s = S.totalNum
+  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
+
+  // ── Hoja 2: Detalle ──
+  const enc = ['Fecha', 'N° movimiento', 'Producto', 'Categoría', 'Origen', 'Destino', 'Cantidad', 'Unidad',
+               'Costo unitario (COP)', 'Valor (COP)', 'Registrado por', 'Referencia', 'Observación']
+  const aoa2 = [
+    enc,
+    ...res.filas.map(f => [
+      fFecha(f.fecha), f.numero, f.producto, f.categoria, f.origen, f.destino, f.cantidad, f.unidad,
+      Math.round(f.costo), Math.round(f.valor), f.usuario, f.referencia,
+      f.sinCosto ? `SIN COSTO en el movimiento${f.costoActual > 0 ? ` — costo actual del catálogo: $${Math.round(f.costoActual).toLocaleString('es-CO')}` : ''}` : '',
+    ]),
+    ['TOTAL', '', '', '', '', '', '', '', '', Math.round(res.totalValor), '', '', ''],
+  ]
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2)
+  ws2['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 46 }, { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 11 }, { wch: 10 },
+                  { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 34 }, { wch: 46 }]
+  estRow(ws2, 0, 13, S.encabezado)
+  const ult2 = aoa2.length - 1
+  for (let R = 1; R < ult2; R++) {
+    const f = res.filas[R - 1]
+    const par = R % 2 === 0
+    estRow(ws2, R, 13, par ? S.itemImpar : S.itemPar)
+    ws2[XLSX.utils.encode_cell({ r: R, c: 6 })].s = { ...S.itemNum(par), numFmt: '#,##0.###' }
+    for (const c of [8, 9]) ws2[XLSX.utils.encode_cell({ r: R, c })].s = { ...S.itemNum(par), numFmt: COP }
+    if (f?.sinCosto) {
+      for (let c = 0; c < 13; c++) {
+        const cell = ws2[XLSX.utils.encode_cell({ r: R, c })]
+        cell.s = { ...cell.s, fill: fill(rojoPale), font: font(C.rojo, c === 12, 10) }
+      }
+    }
+  }
+  estRow(ws2, ult2, 13, S.total)
+  ws2[XLSX.utils.encode_cell({ r: ult2, c: 9 })].s = S.totalNum
+  ws2['!freeze'] = { xSplit: 0, ySplit: 1 }
+  ws2['!autofilter'] = { ref: `A1:M${aoa2.length - 1}` }
+  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle')
+
+  XLSX.writeFile(wb, `ventas_internas_fundicion_${fechaInicio}_${fechaFin}.xlsx`)
+}
+
 export function exportarConsumoExcel(resumen, nombreArchivo = 'consumo_feisen') {
   const wb = XLSX.utils.book_new()
   resumen.forEach(({ centro, filas }) => {

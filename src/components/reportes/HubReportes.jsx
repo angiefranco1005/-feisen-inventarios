@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, ClipboardList, TrendingUp, ChevronRight } from 'lucide-react'
+import { CalendarDays, ClipboardList, TrendingUp, Flame, ChevronRight } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 
 const REPORTES = [
   {
@@ -26,9 +27,19 @@ const REPORTES = [
     color: 'text-feisen-rojo',
     bg: 'bg-red-50',
   },
+  {
+    to: '/reportes/ventas-internas-fundicion',
+    icon: Flame,
+    titulo: 'Ventas internas de Fundición',
+    descripcion: 'Lo que Fundición despacha a otras bodegas, valorizado al costo del movimiento. Es el costo que se lleva al centro de costos Construequipos. Exporta a Excel.',
+    color: 'text-orange-700',
+    bg: 'bg-orange-50',
+    soloAdmin: true,
+  },
 ]
 
 export default function HubReportes() {
+  const { esAdmin } = useAuth()
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
@@ -37,7 +48,7 @@ export default function HubReportes() {
       </div>
 
       <div className="grid gap-4">
-        {REPORTES.map(r => (
+        {REPORTES.filter(r => !r.soloAdmin || esAdmin).map(r => (
           <Link
             key={r.to}
             to={r.to}
