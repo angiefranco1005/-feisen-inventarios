@@ -103,16 +103,18 @@ export default function InformeBalanceHierro() {
       .select('id, nombre, unidad_medida, categorias(nombre)')
       .eq('bodega_id', FUND_BODEGA_ID).eq('activo', true).order('nombre')
       .then(({ data }) => {
-        const lista = data || []
+        const todos = (data || []).filter(i => !ADITIVOS_IDS.includes(i.id))
+        // Solo materia prima: las piezas fundidas (MATERIAL FUNDIDO) son SALIDA del proceso
+        // y se calculan desde las órdenes de moldeo, no se escogen aquí.
+        const soloMP = todos.filter(i => /materia prima/i.test(i.categorias?.nombre || '') || i.id === HIERRO_COLADO_ID)
+        const lista = soloMP.length > 0 ? soloMP : todos.filter(i => !/fundido/i.test(i.categorias?.nombre || ''))
         setItemsFund(lista)
         const guardados = cargarCfg().itemsIds
         if (Array.isArray(guardados) && guardados.length) {
           setSeleccion(new Set([...guardados, HIERRO_COLADO_ID]))
         } else {
           // Preselección: HIERRO COLADO + categoría "MATERIA PRIMA" que no sea aditivo
-          const ids = lista
-            .filter(i => /materia prima/i.test(i.categorias?.nombre || '') && !ADITIVOS_IDS.includes(i.id))
-            .map(i => i.id)
+          const ids = lista.map(i => i.id)
           setSeleccion(new Set([...ids, HIERRO_COLADO_ID]))
         }
       })
@@ -399,7 +401,7 @@ export default function InformeBalanceHierro() {
           <button type="button" onClick={() => setVerItems(v => !v)}
             className="flex items-center gap-2 text-sm font-semibold text-feisen-azul">
             {verItems ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Productos que cuentan como hierro ({nSel} seleccionados)
+            Materia prima que cuenta como hierro ({nSel} seleccionados)
           </button>
           {verItems && (
             <div className="flex gap-2 mt-2">
@@ -424,7 +426,7 @@ export default function InformeBalanceHierro() {
               ))}
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-1">HIERRO COLADO siempre se incluye. La selección queda guardada en este navegador. Todos deben estar en kg.</p>
+          <p className="text-xs text-gray-400 mt-1">Solo se listan productos de materia prima (sin carbón, caliza, ferromolido ni exlac). Las piezas fundidas se calculan solas desde las órdenes de moldeo. HIERRO COLADO siempre se incluye. La selección queda guardada en este navegador. Todos deben estar en kg.</p>
         </div>
 
         <div className="flex gap-3 pt-1">
