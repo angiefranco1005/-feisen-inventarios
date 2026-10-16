@@ -618,14 +618,14 @@ export function exportarBalanceHierro(res, { mesDesde, mesHasta, conteo = {}, la
   // 1) Balance mensual
   const m = res.meses
   hojaTabla(wb, 'Balance mensual', `BALANCE DE HIERRO — FUNDICIÓN · ${periodo}`, config,
-    ['Mes', 'Stock inicial (kg)', '+ Compras', '+ Otras entradas', '− Consumo horno', '− Otras salidas', 'Ajustes', 'Sin explicar', '= Stock final (kg)',
+    ['Mes', 'Stock inicial (kg)', '+ Compras', '+ Otras entradas', '+ Vaceadero generado', '− Consumo horno', '− Otras salidas', '− Vaceadero que sale', 'Ajustes', 'Sin explicar', '= Stock final (kg)',
      'Hierro cargado (fundidas)', 'Hierro descontado (órdenes)', 'Fundidas sin descontar', 'Piezas buenas', 'NC (kg)', 'Vaceadero', 'Merma real', '% merma real', 'Merma esperada', 'Desviación (kg)'],
-    m.map(b => [labelMes(b.mes), r1(b.stockIni), r1(b.compras), r1(b.otrasEntradas), r1(b.consumoHorno), r1(b.otrasSalidas), r1(b.ajustes), r1(b.residuo), r1(b.stockFin),
+    m.map(b => [labelMes(b.mes), r1(b.stockIni), r1(b.compras), r1(b.otrasEntradas), r1(b.vacEntra), r1(b.consumoHorno), r1(b.otrasSalidas), r1(b.vacSale), r1(b.ajustes), r1(b.residuo), r1(b.stockFin),
       r1(b.hierroCargado), r1(b.hierroOrdenes), r1(b.fundidasSinDescontar), r1(b.buenas), r1(b.nc), r1(b.vaceadero), r1(b.merma), r1(b.mermaPct), r1(b.mermaEsperadaKg), r1(b.desviacionKg)]),
-    { anchos: [12, 14, 12, 14, 14, 14, 10, 12, 16, 16, 18, 16, 14, 10, 12, 12, 12, 14, 14],
-      fmt: Object.fromEntries(Array.from({ length: 19 }, (_, i) => [i, KG])),
+    { anchos: [12, 14, 12, 14, 16, 14, 14, 16, 10, 12, 16, 16, 18, 16, 14, 10, 12, 12, 12, 14, 14],
+      fmt: Object.fromEntries(Array.from({ length: 21 }, (_, i) => [i, KG])),
       alerta: (_, i) => m[i].alerta,
-      total: ['TOTAL', r1(m[0]?.stockIni), ...['compras', 'otrasEntradas', 'consumoHorno', 'otrasSalidas', 'ajustes', 'residuo'].map(k => r1(m.reduce((s, b) => s + b[k], 0))), r1(m[m.length - 1]?.stockFin),
+      total: ['TOTAL', r1(m[0]?.stockIni), ...['compras', 'otrasEntradas', 'vacEntra', 'consumoHorno', 'otrasSalidas', 'vacSale', 'ajustes', 'residuo'].map(k => r1(m.reduce((s, b) => s + b[k], 0))), r1(m[m.length - 1]?.stockFin),
         ...['hierroCargado', 'hierroOrdenes', 'fundidasSinDescontar', 'buenas', 'nc', 'vaceadero', 'merma'].map(k => r1(m.reduce((s, b) => s + b[k], 0))),
         r1(m.reduce((s, b) => s + b.hierroOrdenes, 0) > 0 ? (m.reduce((s, b) => s + b.merma, 0) / m.reduce((s, b) => s + b.hierroOrdenes, 0)) * 100 : 0),
         r1(m.reduce((s, b) => s + b.mermaEsperadaKg, 0)), r1(m.reduce((s, b) => s + b.desviacionKg, 0))] })
@@ -657,6 +657,7 @@ export function exportarBalanceHierro(res, { mesDesde, mesHasta, conteo = {}, la
   res.ordenesSinHierro.forEach(o => ctrl.push(['Orden cerrada sin hierro descontado', o.orden, fF(o.fecha), '', 'No se puede calcular merma']))
   res.ordenesSinPeso.forEach(o => ctrl.push(['Orden con piezas sin peso unitario', o.orden, fF(o.fecha), '', 'Cargar peso en el catálogo']))
   res.salidasNoHorno.forEach(s => ctrl.push(['Salida de hierro que NO es consumo de horno', `${s.numero} · ${s.item}`, fF(s.fecha), r1(s.kg), `${s.destino} ${s.referencia} — ${s.usuario}`.trim()]))
+  res.salidasVaceadero.forEach(s => ctrl.push(['Salida de VACEADERO (reutilizado o retirado)', `${s.numero} · ${s.item}`, fF(s.fecha), r1(s.kg), `${s.destino} ${s.referencia} — ${s.usuario}`.trim()]))
   res.comprasSinProveedor.forEach(c => ctrl.push(['Entrada de hierro sin proveedor', `${c.numero} · ${c.item}`, fF(c.fecha), r1(c.kg), c.usuario || '']))
   const ws5 = hojaTabla(wb, 'Controles', `CONTROLES DE INTEGRIDAD · ${periodo}`, ctrl.length ? 'Cada fila es algo para revisar.' : 'Sin hallazgos en el período.',
     ['Control', 'Referencia', 'Fecha', 'Kg', 'Detalle'], ctrl, { anchos: [44, 40, 12, 12, 60], fmt: { 3: KG } })

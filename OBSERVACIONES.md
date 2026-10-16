@@ -1197,3 +1197,10 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - FIX: `AnaliticaFundicion.jsx` filtraba órdenes con estado `'completada'` pero Recogida guarda `'completado'` → la analítica de Fundición no veía ninguna orden. Ahora acepta ambos.
 - Pendiente Fase 2: cruce con el pago a moldeadores (pago por kilo de pieza buena; falta el $/kg y la liquidación de nómina). Fase 3: cruce con inventario de piezas terminadas.
 - (16/10/2026) Balance de hierro: la lista "Materia prima que cuenta como hierro" muestra SOLO materia prima (sin aditivos del horno ni piezas de "MATERIAL FUNDIDO"). Las piezas fundidas son salida y se calculan desde las órdenes de moldeo × peso unitario; no se escogen. Botones "Seleccionar todo" / "Quitar todo" (HIERRO COLADO siempre queda incluido).
+
+## 16/10/2026 — Balance de hierro: solo HIERRO COLADO y VACEADERO
+- Decisión de Angie: el balance cuenta únicamente dos productos de Fundición: HIERRO COLADO y VACEADERO. Se eliminó el selector de productos (ya no hay lista ni "seleccionar todo"); los IDs son fijos en `InformeBalanceHierro.jsx` (`IDS_HIERRO`).
+- El VACEADERO ya no se confunde con una compra: sus entradas (cierre de orden en Recogida) van en la columna "+ Vaceadero generado" y sus salidas en "− Vaceadero que sale" (cada salida de vaceadero también aparece en Controles para revisión).
+- El stock del balance = HIERRO COLADO + VACEADERO (ambos son hierro recuperable). El conteo físico se captura por producto por separado.
+- La merma sigue calculándose igual: hierro descontado en órdenes − piezas buenas − vaceadero (el vaceadero se lee aparte de las órdenes, sin doble conteo).
+- El Excel agrega las dos columnas de vaceadero en "Balance mensual" y las salidas de vaceadero en "Controles".

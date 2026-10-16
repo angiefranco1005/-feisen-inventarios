@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { exportarBalanceHierro } from '../../utils/exportExcel'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import Alerta from '../shared/Alerta'
-import { Scale, Download, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Scale, Download, RefreshCw } from 'lucide-react'
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Informe: BALANCE DE HIERRO de Fundición (Fase 1).
@@ -32,13 +32,9 @@ import { Scale, Download, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react
 const FUND_BODEGA_ID      = 'a0604489-2768-445b-8e68-e450ef8520ed'
 const HIERRO_COLADO_ID    = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ID        = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
-// Aditivos del horno (no son hierro): se excluyen de la preselección automática
-const ADITIVOS_IDS = [
-  '7314b94c-385c-4c22-b0f8-04861fbc644e', // carbón
-  '8dac18cd-3909-4ea5-ace5-316a2cf6a894', // caliza
-  '8a13934b-6d19-4ef1-975f-8b36f3429abd', // ferromolido
-  '55974f24-8892-475f-8658-eb57f5f496cc', // exlac
-]
+// El balance cuenta solo estos dos productos de Fundición (definido por Angie, 16/10/2026)
+const IDS_HIERRO = [HIERRO_COLADO_ID, VACEADERO_ID]
+const NOMBRES_ITEM = { [HIERRO_COLADO_ID]: 'HIERRO COLADO', [VACEADERO_ID]: 'VACEADERO' }
 const LS_KEY = 'feisen_balance_hierro_cfg_v1'
 
 const TIPOS_ENTRADA = ['entrada', 'entrada_compra', 'devolucion']
@@ -88,61 +84,19 @@ export default function InformeBalanceHierro() {
   const [mesHasta,  setMesHasta]  = useState(cfgInicial.mesHasta || mesActual())
   const [mermaPct,  setMermaPct]  = useState(cfgInicial.mermaPct ?? '')   // '' = usar histórico
   const [tolerancia, setTolerancia] = useState(cfgInicial.tolerancia ?? '3')
-  const [itemsFund, setItemsFund] = useState([])
-  const [seleccion, setSeleccion] = useState(null)       // Set de ids (null = aún sin definir)
-  const [verItems,  setVerItems]  = useState(false)
   const [cargando,  setCargando]  = useState(false)
   const [error,     setError]     = useState('')
   const [datos,     setDatos]     = useState(null)       // datos crudos ya cargados
   const [mesDetalle, setMesDetalle] = useState('')
   const [conteo,    setConteo]    = useState({})         // conteo físico por item: { id: '123' }
 
-  // Catálogo de Fundición para elegir qué productos cuentan como hierro
-  useEffect(() => {
-    supabase.from('items')
-      .select('id, nombre, unidad_medida, categorias(nombre)')
-      .eq('bodega_id', FUND_BODEGA_ID).eq('activo', true).order('nombre')
-      .then(({ data }) => {
-        const todos = (data || []).filter(i => !ADITIVOS_IDS.includes(i.id))
-        // Solo materia prima: las piezas fundidas (MATERIAL FUNDIDO) son SALIDA del proceso
-        // y se calculan desde las órdenes de moldeo, no se escogen aquí.
-        const soloMP = todos.filter(i => /materia prima/i.test(i.categorias?.nombre || '') || i.id === HIERRO_COLADO_ID)
-        const lista = soloMP.length > 0 ? soloMP : todos.filter(i => !/fundido/i.test(i.categorias?.nombre || ''))
-        setItemsFund(lista)
-        const guardados = cargarCfg().itemsIds
-        if (Array.isArray(guardados) && guardados.length) {
-          setSeleccion(new Set([...guardados, HIERRO_COLADO_ID]))
-        } else {
-          // Preselección: HIERRO COLADO + categoría "MATERIA PRIMA" que no sea aditivo
-          const ids = lista.map(i => i.id)
-          setSeleccion(new Set([...ids, HIERRO_COLADO_ID]))
-        }
-      })
-  }, [])
-
-  function seleccionarTodo() {
-    setSeleccion(new Set(itemsFund.map(i => i.id).concat(HIERRO_COLADO_ID)))
-  }
-  function quitarTodo() {
-    setSeleccion(new Set([HIERRO_COLADO_ID]))
-  }
-
-  function alternarItem(id) {
-    if (id === HIERRO_COLADO_ID) return
-    setSeleccion(prev => {
-      const n = new Set(prev || [])
-      n.has(id) ? n.delete(id) : n.add(id)
-      return n
-    })
-  }
-
   async function generar() {
     setCargando(true); setError(''); setDatos(null)
     try {
-      const ids = [...(seleccion || [HIERRO_COLADO_ID])]
+      const ids = IDS_HIERRO
       const inicio = `${mesDesde}-01`
       const fin = ultimoDia(mesHasta)
-      guardarCfg({ mesDesde, mesHasta, mermaPct, tolerancia, itemsIds: ids })
+      guardarCfg({ mesDesde, mesHasta, mermaPct, tolerancia })
 
       const movSel = 'id, numero, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, fecha_movimiento, created_at, referencia, motivo, proveedor, destino, revertido, revertido_en, items(nombre, unidad_medida), profiles(nombre)'
 
@@ -206,12 +160,12 @@ export default function InformeBalanceHierro() {
     const stockActual = stock.reduce((s, r) => s + Number(r.cantidad_actual || 0), 0)
     const porMes = {}
     meses.forEach(ym => { porMes[ym] = {
-      mes: ym, net: 0, compras: 0, otrasEntradas: 0, ajustes: 0, consumoHorno: 0, otrasSalidas: 0,
+      mes: ym, net: 0, compras: 0, otrasEntradas: 0, vacEntra: 0, vacSale: 0, ajustes: 0, consumoHorno: 0, otrasSalidas: 0,
       hierroCargado: 0, fundidasSinDescontar: 0, hierroOrdenes: 0, buenas: 0, nc: 0, vaceadero: 0, merma: 0,
       ordenes: 0, plan: 0, conf: 0, ncUds: 0, faltanteUds: 0,
     } })
     const netPorItem = {}   // item → { total: neto desde inicio, despuesFin: neto posterior al rango }
-    const salidasNoHorno = [], comprasSinProveedor = []
+    const salidasNoHorno = [], salidasVaceadero = [], comprasSinProveedor = []
     let netPosterior = 0
     const mesFinRango = meses[meses.length - 1]
 
@@ -225,6 +179,15 @@ export default function InformeBalanceHierro() {
       b.net += ef
       if (!esReal(m)) continue
       if (m.tipo === 'ajuste_inventario') { b.ajustes += ef; continue }
+      if (m.item_id === VACEADERO_ID) {
+        // Vaceadero: lo que se genera al cerrar órdenes (entra) y lo que sale/reutiliza
+        if (ef > 0) b.vacEntra += ef
+        else if (ef < 0) {
+          b.vacSale += -ef
+          salidasVaceadero.push({ fecha: fechaMov(m), numero: m.numero, item: 'VACEADERO', kg: -ef, destino: m.destino || '', referencia: m.referencia || '', usuario: m.profiles?.nombre || '' })
+        }
+        continue
+      }
       if (ef > 0) {
         if (!m.bodega_origen_id) {
           b.compras += ef
@@ -246,7 +209,7 @@ export default function InformeBalanceHierro() {
       b.stockFin = stockActual - acumPosterior
       b.stockIni = b.stockFin - b.net
       acumPosterior += b.net
-      b.residuo = b.stockFin - (b.stockIni + b.compras + b.otrasEntradas + b.ajustes - b.consumoHorno - b.otrasSalidas)
+      b.residuo = b.stockFin - (b.stockIni + b.compras + b.otrasEntradas + b.vacEntra + b.ajustes - b.consumoHorno - b.otrasSalidas - b.vacSale)
     }
 
     // Hierro descontado por orden / fundida (referencia "ORD-MOL-xxxx · FUN-xxxx")
@@ -329,20 +292,21 @@ export default function InformeBalanceHierro() {
     // Stock por producto al cierre del rango (para comparar con el conteo físico)
     const stockPorItem = ids.map(id => {
       const fila = stock.find(s => s.item_id === id)
-      const nombre = itemsFund.find(i => i.id === id)?.nombre || id
+      const nombre = NOMBRES_ITEM[id] || id
       const actual = Number(fila?.cantidad_actual || 0)
       return { id, nombre, sistema: actual - (netPorItem[id]?.despuesFin || 0) }
-    }).filter(r => r.sistema !== 0 || ids.length <= 6)
+    })
 
     return {
       meses: filasMes, detalleOrdenes: detalleOrdenes.sort((a, b) => a.fecha.localeCompare(b.fecha)),
       noConformes, moldeadores: Object.values(porMoldeador).sort((a, b) => a.mes.localeCompare(b.mes) || a.moldeador.localeCompare(b.moldeador, 'es')),
       fundidasSinDescontar, ordenesSinHierro, ordenesSinPeso,
       salidasNoHorno: salidasNoHorno.sort((a, b) => a.fecha.localeCompare(b.fecha)),
+      salidasVaceadero: salidasVaceadero.sort((a, b) => a.fecha.localeCompare(b.fecha)),
       comprasSinProveedor, stockPorItem, historico, mermaEsperada, tolerancia: tol,
       stockActual,
     }
-  }, [datos, mermaPct, tolerancia, mesDesde, mesHasta, itemsFund])
+  }, [datos, mermaPct, tolerancia, mesDesde, mesHasta])
 
   function descargar() {
     if (!res) return
@@ -357,7 +321,6 @@ export default function InformeBalanceHierro() {
     )
   }
 
-  const nSel = seleccion ? seleccion.size : 0
   const ultimoMes = res?.meses?.[res.meses.length - 1]
   const detalleMes = res ? res.detalleOrdenes.filter(o => o.mes === mesDetalle) : []
 
@@ -397,40 +360,10 @@ export default function InformeBalanceHierro() {
           </div>
         </div>
 
-        <div>
-          <button type="button" onClick={() => setVerItems(v => !v)}
-            className="flex items-center gap-2 text-sm font-semibold text-feisen-azul">
-            {verItems ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            Materia prima que cuenta como hierro ({nSel} seleccionados)
-          </button>
-          {verItems && (
-            <div className="flex gap-2 mt-2">
-              <button type="button" onClick={seleccionarTodo}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-feisen-azul text-feisen-azul hover:bg-blue-50">
-                Seleccionar todo
-              </button>
-              <button type="button" onClick={quitarTodo}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50">
-                Quitar todo
-              </button>
-            </div>
-          )}
-          {verItems && (
-            <div className="mt-2 border border-gray-200 rounded-xl p-3 max-h-60 overflow-y-auto grid sm:grid-cols-2 gap-1">
-              {itemsFund.map(i => (
-                <label key={i.id} className="flex items-center gap-2 text-sm text-gray-700 py-0.5">
-                  <input type="checkbox" checked={!!seleccion?.has(i.id)} disabled={i.id === HIERRO_COLADO_ID}
-                    onChange={() => alternarItem(i.id)} />
-                  <span>{i.nombre} <span className="text-xs text-gray-400">· {i.categorias?.nombre || 'sin categoría'} · {i.unidad_medida}</span></span>
-                </label>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-gray-400 mt-1">Solo se listan productos de materia prima (sin carbón, caliza, ferromolido ni exlac). Las piezas fundidas se calculan solas desde las órdenes de moldeo. HIERRO COLADO siempre se incluye. La selección queda guardada en este navegador. Todos deben estar en kg.</p>
-        </div>
+        <p className="text-xs text-gray-400">El balance cuenta dos productos de Fundición: <strong>HIERRO COLADO</strong> y <strong>VACEADERO</strong>. Las piezas fundidas se calculan desde las órdenes de moldeo.</p>
 
         <div className="flex gap-3 pt-1">
-          <button onClick={generar} disabled={cargando || !seleccion || !mesDesde || !mesHasta}
+          <button onClick={generar} disabled={cargando || !mesDesde || !mesHasta}
             className="flex items-center gap-2 bg-feisen-azul text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-60">
             {cargando ? <RefreshCw size={16} className="animate-spin" /> : <Scale size={16} />}
             {cargando ? 'Calculando...' : 'Calcular'}
@@ -492,7 +425,7 @@ export default function InformeBalanceHierro() {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead className="bg-gray-50">
                   <tr>
-                    {['Mes', 'Stock inicial', '+ Compras', '+ Otras entradas', '− Consumo horno', '− Otras salidas', 'Ajustes', 'Sin explicar', '= Stock final'].map(h => (
+                    {['Mes', 'Stock inicial', '+ Compras', '+ Otras entradas', '+ Vaceadero generado', '− Consumo horno', '− Otras salidas', '− Vaceadero que sale', 'Ajustes', 'Sin explicar', '= Stock final'].map(h => (
                       <th key={h} className="text-right first:text-left px-3 py-2.5 text-xs font-semibold text-gray-500">{h}</th>
                     ))}
                   </tr>
@@ -504,8 +437,10 @@ export default function InformeBalanceHierro() {
                       <td className="px-3 py-2 text-right text-gray-600">{kg(b.stockIni)}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{kg(b.compras)}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{kg(b.otrasEntradas)}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{kg(b.vacEntra)}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{kg(b.consumoHorno)}</td>
                       <td className={`px-3 py-2 text-right ${b.otrasSalidas > 0 ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>{kg(b.otrasSalidas)}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{kg(b.vacSale)}</td>
                       <td className="px-3 py-2 text-right text-gray-500">{kg(b.ajustes)}</td>
                       <td className={`px-3 py-2 text-right ${Math.abs(b.residuo) > 0.5 ? 'text-feisen-rojo font-semibold' : 'text-gray-400'}`}>{kg(b.residuo)}</td>
                       <td className="px-3 py-2 text-right font-semibold text-feisen-azul">{kg(b.stockFin)}</td>
