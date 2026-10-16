@@ -118,6 +118,13 @@ export default function InformeBalanceHierro() {
       })
   }, [])
 
+  function seleccionarTodo() {
+    setSeleccion(new Set(itemsFund.map(i => i.id).concat(HIERRO_COLADO_ID)))
+  }
+  function quitarTodo() {
+    setSeleccion(new Set([HIERRO_COLADO_ID]))
+  }
+
   function alternarItem(id) {
     if (id === HIERRO_COLADO_ID) return
     setSeleccion(prev => {
@@ -394,6 +401,18 @@ export default function InformeBalanceHierro() {
             {verItems ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             Productos que cuentan como hierro ({nSel} seleccionados)
           </button>
+          {verItems && (
+            <div className="flex gap-2 mt-2">
+              <button type="button" onClick={seleccionarTodo}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-feisen-azul text-feisen-azul hover:bg-blue-50">
+                Seleccionar todo
+              </button>
+              <button type="button" onClick={quitarTodo}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-600 hover:bg-gray-50">
+                Quitar todo
+              </button>
+            </div>
+          )}
           {verItems && (
             <div className="mt-2 border border-gray-200 rounded-xl p-3 max-h-60 overflow-y-auto grid sm:grid-cols-2 gap-1">
               {itemsFund.map(i => (
