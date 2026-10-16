@@ -1185,3 +1185,14 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Se excluyen movimientos revertidos (`revertido = true`), movimientos de reversión (`revertido_en` no nulo) y salidas sin bodega destino (ventas externas, consumos, correcciones).
 - Fecha contable: `fecha_movimiento`, con fallback a `created_at`. Pagina con `fetchAllPages` (tope 1.000 filas de PostgREST).
 - Pendiente (siguientes informes): resto de centros de costo / conciliación de inventario. Posible mejora: precio de transferencia con margen si se quiere que Fundición muestre utilidad en su PyG.
+
+## 2026-10-16 — Informe "Balance de hierro — Fundición" (Fase 1) + fix Analítica
+- Nuevo informe en Informes > "Balance de hierro" (`/reportes/balance-hierro`), solo ADMIN. Mensual (rango de meses). Exporta Excel (hojas: Balance mensual, Órdenes de moldeo, No conformes, Moldeadores, Controles + conteo físico).
+- Cadena que cruza: compras/entradas de hierro (movimientos a bodega FUNDICIÓN) → hierro cargado (tabla `fundidas.hierro_colado`) → hierro DESCONTADO (salida de HIERRO COLADO al cerrar la orden en Recogida, referencia "ORD-MOL-xxxx · FUN-xxxx") → piezas buenas (conformes × peso_unitario) + NC + vaceadero (entrada de VACEADERO = kg manual + kg NC) → merma real = descontado − buenas − vaceadero (misma fórmula de Recogida) → stock sistema vs conteo físico.
+- Merma esperada: % editable por Angie (vacío = histórico del rango) + tolerancia en puntos. Rojo si merma real > esperada + tolerancia.
+- Productos que cuentan como hierro: se eligen en pantalla (checklist de la bodega Fundición; HIERRO COLADO siempre incluido; por defecto categoría "MATERIA PRIMA" sin carbón/caliza/ferromolido/exlac). La selección, meses, % y tolerancia se guardan en localStorage del navegador (no en BD).
+- Stock de cada fin de mes: se reconstruye retrocediendo desde el stock actual con los movimientos posteriores. El trigger `fn_actualizar_stock` hace GREATEST(0, ...) en salidas/ajustes, así que si alguna vez se forzó stock a 0 aparece en la columna "Sin explicar".
+- Controles: fundidas sin descontar (hierro cargado que no se descontó porque la orden no se cerró con esa fundida), órdenes cerradas sin hierro, piezas sin peso unitario, merma negativa, salidas de hierro que NO son consumo de horno, entradas sin proveedor.
+- Dato clave: el hierro SOLO se descuenta del inventario al cerrar la orden de moldeo con la fundida vinculada (Recogida), no al registrar la fundida. Mientras tanto el stock de sistema está inflado.
+- FIX: `AnaliticaFundicion.jsx` filtraba órdenes con estado `'completada'` pero Recogida guarda `'completado'` → la analítica de Fundición no veía ninguna orden. Ahora acepta ambos.
+- Pendiente Fase 2: cruce con el pago a moldeadores (pago por kilo de pieza buena; falta el $/kg y la liquidación de nómina). Fase 3: cruce con inventario de piezas terminadas.

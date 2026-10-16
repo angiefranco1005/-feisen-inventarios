@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, ClipboardList, TrendingUp, Flame, ChevronRight } from 'lucide-react'
+import { CalendarDays, ClipboardList, TrendingUp, Flame, Scale, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const REPORTES = [
@@ -34,6 +34,15 @@ const REPORTES = [
     descripcion: 'Lo que Fundición despacha a otras bodegas, valorizado al costo del movimiento. Es el costo que se lleva al centro de costos Construequipos. Exporta a Excel.',
     color: 'text-orange-700',
     bg: 'bg-orange-50',
+    soloAdmin: true,
+  },
+  {
+    to: '/reportes/balance-hierro',
+    icon: Scale,
+    titulo: 'Balance de hierro — Fundición',
+    descripcion: 'Cruza mes a mes compras de hierro, fundido, piezas buenas, vaceadero, merma y stock, con controles para detectar faltantes. Exporta a Excel.',
+    color: 'text-feisen-rojo',
+    bg: 'bg-red-50',
     soloAdmin: true,
   },
 ]

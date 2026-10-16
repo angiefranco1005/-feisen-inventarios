@@ -85,7 +85,7 @@ export default function AnaliticaFundicion() {
             items(id, nombre, peso_unitario)
           )
         `)
-        .eq('estado', 'completada')
+        .in('estado', ['completado', 'completada'])
         .order('fecha', { ascending: false })
         .range(desde_, hasta_)
       if (desde) q = q.gte('fecha', desde)
