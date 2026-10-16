@@ -1170,3 +1170,9 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Si la consulta de movimientos falla, se muestra el mensaje de error (antes se ignoraba y la lista quedaba vacía).
 - Orden estable: created_at desc, luego id desc.
 - Caso investigado: `REC-JA-0024` existía en BD (entrada, Fundición, fecha_movimiento 05/10/2026) pero no aparecía en Historial para ADMIN. RLS descartada (`movimientos_select` deja leer todo a ADMIN).
+
+## 2026-10-16 — Pedido PED-0113 recibido por error: reversión de entradas
+- Revertir una entrada desde Historial NO toca `pedido_items.cantidad_recibida` ni `pedidos.estado`: hay que corregirlos aparte (se hizo por SQL).
+- `ListaPedidos.jsx`: la sección "Entradas de inventario" del pedido ahora ignora entradas con `revertido = true`.
+- Se revirtieron por SQL 7 de 11 entradas (MOV-WA-0024/25/29/30/32/33/34), con movimientos `REV-<numero>`. MOV-WA-0026 ya estaba revertida. MOV-WA-0027, 0028 y 0031 NO se tocaron: su stock ya estaba en 0 (revertir las dejaba en negativo). Pendiente entender quién consumió ese material.
+- Gotcha: MOV-WA-0026 aparece `revertido=true` pero su producto tiene stock 15; por revisar.

@@ -407,6 +407,7 @@ export default function ListaPedidos() {
       supabase.from('movimientos')
         .select('numero, pedido_id, fecha_movimiento, created_at')
         .eq('tipo', 'entrada')
+        .eq('revertido', false) // una entrada revertida ya no cuenta como recibida
         .not('pedido_id', 'is', null)
         .order('created_at', { ascending: false })
         .range(d, h)
