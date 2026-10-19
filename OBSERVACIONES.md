@@ -1218,3 +1218,10 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - HIERRO COLADO / CARBÓN COKE / CARBÓN MOLIDO (FUNDICIÓN): historial muy negativo (compras/entradas no registradas por todos los caminos), tratar con el Balance de hierro.
 - Script de auditoría vs carga inicial: `supabase/migraciones/2026-10-19_auditoria_stock_vs_carga_inicial_almacen.sql` (solo lectura).
 - Pendiente propuesto: alerta/bloqueo en RegistrarMovimiento* si salida > stock disponible.
+
+## 19/10/2026 — Auditoría de stock vs conteos físicos (Mecanizados / Fundición)
+- Resultado: con la consulta corregida, el stock de las bodegas contadas cuadra con el último conteo confirmado + movimientos posteriores. Único caso: POLEA 2 1/2 X 2A (FUNDICIÓN), contado 0, stock 20 sin movimientos (el conteo INV-FIS-0033 mostró "Sistema: 0" por el error de paginación y no generó ajuste). Corregido con SAL-COR-261019-001 (salida de 20, ref INV-FIS-0033, costo 0).
+- GOTCHA de relojes: `movimientos.created_at` guarda la hora de Bogotá etiquetada como UTC (default `NOW() AT TIME ZONE 'America/Bogota'` sobre timestamptz), mientras `inventarios_fisicos.created_at/updated_at` guardan UTC real. Para comparar entre tablas hay que sumar 5 horas a `movimientos.created_at`. Entre movimientos el orden es consistente.
+- GOTCHA de comparación contra conteos: excluir los movimientos con `referencia` = número del inventario (ajustes ENT/SAL-AF y correcciones SAL-COR); ya están reflejados en "contado". Sin esto salen falsos descuadres.
+- Pendiente: ALMACEN nunca se ha contado físicamente → correr auditoría vs carga inicial (`2026-10-19_auditoria_stock_vs_carga_inicial_almacen.sql`) y hacer conteo físico priorizado (POWER 5.5 TRIFASICO, LINGOTE ALUMINIO, rodamientos, motores). RUEDA 5' ALMACEN en 93 sin conteo.
+- Pendiente: piezas fundidas que salen de Fundición sin entrada registrada (órdenes de moldeo sin cerrar en Recogida) → ligado al Balance de hierro y pago a moldeadores.
