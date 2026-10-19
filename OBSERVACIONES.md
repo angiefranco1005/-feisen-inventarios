@@ -1209,3 +1209,12 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Causa: 07/09/2026, 4 salidas en 4 min (SAL-MG-0072/0073/0074/0076 = 259 und) con saldo de 110; el trigger no baja de 0 (GREATEST) y el stock quedó inflado. Posible error de digitación en SAL-MG-0074 (129) y duplicado 43/43.
 - Corrección elegida por Angie (opción B): recalcular stock desde movimientos → `supabase/migraciones/2026-10-19_corregir_stock_rueda_5_almacen.sql` (ejecutar a mano en Supabase). Sin conteo físico previo.
 - Pendiente: alerta/bloqueo en RegistrarMovimiento* cuando la salida supera el stock disponible (propuesto, sin confirmar).
+
+## 19/10/2026 — Auditoría de stock de todos los productos
+- Modelo: stock esperado = neto de movimientos + MAX(stock inicial cargado, stock inicial implícito), donde implícito = -MIN(saldo corrido). El trigger no baja de 0, por eso un saldo negativo en el historial NO significa stock inflado: casi siempre es stock inicial que se cargó directo en `stock` sin movimiento (validado: SOLDADURA MIG, carga 30 = stock 29 − neto (−1)).
+- Resultado consulta general: 401 combinaciones con diferencias; 82 clase A (stock cuadra con regla del trigger; faltó registrar stock inicial/entradas) y 319 clase B. En B, desvio>0 = stock sin movimientos de respaldo (carga inicial); desvio<0 = stock MENOR al historial (anomalía real: POWER 5.5 TRIFASICO −3 und, RUEDA 5' tras corrección, POLEA ARRASTRE PLUMA LITEMIX −30, TEMPLETE INFERIOR −35, POLEA 8 X 2B −6, TRINQUETE PEQUEÑO −9, LACA ROJO −1, VISOR CARETA ESMERIL −3).
+- CORRECCIÓN: la RUEDA 5' ALMACEN pudo tener ~149 und de stock inicial no registradas; al ponerla en 93 (opción B) puede haber quedado subestimada. Pendiente conteo físico.
+- NO aplicar recálculo masivo por SQL: borraría stock inicial real. Corrección correcta = conteo físico + Inventario Físico (deja movimiento de ajuste).
+- HIERRO COLADO / CARBÓN COKE / CARBÓN MOLIDO (FUNDICIÓN): historial muy negativo (compras/entradas no registradas por todos los caminos), tratar con el Balance de hierro.
+- Script de auditoría vs carga inicial: `supabase/migraciones/2026-10-19_auditoria_stock_vs_carga_inicial_almacen.sql` (solo lectura).
+- Pendiente propuesto: alerta/bloqueo en RegistrarMovimiento* si salida > stock disponible.
