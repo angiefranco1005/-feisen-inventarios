@@ -3,7 +3,9 @@
 --   stock inicial cargado (carga_inventario_feisen.sql) + movimientos registrados desde entonces,
 --   aplicando la regla del trigger (el stock no baja de 0).
 -- Fórmula: esperado = neto_movimientos + MAX(stock_inicial_carga, stock_inicial_implícito)
--- Devuelve SOLO lo que no cuadra (desvio <> 0), ordenado por valor en COPs.
+-- Devuelve SOLO lo que no cuadra (desvio <> 0) o donde el piso de 0 del trigger se comió unidades, ordenado por valor en COPs.
+-- perdido_por_piso > 0 : se registraron salidas ANTES que la entrada que las cubría (p. ej. 09/09); el stock del sistema
+--                        quedó inflado por esa cantidad respecto de lo que dicen los movimientos (stock_segun_historial).
 -- desvio > 0 : hay más stock del que explican la carga inicial y los movimientos.
 -- desvio < 0 : hay menos stock del que deberían dar la carga inicial y los movimientos
 --              (posible ajuste directo, movimientos que no actualizaron stock, o faltante).
@@ -297,8 +299,15 @@ SELECT producto, bodega, stock_sistema, neto_movimientos, stock_inicial_carga,
        inicial_implicito, esperado, desvio,
        (stock_inicial_carga IS NOT NULL) AS esta_en_carga_inicial,
        ROUND(desvio * precio_costo) AS valor_desvio_cop,
+       -- Lo que daría el stock si TODOS los movimientos fueran correctos: carga inicial + neto
+       (COALESCE(stock_inicial_carga, 0) + neto_movimientos) AS stock_segun_historial,
+       -- Unidades que el piso de 0 del trigger "se comió" (salidas registradas antes que su entrada)
+       GREATEST(0, inicial_implicito - COALESCE(stock_inicial_carga, 0)) AS perdido_por_piso,
+       ROUND(GREATEST(0, inicial_implicito - COALESCE(stock_inicial_carga, 0)) * precio_costo) AS valor_perdido_por_piso_cop,
        COUNT(*) OVER () AS total_filas
 FROM base
 WHERE ABS(desvio) > 0.0005
-ORDER BY ABS(desvio * precio_costo) DESC NULLS LAST, ABS(desvio) DESC
-LIMIT 200;
+   OR inicial_implicito > COALESCE(stock_inicial_carga, 0)
+ORDER BY GREATEST(ABS(desvio * precio_costo),
+                  GREATEST(0, inicial_implicito - COALESCE(stock_inicial_carga, 0)) * precio_costo) DESC NULLS LAST
+LIMIT 250;
