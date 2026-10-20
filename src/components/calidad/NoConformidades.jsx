@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -77,7 +78,7 @@ export default function NoConformidades() {
         .select('*, items(nombre), bodegas(nombre), detectado_por:profiles!no_conformidades_detectado_por_fkey(nombre), cerrado_por:profiles!no_conformidades_cerrado_por_fkey(nombre)')
         .order('created_at', { ascending: false })
         .limit(500),
-      supabase.from('items').select('id, nombre, bodega_id').eq('activo', true).order('nombre').limit(2000),
+      fetchAllPages((d, h) => supabase.from('items').select('id, nombre, bodega_id').eq('activo', true).order('nombre').order('id').range(d, h)),
       supabase.from('bodegas').select('id, nombre').order('nombre'),
     ])
     setNcs(ncsData || [])

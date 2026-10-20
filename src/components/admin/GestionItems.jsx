@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatCOP, formatNumero, UNIDADES_MEDIDA } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
@@ -35,7 +36,7 @@ export default function GestionItems() {
   async function cargar() {
     setCargando(true)
     const [{ data: itemsData }, { data: cats }, { data: bods }] = await Promise.all([
-      supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre').limit(10000),
+      fetchAllPages((d, h) => supabase.from('items').select('*, categorias(nombre), bodegas(nombre)').order('nombre').order('id').range(d, h)),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
     ])

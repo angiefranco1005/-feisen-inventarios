@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFechaHora, CENTROS_COSTO } from '../../utils/formatters'
 import Alerta from '../shared/Alerta'
@@ -33,7 +34,7 @@ export default function DashboardOperario() {
   useEffect(() => {
     async function cargar() {
       const [{ data: it }, { data: bod }] = await Promise.all([
-        supabase.from('items').select('id, nombre, unidad_medida, centro_costo, precio_costo').eq('activo', true).order('nombre'),
+        fetchAllPages((d, h) => supabase.from('items').select('id, nombre, unidad_medida, centro_costo, precio_costo').eq('activo', true).order('nombre').order('id').range(d, h)),
         supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
       ])
       setItems(it || [])

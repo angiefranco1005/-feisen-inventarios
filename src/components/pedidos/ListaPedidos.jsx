@@ -371,9 +371,14 @@ export default function ListaPedidos() {
     setCargando(true)
     const verTodo = esAdmin || esLogistica || esConsultor
     const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
-    let prodsQ = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true).order('nombre').limit(10000)
-    if (bodegasOperacion) prodsQ = prodsQ.in('bodega_id', bodegasOperacion)
-    if (rolEfectivo === 'JEFE_MECANIZADOS') prodsQ = prodsQ.neq('categoria_id', CAT_PRODUCTO_MECANIZADO)
+    // Catálogo paginado: el servidor corta a 1.000 filas y el catálogo ya tiene más de 1.500 productos
+    const prodsQ = fetchAllPages((d, h) => {
+      let q = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true)
+        .order('nombre').order('id').range(d, h)
+      if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
+      if (rolEfectivo === 'JEFE_MECANIZADOS') q = q.neq('categoria_id', CAT_PRODUCTO_MECANIZADO)
+      return q
+    })
 
     let pedsQ = supabase.from('pedidos')
       .select('*, pedido_items(*), profiles(nombre)')

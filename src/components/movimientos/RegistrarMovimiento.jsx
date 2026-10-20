@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import { CheckCircle, Search, Upload, FileImage } from 'lucide-react'
 import Alerta from '../shared/Alerta'
@@ -55,10 +56,15 @@ export default function RegistrarMovimiento() {
   useEffect(() => {
     async function cargar() {
       let bodegasQ = supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
-      let itemsQ   = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo').eq('activo', true).order('nombre').limit(10000)
+      // Catálogo paginado: el servidor corta a 1.000 filas y el catálogo ya tiene más de 1.500 productos
+      const itemsQ = fetchAllPages((d, h) => {
+        let q = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo')
+          .eq('activo', true).order('nombre').order('id').range(d, h)
+        if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
+        return q
+      })
       if (bodegasOperacion) {
         bodegasQ = bodegasQ.in('id', bodegasOperacion)
-        itemsQ   = itemsQ.in('bodega_id', bodegasOperacion)
       }
 
       const [{ data: bods }, { data: its }, { data: peds }] = await Promise.all([
