@@ -5,7 +5,8 @@ import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight, Download }
 import { exportarCorteInventario } from '../../utils/exportExcel'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 
-const HOY = new Date().toISOString().split('T')[0]
+// Fecha de hoy en hora Colombia (UTC-5); toISOString() solo da UTC y después de las 7 p.m. ya marcaría mañana
+const HOY = new Date(Date.now() - 5 * 3600 * 1000).toISOString().split('T')[0]
 
 function fmt(n) {
   return `$${Math.round(n).toLocaleString('es-CO')}`
@@ -33,97 +34,107 @@ export default function CorteInventario() {
     setResultado(null)
 
     try {
-      // Fin del día en hora Colombia (UTC-5) → convertido a UTC para comparar con Supabase
-      const cutoffISO = new Date(`${fecha}T23:59:59-05:00`).toISOString()
+      // Corte contable: el movimiento cuenta hasta `fecha` si su fecha_movimiento (o, si no tiene,
+      // la fecha de created_at) es <= fecha.
+      // OJO: movimientos.created_at guarda la hora de Bogotá ya convertida (aunque la etiqueta
+      // diga UTC), así que el corte se compara tal cual, SIN convertir de zona horaria.
+      const corte = `${fecha}T23:59:59`
 
-      let itemsQ = supabase
-        .from('items')
-        .select('id, nombre, unidad_medida, precio_costo, bodega_id, activo, categorias(nombre), bodegas!bodega_id(nombre)')
-        .order('nombre')
-      if (bodegaId) itemsQ = itemsQ.eq('bodega_id', bodegaId)
-
-      const [{ data: items, error: e1 }, { data: movs, error: e2 }, { data: stockRows, error: e3 }] = await Promise.all([
-        itemsQ,
-        supabase
-          .from('movimientos')
-          .select('item_id, tipo, cantidad, fecha_movimiento, created_at')
-          // Filtro servidor: solo movimientos creados después del corte.
-          // Evita el límite de 1.000 filas de Supabase que hacía que siempre
-          // se devolviera el mismo valor sin importar la fecha elegida.
-          .gt('created_at', cutoffISO)
-          .limit(50000),
-        // Consulta aparte de `stock`, filtrada por item_id + bodega_id (igual que en
-        // InventarioFisico.jsx). El embed anidado `stock(cantidad_actual)` que se usaba
-        // antes no filtraba por bodega: si un producto tenía stock en más de una bodega
-        // (por ejemplo por una transferencia), tomaba una fila cualquiera, no
-        // necesariamente la de la bodega que se estaba consultando.
-        // .range(0, 19999) por sí solo no alcanza: el servidor de Supabase/
-        // PostgREST sigue topando la respuesta a su máximo de filas (por
-        // defecto 1000), sin importar el rango pedido — mismo bug ya
-        // corregido en Analítica/Kardex/Reportes/Productos/Inicio (ver
-        // OBSERVACIONES.md). Se pagina con fetchAllPages() para traer TODO
-        // el stock real.
-        fetchAllPages((desde, hasta) =>
-          supabase.from('stock').select('item_id, bodega_id, cantidad_actual').range(desde, hasta)
+      // Todo se trae paginado (fetchAllPages): el servidor de Supabase corta las respuestas a
+      // 1.000 filas aunque se pida .limit(50000). Antes, con más de 1.000 movimientos
+      // posteriores al corte, solo se deshacían unos pocos (sin orden) y por eso el
+      // inventario "a fecha" salía igual al de hoy.
+      const [rItems, rMovs, rStock, rBod] = await Promise.all([
+        fetchAllPages((d, h) =>
+          supabase.from('items')
+            .select('id, nombre, unidad_medida, precio_costo, activo, categorias(nombre)')
+            .order('nombre').order('id').range(d, h)
         ),
+        // Solo movimientos POSTERIORES al corte (los que hay que deshacer).
+        fetchAllPages((d, h) =>
+          supabase.from('movimientos')
+            .select('id, item_id, tipo, cantidad, bodega_origen_id, bodega_destino_id, fecha_movimiento, created_at')
+            .or(`fecha_movimiento.gt.${fecha},and(fecha_movimiento.is.null,created_at.gt.${corte})`)
+            .order('created_at').order('id').range(d, h)
+        ),
+        // Stock por (producto, bodega). Un mismo producto puede tener stock en varias bodegas.
+        fetchAllPages((d, h) =>
+          supabase.from('stock').select('item_id, bodega_id, cantidad_actual')
+            .order('item_id').order('bodega_id').range(d, h)
+        ),
+        supabase.from('bodegas').select('id, nombre, activo'),
       ])
 
-      if (e1) throw e1
-      if (e2) throw e2
-      if (e3) throw e3
+      if (rItems.error) throw rItems.error
+      if (rMovs.error)  throw rMovs.error
+      if (rStock.error) throw rStock.error
+      if (rBod.error)   throw rBod.error
+
+      const itemsMap = {}
+      for (const i of rItems.data || []) itemsMap[i.id] = i
+      const bodMap = {}
+      for (const b of rBod.data || []) bodMap[b.id] = b
 
       const stockMap = {}
-      for (const s of stockRows || []) {
+      for (const s of rStock.data || []) {
         stockMap[`${s.item_id}_${s.bodega_id}`] = Number(s.cantidad_actual ?? 0)
       }
 
-      // Refinamiento cliente: excluir los que tienen fecha_movimiento <= fecha
-      // (movimientos creados después pero con fecha efectiva retrocedida al pasado)
-      const movsDespues = (movs || []).filter(m => {
-        const fechaEfectiva = m.fecha_movimiento
-          ? new Date(`${m.fecha_movimiento}T23:59:59`)
-          : new Date(m.created_at)
-        return fechaEfectiva > new Date(cutoffISO)
-      })
-
-      // delta[item_id] = entradas_after - salidas_after
-      // stock_en_fecha = stock_actual - delta
-      // Antes solo se reconocía el tipo literal 'entrada' como aumento y CUALQUIER
-      // otro tipo (incluido 'entrada_compra', 'devolucion') como si fuera una salida
-      // — quedaban al revés. Se listan explícitamente los tipos que aumentan y los
-      // que disminuyen, igual que en el trigger fn_actualizar_stock.
+      // Efecto de cada movimiento POSTERIOR sobre cada (producto, bodega), con las mismas
+      // reglas del trigger fn_actualizar_stock:
+      //   entrada / entrada_compra / devolucion → suma en bodega_destino
+      //   salida / salida_produccion / salida_venta → resta en bodega_origen
+      //   traslado → resta en origen y suma en destino
+      //   ajuste_inventario → suma el valor (con signo) en bodega_destino
+      // Antes el delta se acumulaba solo por producto (sin bodega) y el stock solo se leía de la
+      // bodega "de origen" del producto, así que lo que estaba en otras bodegas se ignoraba.
       const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion'])
       const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta'])
       const deltas = {}
-      for (const m of movsDespues) {
-        if (!m.item_id) continue
-        let signo = 0
-        if (TIPOS_ENTRADA.has(m.tipo)) signo = 1
-        else if (TIPOS_SALIDA.has(m.tipo)) signo = -1
-        else if (m.tipo === 'ajuste_inventario') signo = Math.sign(m.cantidad) // cantidad ya viene con signo
-        // 'traslado' no se puede reconstruir bien aquí (no distingue bodega origen/destino
-        // por item), así que se ignora en vez de adivinar mal — hoy ningún flujo lo usa.
-        deltas[m.item_id] = (deltas[m.item_id] || 0) + signo * Math.abs(m.cantidad)
+      const sumar = (itemId, bodegaId, v) => {
+        if (!itemId || !bodegaId) return
+        const k = `${itemId}_${bodegaId}`
+        deltas[k] = (deltas[k] || 0) + v
+      }
+      for (const m of rMovs.data || []) {
+        const c = Number(m.cantidad || 0)
+        if (TIPOS_ENTRADA.has(m.tipo))      sumar(m.item_id, m.bodega_destino_id, c)
+        else if (TIPOS_SALIDA.has(m.tipo))  sumar(m.item_id, m.bodega_origen_id, -c)
+        else if (m.tipo === 'traslado') {
+          sumar(m.item_id, m.bodega_origen_id, -c)
+          sumar(m.item_id, m.bodega_destino_id, c)
+        } else if (m.tipo === 'ajuste_inventario') sumar(m.item_id, m.bodega_destino_id, c)
       }
 
-      const snapshot = (items || [])
-        .filter(i => i.activo)
-        .map(item => {
-          const stockActual  = stockMap[`${item.id}_${item.bodega_id}`] ?? 0
-          const delta        = deltas[item.id] || 0
-          const stockEnFecha = Math.max(0, stockActual - delta)
-          return {
-            id:            item.id,
-            nombre:        item.nombre,
-            unidad:        item.unidad_medida,
-            precio:        item.precio_costo || 0,
-            bodega_nombre: item.bodegas?.nombre || 'Sin bodega',
-            categoria:     item.categorias?.nombre || 'Sin categoría',
-            stock_actual:  stockActual,
-            stock_en_fecha: stockEnFecha,
-            valor:         stockEnFecha * (item.precio_costo || 0),
-          }
+      // Stock en fecha = stock actual − (efecto neto de los movimientos posteriores)
+      const claves = new Set([...Object.keys(stockMap), ...Object.keys(deltas)])
+      let negativos = 0
+      const snapshot = []
+      for (const k of claves) {
+        const [itemId, bId] = k.split('_')
+        const item = itemsMap[itemId]
+        const bod  = bodMap[bId]
+        if (!item || !item.activo || !bod || bod.activo === false) continue
+        if (bodegaId && bId !== bodegaId) continue
+        const stockActual = stockMap[k] ?? 0
+        const delta = deltas[k] || 0
+        if (stockActual === 0 && delta === 0) continue
+        const bruto = Number((stockActual - delta).toFixed(3))
+        if (bruto < 0) negativos++
+        const stockEnFecha = Math.max(0, bruto)
+        snapshot.push({
+          id:            itemId,
+          nombre:        item.nombre,
+          unidad:        item.unidad_medida,
+          precio:        item.precio_costo || 0,
+          bodega_nombre: bod.nombre,
+          categoria:     item.categorias?.nombre || 'Sin categoría',
+          stock_actual:  stockActual,
+          stock_en_fecha: stockEnFecha,
+          valor:         stockEnFecha * (item.precio_costo || 0),
         })
+      }
+      snapshot.sort((a, b) => a.nombre.localeCompare(b.nombre))
 
       // Agrupar por bodega
       const mapa = {}
@@ -148,6 +159,8 @@ export default function CorteInventario() {
         bodegaNombre:    bodegaId ? (bodegasDisp.find(b => b.id === bodegaId)?.nombre || null) : null,
         total_general:   snapshot.reduce((s, r) => s + r.valor, 0),
         total_productos: snapshot.length,
+        negativos,
+        movsDeshechos:   (rMovs.data || []).length,
       })
     } catch (err) {
       setError('Error al calcular: ' + err.message)
@@ -224,11 +237,18 @@ export default function CorteInventario() {
               </p>
               <p className="text-3xl font-bold">{fmt(resultado.total_general)}</p>
               <p className="text-xs text-blue-300 mt-1">
-                {resultado.total_productos} productos · {resultado.bodegas.length} bodegas
+                {resultado.total_productos} productos · {resultado.bodegas.length} bodegas · {resultado.movsDeshechos} movimientos posteriores deshechos
               </p>
             </div>
             <Package size={40} className="text-blue-300 opacity-60 hidden sm:block" />
           </div>
+
+          {resultado.negativos > 0 && (
+            <Alerta
+              tipo="alerta"
+              mensaje={`${resultado.negativos} producto(s) salen negativos en esa fecha y se muestran en 0: se registraron salidas antes que su entrada. Revisa esos movimientos (o haz un conteo físico).`}
+            />
+          )}
 
           {/* Botón descargar */}
           <div className="flex justify-end">
