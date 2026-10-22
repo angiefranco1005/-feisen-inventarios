@@ -1272,7 +1272,7 @@ El más antiguo de cada grupo conservó su número. Siguiente número libre: PED
 ### 2026-10-22 — Pedidos atascados en "en tránsito" y entradas dobles
 - Por el mismo fallo RLS, pedidos ya recibidos seguían "en tránsito" (PED-0196, 0070, 0202, 0085, 0162, 0066, 0204). Se marcaron `recibido` por SQL (por id) tras comprobar que `cantidad_recibida` = `cantidad` en todas sus líneas. Los parciales (0100, 0101, 0110, 0137, 0145, 0173) estaban bien.
 - **PED-0066 (William, Mecanizados): entrada registrada dos veces el 16/09/2026 10:00:42 y 10:00:43** (11 líneas, doble clic/doble envío). Se revirtieron las 11 repetidas por SQL (misma lógica que `revertir()` de Historial: salida `REVERSIÓN MOV-WA-00xx` + `revertido=true`, a nombre de Angie). Efecto en stock (con piso 0): PLUMA LITE 11→1, PLUMA 300KG 10→0, PIÑON ATAQUE 2B 5→0; el resto ya estaba en 0. Esos 3 requieren conteo físico en Mecanizados.
-- **PED-0112 (Camilo): LAMINA CALIBRE 12 con 2 entradas de 10 (MOV-CP-0003 el 13/10 y MOV-CP-0013 el 14/10) para 10 pedidas.** Pendiente confirmar con Camilo; si es repetida, revertir MOV-CP-0013 (id 0bf00e62-584d-4e90-b6ec-37d46d824583); stock actual en Corte y Doblez: 119.
+- **PED-0112 (Camilo): LAMINA CALIBRE 12 con 2 entradas de 10 (MOV-CP-0003 el 13/10 y MOV-CP-0013 el 14/10) para 10 pedidas.** Camilo confirmó que repitió la recepción porque el pedido no cambiaba de estado. MOV-CP-0013 revertida por SQL (22/10/2026); stock Corte y Doblez 119 → 109; PED-0112 marcado `recibido`.
 - `confirmarRecibido` ahora tiene guarda síncrona con `useRef` contra doble clic.
 - Pendiente: `generarNumero()` de movimientos en `Historial.jsx` (reversiones) también es count+1; `movimientos.numero` no es único. Revisar si conviene `siguienteNumero`.
 
