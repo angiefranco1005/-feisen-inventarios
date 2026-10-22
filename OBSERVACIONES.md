@@ -1275,3 +1275,12 @@ El más antiguo de cada grupo conservó su número. Siguiente número libre: PED
 - **PED-0112 (Camilo): LAMINA CALIBRE 12 con 2 entradas de 10 (MOV-CP-0003 el 13/10 y MOV-CP-0013 el 14/10) para 10 pedidas.** Pendiente confirmar con Camilo; si es repetida, revertir MOV-CP-0013 (id 0bf00e62-584d-4e90-b6ec-37d46d824583); stock actual en Corte y Doblez: 119.
 - `confirmarRecibido` ahora tiene guarda síncrona con `useRef` contra doble clic.
 - Pendiente: `generarNumero()` de movimientos en `Historial.jsx` (reversiones) también es count+1; `movimientos.numero` no es único. Revisar si conviene `siguienteNumero`.
+
+### 2026-10-22 — Mecanizado: "No existe el producto destino …" (jefe de Mecanizados)
+- **Regla de la app:** `RegistroMecanizado.jsx` busca el destino como `<nombre del origen> - MECANIZADO` en la categoría de productos mecanizados (`bff5d482-…`), comparando sin espacios/tildes. Si el nombre del origen difiere en una letra, no lo encuentra.
+- **Casos corregidos por SQL (por id):**
+  - Orígenes con palabra repetida: `TUBO DE OLLA 2B 2 B (…X440MM)` → `TUBO DE OLLA 2B (…X440MM)`; `TUBO REGLA REGLA TIPO ESCALERA (…X225MM)` → `TUBO REGLA TIPO ESCALERA (…X225MM)`.
+  - Destino sin sufijo: `POLEA RADIADA 10 X 2B MANZANA 4"` (cat. mecanizados, id e7cc8c34-…) → agregado ` - MECANIZADO`.
+  - 6 orígenes con stock en MECANIZADOS sin par destino: se crearon `PIÑON CORONA ANDAMIO MACIZO`, `POLEA RADIADA 10 X 2B / 12 X 2B / 14 X 2B MANZANA 2"`, `18 X 2B MANZANA 2 1/2"`, `20 X 2B MANZANA 3 1/2"` + ` - MECANIZADO` (copiando categoría/bodega/unidad/centro de costo de un destino existente; `precio_costo` y `stock_minimo` = 0 → revisar costo).
+- **Auditoría de nombres (SQL de control):** destinos sin origen y orígenes con stock en MECANIZADOS sin destino → ahora 0 filas. Repetir cada vez que se cree un producto nuevo a mecanizar.
+- **Pendiente:** mensaje de error más claro / crear el destino desde la pantalla; `numeroMec` (MEC-XXXX) sigue siendo count+1 de movimientos MEC-%.
