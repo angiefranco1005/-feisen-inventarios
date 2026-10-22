@@ -518,14 +518,6 @@ export default function ListaPedidos() {
       nuevasCantidades[it.id] = yaRecibido + ahoraLlego
     })
 
-    await Promise.all(
-      items.map(it =>
-        supabase.from('pedido_items')
-          .update({ cantidad_recibida: nuevasCantidades[it.id] })
-          .eq('id', it.id)
-      )
-    )
-
     // 2. ¿Llegó completo o parcial?
     const esCompleto = items.every(it => nuevasCantidades[it.id] >= it.cantidad)
     const nuevoEstado = esCompleto ? 'recibido' : 'parcialmente_recibido'
@@ -536,9 +528,28 @@ export default function ListaPedidos() {
       return pendiente > 0 ? `${it.descripcion}: falta ${pendiente} ${it.unidad}` : null
     }).filter(Boolean).join(', ')
 
-    await supabase.from('pedidos')
+    // Primero se actualiza el pedido y se VERIFICA que la base lo aceptó. Con las políticas RLS,
+    // un UPDATE no permitido no da error: simplemente no toca ninguna fila. Antes no se revisaba
+    // y la pantalla mostraba "recibido" (y se creaba la entrada) aunque el pedido seguía En tránsito.
+    const { data: pedUpd, error: errPedUpd } = await supabase.from('pedidos')
       .update({ estado: nuevoEstado, ...(esCompleto ? { fecha_recibido: new Date().toISOString() } : {}) })
       .eq('id', pedido.id)
+      .select('id')
+    if (errPedUpd || !pedUpd?.length) {
+      setModalRecibido(null)
+      setMsg({ tipo: 'error', texto: 'No se pudo marcar el pedido como recibido' + (errPedUpd ? ': ' + errPedUpd.message : ': la base de datos no permitió el cambio (permisos). No se registró ninguna entrada. Avisa a administración.') })
+      return
+    }
+
+    const resItems = await Promise.all(items.map(it =>
+      supabase.from('pedido_items')
+        .update({ cantidad_recibida: nuevasCantidades[it.id] })
+        .eq('id', it.id)
+        .select('id')
+    ))
+    if (resItems.some(r => r.error || !r.data?.length)) {
+      setMsg({ tipo: 'error', texto: 'El pedido quedó marcado, pero no se pudieron guardar las cantidades recibidas de alguna línea. Avisa a administración.' })
+    }
 
     pedidoActualizado = true
     historialPendiente = async () => {
@@ -677,12 +688,14 @@ export default function ListaPedidos() {
     setMsg(null)
     try {
       // Actualizar campos del pedido
-      const { error: errPed } = await supabase.from('pedidos').update({
+      const { data: updPed, error: errPed } = await supabase.from('pedidos').update({
         observaciones:    obsEdit || null,
         prioridad:        prioridadEdit,
         foto_muestra_url: fotoMuestraEdit || null,
-      }).eq('id', modalEditar.id)
+      }).eq('id', modalEditar.id).select('id')
       if (errPed) { setMsg({ tipo: 'error', texto: 'Error al actualizar pedido: ' + errPed.message }); return }
+      // Un UPDATE que la política RLS no permite no da error: solo no modifica filas
+      if (!updPed?.length) { setMsg({ tipo: 'error', texto: 'No se pudo actualizar el pedido: la base de datos no permitió el cambio (permisos). No se modificó nada.' }); return }
 
       // Reemplazar items
       const { error: errDel } = await supabase.from('pedido_items').delete().eq('pedido_id', modalEditar.id)
@@ -754,10 +767,12 @@ export default function ListaPedidos() {
 
   async function cerrarPedido(pedido, motivo) {
     setMsg(null)
-    const { error } = await supabase.from('pedidos')
+    const { data: cerrado, error } = await supabase.from('pedidos')
       .update({ estado: 'cerrado', motivo_cierre: motivo })
       .eq('id', pedido.id)
+      .select('id')
     if (error) { setMsg({ tipo: 'error', texto: 'Error al cerrar: ' + error.message }); return }
+    if (!cerrado?.length) { setMsg({ tipo: 'error', texto: 'No se pudo cerrar el pedido: la base de datos no permitió el cambio (permisos).' }); setConfirmCerrar(null); return }
     await registrarHistorial(pedido.id, 'cerrado', motivo)
     setConfirmCerrar(null)
     setMotivoCierre('')
