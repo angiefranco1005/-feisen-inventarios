@@ -10,6 +10,7 @@ import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -422,8 +423,7 @@ export default function ListaPedidos() {
 
   // Generar número correlativo
   async function generarNumero() {
-    const { count } = await supabase.from('pedidos').select('*', { count: 'exact', head: true })
-    return `PED-${String((count || 0) + 1).padStart(4, '0')}`
+    return siguienteNumero('pedidos', 'PED')
   }
 
   async function subirFoto(file, setUrl, setSubiendo) {
@@ -445,7 +445,9 @@ export default function ListaPedidos() {
     if (itemsValidos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto con cantidad.' }); return }
     if (itemsValidos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
 
-    const numero = await generarNumero()
+    let numero
+    try { numero = await generarNumero() }
+    catch (eNum) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número del pedido: ' + (eNum.message || eNum) }); return }
     const { data: pedido, error: err1 } = await supabase.from('pedidos').insert({
       numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id,
       solicitante_nombre: perfil?.nombre || null,

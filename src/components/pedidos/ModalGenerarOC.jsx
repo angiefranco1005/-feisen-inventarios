@@ -5,6 +5,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
 import { FileDown, Loader2 } from 'lucide-react'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 
 const fmtCOP = n => '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -116,8 +117,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
         provInfo = nuevo
       }
 
-      const { count } = await supabase.from('ordenes_compra').select('*', { count: 'exact', head: true })
-      const numero = `OC-${String((count || 0) + 1).padStart(4, '0')}`
+      const numero = await siguienteNumero('ordenes_compra', 'OC')
 
       const { data: orden, error: eOrden } = await supabase.from('ordenes_compra').insert({
         numero, pedido_id: pedido.id, proveedor_id: provId,

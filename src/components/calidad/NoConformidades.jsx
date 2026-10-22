@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -96,8 +97,9 @@ export default function NoConformidades() {
     setMsg(null)
 
     // Generar número
-    const { count } = await supabase.from('no_conformidades').select('*', { count: 'exact', head: true })
-    const numero = `NC-${String((count || 0) + 1).padStart(4, '0')}`
+    let numero
+    try { numero = await siguienteNumero('no_conformidades', 'NC') }
+    catch (eNum) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + (eNum.message || eNum) }); setGuardando(false); return }
 
     const payload = {
       numero,

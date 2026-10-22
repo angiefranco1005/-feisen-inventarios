@@ -1251,3 +1251,12 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - Cambio en BD (manual): `supabase/migraciones/2026-10-22_pedidos_update_solicitante.sql` (política UPDATE para el solicitante, sin reabrir cerrados).
 - Cambio en app (`ListaPedidos.jsx`): `confirmarRecibido` actualiza primero `pedidos` verificando con `.select('id')` que se modificó una fila; si no, muestra error y NO crea la entrada. Igual verificación en `cerrarPedido` y `guardarEdicion`.
 - Regla: tras un UPDATE bajo RLS verificar filas afectadas (`.select()` y revisar longitud), no solo `error`.
+
+## 2026-10-22 — Números de pedido duplicados (PED-0151) y numeración correlativa
+
+- **Síntoma:** dos pedidos distintos con `numero = 'PED-0151'` (Mateo Giraldo, cerrado, y Camilo Perales, en tránsito). Un `UPDATE … WHERE numero='PED-0151'` falló con 21000.
+- **Causa:** `generarNumero()` calculaba `count(*) + 1`; al borrarse un pedido el conteo quedó atrás y repitió un número. `pedidos.numero` no tiene UNIQUE.
+- **Fix:** nuevo `src/utils/siguienteNumero.js` (MAYOR sufijo + 1, con `fetchAllPages`). Usado en pedidos (PED), órdenes de compra (OC) y no conformidades (NC). Si falla se muestra error y no se crea el registro.
+- **Datos:** `supabase/migraciones/2026-10-22_corregir_ped_0151_duplicado.sql` (opera por id: marca recibido el pedido de Camilo `b9cccc2f-…` y lo renumera). El pedido `773f1040-…` no se toca.
+- **Pendiente:** correr PASO 0 del SQL; si no hay más duplicados, crear `UNIQUE (numero)` en `pedidos` (y revisar `ordenes_compra`, `no_conformidades`).
+- **Gotcha:** nunca operar pedidos por `numero` mientras no exista el UNIQUE; usar `id`.
