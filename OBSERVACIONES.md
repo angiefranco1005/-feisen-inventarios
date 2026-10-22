@@ -1260,3 +1260,11 @@ mecanizado después del conteo; DISCO SUELTO recibió +15 después del conteo).
 - **Datos:** `supabase/migraciones/2026-10-22_corregir_ped_0151_duplicado.sql` (opera por id: marca recibido el pedido de Camilo `b9cccc2f-…` y lo renumera). El pedido `773f1040-…` no se toca.
 - **Pendiente:** correr PASO 0 del SQL; si no hay más duplicados, crear `UNIQUE (numero)` en `pedidos` (y revisar `ordenes_compra`, `no_conformidades`).
 - **Gotcha:** nunca operar pedidos por `numero` mientras no exista el UNIQUE; usar `id`.
+
+### 2026-10-22 — Renumeración ejecutada (11 pedidos con número repetido)
+Pedido de Camilo `b9cccc2f-…` marcado `recibido` (22/10/2026); sus líneas ya estaban completas (el UPDATE de `pedidos` era lo que bloqueaba el RLS). Renumerados (id → número nuevo; entre paréntesis el número viejo):
+- daccd628 → PED-0194 (PED-0001, 08/08, 48 líneas) · 63920aeb → PED-0195 (PED-0063) · 8f5f58fb → PED-0196 (PED-0063, Camilo, en tránsito)
+- 744eb42b → PED-0197 (PED-0064) · e088edaf → PED-0198 (PED-0065) · 88ef1cce → PED-0199 (PED-0064)
+- 3de56965 → PED-0200 (PED-0065) · b5841ca0 → PED-0201 (PED-0066) · ce5f1e87 → PED-0202 (PED-0070, Camilo, en tránsito)
+- 6f1e418e → PED-0203 (PED-0080) · b9cccc2f → PED-0204 (PED-0151, Camilo, OC-0032)
+El más antiguo de cada grupo conservó su número. Siguiente número libre: PED-0205.
