@@ -80,6 +80,12 @@ export default function InventarioFisico() {
   const [invId,        setInvId]       = useState(null)
   const [numero,       setNumero]      = useState('')
   const [soloConDif,   setSoloConDif]  = useState(false)
+  // Conteo con fecha ANTERIOR a hoy: efecto neto (por producto+bodega) de los movimientos
+  // posteriores a esa fecha, para calcular el "Sistema" al cierre del día contado.
+  // null = conteo de hoy (el Sistema es el stock actual).
+  const [deltasPost,   setDeltasPost]  = useState(null)
+  const [cargandoCorte, setCargandoCorte] = useState(false)
+  const [movsPosteriores, setMovsPosteriores] = useState(0)
 
   // Modal confirmación
   const [modalConfirm, setModalConfirm] = useState(false)
@@ -182,7 +188,7 @@ export default function InventarioFisico() {
         key, item_id: item.id, item_nombre: item.nombre, item_unidad: item.unidad_medida,
         bodega_id: item.bodega_id, bodega_nombre: bodegaMap[item.bodega_id] || '',
         categoria_nombre: item.categorias?.nombre || '',
-        cantidad_sistema: stockMap[key] ?? 0, precio_costo: item.precio_costo || 0,
+        stock_hoy: stockMap[key] ?? 0, precio_costo: item.precio_costo || 0,
       })
     }
     rows.sort((a, b) => a.bodega_nombre.localeCompare(b.bodega_nombre) || a.item_nombre.localeCompare(b.item_nombre))
@@ -212,15 +218,71 @@ export default function InventarioFisico() {
     await cargarEditorConConteos(null, num, HOY(), '', {})
   }
 
+  // ── conteo con fecha pasada: calcular el Sistema al cierre de esa fecha ────
+  // Mismas reglas que "Inventario en fecha" (CorteInventario): stock al corte =
+  // stock actual − efecto neto de los movimientos posteriores a la fecha del conteo.
+  // Así, al aplicar, el stock actual queda = conteo físico + movimientos posteriores
+  // (en vez de pisarlos con el conteo viejo). Ver OBSERVACIONES.md (22/10/2026).
+  useEffect(() => {
+    if (vista !== 'editor') return
+    if (!fecha || fecha >= HOY()) { setDeltasPost(null); setMovsPosteriores(0); setCargandoCorte(false); return }
+    let cancelado = false
+    ;(async () => {
+      setCargandoCorte(true)
+      const corte = `${fecha}T23:59:59`
+      // movimientos.created_at guarda hora de Bogotá ya convertida: se compara tal cual.
+      const { data: movs, error } = await fetchAllPages((d, h) =>
+        supabase.from('movimientos')
+          .select('id, item_id, tipo, cantidad, bodega_origen_id, bodega_destino_id')
+          .or(`fecha_movimiento.gt.${fecha},and(fecha_movimiento.is.null,created_at.gt.${corte})`)
+          .order('created_at').order('id').range(d, h)
+      )
+      if (cancelado) return
+      if (error) {
+        setMsg({ tipo: 'error', texto: 'No se pudieron leer los movimientos posteriores al conteo: ' + error.message })
+        setDeltasPost(null); setCargandoCorte(false); return
+      }
+      const TIPOS_ENTRADA = new Set(['entrada', 'entrada_compra', 'devolucion'])
+      const TIPOS_SALIDA  = new Set(['salida', 'salida_produccion', 'salida_venta'])
+      const deltas = {}
+      const sumar = (itemId, bodegaId, v) => {
+        if (!itemId || !bodegaId) return
+        const k = `${itemId}_${bodegaId}`
+        deltas[k] = (deltas[k] || 0) + v
+      }
+      for (const m of movs || []) {
+        const c = Number(m.cantidad || 0)
+        if (TIPOS_ENTRADA.has(m.tipo))      sumar(m.item_id, m.bodega_destino_id, c)
+        else if (TIPOS_SALIDA.has(m.tipo))  sumar(m.item_id, m.bodega_origen_id, -c)
+        else if (m.tipo === 'traslado') {
+          sumar(m.item_id, m.bodega_origen_id, -c)
+          sumar(m.item_id, m.bodega_destino_id, c)
+        } else if (m.tipo === 'ajuste_inventario') sumar(m.item_id, m.bodega_destino_id, c)
+      }
+      setDeltasPost(deltas)
+      setMovsPosteriores((movs || []).length)
+      setCargandoCorte(false)
+    })()
+    return () => { cancelado = true }
+  }, [fecha, vista])
+
   // ── items derivados ──────────────────────────────────────────────────────
   const itemsConCalculo = useMemo(() => items.map(i => {
     const fis = conteos[i.key] !== undefined && conteos[i.key] !== ''
       ? parseFloat(conteos[i.key])
       : null
-    const dif = fis !== null ? fis - i.cantidad_sistema : null
+    // Sistema = stock actual (conteo de hoy) o stock al cierre de la fecha del conteo (fecha pasada)
+    const bruto = deltasPost ? Number((i.stock_hoy - (deltasPost[i.key] || 0)).toFixed(3)) : i.stock_hoy
+    const cantidad_sistema = Math.max(0, bruto)
+    const dif = fis !== null ? Number((fis - cantidad_sistema).toFixed(3)) : null
     const valorDif = dif !== null && i.precio_costo > 0 ? dif * i.precio_costo : null
-    return { ...i, cantidad_fisica: fis, diferencia: dif, valor_diferencia: valorDif }
-  }), [items, conteos])
+    // Stock que quedará HOY al aplicar el ajuste (el trigger no deja bajar de 0)
+    const quedara = dif !== null ? Math.max(0, Number((i.stock_hoy + dif).toFixed(3))) : null
+    return { ...i, cantidad_sistema, cantidad_sistema_bruto: bruto, cantidad_fisica: fis, diferencia: dif, valor_diferencia: valorDif, quedara }
+  }), [items, conteos, deltasPost])
+
+  const esConteoPasado = deltasPost !== null
+  const negativosCorte = esConteoPasado ? itemsConCalculo.filter(i => i.cantidad_sistema_bruto < 0).length : 0
 
   const cop = n => `$${Math.round(n).toLocaleString('es-CO')}`
 
@@ -264,7 +326,7 @@ export default function InventarioFisico() {
       setInvId(id)
     } else {
       await supabase.from('inventarios_fisicos')
-        .update({ notas, updated_at: new Date().toISOString() }).eq('id', id)
+        .update({ notas, fecha, updated_at: new Date().toISOString() }).eq('id', id)
     }
 
     const rows = itemsConCalculo
@@ -287,8 +349,11 @@ export default function InventarioFisico() {
 
   // ── aplicar correcciones ─────────────────────────────────────────────────
   async function aplicarCorrecciones() {
+    if (cargandoCorte) return
     setAplicando(true)
-    const hoy = HOY()
+    // El ajuste queda fechado el día del conteo (si es hoy, es hoy). El stock actual
+    // cambia igual (el trigger aplica la diferencia sobre el stock de hoy).
+    const fechaAjuste = fecha || HOY()
     // La diferencia se calcula contra el stock que se cargó al abrir el conteo
     // (cantidad_sistema), que ahora sí es completo (paginado). Así el stock final
     // = conteo físico + los movimientos que ocurrieron MIENTRAS se contaba
@@ -335,8 +400,8 @@ export default function InventarioFisico() {
         usuario_id:        perfil.id,
         centro_costo:      item.bodega_nombre,
         referencia:        numero,
-        motivo:            `Ajuste inv. físico. Sistema: ${item.cantidad_sistema} → Físico: ${item.cantidad_fisica}`,
-        fecha_movimiento:  hoy,
+        motivo:            `Ajuste inv. físico${esConteoPasado ? ' (conteo del ' + fecha + ')' : ''}. Sistema: ${item.cantidad_sistema} → Físico: ${item.cantidad_fisica}`,
+        fecha_movimiento:  fechaAjuste,
         revertido:         false,
         foto_remision_url: null, destino: null, numero_of: null, serial_motor: null, cliente: null, proveedor: null,
       })
@@ -551,8 +616,9 @@ export default function InventarioFisico() {
           </button>
           <button
             onClick={() => conDiferencia > 0 ? setModalConfirm(true) : setMsg({ tipo: 'alerta', texto: 'No hay diferencias para corregir.' })}
-            className="flex items-center gap-2 bg-feisen-rojo text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
-            <CheckCircle size={14} /> Aplicar correcciones
+            disabled={cargandoCorte}
+            className="flex items-center gap-2 bg-feisen-rojo text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            <CheckCircle size={14} /> {cargandoCorte ? 'Calculando…' : 'Aplicar correcciones'}
           </button>
         </div>
       </div>
@@ -573,6 +639,27 @@ export default function InventarioFisico() {
           <p className="text-[11px] text-gray-400 mt-1">Para reconocer este inventario más fácil en la lista.</p>
         </div>
       </div>
+
+      {cargandoCorte && (
+        <Alerta tipo="alerta" mensaje="Calculando el stock del sistema al cierre de la fecha del conteo…" />
+      )}
+      {esConteoPasado && !cargandoCorte && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
+          <p className="font-semibold">
+            Conteo con fecha anterior a hoy ({new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')})
+          </p>
+          <p>
+            La columna <strong>Sistema</strong> es el stock al cierre de esa fecha (se deshacen {movsPosteriores} movimiento{movsPosteriores === 1 ? '' : 's'} posterior{movsPosteriores === 1 ? '' : 'es'}).
+            Al aplicar, el ajuste queda fechado el {new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')} y el stock actual
+            quedará = <strong>conteo + movimientos posteriores</strong>. Si la fecha no es la del conteo, cámbiala arriba.
+          </p>
+          {negativosCorte > 0 && (
+            <p className="text-amber-700">
+              ⚠ {negativosCorte} producto{negativosCorte === 1 ? '' : 's'} tenían salidas registradas por encima del stock a esa fecha: el Sistema se tomó como 0 en esos casos.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Barra de progreso */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-6">
@@ -765,6 +852,7 @@ export default function InventarioFisico() {
                     <th className="text-left px-3 py-2 text-gray-500">Producto</th>
                     <th className="text-right px-3 py-2 text-gray-500">Sistema → Físico</th>
                     <th className="text-right px-3 py-2 text-gray-500">Dif.</th>
+                    {esConteoPasado && <th className="text-right px-3 py-2 text-gray-500">Hoy: antes → quedará</th>}
                     <th className="text-right px-3 py-2 text-gray-500">Valor COP</th>
                   </tr>
                 </thead>
@@ -778,6 +866,11 @@ export default function InventarioFisico() {
                       <td className={`px-3 py-1.5 text-right font-bold ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
                         {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
                       </td>
+                      {esConteoPasado && (
+                        <td className="px-3 py-1.5 text-right text-gray-600">
+                          {item.stock_hoy} → <strong>{item.quedara}</strong>
+                        </td>
+                      )}
                       <td className={`px-3 py-1.5 text-right text-xs ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
                         {item.valor_diferencia === null ? '—' : item.valor_diferencia > 0 ? `+${cop(item.valor_diferencia)}` : cop(item.valor_diferencia)}
                       </td>
