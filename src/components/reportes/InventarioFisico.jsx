@@ -218,23 +218,23 @@ export default function InventarioFisico() {
     await cargarEditorConConteos(null, num, HOY(), '', {})
   }
 
-  // ── conteo con fecha pasada: calcular el Sistema al cierre de esa fecha ────
-  // Mismas reglas que "Inventario en fecha" (CorteInventario): stock al corte =
-  // stock actual − efecto neto de los movimientos posteriores a la fecha del conteo.
-  // Así, al aplicar, el stock actual queda = conteo físico + movimientos posteriores
-  // (en vez de pisarlos con el conteo viejo). Ver OBSERVACIONES.md (22/10/2026).
+  // ── conteo con fecha pasada: calcular el Sistema a PRIMERA HORA de esa fecha ──
+  // Se asume que el conteo se hizo lo primero del día: Sistema = stock actual − efecto
+  // neto de los movimientos de la fecha del conteo EN ADELANTE (inclusive ese mismo día).
+  // Así, al aplicar, el stock actual queda = conteo físico + movimientos de ese día y
+  // posteriores (en vez de pisarlos con el conteo viejo). Ver OBSERVACIONES.md (22/10/2026).
   useEffect(() => {
     if (vista !== 'editor') return
     if (!fecha || fecha >= HOY()) { setDeltasPost(null); setMovsPosteriores(0); setCargandoCorte(false); return }
     let cancelado = false
     ;(async () => {
       setCargandoCorte(true)
-      const corte = `${fecha}T23:59:59`
+      const inicioDia = `${fecha}T00:00:00`
       // movimientos.created_at guarda hora de Bogotá ya convertida: se compara tal cual.
       const { data: movs, error } = await fetchAllPages((d, h) =>
         supabase.from('movimientos')
           .select('id, item_id, tipo, cantidad, bodega_origen_id, bodega_destino_id')
-          .or(`fecha_movimiento.gt.${fecha},and(fecha_movimiento.is.null,created_at.gt.${corte})`)
+          .or(`fecha_movimiento.gte.${fecha},and(fecha_movimiento.is.null,created_at.gte.${inicioDia})`)
           .order('created_at').order('id').range(d, h)
       )
       if (cancelado) return
@@ -649,13 +649,14 @@ export default function InventarioFisico() {
             Conteo con fecha anterior a hoy ({new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')})
           </p>
           <p>
-            La columna <strong>Sistema</strong> es el stock al cierre de esa fecha (se deshacen {movsPosteriores} movimiento{movsPosteriores === 1 ? '' : 's'} posterior{movsPosteriores === 1 ? '' : 'es'}).
+            Se asume que contaste a <strong>primera hora</strong> de ese día. La columna <strong>Sistema</strong> es el stock a esa hora
+            (se deshacen {movsPosteriores} movimiento{movsPosteriores === 1 ? '' : 's'} desde esa fecha en adelante, incluidos los de ese mismo día).
             Al aplicar, el ajuste queda fechado el {new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')} y el stock actual
-            quedará = <strong>conteo + movimientos posteriores</strong>. Si la fecha no es la del conteo, cámbiala arriba.
+            quedará = <strong>conteo + movimientos de ese día y posteriores</strong>. Si la fecha no es la del conteo, cámbiala arriba.
           </p>
           {negativosCorte > 0 && (
             <p className="text-amber-700">
-              ⚠ {negativosCorte} producto{negativosCorte === 1 ? '' : 's'} tenían salidas registradas por encima del stock a esa fecha: el Sistema se tomó como 0 en esos casos.
+              ⚠ {negativosCorte} producto{negativosCorte === 1 ? '' : 's'} tenían salidas registradas por encima del stock a esa hora: el Sistema se tomó como 0 en esos casos.
             </p>
           )}
         </div>
