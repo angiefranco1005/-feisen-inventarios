@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -323,6 +323,7 @@ export default function ListaPedidos() {
   const [modalTransito, setModalTransito] = useState(null)
   const [modalRecibido, setModalRecibido] = useState(null)
   const [guardandoRecibido, setGuardandoRecibido] = useState(false)
+  const recibidoEnCurso = useRef(false) // guarda síncrona contra doble clic (el state no alcanza a re-renderizar)
   const [cantRec,       setCantRec]       = useState({})
   const hoyCol = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
   const [fechaRecepcion, setFechaRecepcion] = useState(hoyCol())
@@ -502,7 +503,8 @@ export default function ListaPedidos() {
   }
 
   async function confirmarRecibido() {
-    if (guardandoRecibido) return
+    if (guardandoRecibido || recibidoEnCurso.current) return
+    recibidoEnCurso.current = true
     setGuardandoRecibido(true)
     try {
     const { pedido, conEntrada } = modalRecibido
@@ -643,6 +645,7 @@ export default function ListaPedidos() {
         try { await historialPendiente() } catch { /* el historial es informativo; no bloquea la recepción */ }
       }
       setGuardandoRecibido(false)
+      recibidoEnCurso.current = false
     }
   }
 
