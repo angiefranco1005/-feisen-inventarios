@@ -5,6 +5,7 @@ import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp } from 
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { nombreBodega } from '../../utils/bodegasCatalogo'
 
 const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const FUNDICION_BODEGA_ID   = 'a0604489-2768-445b-8e68-e450ef8520ed'
@@ -113,6 +114,10 @@ export default function TransferenciasPendientes() {
       const nMov = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
       const numeroMov = `${prefix}${String(nMov + 1).padStart(4, '0')}`
 
+      // Nombres ACTUALES de las bodegas (por si se renombraron) para los campos de texto informativos
+      const ccFundicion   = await nombreBodega(FUNDICION_BODEGA_ID, 'FUNDICIÓN')
+      const ccMecanizados = await nombreBodega(MECANIZADOS_BODEGA_ID, 'MECANIZADOS')
+
       // 3. Crear movimientos (salida Fundición + stock se actualiza automáticamente en Mecanizados por bodega_destino_id)
       const payloads = trf.items.map(item => ({
         numero:                numeroMov,
@@ -122,10 +127,10 @@ export default function TransferenciasPendientes() {
         bodega_destino_id:     trf.destino_bodega_id,
         cantidad:              item.cantidad,
         precio_costo_snapshot: item.precio_costo || 0,
-        centro_costo:          'FUNDICIÓN',
+        centro_costo:          ccFundicion,
         usuario_id:            perfil.id,
         referencia:            `Aprobación ${trf.numero}${trf.notas ? ' — ' + trf.notas : ''}`,
-        destino:               'MECANIZADOS',
+        destino:               ccMecanizados,
         fecha_movimiento:      trf.fecha_movimiento || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
         foto_remision_url: null, firma_receptor_url: null, numero_of: null, cliente: null,
@@ -152,7 +157,7 @@ export default function TransferenciasPendientes() {
         bodega_destino_id:     trf.destino_bodega_id,
         cantidad:              item.cantidad,
         precio_costo_snapshot: item.precio_costo || 0,
-        centro_costo:          'MECANIZADOS',
+        centro_costo:          ccMecanizados,
         usuario_id:            perfil.id,
         referencia:            `Aprobación ${trf.numero}${trf.notas ? ' — ' + trf.notas : ''}`,
         destino:               null,

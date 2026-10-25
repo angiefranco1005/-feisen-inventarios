@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Factory } from 'lucide-react'
 
 // ── Input editable inline ─────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ export default function GestionBOM() {
     setCargando(true)
     const [{ data: maqs }, { data: bod }] = await Promise.all([
       supabase.from('maquinas_fundicion').select('id, nombre, activo').order('nombre'),
-      supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
+      supabase.from('bodegas').select('id').eq('id', BODEGA_FUNDICION_ID).maybeSingle(),
     ])
     setMaquinas(maqs || [])
 

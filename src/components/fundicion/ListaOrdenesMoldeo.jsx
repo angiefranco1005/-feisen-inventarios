@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import {
   ClipboardList, ChevronDown, ChevronUp, Search, PlusCircle,
   AlertTriangle, TrendingUp, Plus, Calendar, Pencil, XCircle, X,
@@ -71,7 +72,7 @@ export default function ListaOrdenesMoldeo() {
   async function cargar() {
     setCargando(true)
     const [{ data: bods }, { data: ords }] = await Promise.all([
-      supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
+      supabase.from('bodegas').select('id').eq('id', BODEGA_FUNDICION_ID).maybeSingle(),
       supabase.from('ordenes_moldeo')
         .select(`
           id, numero, fecha, tipo, estado, created_at,

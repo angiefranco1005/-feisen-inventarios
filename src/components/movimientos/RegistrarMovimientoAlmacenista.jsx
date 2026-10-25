@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { esBodegaFundicion, esBodegaMecanizados } from '../../utils/bodegasCatalogo'
 import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes, AlertTriangle } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
@@ -175,8 +176,9 @@ export default function RegistrarMovimientoAlmacenista() {
   const [paqueteSelId,   setPaqueteSelId]   = useState('')
   const [multiplicadorPaq, setMultiplicadorPaq] = useState(1)
 
-  const esFundicion   = bodega?.nombre?.includes('FUNDICIÓN')
-  const esMecanizados = bodega?.nombre?.includes('MECANIZADOS')
+  // Por ID, no por nombre: la bodega se puede renombrar sin que se pierda este flujo
+  const esFundicion   = esBodegaFundicion(bodega)
+  const esMecanizados = esBodegaMecanizados(bodega)
 
   // ── Sugerencias sincronizadas con Supabase ──
   const [sugsDB,      setSugsDB]      = useState({})

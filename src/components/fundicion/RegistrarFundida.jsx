@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { nombreBodega } from '../../utils/bodegasCatalogo'
 import { Flame, Plus, X, CheckCircle2 } from 'lucide-react'
 
 const FUND_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
@@ -251,6 +252,7 @@ export default function RegistrarFundida() {
       if (matSalidas.length > 0) {
         const numSal = await generarNumSalida(perfil)
         const numFun = `FUN-${String(data.numero).padStart(4, '0')}`
+        const ccFundicion = await nombreBodega(FUND_BODEGA_ID, 'FUNDICIÓN') // nombre actual de la bodega
         const { error: errMat } = await supabase.from('movimientos').insert(
           matSalidas.map(([key, itemId]) => ({
             numero:                numSal,
@@ -260,7 +262,7 @@ export default function RegistrarFundida() {
             bodega_destino_id:     null,
             cantidad:              parseFloat(materiales[key]),
             precio_costo_snapshot: 0,
-            centro_costo:          'FUNDICIÓN',
+            centro_costo:          ccFundicion,
             usuario_id:            perfil.id,
             referencia:            numFun,
             fecha_movimiento:      fecha || null,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import { esBodegaFundicion, nombreBodega } from '../../utils/bodegasCatalogo'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
@@ -173,7 +174,7 @@ export default function GestionProductos() {
     e.preventDefault()
     setMsg(null)
     const bodega = bodegas.find(b => b.id === form.bodega_id)
-    const esFundicion = bodega?.nombre === 'FUNDICIÓN'
+    const esFundicion = esBodegaFundicion(bodega)
     const payload = {
       nombre:        form.nombre.trim(),
       categoria_id:  form.categoria_id  || null,
@@ -267,6 +268,7 @@ export default function GestionProductos() {
     }
 
     const hoy    = new Date().toISOString().split('T')[0]
+    const ccMecanizados = await nombreBodega(BODEGA_MECANIZADOS, 'MECANIZADOS') // nombre actual de la bodega
     const motivo = formMec.operario.trim()
       ? `Mecanizado por: ${formMec.operario.trim()}`
       : 'Proceso de mecanizado'
@@ -280,7 +282,7 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemMecanizar.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'MECANIZADOS',
+      centro_costo:          ccMecanizados,
       usuario_id:            perfil?.id,
     })
     if (e1) { setMsg({ tipo: 'error', texto: 'Error al registrar salida: ' + e1.message }); setGuardandoMec(false); return }
@@ -295,7 +297,7 @@ export default function GestionProductos() {
       precio_costo_snapshot: itemTarget.precio_costo || 0,
       motivo,
       fecha_movimiento:      hoy,
-      centro_costo:          'MECANIZADOS',
+      centro_costo:          ccMecanizados,
       usuario_id:            perfil?.id,
     })
     if (e2) { setMsg({ tipo: 'error', texto: 'Error al registrar entrada: ' + e2.message }); setGuardandoMec(false); return }
@@ -718,7 +720,7 @@ export default function GestionProductos() {
               </div>
             )}
 
-            {bodegas.find(b => b.id === form.bodega_id)?.nombre === 'FUNDICIÓN' && (
+            {esBodegaFundicion(form.bodega_id) && (
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Peso unitario (kg) *</label>
                 <input required type="number" min="0.01" step="0.01" value={form.peso_unitario}

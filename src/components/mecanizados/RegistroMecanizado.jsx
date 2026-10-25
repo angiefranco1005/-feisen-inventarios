@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Wrench, Plus, Minus, Trash2, CheckCircle, AlertTriangle, Search, Check } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { nombreBodega } from '../../utils/bodegasCatalogo'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
@@ -161,9 +162,10 @@ export default function RegistroMecanizado() {
       })
 
       const motivo = `Mecanizado por: ${operario.trim()}`
+      const ccMecanizados = await nombreBodega(BODEGA_MECANIZADOS, 'MECANIZADOS') // nombre actual de la bodega
       const movs   = []
       lineas.forEach((l, i) => {
-        const base = { bodega_origen_id: BODEGA_MECANIZADOS, bodega_destino_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: 'MECANIZADOS', usuario_id: usuarioId, numero: numeroMec }
+        const base = { bodega_origen_id: BODEGA_MECANIZADOS, bodega_destino_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: ccMecanizados, usuario_id: usuarioId, numero: numeroMec }
         movs.push({ ...base, item_id: l.itemId,    tipo: 'salida',  cantidad: l.cantidad })
         movs.push({ ...base, item_id: destinos[i], tipo: 'entrada', cantidad: l.cantidad })
       })

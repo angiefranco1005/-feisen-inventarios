@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 
 function hoyCol() {
@@ -170,7 +171,7 @@ export default function CrearOrdenMoldeo() {
   async function cargar() {
     const [{ data: maq }, { data: bod }, { data: lastOrd }] = await Promise.all([
       supabase.from('maquinas_fundicion').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('bodegas').select('id').ilike('nombre', '%FUNDICIÓN%').single(),
+      supabase.from('bodegas').select('id').eq('id', BODEGA_FUNDICION_ID).maybeSingle(),
       supabase.from('ordenes_moldeo').select('numero').order('numero', { ascending: false }).limit(1).maybeSingle(),
     ])
     setMaquinas(maq || [])

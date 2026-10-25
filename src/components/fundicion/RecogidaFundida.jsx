@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { nombreBodega } from '../../utils/bodegasCatalogo'
 import {
   PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame,
 } from 'lucide-react'
@@ -209,6 +210,7 @@ export default function RecogidaFundida() {
 
     setGuardando(orden.id)
     try {
+      const ccFundicion = await nombreBodega(FUNDICION_BODEGA_ID, 'FUNDICIÓN') // nombre actual de la bodega
       // 1. Actualizar piezas con conformes/NC/motivo
       for (const p of piezas) {
         const conf   = Number(getField(orden.id, p.id, 'conforme') || 0)
@@ -239,7 +241,7 @@ export default function RecogidaFundida() {
             bodega_origen_id:      null,
             cantidad:              Number(getField(orden.id, p.id, 'conforme')),
             precio_costo_snapshot: p.items?.precio_costo || 0,
-            centro_costo:          'FUNDICIÓN',
+            centro_costo:          ccFundicion,
             usuario_id:            perfil.id,
             proveedor:             'Producción interna',
             referencia:            numOrden(orden.numero),
@@ -265,7 +267,7 @@ export default function RecogidaFundida() {
             bodega_destino_id:     null,
             cantidad:              fundida.hierro_colado,
             precio_costo_snapshot: 0,
-            centro_costo:          'FUNDICIÓN',
+            centro_costo:          ccFundicion,
             usuario_id:            perfil.id,
             referencia:            `${numOrden(orden.numero)} · ${numFun(fundida.numero)}`,
             fecha_movimiento:      orden.fecha || null,
@@ -295,7 +297,7 @@ export default function RecogidaFundida() {
           bodega_origen_id:      null,
           cantidad:              kgVacTotal,
           precio_costo_snapshot: 0,
-          centro_costo:          'FUNDICIÓN',
+          centro_costo:          ccFundicion,
           usuario_id:            perfil.id,
           proveedor:             'Producción interna',
           referencia:            numOrden(orden.numero),
