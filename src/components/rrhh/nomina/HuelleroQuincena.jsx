@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import Alerta from '../../shared/Alerta'
 import { Fingerprint, Upload, ExternalLink } from 'lucide-react'
 import * as E from '../estilos'
-import { BUCKET_RRHH, nombreCompleto, abrirArchivoRRHH } from '../catalogosRRHH'
+import { BUCKET_RRHH, nombreCompleto, abrirArchivoRRHH, formatoFecha } from '../catalogosRRHH'
 import { leerArchivoHuellero, calcularHuellero, emparejarAlias, HORARIO } from './nominaCalculo'
+import { quincenaDeFecha, nombreQuincena } from './nominaQuincena'
 
 const limpiarNombre = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_')
 const fmtH = (h) => Number(h || 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })
@@ -17,22 +18,47 @@ const sugerencia = (r, archivo) => ({
 
 // Carga del archivo del huellero de la quincena: calcula horas extra y días
 // por persona y los deja como SUGERIDOS en cada liquidación.
-export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, onActualizado }) {
+export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, onActualizado, onMoverQuincena }) {
   const input = useRef(null)
   const [procesando, setProcesando] = useState(false)
   const [resultado,  setResultado]  = useState(null)   // { sinVincular[], fueraQuincena[], aplicadas, ilegibles, porAlias }
   const [msg,        setMsg]        = useState(null)
+  const [otraFecha,  setOtraFecha]  = useState(null)   // { file, desde, hasta, destino } si el archivo es de otra quincena
+  const [pendiente,  setPendiente]  = useState(null)   // archivo a procesar cuando la quincena cambie de fechas
 
-  async function subir(ev) {
+  // Si se movió la quincena para que coincida con el archivo, se procesa solo
+  useEffect(() => {
+    if (pendiente) { const f = pendiente; setPendiente(null); procesar(f) }
+  }, [periodo.fecha_inicio])
+
+  function subir(ev) {
     const file = ev.target.files?.[0]
     ev.target.value = ''
-    if (!file) return
-    setProcesando(true); setMsg(null); setResultado(null)
+    if (file) procesar(file)
+  }
+
+  async function moverYCargar() {
+    const { file, destino } = otraFecha
+    setOtraFecha(null); setPendiente(file)
+    await onMoverQuincena(destino, { desdeHuellero: true })
+  }
+
+  async function procesar(file) {
+    setProcesando(true); setMsg(null); setResultado(null); setOtraFecha(null)
     try {
       const { marcas, ilegibles } = leerArchivoHuellero(new Uint8Array(await file.arrayBuffer()))
       if (!marcas.length) throw new Error('No se encontraron marcaciones. El archivo debe tener una columna "Nombre" y otra "Fecha/Hora".')
       const porPersona = calcularHuellero(marcas, periodo.fecha_inicio, periodo.fecha_fin)
-      if (!porPersona.length) throw new Error('El archivo no tiene marcaciones dentro de esta quincena.')
+      if (!porPersona.length) {
+        // El archivo es de otras fechas: decir de cuáles y ofrecer mover la quincena
+        const fechas = marcas.map(m => m.fecha).sort()
+        const desde = fechas[0], hasta = fechas[fechas.length - 1]
+        const q1 = quincenaDeFecha(desde), q2 = quincenaDeFecha(hasta)
+        const misma = q1.anio === q2.anio && q1.mes === q2.mes && q1.quincena === q2.quincena
+        setOtraFecha({ file, desde, hasta, destino: misma ? q1 : null })
+        setProcesando(false)
+        return
+      }
 
       // Guardar el archivo como soporte de la quincena
       const path = `nomina/${periodo.id}/huellero-${Date.now()}-${limpiarNombre(file.name)}`
@@ -112,6 +138,22 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
       </div>
       <div className="px-5 py-3 space-y-3 text-sm">
         {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+        {otraFecha && (
+          <div className="border border-amber-200 bg-amber-50 text-amber-800 rounded-lg px-3 py-2.5 space-y-2">
+            <p>
+              El archivo tiene marcaciones del {formatoFecha(otraFecha.desde)} al {formatoFecha(otraFecha.hasta)}, y esta nómina es{' '}
+              {nombreQuincena(periodo).toLowerCase()}.
+            </p>
+            {otraFecha.destino && onMoverQuincena ? (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={moverYCargar} className={E.btnPrimario}>Cambiar la nómina a {nombreQuincena(otraFecha.destino).toLowerCase()} y cargar</button>
+                <button onClick={() => setOtraFecha(null)} className={E.btnSecundario}>Cancelar</button>
+              </div>
+            ) : (
+              <p className="text-xs">Revisa que sea el archivo correcto o cambia las fechas de la nómina con "Cambiar fechas".</p>
+            )}
+          </div>
+        )}
         {periodo.huellero_path ? (
           <p className="text-feisen-texto-2">
             <button onClick={() => abrirArchivoRRHH(periodo.huellero_path).catch(err => setMsg({ tipo: 'error', texto: err.message }))}

@@ -2,6 +2,7 @@
 // guardado de liquidaciones. Las piezas de destajo las ingresa RRHH a mano
 // (decisión de Angie, 2026-10-26: ya no se sugieren desde producción).
 import { supabase } from '../../../lib/supabase'
+import { BUCKET_RRHH } from '../catalogosRRHH'
 import { fetchAllPages } from '../../../utils/fetchAllPages'
 import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales } from './nominaCalculo'
 
@@ -80,6 +81,51 @@ export async function crearQuincena({ anio, mes, quincena }, perfilId) {
     await supabase.from('nomina_periodos').delete().eq('id', periodo.id)
     throw new Error(err.message || String(err))
   }
+}
+
+// Quincena (año, mes, 1|2) a la que pertenece una fecha 'YYYY-MM-DD'
+export function quincenaDeFecha(iso) {
+  const [anio, mes, dia] = iso.split('-').map(Number)
+  return { anio, mes, quincena: dia <= 15 ? 1 : 2 }
+}
+
+// Mueve una quincena en borrador a otras fechas. Recalcula los días sugeridos
+// de los de "al día" (días laborales − novedades) y borra la sugerencia del
+// huellero, que corresponde a las fechas anteriores. Lo demás no se toca.
+export async function cambiarQuincena(periodo, { anio, mes, quincena }) {
+  if (periodo.estado === 'cerrada') throw new Error('La quincena está cerrada. Reábrela para cambiar sus fechas.')
+  const { inicio, fin } = rangoQuincena(anio, mes, quincena)
+  const { data: otra } = await supabase.from('nomina_periodos').select('id')
+    .eq('anio', anio).eq('mes', mes).eq('quincena', quincena).neq('id', periodo.id).maybeSingle()
+  if (otra) throw new Error('Ya existe otra nómina para esa quincena.')
+
+  const { error } = await supabase.from('nomina_periodos').update({
+    anio, mes, quincena, fecha_inicio: inicio, fecha_fin: fin,
+    huellero_path: null, huellero_nombre: null, huellero_cargado_en: null,
+  }).eq('id', periodo.id)
+  if (error) throw new Error(error.message)
+  if (periodo.huellero_path) await supabase.storage.from(BUCKET_RRHH).remove([periodo.huellero_path])
+
+  const [{ data: liqs }, ctx] = await Promise.all([
+    supabase.from('nomina_liquidaciones').select('*').eq('periodo_id', periodo.id),
+    contextoQuincena(inicio, fin),
+  ])
+  const ids = (liqs || []).map(l => l.id)
+  const { data: piezas } = ids.length
+    ? await supabase.from('nomina_piezas').select('liquidacion_id, cantidad, valor_unitario').in('liquidacion_id', ids)
+    : { data: [] }
+  const laborales = diasLaborales(inicio, fin)
+  for (const l of liqs || []) {
+    const cambios = { huellero: null }
+    if (l.modalidad === 'dia') {
+      const novs = ctx.novedades.filter(n => n.empleado_id === l.empleado_id)
+      cambios.dias = Math.max(0, laborales - diasAusente(novs, inicio, fin))
+    }
+    const totales = calcularTotales({ ...l, ...cambios }, (piezas || []).filter(p => p.liquidacion_id === l.id))
+    const { error: e2 } = await supabase.from('nomina_liquidaciones').update({ ...cambios, ...totales }).eq('id', l.id)
+    if (e2) throw new Error(e2.message)
+  }
+  return { inicio, fin }
 }
 
 // Guarda una liquidación y reemplaza sus piezas

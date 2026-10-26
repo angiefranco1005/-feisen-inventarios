@@ -5,13 +5,14 @@ import { useAuth } from '../../../contexts/AuthContext'
 import { exportarNominaQuincena } from '../../../utils/exportExcel'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
-import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint } from 'lucide-react'
+import Modal from '../../shared/Modal'
+import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas } from '../catalogosRRHH'
 import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
 import HuelleroQuincena from './HuelleroQuincena'
 import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
-import { nombreQuincena, contextoQuincena, liquidacionSugerida, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
+import { nombreQuincena, contextoQuincena, liquidacionSugerida, cambiarQuincena, rangoQuincena, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
 // Planilla de una quincena: todas las personas con lo que se les paga
 export default function PeriodoNomina() {
@@ -29,6 +30,7 @@ export default function PeriodoNomina() {
   const [busqueda,  setBusqueda]  = useState('')
   const [agregar,   setAgregar]   = useState('')
   const [trabajando, setTrabajando] = useState(false)
+  const [editFechas, setEditFechas] = useState(null)   // { anio, mes, quincena } mientras se edita
 
   useEffect(() => { cargar() }, [periodoId])
 
@@ -75,6 +77,22 @@ export default function PeriodoNomina() {
       .eq('id', periodoId).select('*').single()
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
     setPeriodo(data)
+  }
+
+  // Mover la quincena a otras fechas (solo en borrador)
+  async function moverQuincena(destino, { desdeHuellero = false } = {}) {
+    setTrabajando(true); setMsg(null)
+    try {
+      await cambiarQuincena(periodo, destino)
+      setEditFechas(null)
+      setMsg({ tipo: 'exito', texto: desdeHuellero
+        ? 'Fechas actualizadas y días de los de "al día" recalculados. El archivo del huellero se está cargando.'
+        : 'Fechas actualizadas. Se recalcularon los días de los de "al día"; si tenías un archivo de huellero, vuelve a cargarlo.' })
+      await cargar()
+    } catch (err) {
+      setMsg({ tipo: 'error', texto: err.message })
+    }
+    setTrabajando(false)
   }
 
   async function agregarPersona() {
@@ -147,6 +165,11 @@ export default function PeriodoNomina() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {!cerrada && (
+            <button onClick={() => setEditFechas({ anio: periodo.anio, mes: periodo.mes, quincena: periodo.quincena })} className={E.btnSecundario}>
+              <CalendarRange {...E.ICONO} /> Cambiar fechas
+            </button>
+          )}
           <button onClick={desprendibles} disabled={!filas.length} className={E.btnSecundario} title="Un PDF con el desprendible de cada persona de la vista">
             <FileText {...E.ICONO} /> Desprendibles
           </button>
@@ -174,7 +197,7 @@ export default function PeriodoNomina() {
         ))}
       </div>
 
-      <HuelleroQuincena periodo={periodo} liqs={liqs} empleados={empleados} cerrada={cerrada} onActualizado={cargar} />
+      <HuelleroQuincena periodo={periodo} liqs={liqs} empleados={empleados} cerrada={cerrada} onActualizado={cargar} onMoverQuincena={moverQuincena} />
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -233,6 +256,41 @@ export default function PeriodoNomina() {
         <AlertTriangle size={12} strokeWidth={1.8} className="text-amber-500" /> Falta un valor (día, fijo o tarifa de alguna pieza): revísalo antes de cerrar.
         <Fingerprint size={12} strokeWidth={1.8} className="text-feisen-azul ml-3" /> Horas adicionales que sugiere el huellero y aún no se han aplicado.
       </p>
+
+      {editFechas && (
+        <Modal titulo="Cambiar fechas de la nómina" onCerrar={() => !trabajando && setEditFechas(null)}>
+          <form onSubmit={e => { e.preventDefault(); moverQuincena(editFechas) }} className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={E.labelForm}>Año</label>
+                <input type="number" value={editFechas.anio} onChange={e => setEditFechas(f => ({ ...f, anio: Number(e.target.value) }))} className={E.input} />
+              </div>
+              <div>
+                <label className={E.labelForm}>Mes</label>
+                <select value={editFechas.mes} onChange={e => setEditFechas(f => ({ ...f, mes: Number(e.target.value) }))} className={E.input}>
+                  {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((mm, i) => <option key={mm} value={i + 1}>{mm}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={E.labelForm}>Quincena</label>
+                <select value={editFechas.quincena} onChange={e => setEditFechas(f => ({ ...f, quincena: Number(e.target.value) }))} className={E.input}>
+                  <option value={1}>1 al 15</option>
+                  <option value={2}>16 al fin de mes</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-feisen-texto-2">
+              Nuevo periodo: {(() => { const r = rangoQuincena(editFechas.anio, editFechas.mes, editFechas.quincena); return `${r.inicio.split('-').reverse().join('/')} al ${r.fin.split('-').reverse().join('/')}` })()}.
+              Se recalculan los días sugeridos de los de "al día" y se borra la sugerencia del huellero (corresponde a las fechas anteriores).
+              Piezas, valores, anticipos y demás conceptos se conservan.
+            </p>
+            <div className="flex gap-2">
+              <button type="button" disabled={trabajando} onClick={() => setEditFechas(null)} className={`${E.btnSecundario} flex-1`}>Cancelar</button>
+              <button type="submit" disabled={trabajando} className={`${E.btnPrimario} flex-1`}>{trabajando ? 'Guardando…' : 'Cambiar fechas'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {!cerrada && (
         <div className={E.tarjeta}>
