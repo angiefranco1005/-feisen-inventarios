@@ -18,7 +18,7 @@ const FORM_VACIO = {
   numero_documento: '',
   nombres: '',
   apellidos: '',
-  cargo: '',
+  cargo_id: '',
   area: '',
   fecha_ingreso: new Date().toISOString().split('T')[0],
   tipo_contrato: 'Indefinido',
@@ -43,15 +43,20 @@ export default function ListaEmpleados() {
   const [msg,          setMsg]          = useState(null)
   const [foto,         setFoto]         = useState(null)   // { file, url } foto opcional al crear
   const inputFoto = useRef(null)
+  const [cargos,       setCargos]       = useState([])     // catálogo del organigrama
 
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setCargando(true)
-    const { data, error } = await supabase.from('empleados')
-      .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path')
-      .order('nombres')
+    const [{ data, error }, { data: cats }] = await Promise.all([
+      supabase.from('empleados')
+        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path')
+        .order('nombres'),
+      supabase.from('cargos').select('id, nombre, area').order('nombre'),
+    ])
     if (error) setMsg({ tipo: 'error', texto: error.message })
+    setCargos(cats || [])
     setEmpleados(data || [])
     setFotos(await urlsFirmadas((data || []).map(e => e.foto_path)))
     setCargando(false)
@@ -91,6 +96,7 @@ export default function ListaEmpleados() {
       const fila = {
         ...form,
         codigo,
+        cargo: cargos.find(c => c.id === form.cargo_id)?.nombre ?? null,
         numero_documento: form.numero_documento.trim(),
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
@@ -122,6 +128,10 @@ export default function ListaEmpleados() {
   // Término fijo: la fecha fin se sugiere con ingreso + duración (sigue siendo editable)
   const set = (k) => (ev) => setForm(f => {
     const nf = { ...f, [k]: ev.target.value }
+    if (k === 'cargo_id') {
+      const area = cargos.find(c => c.id === nf.cargo_id)?.area
+      if (area) nf.area = area
+    }
     const fin = nf.tipo_contrato === 'Término fijo' && ['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k)
       && calcularFinContrato(nf.fecha_ingreso, nf.duracion_meses)
     return fin ? { ...nf, fecha_fin_contrato: fin } : nf
@@ -310,7 +320,10 @@ export default function ListaEmpleados() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={E.labelForm}>Cargo *</label>
-                <input required value={form.cargo} onChange={set('cargo')} placeholder="Ej: Moldeador" className={E.input} />
+                <select required value={form.cargo_id} onChange={set('cargo_id')} className={E.input}>
+                  <option value="">{cargos.length ? 'Seleccionar…' : 'Primero crea cargos en el Organigrama'}</option>
+                  {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.area ? ` · ${c.area}` : ''}</option>)}
+                </select>
               </div>
               <div>
                 <label className={E.labelForm}>Área *</label>

@@ -36,6 +36,8 @@ import NoConformidades          from './components/calidad/NoConformidades'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
 import ListaEmpleados           from './components/rrhh/ListaEmpleados'
 import FichaEmpleado            from './components/rrhh/FichaEmpleado'
+import Organigrama              from './components/rrhh/Organigrama'
+import FichaCargo               from './components/rrhh/FichaCargo'
 
 function Cargando() {
   return (
@@ -79,6 +81,8 @@ function AppRoutes() {
       <Routes>
         <Route path="/rrhh/empleados"     element={<Layout><ListaEmpleados /></Layout>} />
         <Route path="/rrhh/empleados/:id" element={<Layout><FichaEmpleado /></Layout>} />
+        <Route path="/rrhh/organigrama"     element={<Layout><Organigrama /></Layout>} />
+        <Route path="/rrhh/organigrama/:id" element={<Layout><FichaCargo /></Layout>} />
         <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
       </Routes>
     )
@@ -207,6 +211,8 @@ function AppRoutes() {
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
       <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
       <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
+      <Route path="/rrhh/organigrama"      element={<Layout><Organigrama /></Layout>} />
+      <Route path="/rrhh/organigrama/:id"  element={<Layout><FichaCargo /></Layout>} />
       <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

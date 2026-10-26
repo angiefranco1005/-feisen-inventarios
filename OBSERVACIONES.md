@@ -1379,6 +1379,19 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   con punto de color, botones `rounded-lg` y el azul suave solo para lo activo. Las clases están centralizadas
   en `src/components/rrhh/estilos.js` (cambiar ahí cambia todo el módulo). En celular el menú de secciones de
   la ficha es horizontal y se desplaza solo hasta la sección activa.
+- **Organigrama por cargos (2026-10-26, pedido de Angie):** tabla `cargos` (puestos de trabajo) con
+  `cargo_padre_id` (a quién reporta) y `plazas`; el organigrama se dibuja con cargos, no con personas, para
+  ver vacantes. Cada cargo tiene perfil requerido, asignación salarial (rango min–max), manual de funciones
+  (lista + PDF en `cargos/{id}/` del bucket rrhh), criterios de evaluación de desempeño con peso %, EPP,
+  capacitación y herramientas a entregar; las listas son JSONB. Rutas `/rrhh/organigrama` (árbol / lista) y
+  `/rrhh/organigrama/:id` (ficha del cargo). `empleados.cargo_id` enlaza al colaborador y el texto
+  `empleados.cargo` se mantiene sincronizado con el nombre (al guardar la ficha y al renombrar el cargo).
+  La migración `2026-10-26_rrhh_cargos_organigrama.sql` crea los cargos que ya existían como texto.
+  Un cargo solo se elimina sin personas ni cargos que le reporten; "Reporta a" excluye al propio cargo y
+  a sus subordinados (evita ciclos). Las tarjetas editables (`Bloque`, `CampoEditable`, listas) viven en
+  `FichaComun.jsx` y las usan la ficha del colaborador y la del cargo.
+  **Pendiente:** la evaluación de desempeño solo define criterios por cargo; falta registrar las
+  evaluaciones por persona, y las entregas reales de EPP/herramientas (con firma) por colaborador.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

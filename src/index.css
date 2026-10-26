@@ -31,3 +31,26 @@
     padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
 }
+
+/* Organigrama (RRHH): árbol de cargos de arriba hacia abajo con líneas
+   conectoras dibujadas con pseudo-elementos. Ver rrhh/Organigrama.jsx */
+@layer components {
+  .organigrama ul { position: relative; display: flex; justify-content: center; padding-top: 24px; }
+  .organigrama li { position: relative; list-style: none; display: flex; flex-direction: column; align-items: center; padding: 24px 8px 0; }
+  .organigrama li::before,
+  .organigrama li::after { content: ''; position: absolute; top: 0; right: 50%; width: 50%; height: 24px; border-top: 1px solid #D5DAE1; }
+  .organigrama li::after { right: auto; left: 50%; border-left: 1px solid #D5DAE1; }
+  .organigrama li:only-child { padding-top: 0; }
+  .organigrama li:only-child::before,
+  .organigrama li:only-child::after { display: none; }
+  .organigrama li:first-child::before,
+  .organigrama li:last-child::after { border: 0 none; }
+  .organigrama li:last-child::before { border-right: 1px solid #D5DAE1; border-radius: 0 8px 0 0; }
+  .organigrama li:first-child::after { border-radius: 8px 0 0 0; }
+  .organigrama ul ul::before { content: ''; position: absolute; top: 0; left: 50%; height: 24px; border-left: 1px solid #D5DAE1; }
+  /* Raíces: varias cabezas una al lado de la otra, sin líneas entre ellas */
+  .organigrama > ul { padding-top: 0; gap: 32px; align-items: flex-start; }
+  .organigrama > ul > li { padding-top: 0; }
+  .organigrama > ul > li::before,
+  .organigrama > ul > li::after { display: none; }
+}

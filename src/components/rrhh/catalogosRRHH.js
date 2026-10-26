@@ -52,6 +52,7 @@ export const ESTADOS_CIVILES = ['Soltero(a)', 'Casado(a)', 'Unión libre', 'Sepa
 export const GRUPOS_SANGUINEOS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-']
 export const NIVELES_EDUCATIVOS = ['Primaria', 'Bachiller', 'Técnico', 'Tecnólogo', 'Profesional', 'Especialización', 'Maestría']
 export const TIPOS_CUENTA = ['Ahorros', 'Corriente', 'Nequi / Daviplata']
+export const PERIODICIDADES = ['Mensual', 'Trimestral', 'Semestral', 'Anual']
 export const PARENTESCOS  = ['Padre', 'Madre', 'Cónyuge / Pareja', 'Hijo(a)', 'Hermano(a)', 'Otro']
 
 // Checklist de documentos de ingreso que pide RRHH a cada colaborador
@@ -182,4 +183,42 @@ export async function subirFotoEmpleado(empleadoId, file, pathAnterior = null) {
   }
   if (pathAnterior) await supabase.storage.from(BUCKET_RRHH).remove([pathAnterior])
   return path
+}
+
+// ─── Organigrama ─────────────────────────────────────────────────────────────
+// Agrupa los cargos por su cargo superior. Un cargo cuyo superior no existe se
+// trata como raíz (no se pierde del árbol).
+export function hijosPorPadre(cargos) {
+  const ids = new Set(cargos.map(c => c.id))
+  const mapa = new Map()
+  for (const c of cargos) {
+    const padre = c.cargo_padre_id && ids.has(c.cargo_padre_id) ? c.cargo_padre_id : null
+    if (!mapa.has(padre)) mapa.set(padre, [])
+    mapa.get(padre).push(c)
+  }
+  for (const lista of mapa.values()) lista.sort((a, b) => (a.orden - b.orden) || a.nombre.localeCompare(b.nombre))
+  return mapa
+}
+
+// Ids de todos los cargos que dependen (directa o indirectamente) de `id`:
+// no pueden elegirse como su cargo superior porque formarían un ciclo.
+export function descendientes(cargos, id) {
+  const hijos = hijosPorPadre(cargos)
+  const fuera = new Set()
+  const pila = [id]
+  while (pila.length) {
+    const actual = pila.pop()
+    for (const h of hijos.get(actual) || []) if (!fuera.has(h.id)) { fuera.add(h.id); pila.push(h.id) }
+  }
+  return fuera
+}
+
+// Abre un archivo del bucket privado en otra pestaña con URL firmada (5 min).
+// La pestaña se abre antes del await para que el navegador no la bloquee.
+export async function abrirArchivoRRHH(path) {
+  const ventana = window.open('', '_blank')
+  const { data, error } = await supabase.storage.from(BUCKET_RRHH).createSignedUrl(path, 300)
+  if (error || !data?.signedUrl) { ventana?.close(); throw new Error(error?.message || 'No se pudo abrir el archivo.') }
+  if (ventana) ventana.location.href = data.signedUrl
+  else window.location.href = data.signedUrl
 }

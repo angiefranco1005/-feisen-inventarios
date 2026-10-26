@@ -16,6 +16,7 @@ import {
   subirFotoEmpleado, calcularFinContrato,
 } from './catalogosRRHH'
 import * as E from './estilos'
+import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 
 const inputCls = E.input
 
@@ -64,8 +65,20 @@ const SECCIONES = [
   {
     id: 'laboral', label: 'Información laboral', icon: Briefcase,
     bloques: [
-      { id: 'cargo', titulo: 'Cargo', icon: Building2, campos: [
-        { k: 'cargo', label: 'Cargo', req: true },
+      { id: 'cargo', titulo: 'Cargo', icon: Building2,
+        // Al elegir cargo se propone su área
+        derivar: (f, k, ctx) => {
+          if (k !== 'cargo_id') return f
+          const c = ctx?.cargos?.find(x => x.id === f.cargo_id)
+          return c?.area ? { ...f, area: c.area } : f
+        },
+        alGuardar: (cambios, ctx) => ({ ...cambios, cargo: ctx?.cargos?.find(x => x.id === cambios.cargo_id)?.nombre ?? null }),
+        campos: [
+        // El cargo sale del catálogo del organigrama; al guardar se copia su nombre a `cargo` (texto)
+        { k: 'cargo_id', label: 'Cargo', tipo: 'select', req: true,
+          opciones: (ctx) => (ctx?.cargos || []).map(c => ({ value: c.id, label: c.area ? `${c.nombre} · ${c.area}` : c.nombre })),
+          mostrar: (e, ctx) => ctx?.cargos?.find(c => c.id === e.cargo_id)?.nombre || e.cargo || null,
+          nota: (f) => f && !f.cargo_id ? 'Los cargos se crean en el Organigrama.' : null },
         { k: 'area', label: 'Área', tipo: 'select', opciones: AREAS, req: true },
         { k: 'jefe_id', label: 'Jefe inmediato', tipo: 'jefe' },
         { k: 'email_corporativo', label: 'Correo corporativo', tipo: 'email' },
@@ -80,6 +93,7 @@ const SECCIONES = [
           extra: (e) => e.fecha_ingreso ? `Antigüedad: ${tiempoDesde(e.fecha_ingreso, e.estado === 'retirado' ? e.fecha_retiro : null) || '—'}` : null },
         { k: 'tipo_contrato', label: 'Tipo de contrato', tipo: 'select', opciones: TIPOS_CONTRATO, req: true },
         { k: 'duracion_meses', label: 'Duración (meses)', tipo: 'number', req: true,
+          mostrar: (e) => e.duracion_meses ? `${e.duracion_meses} mes${e.duracion_meses > 1 ? 'es' : ''}` : null,
           visible: (f) => f.tipo_contrato === 'Término fijo',
 },
         { k: 'fecha_fin_contrato', label: 'Fecha fin de contrato', tipo: 'date', req: true,
@@ -110,7 +124,7 @@ const SECCIONES = [
         { k: 'fondo_cesantias', label: 'Fondo de cesantías' },
         { k: 'caja_compensacion', label: 'Caja de compensación' },
         { k: 'arl', label: 'ARL' },
-        { k: 'nivel_riesgo_arl', label: 'Nivel de riesgo ARL', tipo: 'select',
+        { k: 'nivel_riesgo_arl', label: 'Nivel de riesgo ARL', tipo: 'select', numerico: true,
           opciones: [1, 2, 3, 4, 5].map(n => ({ value: String(n), label: `Riesgo ${n}` })) },
       ] },
     ],
@@ -128,11 +142,6 @@ const SECCIONES = [
   { id: 'documentos', label: 'Documentos', icon: FolderOpen },
 ]
 
-function opcionLabel(campo, valor) {
-  const op = (campo.opciones || []).find(o => (typeof o === 'object' ? String(o.value) : o) === String(valor))
-  return op ? (typeof op === 'object' ? op.label : op) : valor
-}
-
 export default function FichaEmpleado() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -142,6 +151,7 @@ export default function FichaEmpleado() {
 
   const [emp,         setEmp]         = useState(null)
   const [otros,       setOtros]       = useState([])   // para el selector de jefe
+  const [cargos,      setCargos]      = useState([])   // catálogo del organigrama
   const [fotoUrl,     setFotoUrl]     = useState(null)
   const [subiendoFoto, setSubiendoFoto] = useState(false)
   const [msgFoto,     setMsgFoto]     = useState(null)
@@ -157,19 +167,22 @@ export default function FichaEmpleado() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data, error }, { data: lista }] = await Promise.all([
+    const [{ data, error }, { data: lista }, { data: cats }] = await Promise.all([
       supabase.from('empleados').select('*').eq('id', id).single(),
       supabase.from('empleados').select('id, nombres, apellidos, cargo, estado').neq('id', id).order('nombres'),
+      supabase.from('cargos').select('id, nombre, area').order('nombre'),
     ])
     if (error) { setErrorCarga(error.message); setCargando(false); return }
     setEmp(data)
     setOtros(lista || [])
+    setCargos(cats || [])
     const urls = await urlsFirmadas([data.foto_path])
     setFotoUrl(urls[data.foto_path] || null)
     setCargando(false)
   }
 
   const seccion = SECCIONES.find(s => s.id === tab)
+  const ctx = { otros, cargos, jefe: emp ? otros.find(o => o.id === emp.jefe_id) : null }
 
   // En celular el menú de secciones es horizontal: mantener visible la activa
   useEffect(() => {
@@ -182,24 +195,12 @@ export default function FichaEmpleado() {
   }
 
   function empezarEdicion(bloque) {
-    const f = {}
-    for (const c of bloque.campos) f[c.k] = emp[c.k] ?? (c.tipo === 'bool' ? false : '')
-    if (f.nivel_riesgo_arl !== undefined && f.nivel_riesgo_arl !== '') f.nivel_riesgo_arl = String(f.nivel_riesgo_arl)
-    setForm(f); setMsg(null); setEditando(bloque.id)
+    setForm(valoresIniciales(bloque, emp)); setMsg(null); setEditando(bloque.id)
   }
 
   async function guardar(e, bloque) {
     e.preventDefault(); setMsg(null); setGuardando(true)
-    const cambios = {}
-    for (const c of bloque.campos) {
-      let v = form[c.k]
-      if (typeof v === 'string') v = v.trim()
-      if (v === '') v = null
-      if (c.tipo === 'money' && v !== null) v = Number(String(v).replace(/[^\d.]/g, ''))
-      if ((c.k === 'nivel_riesgo_arl' || c.tipo === 'number') && v !== null) v = Number(v)
-      if (c.visible && !c.visible(form)) v = null
-      cambios[c.k] = v
-    }
+    const cambios = valoresParaGuardar(bloque, form, ctx)
     const { data, error } = await supabase.from('empleados').update(cambios).eq('id', id).select('*').single()
     setGuardando(false)
     if (error) {
@@ -242,7 +243,6 @@ export default function FichaEmpleado() {
   )
 
   const est = ESTADOS_EMPLEADO[emp.estado] || ESTADOS_EMPLEADO.activo
-  const jefe = otros.find(o => o.id === emp.jefe_id)
   const diasFin = emp.estado !== 'retirado' ? diasParaVencer(emp.fecha_fin_contrato) : null
   const antig = tiempoDesde(emp.fecha_ingreso, emp.estado === 'retirado' ? emp.fecha_retiro : null)
   const correo = emp.email_corporativo || emp.email_personal
@@ -325,7 +325,7 @@ export default function FichaEmpleado() {
           {tab === 'documentos'
             ? <DocumentosEmpleado empleadoId={id} perfilId={perfil?.id} />
             : seccion.bloques.map(b => (
-              <Bloque key={b.id} bloque={b} emp={emp} jefe={jefe} otros={otros}
+              <Bloque key={b.id} bloque={b} registro={emp} ctx={ctx}
                 editando={editando === b.id} bloqueado={!!editando && editando !== b.id}
                 form={form} setForm={setForm} guardando={guardando}
                 msg={msg?.bloque === b.id ? msg : null}
@@ -345,122 +345,6 @@ function DatoRapido({ icon: Icon, valor, href }) {
   const contenido = <><Icon size={14} strokeWidth={1.8} className="text-feisen-gris-medio flex-shrink-0" /><span className="truncate">{valor}</span></>
   const cls = 'inline-flex items-center gap-1.5 min-w-0'
   return href ? <a href={href} className={`${cls} hover:text-feisen-azul`}>{contenido}</a> : <span className={cls}>{contenido}</span>
-}
-
-function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, guardando, msg, onEditar, onCancelar, onGuardar }) {
-  return (
-    <div className={E.tarjeta}>
-      <div className={E.cabTarjeta}>
-        <h2 className={E.tituloTarj}>
-          <bloque.icon {...E.ICONO} className={E.iconoTitulo} /> {bloque.titulo}
-        </h2>
-        {!editando && (
-          <button onClick={onEditar} disabled={bloqueado} className={`${E.btnTexto} -mr-2`}>
-            <Pencil size={14} strokeWidth={1.8} /> Editar
-          </button>
-        )}
-      </div>
-      <div className="px-5 py-4">
-        {msg && <div className="mb-4"><Alerta tipo={msg.tipo} mensaje={msg.texto} /></div>}
-        {editando ? (
-          <form onSubmit={onGuardar}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {bloque.campos.map(c => (!c.visible || c.visible(form)) && (
-                <CampoEditable key={c.k} campo={c} valor={form[c.k]} otros={otros} form={form}
-                  onChange={v => setForm(f => {
-                    const nf = { ...f, [c.k]: v }
-                    return bloque.derivar ? bloque.derivar(nf, c.k) : nf
-                  })} />
-              ))}
-            </div>
-            <div className="flex gap-2 justify-end pt-5">
-              <button type="button" onClick={onCancelar} className={E.btnSecundario}>Cancelar</button>
-              <button type="submit" disabled={guardando} className={E.btnPrimario}>
-                {guardando ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3.5">
-            {bloque.campos.map(c => {
-              if (c.visible && !c.visible(emp)) return null
-              const v = emp[c.k]
-              let texto
-              if (c.tipo === 'bool') texto = v ? 'Sí' : 'No'
-              else if (v === null || v === undefined || v === '') texto = null
-              else if (c.tipo === 'date') texto = formatoFecha(v)
-              else if (c.tipo === 'money') texto = formatoPesos(v)
-              else if (c.k === 'duracion_meses') texto = `${v} mes${v > 1 ? 'es' : ''}`
-              else if (c.tipo === 'select') texto = opcionLabel(c, v)
-              else if (c.tipo === 'jefe') texto = jefe ? `${nombreCompleto(jefe)}${jefe.cargo ? ` · ${jefe.cargo}` : ''}` : null
-              else texto = v
-              const extra = c.extra?.(emp) || (texto && typeof c.nota === 'function' ? c.nota(emp) : null)
-              return (
-                <div key={c.k} className={c.full ? 'col-span-full' : ''}>
-                  <dt className={`${E.etiqueta} mb-0.5`}>{c.label}</dt>
-                  <dd className={`text-sm whitespace-pre-line ${texto ? 'text-feisen-texto' : 'text-feisen-gris-medio/70'}`}>
-                    {texto || '—'}
-                    {extra && <span className="block text-xs text-feisen-gris-medio">{extra}</span>}
-                  </dd>
-                </div>
-              )
-            })}
-          </dl>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function CampoEditable({ campo: c, valor, onChange, otros, form }) {
-  const label = <label className={E.labelForm}>{c.label}{c.req && ' *'}</label>
-  const nota = typeof c.nota === 'function' ? c.nota(form) : c.nota
-  const wrap = (input) => (
-    <div className={c.full ? 'col-span-full' : ''}>
-      {label}{input}
-      {nota && <p className="text-xs text-feisen-gris-medio mt-1">{nota}</p>}
-    </div>
-  )
-
-  if (c.tipo === 'bool') return (
-    <label className="flex items-center gap-2.5 border border-feisen-borde rounded-lg px-3 py-2 self-end cursor-pointer">
-      <input type="checkbox" checked={!!valor} onChange={e => onChange(e.target.checked)} className="w-4 h-4 accent-feisen-azul" />
-      <span className="text-sm text-feisen-texto">{c.label}</span>
-    </label>
-  )
-  if (c.tipo === 'select') return wrap(
-    <select required={c.req} value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls}>
-      {!c.req && <option value="">—</option>}
-      {c.opciones.map(o => typeof o === 'object'
-        ? <option key={o.value} value={o.value}>{o.label}</option>
-        : <option key={o} value={o}>{o}</option>)}
-    </select>
-  )
-  if (c.tipo === 'jefe') return wrap(
-    <select value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls}>
-      <option value="">— Sin jefe asignado —</option>
-      {otros.filter(o => o.estado !== 'retirado' || o.id === valor).map(o =>
-        <option key={o.id} value={o.id}>{nombreCompleto(o)}{o.cargo ? ` · ${o.cargo}` : ''}</option>)}
-    </select>
-  )
-  if (c.tipo === 'textarea') return wrap(
-    <textarea rows={3} value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls} />
-  )
-  if (c.tipo === 'money') return wrap(
-    <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-feisen-gris-medio">$</span>
-      <input inputMode="numeric" value={valor === null || valor === '' ? '' : Number(String(valor).replace(/[^\d]/g, '')).toLocaleString('es-CO')}
-        onChange={e => onChange(e.target.value.replace(/[^\d]/g, ''))} className={`${inputCls} pl-7`} />
-    </div>
-  )
-  if (c.tipo === 'number') return wrap(
-    <input required={c.req} type="number" min="1" step="1" inputMode="numeric"
-      value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls} />
-  )
-  return wrap(
-    <input required={c.req} type={c.tipo === 'date' ? 'date' : c.tipo === 'email' ? 'email' : 'text'}
-      value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls} />
-  )
 }
 
 // ─── Helpers de documentos (pestaña Documentos y certificación bancaria en Pago) ─
