@@ -780,3 +780,27 @@ export function exportarNominaQuincena({ titulo, filas }) {
   if (!wb.SheetNames.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sin liquidaciones']]), 'Planilla')
   XLSX.writeFile(wb, `nomina_${titulo.replace(/\s+/g, '_').toLowerCase()}.xlsx`)
 }
+
+// ─────────────────────────────────────────────────────────────
+//  RRHH — Resultados de un ciclo de evaluación de desempeño
+//  filas: [{ nombre, documento, cargo, area, evaluador, estado, objetivos, competencias,
+//            resultado, calibrado, final, porcentaje, etiqueta, potencial, cuadrante }]
+// ─────────────────────────────────────────────────────────────
+export function exportarDesempeno(ciclo, filas, items) {
+  const wb = XLSX.utils.book_new()
+  const sub = `${ciclo.nombre} · periodo ${ciclo.fecha_inicio} a ${ciclo.fecha_fin} · objetivos ${ciclo.peso_objetivos}% / competencias ${ciclo.peso_competencias}%`
+  const num = (v) => (v === null || v === undefined || v === '' ? '' : Number(v))
+  hojaTabla(wb, 'Resultados', 'Evaluación de desempeño — resultados', sub,
+    ['Colaborador', 'Documento', 'Cargo', 'Área', 'Evaluador', 'Estado', 'Objetivos', 'Competencias', 'Resultado',
+      'Calibrado', 'Final', '%', 'Nivel', 'Potencial', 'Matriz de talento'],
+    filas.map(f => [f.nombre, f.documento, f.cargo || '', f.area || '', f.evaluador || '', f.estado, num(f.objetivos), num(f.competencias),
+      num(f.resultado), num(f.calibrado), num(f.final), num(f.porcentaje), f.etiqueta || '', f.potencial || '', f.cuadrante || '']),
+    { anchos: [28, 14, 22, 18, 22, 11, 11, 13, 10, 10, 8, 7, 20, 10, 20], fmt: { 6: '0.00', 7: '0.00', 8: '0.00', 9: '0.00', 10: '0.00', 11: '0' } })
+  if (items?.length) {
+    hojaTabla(wb, 'Detalle', 'Calificación por objetivo y competencia', sub,
+      ['Colaborador', 'Tipo', 'Objetivo / competencia', 'Peso %', 'Nota jefe', 'Autoevaluación', 'Comentario'],
+      items.map(i => [i.nombre, i.tipo === 'objetivo' ? 'Objetivo' : 'Competencia', i.item, num(i.peso), num(i.nota), num(i.nota_auto), i.comentario || '']),
+      { anchos: [28, 12, 40, 8, 10, 14, 40], fmt: { 3: '0', 4: '0', 5: '0' } })
+  }
+  XLSX.writeFile(wb, `desempeno_${ciclo.nombre.replace(/\s+/g, '_').toLowerCase()}.xlsx`)
+}

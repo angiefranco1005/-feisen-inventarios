@@ -118,7 +118,7 @@ const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion, rolEfectivo, esAdmin, esAlmacenista } = useAuth()
 
-  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', JEFE_ENSAMBLE: 'PRODUCCION' }
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', JEFE_ENSAMBLE: 'PRODUCCION', RRHH: 'ADMINISTRACION' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
 
   // Query de pedidos filtrada: admin ve todos; los demás solo los suyos

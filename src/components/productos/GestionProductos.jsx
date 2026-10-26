@@ -23,7 +23,7 @@ const CATEGORIAS_MECANIZABLES = new Set([
 export default function GestionProductos() {
   const navigate = useNavigate()
   const { perfil, esAdmin, esLogistica, bodegasPermitidas, bodegasOperacion } = useAuth()
-  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'OPERARIO' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS' || perfil?.rol === 'JEFE_ENSAMBLE'
+  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'OPERARIO' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS' || perfil?.rol === 'JEFE_ENSAMBLE' || perfil?.rol === 'RRHH'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])

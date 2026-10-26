@@ -44,6 +44,9 @@ import Nomina                   from './components/rrhh/nomina/Nomina'
 import PeriodoNomina            from './components/rrhh/nomina/PeriodoNomina'
 import LiquidacionPersona       from './components/rrhh/nomina/LiquidacionPersona'
 import TarifasDestajo           from './components/rrhh/nomina/TarifasDestajo'
+import Desempeno                from './components/rrhh/desempeno/Desempeno'
+import CicloDesempeno           from './components/rrhh/desempeno/CicloDesempeno'
+import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPersona'
 import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
 import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
 
@@ -97,6 +100,14 @@ function AppRoutes() {
         <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
         <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
         <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
+        <Route path="/rrhh/desempeno"                   element={<Layout><Desempeno /></Layout>} />
+        <Route path="/rrhh/desempeno/:cicloId"          element={<Layout><CicloDesempeno /></Layout>} />
+        <Route path="/rrhh/desempeno/:cicloId/:evalId"  element={<Layout><EvaluacionPersona /></Layout>} />
+        {/* Bodega de Administración (dotación, papelería, aseo): stock, movimientos y pedidos de sus bodegas */}
+        <Route path="/productos"          element={<Layout><GestionProductos /></Layout>} />
+        <Route path="/movimientos/nuevo"  element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
+        <Route path="/movimientos"        element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"            element={<Layout><ListaPedidos /></Layout>} />
         <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
       </Routes>
     )
@@ -253,6 +264,9 @@ function AppRoutes() {
       <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
       <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
       <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
+      <Route path="/rrhh/desempeno"                   element={<Layout><Desempeno /></Layout>} />
+      <Route path="/rrhh/desempeno/:cicloId"          element={<Layout><CicloDesempeno /></Layout>} />
+      <Route path="/rrhh/desempeno/:cicloId/:evalId"  element={<Layout><EvaluacionPersona /></Layout>} />
       <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

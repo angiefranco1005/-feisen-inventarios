@@ -1512,6 +1512,25 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
     `NOMINA_RESPONDER_A`; desplegar la función `supabase/functions/enviar-desprendible/index.ts`
     (Dashboard → Edge Functions → nueva función con ese código, o `supabase functions deploy enviar-desprendible`).
     Migración `2026-10-26_rrhh_nomina_aprobacion.sql`.
+- **RRHH maneja la bodega "Administración" y hace pedidos (2026-10-26, pedido de Angie):** categorías
+  Dotación, Papelería y Aseo (globales). El rol RRHH ahora tiene Productos, Movimiento (pantalla de
+  almacenista), Historial y Pedidos, limitados a sus bodegas por `profile_bodegas` como los jefes de área;
+  área de los pedidos = 'ADMINISTRACION'. Migración `2026-10-26_rrhh_bodega_administracion.sql`: crea la
+  bodega y categorías si no existen (comparando sin tildes), asigna la bodega a los usuarios RRHH y agrega
+  RRHH a las políticas de items por bodega (copiadas de `produccion_ensamble`). Si se crea otro usuario RRHH
+  después, asignarle la bodega en Configuración → Usuarios.
+- **Evaluación de desempeño (2026-10-26, inspirado en Buk):** `desempeno_ciclos` (periodo, peso objetivos vs
+  competencias, autoevaluación opcional, escala 1–5 editable, competencias transversales) y
+  `desempeno_evaluaciones` (una por persona, con "foto" de los ítems: criterios del cargo con peso +
+  competencias transversales + del cargo; nota del evaluador y de autoevaluación; resultado ponderado,
+  calibración con justificación, potencial, fortalezas/oportunidades, comentario del colaborador, plan de
+  acción). Resultado = objetivos (promedio ponderado por peso) × % + competencias (promedio) × %; si una parte
+  no tiene ítems, cuenta la otra completa; el resultado usa la nota del evaluador (la autoevaluación es
+  referencia). Matriz de talento 9-box: desempeño (<60 % bajo, <80 % medio, ≥80 % alto) × potencial. Rutas
+  `/rrhh/desempeno`, `/:cicloId`, `/:cicloId/:evalId`; pestaña "Desempeño" en la ficha con historial y
+  evolución; Excel (`exportarDesempeno`). Las registra RRHH/ADMIN (los operarios no tienen usuario).
+  **Ideas siguientes:** que los jefes evalúen desde su propio usuario, evaluación de pares/ascendente,
+  objetivos individuales por persona, PDF de la evaluación para firmar.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

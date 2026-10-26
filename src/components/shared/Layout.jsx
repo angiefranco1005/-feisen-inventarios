@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -48,6 +48,7 @@ const NAV_ADMIN = [
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
   { to: '/rrhh/calendario',                   icon: CalendarDays,    label: 'Calendario',         modulo: 'Recursos Humanos' },
   { to: '/rrhh/nomina',                       icon: Wallet,          label: 'Nómina',             modulo: 'Recursos Humanos' },
+  { to: '/rrhh/desempeno',                    icon: Target,          label: 'Desempeño',          modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: ShieldAlert,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
@@ -160,6 +161,19 @@ const NAV_RRHH = [
   { to: '/rrhh/novedades',   icon: CalendarClock, label: 'Novedades' },
   { to: '/rrhh/calendario',  icon: CalendarDays,  label: 'Calendario' },
   { to: '/rrhh/nomina',      icon: Wallet,        label: 'Nómina' },
+  { to: '/rrhh/desempeno',   icon: Target,        label: 'Desempeño' },
+  // Bodega de Administración: dotación, papelería y aseo
+  { to: '/productos',         icon: Package,      label: 'Productos',  grupo: 'Bodega Administración' },
+  { to: '/movimientos/nuevo', icon: ArrowUpDown,  label: 'Movimiento', grupo: 'Bodega Administración' },
+  { to: '/movimientos',       icon: BarChart2,    label: 'Historial',  grupo: 'Bodega Administración' },
+  { to: '/pedidos',           icon: ShoppingCart, label: 'Pedidos',    grupo: 'Bodega Administración' },
+]
+const MOBILE_RRHH = [
+  { to: '/rrhh/empleados', icon: Users,         label: 'Personas' },
+  { to: '/rrhh/novedades', icon: CalendarClock, label: 'Novedades' },
+  { to: '/rrhh/nomina',    icon: Wallet,        label: 'Nómina' },
+  { to: '/pedidos',        icon: ShoppingCart,  label: 'Pedidos' },
+  { to: '/movimientos/nuevo', icon: ArrowUpDown, label: 'Movimiento' },
 ]
 
 const NAV_CONSULTOR = [
@@ -211,6 +225,7 @@ export default function Layout({ children }) {
     : esJefeMecanizados  ? MOBILE_JEFE_MECANIZADOS
     : esJefeEnsamble     ? MOBILE_JEFE_ENSAMBLE
     : esConsultor        ? MOBILE_CONSULTOR
+    : esRRHH             ? MOBILE_RRHH
     : navItems.slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()

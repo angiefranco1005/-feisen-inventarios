@@ -7,7 +7,7 @@ import Alerta from '../shared/Alerta'
 import {
   ArrowLeft, Camera, Pencil, User, Briefcase, HeartPulse, Wallet, FolderOpen,
   Upload, FileText, Trash2, ExternalLink, Mail, Smartphone, CalendarDays, AlertTriangle,
-  MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock,
+  MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock, Target,
 } from 'lucide-react'
 import {
   BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
@@ -18,6 +18,7 @@ import {
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import NovedadesEmpleado from './NovedadesEmpleado'
+import DesempenoEmpleado from './desempeno/DesempenoEmpleado'
 import { valoresHora } from './nomina/nominaCalculo'
 import ModalPreaviso from './ModalPreaviso'
 
@@ -161,6 +162,7 @@ const SECCIONES = [
     ],
   },
   { id: 'novedades', label: 'Novedades', icon: CalendarClock },
+  { id: 'desempeno', label: 'Desempeño', icon: Target },
   { id: 'documentos', label: 'Documentos', icon: FolderOpen },
 ]
 
@@ -379,6 +381,8 @@ export default function FichaEmpleado() {
             ? <DocumentosEmpleado empleadoId={id} perfilId={perfil?.id} />
             : tab === 'novedades'
             ? <NovedadesEmpleado empleado={emp} perfilId={perfil?.id} />
+            : tab === 'desempeno'
+            ? <DesempenoEmpleado empleadoId={emp.id} />
             : seccion.bloques.map(b => (
               <Bloque key={b.id} bloque={b} registro={emp} ctx={ctx}
                 editando={editando === b.id} bloqueado={!!editando && editando !== b.id}
