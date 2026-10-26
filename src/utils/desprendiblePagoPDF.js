@@ -3,6 +3,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { FEISEN_LOGO_PNG, LOGO_ASPECT, NIT_FEISEN } from './exportOrdenCompraPDF'
+import { esContratista, etiquetasPago } from '../components/rrhh/nomina/nominaCalculo'
 
 const AZUL = [6, 71, 148]
 const GRIS = [110, 110, 110]
@@ -14,12 +15,13 @@ const FORMA = { destajo: 'Destajo (por pieza)', dia: 'Al día', fijo: 'Valor fij
 
 // Filas de devengos y deducciones de una liquidación: [concepto, cantidad, valor unitario, total]
 export function conceptosLiquidacion(l) {
+  const T = etiquetasPago(l.tipo_contrato ? l.tipo_contrato === 'Contratista' : esContratista(null, l.modalidad))
   const dev = []
   for (const p of l.piezas || []) dev.push([p.descripcion, cant(p.cantidad), pesos(p.valor_unitario), n(p.cantidad) * n(p.valor_unitario)])
   if (n(l.dias)) dev.push(['Días trabajados', cant(l.dias), pesos(l.valor_dia), n(l.dias) * n(l.valor_dia)])
   if (n(l.valor_fijo)) dev.push(['Valor fijo de la quincena', '', '', n(l.valor_fijo)])
-  if (n(l.horas_extra)) dev.push(['Horas extra', cant(l.horas_extra), pesos(l.valor_hora_extra), n(l.horas_extra) * n(l.valor_hora_extra)])
-  if (n(l.horas_extra_recargo)) dev.push(['Horas dominicales/festivas (recargo 100 %)', cant(l.horas_extra_recargo), pesos(n(l.valor_hora_extra) * 2), n(l.horas_extra_recargo) * n(l.valor_hora_extra) * 2])
+  if (n(l.horas_extra)) dev.push([T.horas, cant(l.horas_extra), pesos(l.valor_hora_extra), n(l.horas_extra) * n(l.valor_hora_extra)])
+  if (n(l.horas_extra_recargo)) dev.push([T.recargo, cant(l.horas_extra_recargo), pesos(n(l.valor_hora_extra) * 2), n(l.horas_extra_recargo) * n(l.valor_hora_extra) * 2])
   if (n(l.auxilio)) dev.push(['Auxilio', '', '', n(l.auxilio)])
   if (n(l.subsidio_ss)) dev.push(['Subsidio a seguridad social', '', '', n(l.subsidio_ss)])
   for (const o of l.otros_devengos || []) if (n(o.valor)) dev.push([o.concepto || 'Otro', '', '', n(o.valor)])

@@ -732,7 +732,12 @@ export function exportarNominaQuincena({ titulo, filas }) {
     if (!grupo.length) continue
     const base = h.k === 'destajo' ? ['Piezas (cant.)', 'Valor piezas']
       : h.k === 'dia' ? ['Días', 'Valor día', 'Valor días'] : ['Valor fijo']
-    const headers = ['Nombre', 'Documento', ...base, 'Horas extra', 'Valor horas extra', 'Horas dom./fest.', 'Valor dom./fest. (100 %)', 'Auxilio', 'Otros',
+    // A los contratistas (destajo / al día) no se les dice "horas extra" ni "recargo"
+    const contratistas = h.k !== 'fijo'
+    const cExtra = contratistas
+      ? ['Horas serv. adicionales', 'Valor serv. adicionales', 'Horas serv. adic. dom./fest.', 'Valor serv. adic. dom./fest.']
+      : ['Horas extra', 'Valor horas extra', 'Horas dom./fest.', 'Valor dom./fest. (100 %)']
+    const headers = ['Nombre', 'Documento', ...base, ...cExtra, 'Auxilio', 'Otros',
       'Dto. tiempo o pieza dañada', 'Subsidio a SS', 'Total devengado', 'Seguridad', 'Anticipo', 'Dotación, herramienta',
       'Otras deducciones', 'Total deducciones', 'Total a pagar', 'Firma recibido']
     const datos = grupo.map(f => {

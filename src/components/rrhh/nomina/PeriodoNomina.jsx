@@ -97,7 +97,7 @@ export default function PeriodoNomina() {
 
   const paraDocumentos = () => filas.map(l => ({
     ...l, nombre: nombreCompleto(l.emp), documento: l.emp ? `${l.emp.tipo_documento || ''} ${l.emp.numero_documento || ''}`.trim() : '',
-    cargo: l.emp?.cargo, area: l.emp?.area, piezas: piezas.filter(p => p.liquidacion_id === l.id),
+    cargo: l.emp?.cargo, area: l.emp?.area, tipo_contrato: l.emp?.tipo_contrato, piezas: piezas.filter(p => p.liquidacion_id === l.id),
   }))
   function exportar() {
     exportarNominaQuincena({ titulo: nombreQuincena(periodo), filas: paraDocumentos() })
@@ -216,7 +216,7 @@ export default function PeriodoNomina() {
                     </div>
                     <span className="hidden md:flex items-center gap-1.5 text-sm text-feisen-texto-2 truncate">
                       {detalle(l)}
-                      {huelleroPendiente(l) && <span title="El huellero sugiere horas extra distintas a las registradas" className="inline-flex items-center gap-0.5 text-xs text-feisen-azul"><Fingerprint size={12} strokeWidth={1.8} /> {(Number(l.huellero.horas_extra) + Number(l.huellero.horas_recargo)).toLocaleString('es-CO')} h</span>}
+                      {huelleroPendiente(l) && <span title="El huellero sugiere horas adicionales distintas a las registradas" className="inline-flex items-center gap-0.5 text-xs text-feisen-azul"><Fingerprint size={12} strokeWidth={1.8} /> {(Number(l.huellero.horas_extra) + Number(l.huellero.horas_recargo)).toLocaleString('es-CO')} h</span>}
                       {sinValor(l) && <AlertTriangle size={13} strokeWidth={1.8} className="text-amber-500 flex-shrink-0" />}
                     </span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_devengado)}</span>
@@ -231,7 +231,7 @@ export default function PeriodoNomina() {
       </div>
       <p className="text-xs text-feisen-gris-medio flex items-center gap-1.5">
         <AlertTriangle size={12} strokeWidth={1.8} className="text-amber-500" /> Falta un valor (día, fijo o tarifa de alguna pieza): revísalo antes de cerrar.
-        <Fingerprint size={12} strokeWidth={1.8} className="text-feisen-azul ml-3" /> Horas que sugiere el huellero y aún no se han aplicado.
+        <Fingerprint size={12} strokeWidth={1.8} className="text-feisen-azul ml-3" /> Horas adicionales que sugiere el huellero y aún no se han aplicado.
       </p>
 
       {!cerrada && (

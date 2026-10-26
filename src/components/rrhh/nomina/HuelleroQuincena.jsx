@@ -122,14 +122,14 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
           </p>
         ) : (
           <p className="text-xs text-feisen-gris-medio">
-            Sube el archivo del huellero de la quincena (Excel con "Nombre" y "Fecha/Hora"). Se calculan las horas extra
-            como <strong>sugerencia</strong> en cada liquidación; tú verificas si estaban autorizadas y decides si se aplican.
+            Sube el archivo del huellero de la quincena (Excel con "Nombre" y "Fecha/Hora"). Se calculan las horas adicionales
+            (horas extra en planta, servicios adicionales en contratistas) como <strong>sugerencia</strong> en cada liquidación; tú verificas si estaban autorizadas y decides si se aplican.
           </p>
         )}
         <p className="text-[11px] text-feisen-gris-medio">
           Horario: lunes a jueves {Math.floor(HORARIO.entrada / 60)}:{String(HORARIO.entrada % 60).padStart(2, '0')} a 5:30 p. m., viernes hasta 4:00 p. m. ·
-          Antes de la entrada y después de la salida cuenta como extra (desde 15 min = ½ h, redondeado a la media hora) ·
-          Sábado: extra normal · Domingo y festivo: recargo del 100 %.
+          Antes de la entrada y después de la salida cuenta como hora adicional (desde 15 min = ½ h, redondeado a la media hora) ·
+          Sábado: normal · Domingo y festivo: valor doble.
         </p>
 
         {resultado && (
@@ -145,7 +145,7 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
                   {resultado.sinVincular.map(r => (
                     <div key={r.alias} className="flex items-center gap-2">
                       <span className="flex-1 min-w-0 truncate text-feisen-texto">
-                        {r.nombre} <span className="text-xs text-feisen-gris-medio">· {fmtH(r.horas_extra)} h extra · {r.dias.length} día{r.dias.length === 1 ? '' : 's'}</span>
+                        {r.nombre} <span className="text-xs text-feisen-gris-medio">· {fmtH(r.horas_extra)} h adicionales · {r.dias.length} día{r.dias.length === 1 ? '' : 's'}</span>
                       </span>
                       <select defaultValue="" onChange={e => vincular(r, e.target.value)} className={`${E.input} w-48`}>
                         <option value="">Es…</option>

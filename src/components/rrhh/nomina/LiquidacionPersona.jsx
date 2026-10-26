@@ -6,7 +6,7 @@ import Alerta from '../../shared/Alerta'
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Lock, Trash2, CalendarClock, Package, Fingerprint, FileText, ChevronDown } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD } from '../catalogosRRHH'
-import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo } from './nominaCalculo'
+import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, esContratista, etiquetasPago } from './nominaCalculo'
 import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
@@ -137,7 +137,7 @@ export default function LiquidacionPersona() {
   function desprendible() {
     generarDesprendibles([{
       ...liq, ...totales, nombre: nombreCompleto(emp), documento: `${emp.tipo_documento || ''} ${emp.numero_documento || ''}`.trim(),
-      cargo: emp.cargo, area: emp.area, piezas,
+      cargo: emp.cargo, area: emp.area, tipo_contrato: emp.tipo_contrato, piezas,
     }], nombreQuincena(periodo), `desprendible_${nombreCompleto(emp).replace(/\s+/g, '_')}_${periodo.anio}_${String(periodo.mes).padStart(2, '0')}_q${periodo.quincena}`)
   }
 
@@ -187,6 +187,7 @@ export default function LiquidacionPersona() {
   const lab = diasLaborales(periodo.fecha_inicio, periodo.fecha_fin)
   const aus = diasAusente(novedades, periodo.fecha_inicio, periodo.fecha_fin)
   const m = liq.modalidad
+  const T = etiquetasPago(esContratista(emp, m))
   const fila = 'grid grid-cols-1 sm:grid-cols-3 gap-3'
   const L = ({ children }) => <label className={E.labelForm}>{children}</label>
 
@@ -288,15 +289,15 @@ export default function LiquidacionPersona() {
               </button>
             }>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                <span><span className="text-feisen-gris-medio">Extra:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_extra)} h</strong></span>
+                <span><span className="text-feisen-gris-medio">{T.extra}:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_extra)} h</strong></span>
                 <span><span className="text-feisen-gris-medio">Domingo/festivo:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_recargo)} h</strong></span>
                 <span><span className="text-feisen-gris-medio">Días hábiles con marcación:</span> <strong className="text-feisen-texto">{liq.huellero.dias_trabajados}</strong></span>
                 {liq.huellero.incompletos > 0 && <span className="text-amber-600">{liq.huellero.incompletos} día{liq.huellero.incompletos === 1 ? '' : 's'} con una sola marcación</span>}
               </div>
-              <p className="text-xs text-feisen-gris-medio mt-2">Verifica que las horas extra estuvieran autorizadas antes de aplicarlas. Nombre en el huellero: {liq.huellero.nombre_huellero}.</p>
+              <p className="text-xs text-feisen-gris-medio mt-2">Verifica que las horas estuvieran autorizadas antes de aplicarlas. Nombre en el huellero: {liq.huellero.nombre_huellero}.</p>
               {!cerrada && (
                 <div className="flex flex-wrap gap-2 mt-3">
-                  <button onClick={() => aplicarHuellero('horas')} className={E.btnSecundario}>Aplicar horas extra</button>
+                  <button onClick={() => aplicarHuellero('horas')} className={E.btnSecundario}>{T.aplicar}</button>
                   {m === 'dia' && <button onClick={() => aplicarHuellero('dias')} className={E.btnSecundario}>Usar {liq.huellero.dias_trabajados} días</button>}
                 </div>
               )}
@@ -306,7 +307,7 @@ export default function LiquidacionPersona() {
                     <thead><tr className="text-left text-feisen-gris-medio border-b border-feisen-borde-suave">
                       <th className="font-medium px-3 py-1.5">Fecha</th><th className="font-medium px-3 py-1.5">Día</th>
                       <th className="font-medium px-3 py-1.5">Entrada</th><th className="font-medium px-3 py-1.5">Salida</th>
-                      <th className="font-medium px-3 py-1.5 text-right">Extra</th><th className="font-medium px-3 py-1.5 text-right">Dom/fest</th>
+                      <th className="font-medium px-3 py-1.5 text-right">{T.extra}</th><th className="font-medium px-3 py-1.5 text-right">Dom/fest</th>
                     </tr></thead>
                     <tbody className="divide-y divide-feisen-borde-suave">
                       {liq.huellero.dias.map(d => (
@@ -327,13 +328,13 @@ export default function LiquidacionPersona() {
           )}
 
           {/* Otros devengos */}
-          <Tarjeta titulo="Otros devengos">
+          <Tarjeta titulo={`${T.extra} y otros devengos`}>
             <div className={fila}>
-              <div><L>Horas extra</L><Numero value={liq.horas_extra} disabled={cerrada} onChange={set('horas_extra')} /></div>
-              <div><L>Valor hora extra</L><Dinero value={liq.valor_hora_extra} disabled={cerrada} onChange={set('valor_hora_extra')} /></div>
+              <div><L>{T.horas}</L><Numero value={liq.horas_extra} disabled={cerrada} onChange={set('horas_extra')} /></div>
+              <div><L>{T.valorHora}</L><Dinero value={liq.valor_hora_extra} disabled={cerrada} onChange={set('valor_hora_extra')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos((Number(liq.horas_extra) || 0) * (Number(liq.valor_hora_extra) || 0))}</p></div>
-              <div><L>Horas domingo/festivo</L><Numero value={liq.horas_extra_recargo} disabled={cerrada} onChange={set('horas_extra_recargo')} /></div>
-              <div><L>Valor hora con recargo 100 %</L><p className="text-sm text-feisen-texto-2 py-2">{formatoPesos((Number(liq.valor_hora_extra) || 0) * 2)}</p></div>
+              <div><L>{T.recargo}</L><Numero value={liq.horas_extra_recargo} disabled={cerrada} onChange={set('horas_extra_recargo')} /></div>
+              <div><L>{T.valorRecargo}</L><p className="text-sm text-feisen-texto-2 py-2">{formatoPesos((Number(liq.valor_hora_extra) || 0) * 2)}</p></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos(valorHorasRecargo(liq))}</p></div>
               <div><L>Auxilio de la quincena</L><Dinero value={liq.auxilio} disabled={cerrada} onChange={set('auxilio')} /></div>
               <div><L>Subsidio a seguridad social</L><Dinero value={liq.subsidio_ss} disabled={cerrada} onChange={set('subsidio_ss')} /></div>

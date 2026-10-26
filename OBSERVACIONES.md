@@ -1481,6 +1481,14 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
     12:45–21:00) y extras no autorizadas. Se implementó la regla dicha y Angie la confirmó (2026-10-26): desde 15 min = 0,5 h, redondeado a la media hora.
   • **Desprendible de pago** en PDF (`src/utils/desprendiblePagoPDF.js`): uno por persona desde la
     liquidación o todos los de la vista desde la planilla; logo/NIT reutilizados de `exportOrdenCompraPDF.js`.
+- **"Servicios adicionales" para contratistas (2026-10-26, decisión de Angie):** a los contratistas (destajo y al
+  día) la nómina, el desprendible y el Excel les dicen "servicios adicionales" en vez de "horas extra" y no
+  mencionan "recargo" (`etiquetasPago`/`esContratista` en `nominaCalculo.js`); el personal fijo sigue con "horas
+  extra". **Advertencia dada a Angie:** el nombre no cambia la naturaleza de la relación. Horario fijo, control
+  con huellero, pago por días/horas, recargo dominical del 100 % y seguridad social pagada y descontada por
+  Feisen son indicios de contrato realidad (art. 53 C.P., arts. 23–24 CST). Se le recomendó revisarlo con un
+  abogado laboral (formalizar a quienes cumplen horario —el destajo es legal como salario por unidad de obra,
+  art. 132 CST— o pactar con los contratistas por entregables, sin horario ni huellero).
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

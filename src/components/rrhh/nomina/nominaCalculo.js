@@ -11,6 +11,21 @@ export const MODALIDADES = {
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
+// Nombres de los conceptos según el tipo de vinculación. A los contratistas no
+// se les dice "horas extra" ni "recargo" (decisión de Angie, 2026-10-26: para
+// ellos son "servicios adicionales"). Ojo: el nombre no cambia la naturaleza de
+// la relación; ver OBSERVACIONES (riesgo de contrato realidad).
+export const esContratista = (emp, modalidad) => (emp ? emp.tipo_contrato === 'Contratista' : ['destajo', 'dia'].includes(modalidad))
+export function etiquetasPago(contratista) {
+  return contratista ? {
+    extra: 'Servicios adicionales', horas: 'Horas de servicios adicionales', valorHora: 'Valor hora servicio adicional',
+    recargo: 'Servicios adicionales domingo/festivo', valorRecargo: 'Valor hora domingo/festivo', aplicar: 'Aplicar servicios adicionales',
+  } : {
+    extra: 'Horas extra', horas: 'Horas extra', valorHora: 'Valor hora extra',
+    recargo: 'Horas domingo/festivo (recargo 100 %)', valorRecargo: 'Valor hora con recargo 100 %', aplicar: 'Aplicar horas extra',
+  }
+}
+
 // Modalidad de pago según el contrato de la ficha
 export function modalidadDe(emp) {
   if (emp?.tipo_contrato === 'Contratista') return emp.tipo_vinculacion === 'destajo' ? 'destajo' : 'dia'

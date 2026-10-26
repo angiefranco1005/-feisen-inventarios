@@ -139,7 +139,7 @@ const SECCIONES = [
         campos: [
         { k: 'valor_dia', label: 'Valor del día', tipo: 'money', nota: 'Contratistas al día' },
         { k: 'valor_quincena', label: 'Valor por quincena', tipo: 'money', nota: 'Personal fijo (planta). Si está vacío se usa la mitad del salario base.' },
-        { k: 'valor_hora_extra', label: 'Valor hora extra', tipo: 'money' },
+        { k: 'valor_hora_extra', label: 'Valor hora adicional', tipo: 'money', nota: 'Horas extra (planta) o servicios adicionales (contratistas)' },
         { k: 'auxilio_quincenal', label: 'Auxilio por quincena', tipo: 'money' },
         { k: 'subsidio_ss', label: 'Subsidio a seguridad social', tipo: 'money', nota: 'Lo que Feisen le reconoce (p. ej. 270.500 o 150.000)' },
         { k: 'aporte_ss', label: 'Seguridad social que se descuenta', tipo: 'money', nota: 'Valor de la planilla que paga Feisen' },
