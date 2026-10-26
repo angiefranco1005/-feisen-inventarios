@@ -1357,6 +1357,12 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - **Foto:** botón "Subir foto" visible en la ficha y opcional al crear el colaborador. Se reduce a máx.
   800 px JPEG en el navegador antes de subirla (`subirFotoEmpleado` en `catalogosRRHH.js`); si el navegador
   no puede leer el formato (p. ej. HEIC en Chrome) se sube el original.
+- **Tipos de contrato de Feisen (definidos por Angie, 2026-10-26):** `Indefinido`, `Término fijo` (con
+  `duracion_meses`; la fecha fin se sugiere = ingreso + N meses − 1 día, con tope al último día del mes, y es
+  editable por prórrogas) y `Contratista`, que lleva `tipo_vinculacion`: `destajo` (pago por piezas) o `dia`
+  (pago por días trabajados). `salario_base` se muestra como "Salario / honorarios" (para "al día" = valor
+  del día). Se quitó el auxilio de transporte de la ficha (columna sin uso). Los valores de la fase 1
+  ('Término indefinido', 'Obra o labor', etc.) se migraron en `2026-10-26_rrhh_tipos_contrato.sql`.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

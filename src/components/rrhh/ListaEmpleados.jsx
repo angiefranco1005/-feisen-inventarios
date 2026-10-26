@@ -7,7 +7,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, UserCheck, UserX, Clock, Camera } from 'lucide-react'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, ESTADOS_EMPLEADO,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -20,8 +20,10 @@ const FORM_VACIO = {
   cargo: '',
   area: '',
   fecha_ingreso: new Date().toISOString().split('T')[0],
-  tipo_contrato: 'Término indefinido',
+  tipo_contrato: 'Indefinido',
+  duracion_meses: '',
   fecha_fin_contrato: '',
+  tipo_vinculacion: '',
   celular: '',
 }
 
@@ -92,7 +94,9 @@ export default function ListaEmpleados() {
         numero_documento: form.numero_documento.trim(),
         nombres: form.nombres.trim(),
         apellidos: form.apellidos.trim(),
-        fecha_fin_contrato: form.fecha_fin_contrato || null,
+        duracion_meses: esFijo ? Number(form.duracion_meses) : null,
+        fecha_fin_contrato: esFijo ? form.fecha_fin_contrato || null : null,
+        tipo_vinculacion: esContratista ? form.tipo_vinculacion : null,
       }
       const { data, error } = await supabase.from('empleados').insert(fila).select('id').single()
       if (error) throw error
@@ -115,8 +119,15 @@ export default function ListaEmpleados() {
     setGuardando(false)
   }
 
-  const set = (k) => (ev) => setForm(f => ({ ...f, [k]: ev.target.value }))
-  const requiereFin = ['Término fijo', 'Aprendizaje (SENA)', 'Prestación de servicios'].includes(form.tipo_contrato)
+  // Término fijo: la fecha fin se sugiere con ingreso + duración (sigue siendo editable)
+  const set = (k) => (ev) => setForm(f => {
+    const nf = { ...f, [k]: ev.target.value }
+    const fin = nf.tipo_contrato === 'Término fijo' && ['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k)
+      && calcularFinContrato(nf.fecha_ingreso, nf.duracion_meses)
+    return fin ? { ...nf, fecha_fin_contrato: fin } : nf
+  })
+  const esFijo        = form.tipo_contrato === 'Término fijo'
+  const esContratista = form.tipo_contrato === 'Contratista'
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -321,20 +332,34 @@ export default function ListaEmpleados() {
                 <input value={form.celular} onChange={set('celular')} inputMode="tel" className={inputCls} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className={requiereFin ? '' : 'col-span-2'}>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Tipo de contrato *</label>
-                <select value={form.tipo_contrato} onChange={set('tipo_contrato')} className={inputCls}>
-                  {TIPOS_CONTRATO.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              {requiereFin && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Tipo de contrato *</label>
+              <select value={form.tipo_contrato} onChange={set('tipo_contrato')} className={inputCls}>
+                {TIPOS_CONTRATO.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            {esFijo && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Duración (meses) *</label>
+                  <input required type="number" min="1" step="1" inputMode="numeric" value={form.duracion_meses}
+                    onChange={set('duracion_meses')} placeholder="Ej: 6" className={inputCls} />
+                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-1">Fin de contrato *</label>
                   <input required type="date" value={form.fecha_fin_contrato} onChange={set('fecha_fin_contrato')} className={inputCls} />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+            {esContratista && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Tipo de vinculación *</label>
+                <select required value={form.tipo_vinculacion} onChange={set('tipo_vinculacion')} className={inputCls}>
+                  <option value="">Seleccionar…</option>
+                  {TIPOS_VINCULACION.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+            )}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModal(false)}
                 className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>

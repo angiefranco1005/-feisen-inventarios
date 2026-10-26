@@ -26,13 +26,25 @@ export const TIPOS_DOCUMENTO = [
   { value: 'PA',  label: 'Pasaporte' },
 ]
 
-export const TIPOS_CONTRATO = [
-  'Término indefinido',
-  'Término fijo',
-  'Obra o labor',
-  'Aprendizaje (SENA)',
-  'Prestación de servicios',
+export const TIPOS_CONTRATO = ['Indefinido', 'Término fijo', 'Contratista']
+
+// Solo para contratistas: cómo se les paga
+export const TIPOS_VINCULACION = [
+  { value: 'destajo', label: 'Al destajo (por piezas)' },
+  { value: 'dia',     label: 'Al día (por días trabajados)' },
 ]
+
+// Fecha fin de un contrato a término fijo: ingreso + N meses − 1 día
+// (ingreso 15-mar con 6 meses → 14-sep). Devuelve 'YYYY-MM-DD' o ''.
+export function calcularFinContrato(fechaIngreso, meses) {
+  const n = parseInt(meses, 10)
+  if (!fechaIngreso || !Number.isFinite(n) || n <= 0) return ''
+  const [a, m, d] = fechaIngreso.split('-').map(Number)
+  // Si el mes destino es más corto (31-ene + 1 mes) se toma su último día
+  const ultimoDia = new Date(a, m - 1 + n + 1, 0).getDate()
+  const fin = new Date(a, m - 1 + n, Math.min(d, ultimoDia) - 1)
+  return `${fin.getFullYear()}-${String(fin.getMonth() + 1).padStart(2, '0')}-${String(fin.getDate()).padStart(2, '0')}`
+}
 
 export const JORNADAS     = ['Tiempo completo', 'Medio tiempo', 'Por turnos', 'Por horas']
 export const GENEROS      = ['Femenino', 'Masculino', 'Otro']

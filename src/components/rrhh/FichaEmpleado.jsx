@@ -10,14 +10,13 @@ import {
   MapPin, Users, Building2, Contact, Clock, Shirt,
 } from 'lucide-react'
 import {
-  BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, JORNADAS, GENEROS, ESTADOS_CIVILES,
+  BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, TIPOS_ARCHIVO, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
-  subirFotoEmpleado,
+  subirFotoEmpleado, calcularFinContrato,
 } from './catalogosRRHH'
 
 const inputCls = 'w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul'
-const CONTRATOS_CON_FIN = ['Término fijo', 'Aprendizaje (SENA)', 'Prestación de servicios', 'Obra o labor']
 
 // Como en Buk: cada sección de la ficha se arma con tarjetas ("bloques"), y
 // cada tarjeta se edita por separado. El mismo arreglo de campos sirve para
@@ -70,15 +69,27 @@ const SECCIONES = [
         { k: 'jefe_id', label: 'Jefe inmediato', tipo: 'jefe' },
         { k: 'email_corporativo', label: 'Correo corporativo', tipo: 'email' },
       ] },
-      { id: 'contrato', titulo: 'Contrato', icon: FileText, campos: [
+      { id: 'contrato', titulo: 'Contrato', icon: FileText,
+        // Término fijo: la fecha fin se sugiere sola con ingreso + duración (editable por si hubo prórroga)
+        derivar: (f, k) => (['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k) && f.tipo_contrato === 'Término fijo'
+          && calcularFinContrato(f.fecha_ingreso, f.duracion_meses))
+          ? { ...f, fecha_fin_contrato: calcularFinContrato(f.fecha_ingreso, f.duracion_meses) } : f,
+        campos: [
         { k: 'fecha_ingreso', label: 'Fecha de ingreso', tipo: 'date', req: true,
           extra: (e) => e.fecha_ingreso ? `Antigüedad: ${tiempoDesde(e.fecha_ingreso, e.estado === 'retirado' ? e.fecha_retiro : null) || '—'}` : null },
-        { k: 'tipo_contrato', label: 'Tipo de contrato', tipo: 'select', opciones: TIPOS_CONTRATO },
-        { k: 'fecha_fin_contrato', label: 'Fecha fin de contrato', tipo: 'date',
-          visible: (f) => CONTRATOS_CON_FIN.includes(f.tipo_contrato) },
+        { k: 'tipo_contrato', label: 'Tipo de contrato', tipo: 'select', opciones: TIPOS_CONTRATO, req: true },
+        { k: 'duracion_meses', label: 'Duración (meses)', tipo: 'number', req: true,
+          visible: (f) => f.tipo_contrato === 'Término fijo',
+},
+        { k: 'fecha_fin_contrato', label: 'Fecha fin de contrato', tipo: 'date', req: true,
+          visible: (f) => f.tipo_contrato === 'Término fijo',
+          nota: 'Se calcula con la fecha de ingreso y la duración. Cámbiala si el contrato se prorrogó.' },
+        { k: 'tipo_vinculacion', label: 'Tipo de vinculación', tipo: 'select', opciones: TIPOS_VINCULACION, req: true,
+          visible: (f) => f.tipo_contrato === 'Contratista' },
         { k: 'jornada', label: 'Jornada', tipo: 'select', opciones: JORNADAS },
-        { k: 'salario_base', label: 'Salario base mensual', tipo: 'money' },
-        { k: 'auxilio_transporte', label: 'Recibe auxilio de transporte', tipo: 'bool' },
+        { k: 'salario_base', label: 'Salario / honorarios', tipo: 'money',
+          nota: (f) => f.tipo_vinculacion === 'dia' && f.tipo_contrato === 'Contratista' ? 'Valor por día trabajado'
+            : f.tipo_vinculacion === 'destajo' && f.tipo_contrato === 'Contratista' ? 'Se paga según las piezas producidas (opcional)' : null },
       ] },
       { id: 'estado', titulo: 'Estado', icon: Clock, campos: [
         { k: 'estado', label: 'Estado', tipo: 'select', req: true,
@@ -178,7 +189,7 @@ export default function FichaEmpleado() {
       if (typeof v === 'string') v = v.trim()
       if (v === '') v = null
       if (c.tipo === 'money' && v !== null) v = Number(String(v).replace(/[^\d.]/g, ''))
-      if (c.k === 'nivel_riesgo_arl' && v !== null) v = Number(v)
+      if ((c.k === 'nivel_riesgo_arl' || c.tipo === 'number') && v !== null) v = Number(v)
       if (c.visible && !c.visible(form)) v = null
       cambios[c.k] = v
     }
@@ -354,8 +365,11 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
           <form onSubmit={onGuardar}>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {bloque.campos.map(c => (!c.visible || c.visible(form)) && (
-                <CampoEditable key={c.k} campo={c} valor={form[c.k]} otros={otros}
-                  onChange={v => setForm(f => ({ ...f, [c.k]: v }))} />
+                <CampoEditable key={c.k} campo={c} valor={form[c.k]} otros={otros} form={form}
+                  onChange={v => setForm(f => {
+                    const nf = { ...f, [c.k]: v }
+                    return bloque.derivar ? bloque.derivar(nf, c.k) : nf
+                  })} />
               ))}
             </div>
             <div className="flex gap-3 justify-end pt-5">
@@ -377,10 +391,11 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
               else if (v === null || v === undefined || v === '') texto = null
               else if (c.tipo === 'date') texto = formatoFecha(v)
               else if (c.tipo === 'money') texto = formatoPesos(v)
+              else if (c.k === 'duracion_meses') texto = `${v} mes${v > 1 ? 'es' : ''}`
               else if (c.tipo === 'select') texto = opcionLabel(c, v)
               else if (c.tipo === 'jefe') texto = jefe ? `${nombreCompleto(jefe)}${jefe.cargo ? ` · ${jefe.cargo}` : ''}` : null
               else texto = v
-              const extra = c.extra?.(emp)
+              const extra = c.extra?.(emp) || (texto && typeof c.nota === 'function' ? c.nota(emp) : null)
               return (
                 <div key={c.k} className={c.full ? 'col-span-full' : ''}>
                   <dt className="text-xs text-gray-400 mb-0.5">{c.label}</dt>
@@ -398,9 +413,15 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
   )
 }
 
-function CampoEditable({ campo: c, valor, onChange, otros }) {
+function CampoEditable({ campo: c, valor, onChange, otros, form }) {
   const label = <label className="text-sm font-medium text-gray-700 block mb-1">{c.label}{c.req && ' *'}</label>
-  const wrap = (input) => <div className={c.full ? 'col-span-full' : ''}>{label}{input}</div>
+  const nota = typeof c.nota === 'function' ? c.nota(form) : c.nota
+  const wrap = (input) => (
+    <div className={c.full ? 'col-span-full' : ''}>
+      {label}{input}
+      {nota && <p className="text-xs text-gray-400 mt-1">{nota}</p>}
+    </div>
+  )
 
   if (c.tipo === 'bool') return (
     <label className="flex items-center gap-3 border border-feisen-borde rounded-xl px-4 py-2.5 self-end cursor-pointer">
@@ -432,6 +453,10 @@ function CampoEditable({ campo: c, valor, onChange, otros }) {
       <input inputMode="numeric" value={valor === null || valor === '' ? '' : Number(String(valor).replace(/[^\d]/g, '')).toLocaleString('es-CO')}
         onChange={e => onChange(e.target.value.replace(/[^\d]/g, ''))} className={`${inputCls} pl-8`} />
     </div>
+  )
+  if (c.tipo === 'number') return wrap(
+    <input required={c.req} type="number" min="1" step="1" inputMode="numeric"
+      value={valor ?? ''} onChange={e => onChange(e.target.value)} className={inputCls} />
   )
   return wrap(
     <input required={c.req} type={c.tipo === 'date' ? 'date' : c.tipo === 'email' ? 'email' : 'text'}
