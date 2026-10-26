@@ -1402,10 +1402,9 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   NOV-0001. Página `/rrhh/novedades` con filtros por persona, tipo, vinculación (contrato + modalidad del
   contratista, `vinculacionDe()`) y periodo; indicadores (ausentes hoy, días por tipo, sin soporte), vista
   "Por persona" y exportación a Excel (`exportarNovedades`). También pestaña "Novedades" en la ficha.
-  Días sugeridos: vacaciones en días **hábiles lunes a sábado sin domingos ni festivos de Colombia**
+  Días sugeridos: vacaciones en días **hábiles lunes a viernes sin festivos de Colombia** (antes lunes a sábado; cambiado el 2026-10-26)
   (`festivosColombia()` calcula fijos, Ley Emiliani y los de Pascua; verificado contra el calendario 2026);
-  el resto en días calendario. Siempre editables. **Pendiente de confirmar con Angie:** si en Feisen el
-  sábado es hábil para vacaciones. Una novedad que cruza el borde del periodo filtrado cuenta todos sus días.
+  el resto en días calendario. Siempre editables. Sábado: no es hábil en Feisen (confirmado 2026-10-26). Una novedad que cruza el borde del periodo filtrado cuenta todos sus días.
   Incapacidades y licencias se marcan "sin soporte" mientras no tengan archivo.
   **Ideas siguientes:** saldo de vacaciones por persona (15 días hábiles por año trabajado − disfrutadas),
   aprobación de permisos por el jefe, y que el colaborador solicite desde su usuario.
@@ -1419,7 +1418,7 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - **Festivos de Colombia (2026-10-26, pedido de Angie):** `festivosColombia(anio)` devuelve un Map fecha →
   nombre (18 festivos; verificado 2026). El calendario muestra el nombre en cada día y la lista de festivos
   del mes. En el formulario de novedades se avisa qué festivos caen en las fechas y si se cuentan o no.
-  Conteo: vacaciones y licencia de **luto** (Ley 1280/2009, 5 días hábiles) en días hábiles lunes–sábado sin
+  Conteo: vacaciones y licencia de **luto** (Ley 1280/2009, 5 días hábiles) en días hábiles lunes–viernes sin
   domingos ni festivos (`conteoNovedad`); incapacidades, maternidad/paternidad y el resto en días calendario.
 - **Preaviso de contratos a término fijo (2026-10-26, pedido de Angie):** recordatorio 35 días antes del
   vencimiento (`DIAS_RECORDATORIO_PREAVISO`); el plazo legal para el preaviso de no prórroga es 30 días antes
@@ -1454,7 +1453,7 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   colaborador único que contenga todas las palabras.
   **Días laborales = lunes a viernes sin festivos** (`esDiaLaboral`): verificado contra todas las quincenas
   2026 del Excel (p. ej. 1–15 oct = 10, 16–30 sep = 11). Ojo: las vacaciones de Novedades siguen contando el
-  sábado como hábil — probablemente deban ser lunes a viernes también (pendiente confirmar con Angie).
+  sábado como hábil — **resuelto:** Angie confirmó que en Feisen no se trabaja el sábado; `diasHabiles` ahora es lunes a viernes sin festivos, igual que la nómina.
   Días sugeridos a los de "al día" = días laborales − días con novedad no remunerada. Excel de la planilla con
   una hoja por forma de pago + detalle de piezas (`exportarNominaQuincena`). Calculos verificados contra
   filas reales del Excel (Barboza 2.508.500/2.038.000; Benítez 1.859.700).

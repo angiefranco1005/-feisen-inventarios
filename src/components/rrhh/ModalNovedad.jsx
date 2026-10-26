@@ -225,7 +225,7 @@ export default function ModalNovedad({ novedad, empleados, empleadoFijo, fechaIn
             </div>
             <p className="col-span-3 text-xs text-feisen-gris-medio -mt-1">
               {habiles
-                ? 'Días hábiles: lunes a sábado, sin domingos ni festivos de Colombia.'
+                ? 'Días hábiles: lunes a viernes, sin sábados, domingos ni festivos de Colombia.'
                 : 'Días calendario (incluyen domingos y festivos).'} Puedes ajustarlos si hace falta.
             </p>
           </div>

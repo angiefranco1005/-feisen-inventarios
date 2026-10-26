@@ -321,12 +321,14 @@ export function diasCalendario(ini, fin) {
   return Math.round((fechaDe(fin) - fechaDe(ini)) / 86400000) + 1
 }
 
-// Días hábiles entre dos fechas (lunes a sábado, sin domingos ni festivos)
+// Días hábiles entre dos fechas: lunes a viernes sin festivos (en Feisen no se
+// trabaja el sábado; confirmado por Angie el 2026-10-26, igual que la nómina)
 export function diasHabiles(ini, fin) {
   if (!ini || !fin || fin < ini) return 0
   let n = 0
   for (let d = fechaDe(ini); d <= fechaDe(fin); d.setDate(d.getDate() + 1)) {
-    if (d.getDay() !== 0 && !festivosColombia(d.getFullYear()).has(isoLocal(d))) n++
+    const dia = d.getDay()
+    if (dia >= 1 && dia <= 5 && !festivosColombia(d.getFullYear()).has(isoLocal(d))) n++
   }
   return n
 }
