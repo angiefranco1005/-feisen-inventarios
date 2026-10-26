@@ -5,6 +5,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 import {
   ClipboardList, Plus, Search, AlertTriangle, CheckCircle,
   ChevronLeft, RefreshCw, Package, FileText, Pencil, Eye, Check, X
@@ -211,10 +212,9 @@ export default function InventarioFisico() {
   // ── iniciar nuevo inventario ─────────────────────────────────────────────
   async function iniciarNuevo() {
     setCargando(true)
-    const { count } = await supabase
-      .from('inventarios_fisicos')
-      .select('*', { count: 'exact', head: true })
-    const num = `INV-FIS-${String((count || 0) + 1).padStart(4, '0')}`
+    let num
+    try { num = await siguienteNumero('inventarios_fisicos', 'INV-FIS') }
+    catch (e) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + e.message }); setCargando(false); return }
     await cargarEditorConConteos(null, num, HOY(), '', {})
   }
 

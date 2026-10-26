@@ -1308,3 +1308,14 @@ El más antiguo de cada grupo conservó su número. Siguiente número libre: PED
 - **Trazabilidad:** todas las entradas son de BRAYAN ALUMINIO, sin pedido/OC; las salidas (todas de Mateo Giraldo, SAL-MG) no tienen destino, motivo ni OF. SAL-MG-0056 (fecha 20/08) se registró el 26/08.
 - **No hay flujo de consumo de aluminio en la app:** no existe ítem de lingote de aluminio en Fundición; las piezas de aluminio (LINGOTE RECTANGULAR PANADERIA, etc.), CHICHARRON ALUMINIO y PASTILLA ALUMINIO tienen 0 movimientos. El ítem `ALUMINIO` (ALMACEN, 661,9 kg) tiene 1 movimiento del 30/08 (carga inicial): por confirmar si es el mismo material con otro nombre.
 - **Pendiente:** conteo físico de LINGOTE ALUMINIO y ALUMINIO (almacén + patio/fundición) y ajuste por Inventario Físico con acta firmada; definir cómo se registra el consumo (salida con destino/OF obligatorios, o descuento automático al registrar fundida de aluminio por peso de pieza + merma); costo de piezas de aluminio de sep–oct sin material cargado.
+
+### 2026-10-26 — Consecutivos por conteo de filas que quedaban (mismo bug que PED-0151)
+- **Hallazgo:** tres pantallas seguían numerando con "cantidad de filas + 1", que repite números en cuanto se borra una fila (el mismo error que duplicó PED-0151):
+  - `Historial.jsx` → `generarNumero()` de las reversiones contaba TODOS los movimientos (de cualquier prefijo) → `MOV-NNNN`. Como Historial permite eliminar movimientos, cada eliminación hacía que la siguiente reversión repitiera un número ya usado.
+  - `RegistroMecanizado.jsx` → `MEC-NNNN` contaba filas con `MEC-%`, pero cada registro inserta varias filas con el mismo número: los consecutivos saltaban (MEC-0001, MEC-0007…) y, si se eliminaban filas, podía repetirse uno existente.
+  - `InventarioFisico.jsx` → `INV-FIS-NNNN` contaba inventarios; repite si alguno se borra (hoy solo por SQL).
+- **Corrección:** las tres usan `siguienteNumero()` (max+1). `movimientos.numero` e `inventarios_fisicos.numero` NO tienen UNIQUE en BD, así que duplicados históricos no se detectan solos.
+- **Pendiente:**
+  - Revisar en Supabase si ya hay duplicados: `select numero, count(distinct created_at) from movimientos where numero ~ '^(MOV|MEC)-[0-9]+$' group by numero having count(distinct created_at) > 1;` (MEC repite número por diseño dentro de un mismo registro).
+  - Los generadores con iniciales (`ENT-XX-`, `SAL-XX-`, `TRF-`, `MOV-XX-`) toman el último con `order('numero', desc)` por texto: al pasar de `-9999` a `-10000` el orden de texto deja `9999` como "mayor" y se repetiría `-10000`. No urge hoy; migrar a `siguienteNumero()` o a una secuencia en BD antes de llegar ahí.
+  - Dos usuarios guardando al mismo segundo pueden sacar el mismo número (se calcula en el navegador). La solución de fondo es una secuencia/función en Postgres.

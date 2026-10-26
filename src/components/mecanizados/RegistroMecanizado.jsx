@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { Wrench, Plus, Minus, Trash2, CheckCircle, AlertTriangle, Search, Check } from 'lucide-react'
 import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
@@ -125,10 +126,8 @@ export default function RegistroMecanizado() {
     setEnviando(true)
     try {
       // Generar código MEC-XXXX
-      const { count } = await supabase
-        .from('movimientos').select('*', { count: 'exact', head: true })
-        .like('numero', 'MEC-%')
-      const numeroMec = `MEC-${String((count || 0) + 1).padStart(4, '0')}`
+      // max+1, no conteo de filas: cada MEC inserta varias filas y borrar alguna repetía números
+      const numeroMec = await siguienteNumero('movimientos', 'MEC')
 
       // Productos destino ("<nombre> - MECANIZADO"): se traen todos los de la categoría
       // "producto mecanizado" y se comparan normalizados (mayúsculas, sin tildes y SIN

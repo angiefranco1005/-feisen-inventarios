@@ -6,6 +6,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { siguienteNumero } from '../../utils/siguienteNumero'
 import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
 
 const TIPO_CONFIG = {
@@ -280,15 +281,18 @@ export default function Historial() {
   }
 
   async function generarNumero() {
-    const { count } = await supabase.from('movimientos').select('*', { count: 'exact', head: true })
-    return `MOV-${String((count || 0) + 1).padStart(4, '0')}`
+    // max+1 entre los MOV-NNNN (los MOV-XX-NNNN con iniciales no cuentan); el conteo
+    // de filas repetía números en cuanto se eliminaba un movimiento
+    return siguienteNumero('movimientos', 'MOV')
   }
 
   async function revertir(m) {
     setRevirtiendo(true)
     setMsg(null)
 
-    const numero = await generarNumero()
+    let numero
+    try { numero = await generarNumero() }
+    catch (e) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + e.message }); setRevirtiendo(false); return }
 
     // Crear movimiento contrario
     const contramov = {
@@ -318,7 +322,7 @@ export default function Historial() {
     // ── Si es transferencia interna, revertir también el movimiento par ──
     const parMov = await buscarMovimientoPar(m, { soloNoRevertidos: true })
     if (parMov && m.bodega_destino_id) {
-      const numeroPar = await generarNumero()
+      const numeroPar = await generarNumero().catch(() => null)
       const contrapar = {
         tipo:                  parMov.tipo === 'entrada' ? 'salida' : 'entrada',
         item_id:               parMov.item_id,
