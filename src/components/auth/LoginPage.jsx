@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Eye, EyeOff, LogIn, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
+import logoFeisen from '../../assets/logo-feisen.png'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -43,10 +44,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-feisen-gris flex flex-col items-center justify-center px-4">
       {/* Logo */}
       <div className="mb-8 text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
-          style={{ background: 'linear-gradient(135deg, #064794 0%, #B4271D 100%)' }}>
-          <span className="text-white text-3xl font-bold">F</span>
-        </div>
+        <img src={logoFeisen} alt="Feisen" className="h-14 w-auto mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-feisen-azul">Feisen Inventarios</h1>
         <p className="text-feisen-gris-oscuro text-sm mt-1">Construequipos Franco S.A.S.</p>
       </div>

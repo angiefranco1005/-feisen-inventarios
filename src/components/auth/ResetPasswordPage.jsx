@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
+import logoFeisen from '../../assets/logo-feisen.png'
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -36,10 +37,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen bg-feisen-gris flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4"
-          style={{ background: 'linear-gradient(135deg, #064794 0%, #B4271D 100%)' }}>
-          <span className="text-white text-3xl font-bold">F</span>
-        </div>
+        <img src={logoFeisen} alt="Feisen" className="h-14 w-auto mx-auto mb-4" />
         <h1 className="text-2xl font-bold text-feisen-azul">Feisen Inventarios</h1>
       </div>
 

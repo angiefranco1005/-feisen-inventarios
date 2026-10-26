@@ -6,6 +6,7 @@ import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
+import logoFeisen from '../../assets/logo-feisen.png'
 
 const NAV_ADMIN = [
   { to: '/dashboard',             icon: LayoutDashboard, label: 'Inicio' },
@@ -196,15 +197,9 @@ export default function Layout({ children }) {
       {/* SIDEBAR DESKTOP */}
       <aside className="hidden lg:flex flex-col w-64 bg-white shadow-sm sticky top-0 h-screen overflow-y-auto px-4 py-6 border-r border-gray-100">
         {/* Logo */}
-        <div className="flex items-center gap-3 mb-8 px-2">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #064794 0%, #B4271D 100%)' }}>
-            <span className="text-white font-bold text-lg">F</span>
-          </div>
-          <div>
-            <p className="font-bold text-feisen-azul leading-tight">Feisen</p>
-            <p className="text-xs text-gray-400 leading-tight">ERP</p>
-          </div>
+        <div className="mb-8 px-2">
+          <img src={logoFeisen} alt="Feisen" className="h-9 w-auto" />
+          <p className="text-xs text-gray-400 leading-tight mt-1">ERP</p>
         </div>
 
         {/* Nav */}
@@ -272,13 +267,7 @@ export default function Layout({ children }) {
 
       {/* HEADER MÓVIL */}
       <header className="lg:hidden bg-white shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #064794 0%, #B4271D 100%)' }}>
-            <span className="text-white font-bold text-sm">F</span>
-          </div>
-          <span className="font-bold text-feisen-azul">Feisen</span>
-        </div>
+        <img src={logoFeisen} alt="Feisen" className="h-7 w-auto" />
         <div className="flex items-center gap-3">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.color}`}>{badge.label}</span>
           <button onClick={() => setMenuAbierto(v => !v)} className="text-gray-600 p-1">
