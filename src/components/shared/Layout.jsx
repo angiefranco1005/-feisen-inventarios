@@ -15,6 +15,7 @@ const MODULOS = {
   'Logística':        Truck,
   'Mecanizados':      Wrench,
   'Fundición':        Flame,
+  'Producción y Ensamble': Factory,
   'Recursos Humanos': HardHat,
   'Calidad':          ShieldAlert,
 }
@@ -40,6 +41,8 @@ const NAV_ADMIN = [
   { to: '/analitica/fundicion',               icon: Activity,        label: 'Analítica',          modulo: 'Fundición' },
   { to: '/reportes/balance-hierro',           icon: Scale,           label: 'Balance de hierro',  modulo: 'Fundición' },
   { to: '/reportes/ventas-internas-fundicion', icon: Receipt,        label: 'Ventas internas',    modulo: 'Fundición' },
+  { to: '/ensamble',                          icon: Factory,         label: 'Órdenes de ensamble', modulo: 'Producción y Ensamble' },
+  { to: '/ensamble/recetas',                  icon: ClipboardList,   label: 'Recetas',            modulo: 'Producción y Ensamble' },
   { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
@@ -94,6 +97,17 @@ const NAV_JEFE_MECANIZADOS = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
+const NAV_JEFE_ENSAMBLE = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
+  { to: '/ensamble/recetas',               icon: ClipboardList,    label: 'Recetas' },
+  { to: '/productos',                      icon: Package,         label: 'Productos' },
+  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+]
+
 const NAV_OPERARIO = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
@@ -123,6 +137,13 @@ const MOBILE_JEFE_MECANIZADOS = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
   { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+]
+const MOBILE_JEFE_ENSAMBLE = [
+  { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
+  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
+  { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
@@ -158,11 +179,12 @@ const BADGE = {
   CONSULTOR:         { color: 'bg-gray-500 text-white',      label: 'Consultor' },
   JEFE_FUNDICION:    { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
   JEFE_MECANIZADOS:  { color: 'bg-purple-600 text-white',    label: 'Jefe Mecanizados' },
+  JEFE_ENSAMBLE:     { color: 'bg-teal-600 text-white',      label: 'Jefe Ensamble' },
   RRHH:              { color: 'bg-pink-600 text-white',      label: 'Recursos Humanos' },
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -177,6 +199,7 @@ export default function Layout({ children }) {
     : esOperario         ? NAV_OPERARIO
     : esJefeFundicion    ? NAV_JEFE_FUNDICION
     : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
+    : esJefeEnsamble     ? NAV_JEFE_ENSAMBLE
     : esConsultor        ? NAV_CONSULTOR
     : esRRHH             ? NAV_RRHH
     : []
@@ -186,6 +209,7 @@ export default function Layout({ children }) {
     : esAlmacenista      ? MOBILE_ALMACENISTA
     : esJefeFundicion    ? MOBILE_JEFE_FUNDICION
     : esJefeMecanizados  ? MOBILE_JEFE_MECANIZADOS
+    : esJefeEnsamble     ? MOBILE_JEFE_ENSAMBLE
     : esConsultor        ? MOBILE_CONSULTOR
     : navItems.slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
@@ -328,6 +352,7 @@ export default function Layout({ children }) {
               <option value="CONSULTOR">Ver como Consultor</option>
               <option value="JEFE_FUNDICION">Ver como Jefe Fundición</option>
               <option value="JEFE_MECANIZADOS">Ver como Jefe Mecanizados</option>
+              <option value="JEFE_ENSAMBLE">Ver como Jefe Ensamble</option>
               <option value="RRHH">Ver como Recursos Humanos</option>
             </select>
             {rolPreview && (

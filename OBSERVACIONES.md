@@ -1510,3 +1510,43 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - Síntoma: entraba a la app pero el módulo de RRHH le salía vacío. Las tablas de RRHH filtran por RLS (`get_my_rol()` IN ADMIN/RRHH) y, si el rol no coincide, devuelven 0 filas sin error.
 - Se corrió `supabase/migraciones/2026-10-26_rrhh_acceso_zaray.sql`: su perfil (recursoshumanos@feisen.com.co) quedó con `rol = 'RRHH'`. El rol se lee al iniciar sesión: tiene que cerrar sesión y volver a entrar.
 - Si aun así ve la lista vacía, revisar `SELECT count(*) FROM empleados` (si es 0, no hay colaboradores cargados todavía).
+
+## Módulo: Producción y Ensamble (26/10/2026)
+
+Decisiones de Angie: el módulo maneja órdenes + inventario; las piezas que Mecanizados manda a
+"Soldadura y Armado" entran con stock a la bodega de Ensamble; lo usa un rol nuevo `JEFE_ENSAMBLE`;
+el avance se registra a diario y la orden se cierra a mano.
+
+- **Migración** `supabase/migraciones/2026-10-26_produccion_ensamble.sql` (correrla a mano en el SQL
+  Editor): rol `JEFE_ENSAMBLE` en `roles`; tablas `recetas_ensamble` (1 por máquina, `item_id` = la
+  máquina terminada), `receta_ensamble_items` (componente + cantidad por máquina),
+  `ordenes_ensamble` (OE-0001, estado abierta/cerrada/anulada) y `ordenes_ensamble_avances`
+  (fecha, cantidad, `numero_salida`/`numero_entrada` de los movimientos que generó). RLS: todos leen;
+  ADMIN y JEFE_ENSAMBLE administran; los avances solo se insertan (no se editan ni se borran porque ya
+  movieron inventario). También re-crea las políticas de `items` por bodega agregando JEFE_ENSAMBLE.
+- **Bodega de Ensamble**: `BODEGA_ENSAMBLE_ID = '7f0e4d7e-8c85-40d3-84c5-7857e26f624a'`
+  ("Producción y Ensamble") en `utils/bodegasCatalogo.js`. El ID salió de este mismo archivo (sección de
+  stock invisible); la migración trae un SELECT para confirmarlo.
+- **Dónde entra la máquina terminada**: en la bodega del renglón de `items` elegido como máquina en la
+  receta (no hay ID fijo de "Producto Terminado"). Cada componente se descuenta de la bodega de SU
+  renglón de `items` (normalmente Ensamble, pero puede ser Almacén para motores/tornillería).
+- **Avance diario** (`ensamble/ensambleDatos.js → registrarAvance`): valida stock de todos los
+  componentes (bloquea si falta alguno), crea una salida `SAL-XX-nnnn` (tipo `salida`, un renglón por
+  componente, `destino = "Ensamble OE-xxxx"`) y una entrada `REC-XX-nnnn` (tipo `entrada`) de las
+  máquinas con `precio_costo_snapshot` = costo de materiales de la receta. Se hace desde el cliente con
+  inserts sucesivos, igual que el resto de la app: si falla a mitad, el mensaje dice qué quedó creado.
+- **Mecanizados → Soldadura y Armado** (`RegistrarMovimientoAlmacenista.jsx`): ahora crea la entrada
+  pareada en la bodega de Ensamble, con el mismo emparejamiento por nombre que las transferencias
+  internas de Fundición. Si la pieza no existe en el catálogo de Ensamble, solo se registra la salida y
+  sale el aviso amarillo "Sin entrada en…" — **hay que crear en Ensamble los renglones de las piezas
+  mecanizadas** (mismo nombre) para que su stock suba allá.
+- **Pantallas**: `/ensamble` (órdenes + avance) y `/ensamble/recetas`; ADMIN las ve en el menú
+  "Producción y Ensamble". JEFE_ENSAMBLE: Inicio, Ensamble, Recetas, Productos, Historial, Movimiento,
+  Pedidos (área `PRODUCCION`, igual que OPERARIO) y Calidad.
+- **Pendientes**: (1) correr la migración; (2) crear el usuario del jefe de Soldadura y Armado con rol
+  JEFE_ENSAMBLE y bodega "Producción y Ensamble"; (3) catalogar en Ensamble las piezas que llegan de
+  Mecanizados y las máquinas terminadas; (4) cargar las recetas reales. Sin reversa de avances por ahora:
+  un avance equivocado se corrige con un movimiento manual de ajuste.
+- **Demo local** sin tocar la base: `vite.ensamble-demo.config.mjs` (fuera de git, en
+  `.git/info/exclude`) con un Supabase falso en el scratchpad de la sesión. El navegador del panel solo
+  llega por `http://[::1]:5177` (Vite escucha en IPv6).

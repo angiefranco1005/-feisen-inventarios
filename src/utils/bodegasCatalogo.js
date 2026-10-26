@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 
 export const BODEGA_FUNDICION_ID   = 'a0604489-2768-445b-8e68-e450ef8520ed'
 export const BODEGA_MECANIZADOS_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
+export const BODEGA_ENSAMBLE_ID    = '7f0e4d7e-8c85-40d3-84c5-7857e26f624a' // "Producción y Ensamble"
 export const CAT_PRODUCTO_MECANIZADO_ID = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
 
 // Acepta un objeto bodega ({id}) o un id suelto.

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { esBodegaFundicion, esBodegaMecanizados } from '../../utils/bodegasCatalogo'
+import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes, AlertTriangle } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
@@ -118,7 +118,7 @@ const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 export default function RegistrarMovimientoAlmacenista() {
   const { perfil, bodegasOperacion, rolEfectivo, esAdmin, esAlmacenista } = useAuth()
 
-  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN' }
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', JEFE_ENSAMBLE: 'PRODUCCION' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
 
   // Query de pedidos filtrada: admin ve todos; los demás solo los suyos
@@ -482,7 +482,12 @@ export default function RegistrarMovimientoAlmacenista() {
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
+    // Mecanizados → "Soldadura y Armado": las piezas entran con stock a la bodega de
+    // Ensamble (se consumen al registrar el avance de una orden de ensamble).
+    const esMecEnsamble = esMecanizados && tipoSalidaMec === 'produccion' && destinoMec === 'SOLDADURA Y ARMADO'
+    const destinoPareadoId = esInterna ? destinoBodegaId : (esMecEnsamble ? BODEGA_ENSAMBLE_ID : null)
     const destNombre = esInterna ? (todasBodegas.find(b => b.id === destinoBodegaId)?.nombre || '') : null
+    const destPareadoNombre = esMecEnsamble ? await nombreBodega(BODEGA_ENSAMBLE_ID, 'Producción y Ensamble') : destNombre
 
     // ── CASO ESPECIAL: Fundición → Mecanizados = transferencia pendiente ──
     const esTransferMecanizados = esInterna && destinoBodegaId === MECANIZADOS_BODEGA_ID
@@ -562,10 +567,10 @@ export default function RegistrarMovimientoAlmacenista() {
     // ANTES de guardar nada, para poder crear la entrada pareada después.
     let entradaPareadaPayloads = null
     let sinCatalogarNombres = []
-    if (esInterna) {
+    if (destinoPareadoId) {
       const normaliza = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '') // sin tildes ni espacios: tolera "-1 B(" vs "- 1B ("
       const { data: itemsDestino } = await fetchAllPages((d, h) =>
-        supabase.from('items').select('id, nombre').eq('bodega_id', destinoBodegaId).eq('activo', true).range(d, h)
+        supabase.from('items').select('id, nombre').eq('bodega_id', destinoPareadoId).eq('activo', true).range(d, h)
       )
       const destinoPorNombre = {}
       itemsDestino?.forEach(i => { destinoPorNombre[normaliza(i.nombre)] = i.id })
@@ -592,7 +597,7 @@ export default function RegistrarMovimientoAlmacenista() {
         tipo:                  'salida',
         item_id:               p.item_id,
         bodega_origen_id:      bodega.id,
-        bodega_destino_id:     esInterna ? destinoBodegaId : null,
+        bodega_destino_id:     destinoPareadoId,
         cantidad:              p.cantidad,
         precio_costo_snapshot: items.find(i => i.id === p.item_id)?.precio_costo || 0,
         centro_costo:          bodega.nombre,
@@ -616,17 +621,17 @@ export default function RegistrarMovimientoAlmacenista() {
       // solo acredita bodega_destino_id cuando tipo='entrada'; un movimiento
       // tipo='salida' solo resta en bodega_origen_id y nunca suma en destino,
       // así que sin esto el stock del destino nunca sube (bug ya corregido).
-      if (esInterna && entradaPareadaPayloads) {
+      if (destinoPareadoId && entradaPareadaPayloads) {
         const numeroRec = await generarNumero('REC')
         const payloadsEntrada = entradaPareadaPayloads.map(p => ({
           numero:                numeroRec,
           tipo:                  'entrada',
           item_id:               p.item_id,
           bodega_origen_id:      bodega.id,
-          bodega_destino_id:     destinoBodegaId,
+          bodega_destino_id:     destinoPareadoId,
           cantidad:              p.cantidad,
           precio_costo_snapshot: p.precio_costo_snapshot,
-          centro_costo:          destNombre,
+          centro_costo:          destPareadoNombre,
           usuario_id:            perfil.id,
           referencia:            referenciaPar,
           fecha_movimiento:      fechaMov || null,
@@ -635,7 +640,7 @@ export default function RegistrarMovimientoAlmacenista() {
           destino: null, numero_of: null,
         }))
         const { error: errEnt } = await supabase.from('movimientos').insert(payloadsEntrada)
-        if (errEnt) { setError(`Salida creada (${numero}), pero error al crear la entrada en ${destNombre}: ` + errEnt.message); return }
+        if (errEnt) { setError(`Salida creada (${numero}), pero error al crear la entrada en ${destPareadoNombre}: ` + errEnt.message); return }
       }
 
       if (!esInterna && !esMecanizados) guardarSugerencia('feisen_receptores', receptor.trim())
@@ -656,7 +661,7 @@ export default function RegistrarMovimientoAlmacenista() {
       setExito(true)
       setTimeout(() => setExito(false), 2500)
       if (sinCatalogarNombres.length > 0) {
-        setAvisoSinEntrada(sinCatalogarNombres.map(n => ({ n, d: destNombre })))
+        setAvisoSinEntrada(sinCatalogarNombres.map(n => ({ n, d: destPareadoNombre })))
         setTimeout(() => setAvisoSinEntrada([]), 15000)
       }
     } catch (err) {

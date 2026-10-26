@@ -44,6 +44,8 @@ import Nomina                   from './components/rrhh/nomina/Nomina'
 import PeriodoNomina            from './components/rrhh/nomina/PeriodoNomina'
 import LiquidacionPersona       from './components/rrhh/nomina/LiquidacionPersona'
 import TarifasDestajo           from './components/rrhh/nomina/TarifasDestajo'
+import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
+import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
 
 function Cargando() {
   return (
@@ -192,6 +194,24 @@ function AppRoutes() {
     )
   }
 
+  // JEFE_ENSAMBLE
+  if (rolEfectivo === 'JEFE_ENSAMBLE') {
+    return (
+      <Routes>
+        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
+        <Route path="/ensamble"          element={<Layout><OrdenesEnsamble /></Layout>} />
+        <Route path="/ensamble/recetas"  element={<Layout><RecetasEnsamble /></Layout>} />
+        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
+        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
+        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
+        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
+        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
+        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    )
+  }
+
   // ADMIN (y cualquier otro)
   return (
     <Routes>
@@ -220,6 +240,8 @@ function AppRoutes() {
       <Route path="/nomina/fundicion"       element={<Layout><InformeNomina /></Layout>} />
       <Route path="/analitica/fundicion"    element={<Layout><AnaliticaFundicion /></Layout>} />
       <Route path="/mecanizados/registro"   element={<Layout><RegistroMecanizado /></Layout>} />
+      <Route path="/ensamble"               element={<Layout><OrdenesEnsamble /></Layout>} />
+      <Route path="/ensamble/recetas"       element={<Layout><RecetasEnsamble /></Layout>} />
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
       <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
       <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
