@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from 'lucide-react'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -208,9 +208,22 @@ export default function ListaEmpleados() {
             {porVencer.map(e => (
               <button key={e.id} onClick={() => navigate(`/rrhh/empleados/${e.id}`)}
                 className="w-full flex items-center justify-between gap-3 px-5 py-2.5 text-sm hover:bg-feisen-fondo text-left">
-                <span className="min-w-0 truncate">
-                  <span className="font-medium text-feisen-texto">{nombreCompleto(e)}</span>
-                  <span className="text-feisen-texto-2"> · {e.tipo_contrato}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">
+                    <span className="font-medium text-feisen-texto">{nombreCompleto(e)}</span>
+                    <span className="text-feisen-texto-2"> · {e.tipo_contrato}</span>
+                  </span>
+                  {(() => {
+                    // Término fijo: plazo para dar el preaviso de no prórroga (30 días antes)
+                    const p = preavisoDe(e)
+                    if (!p || e.dias < 0) return null
+                    const vencido = p.limite < hoyISO()
+                    return (
+                      <span className={`block text-xs ${vencido ? 'text-feisen-rojo' : 'text-orange-600'}`}>
+                        {vencido ? `Ya pasó el plazo del preaviso (${formatoFecha(p.limite)})` : `Dar preaviso a más tardar el ${formatoFecha(p.limite)}`}
+                      </span>
+                    )
+                  })()}
                 </span>
                 <span className={`text-xs whitespace-nowrap ${e.dias < 0 ? 'text-feisen-rojo' : 'text-amber-600'}`}>
                   {e.dias < 0 ? `Venció hace ${-e.dias} días` : e.dias === 0 ? 'Vence hoy' : `${formatoFecha(e.fecha_fin_contrato)} · ${e.dias} días`}

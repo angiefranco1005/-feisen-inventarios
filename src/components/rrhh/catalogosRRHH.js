@@ -369,3 +369,32 @@ export function proximosCumpleanos(empleados, dias = 30) {
   }
   return out.sort((a, b) => a.enDias - b.enDias)
 }
+
+// ─── Preaviso de contratos a término fijo ────────────────────────────────────
+// Para no prorrogar un contrato a término fijo hay que avisar por escrito con
+// mínimo 30 días de anticipación (CST art. 46). Feisen quiere el recordatorio
+// 35 días antes del vencimiento para tener margen.
+export const DIAS_RECORDATORIO_PREAVISO = 35
+export const DIAS_PREAVISO_LEGAL = 30
+
+export function sumarDias(iso, n) {
+  const d = fechaDe(iso); d.setDate(d.getDate() + n)
+  return isoLocal(d)
+}
+
+// { aviso, limite, fin } del contrato vigente, o null si no aplica
+export function preavisoDe(emp) {
+  if (!emp || emp.estado === 'retirado' || emp.tipo_contrato !== 'Término fijo' || !emp.fecha_fin_contrato) return null
+  const fin = emp.fecha_fin_contrato
+  return { fin, aviso: sumarDias(fin, -DIAS_RECORDATORIO_PREAVISO), limite: sumarDias(fin, -DIAS_PREAVISO_LEGAL) }
+}
+
+// Preavisos que ya toca dar (desde 35 días antes y hasta el vencimiento), ordenados por fecha límite.
+export function preavisosPendientes(empleados) {
+  const hoy = hoyISO()
+  return empleados
+    .map(e => ({ empleado: e, ...preavisoDe(e) }))
+    .filter(p => p.fin && p.aviso <= hoy && p.fin >= hoy)
+    .map(p => ({ ...p, diasAlLimite: diasCalendario(hoy, p.limite) - 1 }))
+    .sort((a, b) => a.limite.localeCompare(b.limite))
+}

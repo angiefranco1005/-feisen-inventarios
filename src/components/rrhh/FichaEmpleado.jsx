@@ -13,7 +13,7 @@ import {
   BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
-  subirFotoEmpleado, calcularFinContrato,
+  subirFotoEmpleado, calcularFinContrato, preavisoDe, hoyISO,
 } from './catalogosRRHH'
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
@@ -308,6 +308,9 @@ export default function FichaEmpleado() {
             {diasFin < 0
               ? `El contrato venció el ${formatoFecha(emp.fecha_fin_contrato)} (hace ${-diasFin} días).`
               : `El contrato (${emp.tipo_contrato}) vence el ${formatoFecha(emp.fecha_fin_contrato)} — faltan ${diasFin} días.`}
+            {diasFin >= 0 && preavisoDe(emp) && (preavisoDe(emp).limite < hoyISO()
+              ? ` Ya pasó el plazo para el preaviso de no prórroga (${formatoFecha(preavisoDe(emp).limite)}).`
+              : ` Si no se va a prorrogar, entrega el preaviso a más tardar el ${formatoFecha(preavisoDe(emp).limite)}.`)}
           </div>
         )}
       </div>

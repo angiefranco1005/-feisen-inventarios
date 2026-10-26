@@ -1421,6 +1421,13 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   del mes. En el formulario de novedades se avisa qué festivos caen en las fechas y si se cuentan o no.
   Conteo: vacaciones y licencia de **luto** (Ley 1280/2009, 5 días hábiles) en días hábiles lunes–sábado sin
   domingos ni festivos (`conteoNovedad`); incapacidades, maternidad/paternidad y el resto en días calendario.
+- **Preaviso de contratos a término fijo (2026-10-26, pedido de Angie):** recordatorio 35 días antes del
+  vencimiento (`DIAS_RECORDATORIO_PREAVISO`); el plazo legal para el preaviso de no prórroga es 30 días antes
+  (CST art. 46, `DIAS_PREAVISO_LEGAL`). Se ve en el calendario (evento "Preaviso" y lista "Preavisos por
+  dar" con los días que quedan hasta el plazo), en "Contratos que vencen pronto" de Colaboradores y en el
+  encabezado de la ficha. Se calcula con `fecha_fin_contrato`: si el contrato se prorroga, basta con
+  actualizar esa fecha. **No hay forma de marcar "preaviso entregado"**; el recordatorio sigue hasta el
+  vencimiento (posible mejora: guardar fecha de entrega y la carta como documento).
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
