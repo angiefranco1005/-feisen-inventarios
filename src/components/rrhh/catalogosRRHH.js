@@ -128,3 +128,41 @@ export async function urlsFirmadas(paths, segundos = 3600) {
   for (const r of data || []) if (r.signedUrl) mapa[r.path] = r.signedUrl
   return mapa
 }
+
+// Reduce la foto a máx. 800 px en JPEG antes de subirla: las fotos de celular
+// pesan 3–8 MB y harían lento el listado. Si el navegador no puede leer la
+// imagen (p. ej. HEIC en Chrome), se sube el archivo original.
+async function comprimirFoto(file, max = 800) {
+  try {
+    const bmp = await createImageBitmap(file)
+    const escala = Math.min(1, max / Math.max(bmp.width, bmp.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bmp.width * escala)
+    canvas.height = Math.round(bmp.height * escala)
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.85))
+    return blob ? { blob, ext: 'jpg', tipo: 'image/jpeg' } : null
+  } catch {
+    return null
+  }
+}
+
+// Sube la foto del colaborador, actualiza empleados.foto_path y borra la anterior.
+// Devuelve el nuevo path; lanza Error con mensaje legible si algo falla.
+export async function subirFotoEmpleado(empleadoId, file, pathAnterior = null) {
+  if (!file.type.startsWith('image/')) throw new Error('La foto debe ser una imagen (JPG o PNG).')
+  const c = await comprimirFoto(file)
+  const cuerpo = c?.blob || file
+  const ext = c?.ext || (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${empleadoId}/foto-${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(BUCKET_RRHH)
+    .upload(path, cuerpo, { contentType: c?.tipo || file.type, upsert: false })
+  if (error) throw new Error(`No se pudo subir la foto: ${error.message}`)
+  const { error: errUpd } = await supabase.from('empleados').update({ foto_path: path }).eq('id', empleadoId)
+  if (errUpd) {
+    await supabase.storage.from(BUCKET_RRHH).remove([path])
+    throw new Error(`No se pudo guardar la foto: ${errUpd.message}`)
+  }
+  if (pathAnterior) await supabase.storage.from(BUCKET_RRHH).remove([pathAnterior])
+  return path
+}

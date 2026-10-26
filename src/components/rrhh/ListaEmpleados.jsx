@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Users, Plus, Search, ChevronRight, AlertTriangle, UserCheck, UserX, Clock } from 'lucide-react'
+import { Users, Plus, Search, ChevronRight, AlertTriangle, UserCheck, UserX, Clock, Camera } from 'lucide-react'
 import {
   AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
+  subirFotoEmpleado,
 } from './catalogosRRHH'
 
 const FORM_VACIO = {
@@ -38,6 +39,8 @@ export default function ListaEmpleados() {
   const [form,         setForm]         = useState(FORM_VACIO)
   const [guardando,    setGuardando]    = useState(false)
   const [msg,          setMsg]          = useState(null)
+  const [foto,         setFoto]         = useState(null)   // { file, url } foto opcional al crear
+  const inputFoto = useRef(null)
 
   useEffect(() => { cargar() }, [])
 
@@ -76,7 +79,7 @@ export default function ListaEmpleados() {
   }, [empleados, busqueda, filtroArea, filtroEstado])
 
   function abrirNuevo() {
-    setForm(FORM_VACIO); setMsg(null); setModal(true)
+    setForm(FORM_VACIO); setFoto(null); setMsg(null); setModal(true)
   }
 
   async function crear(e) {
@@ -93,6 +96,16 @@ export default function ListaEmpleados() {
       }
       const { data, error } = await supabase.from('empleados').insert(fila).select('id').single()
       if (error) throw error
+      if (foto) {
+        try {
+          await subirFotoEmpleado(data.id, foto.file)
+        } catch (errFoto) {
+          // La ficha ya quedó creada: se avisa y se puede subir la foto desde la ficha
+          setModal(false); setGuardando(false); await cargar()
+          setMsg({ tipo: 'alerta', texto: `Se creó la ficha, pero la foto no se pudo subir (${errFoto.message}). Súbela desde la ficha.` })
+          return
+        }
+      }
       setModal(false)
       navigate(`/rrhh/empleados/${data.id}`)
     } catch (err) {
@@ -202,32 +215,43 @@ export default function ListaEmpleados() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-feisen-borde divide-y divide-feisen-borde-suave">
-          {filtrados.map(e => {
-            const est = ESTADOS_EMPLEADO[e.estado] || ESTADOS_EMPLEADO.activo
-            return (
-              <button key={e.id} onClick={() => navigate(`/rrhh/empleados/${e.id}`)}
-                className="w-full flex items-center gap-4 px-4 lg:px-5 py-3.5 hover:bg-gray-50 text-left first:rounded-t-2xl last:rounded-b-2xl">
-                {fotos[e.foto_path]
-                  ? <img src={fotos[e.foto_path]} alt="" className="w-11 h-11 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-11 h-11 rounded-full bg-feisen-azul-suave flex items-center justify-center flex-shrink-0">
-                      <span className="font-bold text-feisen-azul text-sm">{iniciales(e)}</span>
-                    </div>}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{nombreCompleto(e)}</p>
-                  <p className="text-sm text-gray-500 truncate">
-                    {e.cargo || 'Sin cargo'}{e.area && <span className="text-gray-400"> · {e.area}</span>}
-                  </p>
-                </div>
-                <div className="hidden md:block text-right text-sm w-44">
-                  <p className="text-gray-600">{e.tipo_documento || 'CC'} {e.numero_documento}</p>
-                  <p className="text-xs text-gray-400">{e.fecha_ingreso ? `Antigüedad: ${tiempoDesde(e.fecha_ingreso) || '—'}` : ''}</p>
-                </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${est.color}`}>{est.label}</span>
-                <ChevronRight size={18} className="text-gray-300 flex-shrink-0" />
-              </button>
-            )
-          })}
+        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
+          <div className="hidden md:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_7rem] gap-4 px-5 py-2.5 bg-feisen-fondo border-b border-feisen-borde text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <span>Colaborador</span><span>Documento</span><span>Área</span><span>Ingreso</span><span>Estado</span>
+          </div>
+          <div className="divide-y divide-feisen-borde-suave">
+            {filtrados.map(e => {
+              const est = ESTADOS_EMPLEADO[e.estado] || ESTADOS_EMPLEADO.activo
+              return (
+                <button key={e.id} onClick={() => navigate(`/rrhh/empleados/${e.id}`)}
+                  className="w-full grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_7rem] gap-4 items-center px-4 lg:px-5 py-3 hover:bg-feisen-fondo text-left">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {fotos[e.foto_path]
+                      ? <img src={fotos[e.foto_path]} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                      : <div className="w-10 h-10 rounded-full bg-feisen-azul-suave flex items-center justify-center flex-shrink-0">
+                          <span className="font-bold text-feisen-azul text-sm">{iniciales(e)}</span>
+                        </div>}
+                    <div className="min-w-0">
+                      <p className="font-semibold text-feisen-texto truncate">{nombreCompleto(e)}</p>
+                      <p className="text-sm text-gray-500 truncate">
+                        {e.cargo || 'Sin cargo'}<span className="md:hidden text-gray-400">{e.area && ` · ${e.area}`}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <span className="hidden md:block text-sm text-gray-600 truncate">{e.tipo_documento || 'CC'} {e.numero_documento}</span>
+                  <span className="hidden md:block text-sm text-gray-600 truncate">{e.area || '—'}</span>
+                  <span className="hidden md:block text-sm text-gray-600 min-w-0">
+                    {formatoFecha(e.fecha_ingreso)}
+                    {e.fecha_ingreso && <span className="block text-xs text-gray-400 truncate">{tiempoDesde(e.fecha_ingreso) || '—'}</span>}
+                  </span>
+                  <span className="flex items-center justify-end md:justify-between gap-2">
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${est.color}`}>{est.label}</span>
+                    <ChevronRight size={18} className="text-gray-300 flex-shrink-0" />
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -237,6 +261,21 @@ export default function ListaEmpleados() {
           <form onSubmit={crear} className="space-y-4">
             {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
             <p className="text-xs text-gray-500">Datos básicos para crear la ficha. El resto se completa desde la ficha.</p>
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => inputFoto.current?.click()}
+                className="relative w-20 h-20 rounded-full flex-shrink-0 bg-feisen-azul-suave border-2 border-dashed border-feisen-azul/30 flex items-center justify-center overflow-hidden">
+                {foto ? <img src={foto.url} alt="" className="w-full h-full object-cover" /> : <Camera size={24} className="text-feisen-azul" />}
+              </button>
+              <div>
+                <button type="button" onClick={() => inputFoto.current?.click()} className="text-sm font-semibold text-feisen-azul hover:underline">
+                  {foto ? 'Cambiar foto' : 'Subir foto'}
+                </button>
+                <p className="text-xs text-gray-400">Opcional · JPG o PNG. Desde el celular puedes tomarla con la cámara.</p>
+                {foto && <button type="button" onClick={() => setFoto(null)} className="text-xs text-gray-400 hover:text-feisen-rojo mt-0.5">Quitar</button>}
+              </div>
+              <input ref={inputFoto} type="file" accept="image/*" className="hidden"
+                onChange={ev => { const f = ev.target.files?.[0]; ev.target.value = ''; if (f) setFoto({ file: f, url: URL.createObjectURL(f) }) }} />
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Tipo *</label>

@@ -1350,6 +1350,13 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - Catálogos (áreas, tipos de contrato, tipos de documento adjunto…) están fijos en
   `src/components/rrhh/catalogosRRHH.js`; si la coordinadora necesita editarlos, pasarlos a tablas.
 - Migración: `supabase/migraciones/2026-10-26_rrhh_empleados.sql` (correr a mano en SQL Editor).
+- **Rediseño estilo Buk (2026-10-26, pedido de Angie):** ficha con franja de color y foto grande, datos
+  rápidos, menú lateral de secciones y tarjetas que se editan por separado. Se quitó "Profesión" de la vista
+  (la columna `profesion` sigue en la base, sin uso) y "Contacto de emergencia" pasó a ser una tarjeta dentro
+  de Información personal (ya no es pestaña aparte). Listado en tabla con encabezados.
+- **Foto:** botón "Subir foto" visible en la ficha y opcional al crear el colaborador. Se reduce a máx.
+  800 px JPEG en el navegador antes de subirla (`subirFotoEmpleado` en `catalogosRRHH.js`); si el navegador
+  no puede leer el formato (p. ej. HEIC en Chrome) se sube el original.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
