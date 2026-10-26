@@ -1478,7 +1478,7 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
     CSV se lee con `raw: true` (si no, "01/10/2026" se interpretaba como 10 de enero).
   • **Hallazgo:** comparado con la columna manual de su archivo NOM15OCTU (365 días-persona), la regla dicha
     coincide en 167 y "solo medias horas completas hacia abajo" en 236; hay además turnos distintos (p. ej.
-    12:45–21:00) y extras no autorizadas. Se implementó la regla dicha; pendiente que Angie confirme.
+    12:45–21:00) y extras no autorizadas. Se implementó la regla dicha y Angie la confirmó (2026-10-26): desde 15 min = 0,5 h, redondeado a la media hora.
   • **Desprendible de pago** en PDF (`src/utils/desprendiblePagoPDF.js`): uno por persona desde la
     liquidación o todos los de la vista desde la planilla; logo/NIT reutilizados de `exportOrdenCompraPDF.js`.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
