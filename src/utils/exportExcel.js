@@ -710,3 +710,65 @@ export function exportarNovedades(filas, subtitulo = '') {
   })
   XLSX.writeFile(wb, `novedades_feisen_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
+
+// ─────────────────────────────────────────────────────────────
+//  RRHH — Planilla de nómina quincenal (reemplaza el Excel "NOM")
+//  Una hoja por forma de pago (Destajo, Al día, Fijo) con columna de firma,
+//  y una hoja con el detalle de piezas de destajo.
+//  filas: liquidaciones con { nombre, documento, modalidad, piezas[], ...campos y totales }
+// ─────────────────────────────────────────────────────────────
+export function exportarNominaQuincena({ titulo, filas }) {
+  const wb = XLSX.utils.book_new()
+  const n = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v))
+  const suma = (lista) => (lista || []).reduce((t, x) => t + n(x?.valor), 0)
+  const PESOS = '"$"#,##0'
+  const hojas = [
+    { k: 'destajo', nombre: 'Destajo' },
+    { k: 'dia',     nombre: 'Al día' },
+    { k: 'fijo',    nombre: 'Fijo' },
+  ]
+  for (const h of hojas) {
+    const grupo = filas.filter(f => f.modalidad === h.k)
+    if (!grupo.length) continue
+    const base = h.k === 'destajo' ? ['Piezas (cant.)', 'Valor piezas']
+      : h.k === 'dia' ? ['Días', 'Valor día', 'Valor días'] : ['Valor fijo']
+    const headers = ['Nombre', 'Documento', ...base, 'Horas extra', 'Valor horas extra', 'Auxilio', 'Otros',
+      'Dto. tiempo o pieza dañada', 'Subsidio a SS', 'Total devengado', 'Seguridad', 'Anticipo', 'Dotación, herramienta',
+      'Otras deducciones', 'Total deducciones', 'Total a pagar', 'Firma recibido']
+    const datos = grupo.map(f => {
+      const extra = n(f.horas_extra) * n(f.valor_hora_extra)
+      const cols = h.k === 'destajo'
+        ? [(f.piezas || []).reduce((t, p) => t + n(p.cantidad), 0), n(f.total_piezas)]
+        : h.k === 'dia' ? [n(f.dias), n(f.valor_dia), n(f.dias) * n(f.valor_dia)] : [n(f.valor_fijo)]
+      return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.auxilio), suma(f.otros_devengos),
+        n(f.descuento_tiempo_pieza), n(f.subsidio_ss), n(f.total_devengado), n(f.seguridad), n(f.anticipo),
+        n(f.dotacion_herramienta), suma(f.otras_deducciones), n(f.total_deducciones), n(f.neto), '']
+    })
+    const nBase = base.length
+    const fmt = {}
+    for (let c = 2; c < headers.length - 1; c++) fmt[c] = PESOS
+    if (h.k === 'destajo') fmt[2] = '#,##0'
+    if (h.k === 'dia') fmt[2] = 'General'   // días (admite medios días, p. ej. 13,5)
+    fmt[2 + nBase] = 'General'              // horas extra
+    const total = headers.map((_, c) => {
+      if (c === 0) return `Totales (${grupo.length})`
+      if (c === 1 || c === headers.length - 1) return ''
+      return datos.reduce((t, fila) => t + (typeof fila[c] === 'number' ? fila[c] : 0), 0)
+    })
+    if (h.k === 'dia') total[3] = ''   // sumar valores de día no tiene sentido
+    hojaTabla(wb, h.nombre, `Planilla de pago — ${h.nombre}`, titulo, headers, datos, {
+      anchos: [28, 14, ...base.map(() => 13), 10, 14, 12, 12, 14, 13, 15, 12, 12, 13, 13, 15, 15, 22],
+      fmt, total,
+    })
+  }
+  // Detalle de piezas
+  const piezas = filas.flatMap(f => (f.piezas || []).map(p => [f.nombre, p.descripcion, n(p.cantidad), n(p.valor_unitario), n(p.cantidad) * n(p.valor_unitario)]))
+  if (piezas.length) {
+    hojaTabla(wb, 'Detalle piezas', 'Detalle de piezas de destajo', titulo,
+      ['Nombre', 'Pieza', 'Cantidad', 'Valor pieza', 'Subtotal'], piezas,
+      { anchos: [28, 40, 10, 14, 16], fmt: { 2: '#,##0', 3: PESOS, 4: PESOS },
+        total: ['Total', '', piezas.reduce((t, p) => t + p[2], 0), '', piezas.reduce((t, p) => t + p[4], 0)] })
+  }
+  if (!wb.SheetNames.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sin liquidaciones']]), 'Planilla')
+  XLSX.writeFile(wb, `nomina_${titulo.replace(/\s+/g, '_').toLowerCase()}.xlsx`)
+}

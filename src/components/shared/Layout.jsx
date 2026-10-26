@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -44,6 +44,7 @@ const NAV_ADMIN = [
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
   { to: '/rrhh/calendario',                   icon: CalendarDays,    label: 'Calendario',         modulo: 'Recursos Humanos' },
+  { to: '/rrhh/nomina',                       icon: Wallet,          label: 'Nómina',             modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: ShieldAlert,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
@@ -137,6 +138,7 @@ const NAV_RRHH = [
   { to: '/rrhh/organigrama', icon: Network, label: 'Organigrama' },
   { to: '/rrhh/novedades',   icon: CalendarClock, label: 'Novedades' },
   { to: '/rrhh/calendario',  icon: CalendarDays,  label: 'Calendario' },
+  { to: '/rrhh/nomina',      icon: Wallet,        label: 'Nómina' },
 ]
 
 const NAV_CONSULTOR = [

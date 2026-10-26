@@ -134,6 +134,16 @@ const SECCIONES = [
   {
     id: 'pago', label: 'Pago', icon: Wallet,
     bloques: [
+      { id: 'nomina', titulo: 'Valores para la nómina', icon: Wallet,
+        ayuda: 'Se usan al crear cada quincena. La forma de pago sale del contrato: contratista al destajo (por pieza, con las tarifas de destajo), contratista al día (días × valor del día) o fijo (planta).',
+        campos: [
+        { k: 'valor_dia', label: 'Valor del día', tipo: 'money', nota: 'Contratistas al día' },
+        { k: 'valor_quincena', label: 'Valor por quincena', tipo: 'money', nota: 'Personal fijo (planta). Si está vacío se usa la mitad del salario base.' },
+        { k: 'valor_hora_extra', label: 'Valor hora extra', tipo: 'money' },
+        { k: 'auxilio_quincenal', label: 'Auxilio por quincena', tipo: 'money' },
+        { k: 'subsidio_ss', label: 'Subsidio a seguridad social', tipo: 'money', nota: 'Lo que Feisen le reconoce (p. ej. 270.500 o 150.000)' },
+        { k: 'aporte_ss', label: 'Seguridad social que se descuenta', tipo: 'money', nota: 'Valor de la planilla que paga Feisen' },
+      ] },
       { id: 'cuenta', titulo: 'Cuenta para el pago de nómina', icon: Wallet, campos: [
         { k: 'banco', label: 'Banco' },
         { k: 'tipo_cuenta', label: 'Tipo de cuenta', tipo: 'select', opciones: TIPOS_CUENTA },

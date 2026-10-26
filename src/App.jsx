@@ -40,6 +40,10 @@ import Organigrama              from './components/rrhh/Organigrama'
 import FichaCargo               from './components/rrhh/FichaCargo'
 import Novedades                from './components/rrhh/Novedades'
 import Calendario               from './components/rrhh/Calendario'
+import Nomina                   from './components/rrhh/nomina/Nomina'
+import PeriodoNomina            from './components/rrhh/nomina/PeriodoNomina'
+import LiquidacionPersona       from './components/rrhh/nomina/LiquidacionPersona'
+import TarifasDestajo           from './components/rrhh/nomina/TarifasDestajo'
 
 function Cargando() {
   return (
@@ -87,6 +91,10 @@ function AppRoutes() {
         <Route path="/rrhh/organigrama/:id" element={<Layout><FichaCargo /></Layout>} />
         <Route path="/rrhh/novedades"       element={<Layout><Novedades /></Layout>} />
         <Route path="/rrhh/calendario"      element={<Layout><Calendario /></Layout>} />
+        <Route path="/rrhh/nomina"                  element={<Layout><Nomina /></Layout>} />
+        <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
+        <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
+        <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
         <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
       </Routes>
     )
@@ -219,6 +227,10 @@ function AppRoutes() {
       <Route path="/rrhh/organigrama/:id"  element={<Layout><FichaCargo /></Layout>} />
       <Route path="/rrhh/novedades"        element={<Layout><Novedades /></Layout>} />
       <Route path="/rrhh/calendario"       element={<Layout><Calendario /></Layout>} />
+      <Route path="/rrhh/nomina"                  element={<Layout><Nomina /></Layout>} />
+      <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
+      <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
+      <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
       <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

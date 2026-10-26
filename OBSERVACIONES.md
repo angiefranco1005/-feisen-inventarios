@@ -1435,6 +1435,33 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   el registro deja de aplicar y el recordatorio vuelve para el nuevo vencimiento. Si la fecha de entrega es
   posterior al plazo legal se avisa (el contrato se entiende prorrogado). La carta es opcional al registrar
   ("falta la carta"). Migración `2026-10-26_rrhh_preaviso_entregado.sql`.
+- **Nómina quincenal (2026-10-26, pedido de Angie; reemplaza el Excel "NOM 15 OCT.xlsx"):** el Excel tenía
+  por quincena hojas "C" y "F" con bloques por grupo y columnas: 3 pares cantidad × valor, Otros, Dto. tiempo o
+  pieza dañada, Subsidio a SS, Total devengado, Seguridad, Anticipo, Dotación/herramienta, Total a pagar y firma
+  (había conceptos sumados a mano dentro de las fórmulas). Decisiones de Angie: (1) piezas de destajo
+  **sugeridas desde producción y editables**; (2) "Subsidio a SS" = parte de la seguridad social que Feisen le
+  reconoce al contratista (270.500 o 150.000) y "Seguridad" = la planilla que Feisen paga y le descuenta;
+  (3) **sin deducciones de ley** (salud/pensión) ni auxilio de transporte legal — eso lo hace el contador;
+  (4) en "al día" las otras columnas son horas extra × valor hora y un auxilio fijo por quincena (1 × 130.000).
+  Modelo: `nomina_periodos` (quincena, borrador/cerrada), `nomina_liquidaciones` (una por persona, con totales
+  guardados), `nomina_piezas`, `nomina_tarifas` (valor por pieza, por ítem — la pieza moldeada y la mecanizada
+  son ítems distintos por la regla de un ítem por bodega) y `nomina_alias` (nombre escrito en producción →
+  colaborador). Valores por persona en la ficha (Pago → "Valores para la nómina"). Forma de pago según
+  contrato (`modalidadDe`): contratista destajo / contratista al día / resto fijo (por defecto la mitad del
+  salario base). Producción: moldeo = `ordenes_moldeo_avances` (cantidad moldeada por fecha, moldeador en
+  `ordenes_moldeo_piezas.asignado_a`); mecanizado = movimientos `entrada` con motivo "Mecanizado por: …"; las NC
+  de recogida se muestran como referencia para el descuento. Emparejamiento de nombres: alias guardado o
+  colaborador único que contenga todas las palabras.
+  **Días laborales = lunes a viernes sin festivos** (`esDiaLaboral`): verificado contra todas las quincenas
+  2026 del Excel (p. ej. 1–15 oct = 10, 16–30 sep = 11). Ojo: las vacaciones de Novedades siguen contando el
+  sábado como hábil — probablemente deban ser lunes a viernes también (pendiente confirmar con Angie).
+  Días sugeridos a los de "al día" = días laborales − días con novedad no remunerada. Excel de la planilla con
+  una hoja por forma de pago + detalle de piezas (`exportarNominaQuincena`). Calculos verificados contra
+  filas reales del Excel (Barboza 2.508.500/2.038.000; Benítez 1.859.700).
+  La migración `2026-10-26_rrhh_nomina.sql` también da a RRHH permiso de LECTURA en items, ordenes_moldeo,
+  ordenes_moldeo_piezas, ordenes_moldeo_avances, movimientos y bodegas (políticas permisivas adicionales).
+  **Pendientes nómina:** desprendible de pago en PDF por persona, cargar el histórico 2026 del Excel, y
+  revisar qué columnas usa la planilla real de "Fijo" (había valores sumados a mano en fórmulas).
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
