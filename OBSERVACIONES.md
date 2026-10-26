@@ -1392,6 +1392,10 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   `FichaComun.jsx` y las usan la ficha del colaborador y la del cargo.
   **Pendiente:** la evaluación de desempeño solo define criterios por cargo; falta registrar las
   evaluaciones por persona, y las entregas reales de EPP/herramientas (con firma) por colaborador.
+- **Áreas (2026-10-26):** 'Almacén' y 'Logística' se unieron en 'Almacén y Logística' y se quitó 'Calidad'
+  (no existe por ahora). Solo afecta el área de RRHH, no bodegas ni roles. Migración
+  `2026-10-26_rrhh_areas_almacen_logistica.sql`. Los selects de la ficha muestran igual un valor guardado
+  que ya no está en el catálogo ("ya no está en la lista") para no perderlo al editar.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

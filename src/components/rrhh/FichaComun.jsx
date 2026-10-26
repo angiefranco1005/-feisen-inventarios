@@ -161,14 +161,20 @@ export function CampoEditable({ campo: c, valor, onChange, form, ctx }) {
       <span className="text-sm text-feisen-texto">{c.label}</span>
     </label>
   )
-  if (c.tipo === 'select') return wrap(
-    <select required={c.req} value={valor ?? ''} onChange={e => onChange(e.target.value)} className={E.input}>
-      {!c.req ? <option value="">{c.vacio || '—'}</option> : <option value="" disabled>Seleccionar…</option>}
-      {resolverOpciones(c, ctx).map(o => typeof o === 'object'
-        ? <option key={o.value} value={o.value}>{o.label}</option>
-        : <option key={o} value={o}>{o}</option>)}
-    </select>
-  )
+  if (c.tipo === 'select') {
+    const opciones = resolverOpciones(c, ctx)
+    // Un valor guardado que ya no está en el catálogo (p. ej. un área renombrada) se sigue mostrando
+    const huerfano = valor && !opciones.some(o => String(typeof o === 'object' ? o.value : o) === String(valor))
+    return wrap(
+      <select required={c.req} value={valor ?? ''} onChange={e => onChange(e.target.value)} className={E.input}>
+        {!c.req ? <option value="">{c.vacio || '—'}</option> : <option value="" disabled>Seleccionar…</option>}
+        {opciones.map(o => typeof o === 'object'
+          ? <option key={o.value} value={o.value}>{o.label}</option>
+          : <option key={o} value={o}>{o}</option>)}
+        {huerfano && <option value={valor}>{valor} (ya no está en la lista)</option>}
+      </select>
+    )
+  }
   if (c.tipo === 'jefe') return wrap(
     <select value={valor ?? ''} onChange={e => onChange(e.target.value)} className={E.input}>
       <option value="">— Sin jefe asignado —</option>

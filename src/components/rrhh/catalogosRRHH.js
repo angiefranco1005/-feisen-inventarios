@@ -12,9 +12,7 @@ export const AREAS = [
   'Mecanizados',
   'Soldadura y Armado',
   'Pintura',
-  'Almacén',
-  'Logística',
-  'Calidad',
+  'Almacén y Logística',   // una sola área desde 2026-10-26 (decisión de Angie)
   'Innovación',
 ]
 
