@@ -5,10 +5,10 @@ import { siguienteNumero } from '../../utils/siguienteNumero'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera } from 'lucide-react'
+import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from 'lucide-react'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -51,7 +51,7 @@ export default function ListaEmpleados() {
     setCargando(true)
     const [{ data, error }, { data: cats }] = await Promise.all([
       supabase.from('empleados')
-        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path')
+        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento')
         .order('nombres'),
       supabase.from('cargos').select('id, nombre, area').order('nombre'),
     ])
@@ -61,6 +61,8 @@ export default function ListaEmpleados() {
     setFotos(await urlsFirmadas((data || []).map(e => e.foto_path)))
     setCargando(false)
   }
+
+  const cumpleSemana = useMemo(() => proximosCumpleanos(empleados, 7), [empleados])
 
   const conteo = useMemo(() => ({
     activo:   empleados.filter(e => e.estado === 'activo').length,
@@ -176,6 +178,24 @@ export default function ListaEmpleados() {
           <p className={`text-2xl font-semibold mt-0.5 ${porVencer.length ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{porVencer.length}</p>
         </div>
       </div>
+
+      {/* Recordatorio: cumpleaños de los próximos 7 días */}
+      {cumpleSemana.length > 0 && (
+        <div className={`${E.tarjeta} px-5 py-3 flex flex-wrap items-center gap-2`}>
+          <span className={`${E.tituloTarj} mr-1`}><Cake {...E.ICONO} className="text-pink-500" /> Cumpleaños esta semana</span>
+          {cumpleSemana.map(p => (
+            <button key={p.empleado.id} onClick={() => navigate(`/rrhh/empleados/${p.empleado.id}`)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:bg-feisen-fondo
+                ${p.enDias === 0 ? 'border-pink-200 bg-pink-50 text-pink-700' : 'border-feisen-borde text-feisen-texto'}`}>
+              {nombreCompleto(p.empleado)}
+              <span className={p.enDias === 0 ? 'font-medium' : 'text-feisen-gris-medio'}>
+                · {p.enDias === 0 ? '¡hoy!' : p.enDias === 1 ? 'mañana' : formatoFecha(p.fecha)}
+              </span>
+            </button>
+          ))}
+          <button onClick={() => navigate('/rrhh/calendario')} className="ml-auto text-xs font-medium text-feisen-azul hover:underline">Ver calendario</button>
+        </div>
+      )}
 
       {/* Contratos que vencen en los próximos 45 días */}
       {porVencer.length > 0 && (

@@ -12,10 +12,10 @@ import {
 
 const limpiarNombre = (n) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_')
 
-function formDesde(n, empleadoFijo) {
+function formDesde(n, empleadoFijo, fechaInicial) {
   if (!n) {
     const f = {
-      empleado_id: empleadoFijo || '', tipo: 'incapacidad', subtipo: '', fecha_inicio: hoyISO(), fecha_fin: hoyISO(),
+      empleado_id: empleadoFijo || '', tipo: 'incapacidad', subtipo: '', fecha_inicio: fechaInicial || hoyISO(), fecha_fin: fechaInicial || hoyISO(),
       por_horas: false, hora_inicio: '', hora_fin: '', dias: '', remunerado: true,
       entidad: '', numero_incapacidad: '', diagnostico: '', prorroga: false, observaciones: '',
     }
@@ -41,9 +41,9 @@ function diasSugeridos(f) {
 
 // Crear o editar una novedad (incapacidad, permiso, vacaciones o licencia) con sus soportes.
 // `existentes`: otras novedades conocidas, para avisar si se cruzan las fechas.
-export default function ModalNovedad({ novedad, empleados, empleadoFijo, existentes = [], perfilId, onCerrar, onGuardado }) {
+export default function ModalNovedad({ novedad, empleados, empleadoFijo, fechaInicial, existentes = [], perfilId, onCerrar, onGuardado }) {
   const inputArchivos = useRef(null)
-  const [form,        setForm]        = useState(() => formDesde(novedad, empleadoFijo))
+  const [form,        setForm]        = useState(() => formDesde(novedad, empleadoFijo, fechaInicial))
   const [diasManual,  setDiasManual]  = useState(!!novedad)
   const [soportes,    setSoportes]    = useState([])
   const [pendientes,  setPendientes]  = useState([])   // archivos elegidos aún sin subir

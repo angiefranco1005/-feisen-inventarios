@@ -43,6 +43,7 @@ const NAV_ADMIN = [
   { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
+  { to: '/rrhh/calendario',                   icon: CalendarDays,    label: 'Calendario',         modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: ShieldAlert,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
@@ -135,6 +136,7 @@ const NAV_RRHH = [
   { to: '/rrhh/empleados',   icon: Users,   label: 'Colaboradores' },
   { to: '/rrhh/organigrama', icon: Network, label: 'Organigrama' },
   { to: '/rrhh/novedades',   icon: CalendarClock, label: 'Novedades' },
+  { to: '/rrhh/calendario',  icon: CalendarDays,  label: 'Calendario' },
 ]
 
 const NAV_CONSULTOR = [

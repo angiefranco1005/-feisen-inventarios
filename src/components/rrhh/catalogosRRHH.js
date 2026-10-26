@@ -310,3 +310,30 @@ export function horasEntre(hIni, hFin) {
   const min = (c * 60 + d) - (a * 60 + b)
   return min > 0 ? Math.round((min / 60) * 100) / 100 : 0
 }
+
+// ─── Cumpleaños ──────────────────────────────────────────────────────────────
+// Fecha del cumpleaños de una persona en un año dado ('YYYY-MM-DD'). Quien nació
+// un 29 de febrero lo celebra el 28 en años no bisiestos.
+export function cumpleEnAnio(fechaNacimiento, anio) {
+  if (!fechaNacimiento) return null
+  const [, m, d] = fechaNacimiento.split('-').map(Number)
+  const bisiesto = (anio % 4 === 0 && anio % 100 !== 0) || anio % 400 === 0
+  const dia = m === 2 && d === 29 && !bisiesto ? 28 : d
+  return `${anio}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+}
+
+// Próximos cumpleaños desde hoy (incluido) dentro de `dias` días, ordenados.
+// Devuelve [{ empleado, fecha, cumple (años que cumple), enDias }]
+export function proximosCumpleanos(empleados, dias = 30) {
+  const hoy = hoyISO()
+  const anio = Number(hoy.slice(0, 4))
+  const out = []
+  for (const e of empleados) {
+    if (!e.fecha_nacimiento || e.estado === 'retirado') continue
+    let f = cumpleEnAnio(e.fecha_nacimiento, anio)
+    if (f < hoy) f = cumpleEnAnio(e.fecha_nacimiento, anio + 1)
+    const enDias = diasCalendario(hoy, f) - 1
+    if (enDias <= dias) out.push({ empleado: e, fecha: f, cumple: Number(f.slice(0, 4)) - Number(e.fecha_nacimiento.slice(0, 4)), enDias })
+  }
+  return out.sort((a, b) => a.enDias - b.enDias)
+}

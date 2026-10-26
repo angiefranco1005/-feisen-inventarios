@@ -1409,6 +1409,13 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   Incapacidades y licencias se marcan "sin soporte" mientras no tengan archivo.
   **Ideas siguientes:** saldo de vacaciones por persona (15 días hábiles por año trabajado − disfrutadas),
   aprobación de permisos por el jefe, y que el colaborador solicite desde su usuario.
+- **Calendario RRHH (2026-10-26, pedido de Angie):** `/rrhh/calendario`, vista mensual (lunes a domingo)
+  con capas que se prenden/apagan: novedades, cumpleaños y fin de contrato; festivos de Colombia marcados.
+  Panel lateral con el detalle del día (clic en una novedad la abre para editar; "+ Novedad" registra en
+  ese día) y próximos cumpleaños (30 días). En Colaboradores hay un recordatorio de los cumpleaños de los
+  próximos 7 días. Sin tablas nuevas: usa `empleados.fecha_nacimiento`, `fecha_fin_contrato` y `novedades`.
+  Nacidos un 29-feb celebran el 28 en años no bisiestos (`cumpleEnAnio`). Si una ficha no tiene fecha de
+  nacimiento, no aparece.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

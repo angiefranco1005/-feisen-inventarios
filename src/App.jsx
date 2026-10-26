@@ -39,6 +39,7 @@ import FichaEmpleado            from './components/rrhh/FichaEmpleado'
 import Organigrama              from './components/rrhh/Organigrama'
 import FichaCargo               from './components/rrhh/FichaCargo'
 import Novedades                from './components/rrhh/Novedades'
+import Calendario               from './components/rrhh/Calendario'
 
 function Cargando() {
   return (
@@ -85,6 +86,7 @@ function AppRoutes() {
         <Route path="/rrhh/organigrama"     element={<Layout><Organigrama /></Layout>} />
         <Route path="/rrhh/organigrama/:id" element={<Layout><FichaCargo /></Layout>} />
         <Route path="/rrhh/novedades"       element={<Layout><Novedades /></Layout>} />
+        <Route path="/rrhh/calendario"      element={<Layout><Calendario /></Layout>} />
         <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
       </Routes>
     )
@@ -216,6 +218,7 @@ function AppRoutes() {
       <Route path="/rrhh/organigrama"      element={<Layout><Organigrama /></Layout>} />
       <Route path="/rrhh/organigrama/:id"  element={<Layout><FichaCargo /></Layout>} />
       <Route path="/rrhh/novedades"        element={<Layout><Novedades /></Layout>} />
+      <Route path="/rrhh/calendario"       element={<Layout><Calendario /></Layout>} />
       <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
