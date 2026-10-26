@@ -54,18 +54,23 @@ export const NIVELES_EDUCATIVOS = ['Primaria', 'Bachiller', 'Técnico', 'Tecnól
 export const TIPOS_CUENTA = ['Ahorros', 'Corriente', 'Nequi / Daviplata']
 export const PARENTESCOS  = ['Padre', 'Madre', 'Cónyuge / Pareja', 'Hijo(a)', 'Hermano(a)', 'Otro']
 
-export const TIPOS_ARCHIVO = [
-  'Contrato',
-  'Otrosí',
-  'Documento de identidad',
-  'Hoja de vida',
-  'Certificados de estudio',
-  'Afiliaciones (EPS, AFP, ARL, Caja)',
-  'Examen médico',
-  'Certificación bancaria',
+// Checklist de documentos de ingreso que pide RRHH a cada colaborador
+// (definido por Angie, 2026-10-26). El nombre es el `tipo` en empleado_documentos.
+export const DOCUMENTOS_REQUERIDOS = [
+  'Fotocopia de la cédula',
   'Antecedentes',
-  'Otro',
+  'Contrato',
+  'Certificado de estudio',
+  'Certificado laboral',
+  'Política de tratamiento de datos',
+  'Certificados de afiliación',
+  'Exámenes médicos',
+  'Aceptación de política de SG-SST',
+  'Perfil sociodemográfico',
 ]
+
+// Documentos que no hacen parte del checklist pero se pueden adjuntar
+export const OTROS_DOCUMENTOS = ['Otrosí', 'Hoja de vida', 'Certificación bancaria', 'Otro']
 
 export const ESTADOS_EMPLEADO = {
   activo:   { label: 'Activo',   color: 'bg-green-100 text-green-700' },

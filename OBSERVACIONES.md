@@ -1366,6 +1366,14 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - **Certificación bancaria en Pago (2026-10-26):** tarjeta en la sección Pago que muestra la más reciente de
   `empleado_documentos` con `tipo='Certificación bancaria'` (sin tabla nueva). "Reemplazar" sube una nueva; las
   anteriores quedan como historial en la pestaña Documentos.
+- **Checklist de documentos (2026-10-26, definido por Angie):** la pestaña Documentos muestra 10 documentos
+  de ingreso (`DOCUMENTOS_REQUERIDOS` en `catalogosRRHH.js`) con estado entregado/pendiente y barra "X de 10".
+  Un ítem cuenta como entregado si hay al menos un archivo con ese `tipo` (se permiten varios: p. ej. EPS,
+  AFP, ARL y Caja en "Certificados de afiliación"). El resto (Otrosí, Hoja de vida, Certificación bancaria,
+  Otro) va en "Otros documentos". Tipos de la fase 1 renombrados con
+  `2026-10-26_rrhh_checklist_documentos.sql` (opcional: sin ella esos archivos solo salen en "Otros").
+  Gotcha: el tipo del archivo a subir se guarda en un `useRef`, no en estado, porque se lee en el `onChange`
+  del input de archivo compartido.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

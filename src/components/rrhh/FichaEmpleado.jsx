@@ -7,11 +7,11 @@ import Alerta from '../shared/Alerta'
 import {
   ArrowLeft, Camera, Pencil, User, Briefcase, HeartPulse, Wallet, FolderOpen,
   Upload, FileText, Trash2, ExternalLink, Mail, Smartphone, CalendarDays, AlertTriangle,
-  MapPin, Users, Building2, Contact, Clock, Shirt,
+  MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus,
 } from 'lucide-react'
 import {
   BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
-  GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, TIPOS_ARCHIVO, ESTADOS_EMPLEADO,
+  GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato,
 } from './catalogosRRHH'
@@ -574,11 +574,13 @@ function CertificacionBancaria({ empleadoId, perfilId }) {
 // ─── Documentos adjuntos ─────────────────────────────────────────────────────
 function DocumentosEmpleado({ empleadoId, perfilId }) {
   const inputArchivo = useRef(null)
-  const [docs,      setDocs]      = useState([])
-  const [cargando,  setCargando]  = useState(true)
-  const [tipo,      setTipo]      = useState(TIPOS_ARCHIVO[0])
-  const [subiendo,  setSubiendo]  = useState(false)
-  const [msg,       setMsg]       = useState(null)
+  const [docs,        setDocs]        = useState([])
+  const [cargando,    setCargando]    = useState(true)
+  const tipoSubida = useRef(null)   // tipo al que va el archivo elegido (ref: se lee en el onChange del input)
+  const [subiendo,    setSubiendo]    = useState(null)   // tipo que se está subiendo
+  const [abierto,     setAbierto]     = useState(null)   // fila del checklist expandida
+  const [tipoOtro,    setTipoOtro]    = useState(OTROS_DOCUMENTOS[0])
+  const [msg,         setMsg]         = useState(null)
 
   useEffect(() => { cargar() }, [empleadoId])
 
@@ -592,19 +594,27 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
     setCargando(false)
   }
 
+  function elegirArchivo(tipo) {
+    tipoSubida.current = tipo
+    inputArchivo.current?.click()
+  }
+
   async function subir(ev) {
-    const file = ev.target.files?.[0]
+    const files = [...(ev.target.files || [])]
     ev.target.value = ''
-    if (!file) return
-    setMsg(null); setSubiendo(true)
+    const tipo = tipoSubida.current
+    if (files.length === 0 || !tipo) return
+    setMsg(null); setSubiendo(tipo)
     try {
-      await subirDocumento(empleadoId, tipo, file, perfilId)
-      setMsg({ tipo: 'exito', texto: `${tipo}: "${file.name}" cargado.` })
+      for (const f of files) await subirDocumento(empleadoId, tipo, f, perfilId)
+      setMsg({ tipo: 'exito', texto: `${tipo}: ${files.length === 1 ? `"${files[0].name}" cargado` : `${files.length} archivos cargados`}.` })
+      if (DOCUMENTOS_REQUERIDOS.includes(tipo)) setAbierto(tipo)
       await cargar()
     } catch (err) {
-      setMsg({ tipo: 'error', texto: err.message })
+      setMsg({ tipo: 'error', texto: `${tipo}: ${err.message}` })
+      await cargar()
     }
-    setSubiendo(false)
+    setSubiendo(null)
   }
 
   async function abrir(d) {
@@ -619,52 +629,121 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
     setDocs(ds => ds.filter(x => x.id !== d.id))
   }
 
+  const porTipo = (t) => docs.filter(d => d.tipo === t)
+  const completos = DOCUMENTOS_REQUERIDOS.filter(t => porTipo(t).length > 0).length
+  const total = DOCUMENTOS_REQUERIDOS.length
+  const otros = docs.filter(d => !DOCUMENTOS_REQUERIDOS.includes(d.tipo))
+
+  const filaArchivo = (d, conTipo = false) => (
+    <div key={d.id} className="flex items-center gap-3 px-3 py-2">
+      <FileText size={16} className="text-feisen-azul flex-shrink-0" />
+      <button onClick={() => abrir(d)} className="flex-1 min-w-0 text-left group">
+        <p className="text-sm text-feisen-texto truncate group-hover:text-feisen-azul group-hover:underline">
+          {conTipo && <span className="font-medium">{d.tipo} · </span>}{d.nombre}
+        </p>
+        <p className="text-xs text-gray-400 truncate">
+          {new Date(d.created_at).toLocaleDateString('es-CO')}{d.subido?.nombre && ` · ${d.subido.nombre}`}
+        </p>
+      </button>
+      <button onClick={() => abrir(d)} title="Ver" className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-feisen-azul-suave rounded-lg">
+        <ExternalLink size={15} />
+      </button>
+      <button onClick={() => eliminar(d)} title="Eliminar" className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-feisen-rojo-suave rounded-lg">
+        <Trash2 size={15} />
+      </button>
+    </div>
+  )
+
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde">
-      <div className="px-5 py-3.5 border-b border-feisen-borde-suave">
-        <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
-          <FolderOpen size={17} className="text-feisen-azul" /> Documentos
-        </h2>
-      </div>
-      <div className="px-5 py-4 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 bg-feisen-fondo rounded-lg p-3">
-          <select value={tipo} onChange={e => setTipo(e.target.value)} className={`${inputCls} sm:flex-1 bg-white`}>
-            {TIPOS_ARCHIVO.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button onClick={() => inputArchivo.current?.click()} disabled={subiendo}
-            className="flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
-            <Upload size={16} /> {subiendo ? 'Subiendo...' : 'Subir archivo'}
-          </button>
-          <input ref={inputArchivo} type="file" accept=".pdf,image/*,.doc,.docx" className="hidden" onChange={subir} />
+    <div className="space-y-4">
+      <input ref={inputArchivo} type="file" multiple accept=".pdf,image/*,.doc,.docx" className="hidden" onChange={subir} />
+
+      {/* Checklist de documentos de ingreso */}
+      <div className="bg-white rounded-xl border border-feisen-borde">
+        <div className="px-5 py-4 border-b border-feisen-borde-suave">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
+              <FolderOpen size={17} className="text-feisen-azul" /> Documentos de ingreso
+            </h2>
+            <span className={`text-sm font-semibold ${completos === total ? 'text-green-600' : 'text-gray-500'}`}>
+              {completos} de {total}{completos === total && ' · Completo'}
+            </span>
+          </div>
+          <div className="mt-3 h-2 rounded-full bg-feisen-fondo overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${completos === total ? 'bg-green-500' : 'bg-feisen-azul'}`}
+              style={{ width: `${(completos / total) * 100}%` }} />
+          </div>
         </div>
 
-        {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+        {msg && <div className="px-5 pt-4"><Alerta tipo={msg.tipo} mensaje={msg.texto} /></div>}
 
-        {cargando ? <Spinner /> : docs.length === 0 ? (
-          <p className="text-center text-sm text-gray-400 py-8">Aún no hay documentos cargados.</p>
-        ) : (
-          <div className="divide-y divide-feisen-borde-suave border border-feisen-borde rounded-lg">
-            {docs.map(d => (
-              <div key={d.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 rounded-lg bg-feisen-azul-suave flex items-center justify-center flex-shrink-0">
-                  <FileText size={18} className="text-feisen-azul" />
+        {cargando ? <Spinner /> : (
+          <div className="divide-y divide-feisen-borde-suave">
+            {DOCUMENTOS_REQUERIDOS.map(t => {
+              const archivos = porTipo(t)
+              const ok = archivos.length > 0
+              const expandido = abierto === t && ok
+              return (
+                <div key={t}>
+                  <div className="flex items-center gap-3 px-5 py-3">
+                    <button onClick={() => ok && setAbierto(expandido ? null : t)} disabled={!ok}
+                      className="flex-1 min-w-0 flex items-center gap-3 text-left">
+                      {ok
+                        ? <CheckCircle2 size={22} className="text-green-500 flex-shrink-0" />
+                        : <Circle size={22} className="text-gray-300 flex-shrink-0" />}
+                      <div className="min-w-0">
+                        <p className={`text-sm font-medium truncate ${ok ? 'text-feisen-texto' : 'text-gray-600'}`}>{t}</p>
+                        <p className={`text-xs truncate ${ok ? 'text-gray-400' : 'text-amber-600'}`}>
+                          {ok
+                            ? `${archivos.length} archivo${archivos.length > 1 ? 's' : ''} · ${new Date(archivos[0].created_at).toLocaleDateString('es-CO')}`
+                            : 'Pendiente'}
+                        </p>
+                      </div>
+                      {ok && <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} />}
+                    </button>
+                    <button onClick={() => elegirArchivo(t)} disabled={!!subiendo}
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold whitespace-nowrap disabled:opacity-50
+                        ${ok ? 'text-feisen-azul hover:bg-feisen-azul-suave' : 'bg-feisen-azul text-white hover:bg-feisen-azul-claro'}`}>
+                      {subiendo === t
+                        ? <><span className="animate-spin h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full" /> Subiendo…</>
+                        : ok ? <><Plus size={15} /> Agregar</> : <><Upload size={15} /> Subir</>}
+                    </button>
+                  </div>
+                  {expandido && (
+                    <div className="mx-5 mb-3 ml-14 border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave">
+                      {archivos.map(d => filaArchivo(d))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-feisen-texto truncate">{d.tipo}</p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {d.nombre} · {new Date(d.created_at).toLocaleDateString('es-CO')}{d.subido?.nombre && ` · ${d.subido.nombre}`}
-                  </p>
-                </div>
-                <button onClick={() => abrir(d)} title="Ver" className="p-2 text-gray-400 hover:text-feisen-azul hover:bg-feisen-azul-suave rounded-lg">
-                  <ExternalLink size={16} />
-                </button>
-                <button onClick={() => eliminar(d)} title="Eliminar" className="p-2 text-gray-300 hover:text-feisen-rojo hover:bg-feisen-rojo-suave rounded-lg">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
+      </div>
+
+      {/* Otros documentos (fuera del checklist) */}
+      <div className="bg-white rounded-xl border border-feisen-borde">
+        <div className="px-5 py-3.5 border-b border-feisen-borde-suave">
+          <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
+            <FileText size={17} className="text-feisen-azul" /> Otros documentos
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <select value={tipoOtro} onChange={e => setTipoOtro(e.target.value)} className={`${inputCls} sm:flex-1`}>
+              {OTROS_DOCUMENTOS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <button onClick={() => elegirArchivo(tipoOtro)} disabled={!!subiendo}
+              className="flex items-center justify-center gap-2 border border-feisen-borde text-feisen-azul rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-feisen-azul-suave disabled:opacity-60">
+              <Upload size={16} /> {subiendo && !DOCUMENTOS_REQUERIDOS.includes(subiendo) ? 'Subiendo...' : 'Subir archivo'}
+            </button>
+          </div>
+          {!cargando && (otros.length === 0
+            ? <p className="text-sm text-gray-400">No hay otros documentos.</p>
+            : <div className="border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave">
+                {otros.map(d => filaArchivo(d, true))}
+              </div>)}
+        </div>
       </div>
     </div>
   )
