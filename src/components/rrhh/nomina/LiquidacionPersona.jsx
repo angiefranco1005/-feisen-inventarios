@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../../lib/supabase'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
-import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, RefreshCw, Lock, Trash2, CalendarClock, Package } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Lock, Trash2, CalendarClock, Package, Fingerprint, FileText, ChevronDown } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD } from '../catalogosRRHH'
-import { MODALIDADES, calcularTotales, diasLaborales, diasAusente } from './nominaCalculo'
-import { nombreQuincena, contextoQuincena, piezasSugeridas, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
+import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo } from './nominaCalculo'
+import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
+import { nombreQuincena, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
 const aTexto = (v) => (v === null || v === undefined ? '' : String(v))
+const fmtH = (h) => Number(h || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })
 
 // Campo de dinero: muestra miles con punto y guarda solo dígitos
 function Dinero({ value, onChange, disabled, placeholder }) {
@@ -73,17 +75,16 @@ export default function LiquidacionPersona() {
   const [tarifas,   setTarifas]   = useState([])
   const [novedades, setNovedades] = useState([])
   const [orden,     setOrden]     = useState([])     // ids de liquidaciones en orden alfabético (anterior/siguiente)
-  const [ncInfo,    setNcInfo]    = useState(null)
+  const [verDias,   setVerDias]   = useState(false)
   const [cargando,  setCargando]  = useState(true)
   const [guardando, setGuardando] = useState(false)
-  const [trayendo,  setTrayendo]  = useState(false)
   const [cambios,   setCambios]   = useState(false)
   const [msg,       setMsg]       = useState(null)
 
   useEffect(() => { cargar() }, [liqId])
 
   async function cargar() {
-    setCargando(true); setMsg(null); setCambios(false); setNcInfo(null)
+    setCargando(true); setMsg(null); setCambios(false); setVerDias(false)
     const [{ data: l, error }, { data: pz }, { data: p }, { data: tfs }, { data: todas }] = await Promise.all([
       supabase.from('nomina_liquidaciones').select('*').eq('id', liqId).single(),
       supabase.from('nomina_piezas').select('*').eq('liquidacion_id', liqId),
@@ -102,6 +103,7 @@ export default function LiquidacionPersona() {
     setLiq({
       ...l,
       dias: aTexto(l.dias), valor_dia: aTexto(l.valor_dia), horas_extra: aTexto(l.horas_extra), valor_hora_extra: aTexto(l.valor_hora_extra),
+      horas_extra_recargo: aTexto(l.horas_extra_recargo),
       valor_fijo: aTexto(l.valor_fijo), auxilio: aTexto(l.auxilio), subsidio_ss: aTexto(l.subsidio_ss),
       descuento_tiempo_pieza: aTexto(l.descuento_tiempo_pieza), seguridad: aTexto(l.seguridad), anticipo: aTexto(l.anticipo),
       dotacion_herramienta: aTexto(l.dotacion_herramienta), observaciones: l.observaciones || '',
@@ -125,23 +127,18 @@ export default function LiquidacionPersona() {
     setPieza(i, t ? { descripcion: texto, item_id: t.item_id, valor_unitario: String(t.valor) } : { descripcion: texto, item_id: null })
   }
 
-  async function traerProduccion() {
-    setTrayendo(true); setMsg(null)
-    try {
-      const ctx = await contextoQuincena(periodo.fecha_inicio, periodo.fecha_fin)
-      const nuevas = piezasSugeridas(emp.id, ctx).map(p => ({ ...p, cantidad: String(p.cantidad), valor_unitario: String(p.valor_unitario) }))
-      const nc = ctx.grupos.filter(g => g.empleado_id === emp.id && g.nc > 0)
-      setNcInfo(nc)
-      // Se reemplazan las líneas que venían de producción; las manuales se conservan
-      setPiezas(ps => [...ps.filter(p => p.origen === 'manual'), ...nuevas])
-      setCambios(true)
-      setMsg({ tipo: nuevas.length ? 'exito' : 'info', texto: nuevas.length
-        ? `${nuevas.length} referencia${nuevas.length === 1 ? '' : 's'} traída${nuevas.length === 1 ? '' : 's'} de producción. Revisa y guarda.`
-        : 'No hay producción registrada a nombre de esta persona en la quincena. Si aparece con otro nombre, vincúlalo en "Producción sin colaborador" de la planilla.' })
-    } catch (err) {
-      setMsg({ tipo: 'error', texto: err.message })
-    }
-    setTrayendo(false)
+  // Aplica lo que sugiere el huellero (RRHH ya verificó que la extra está autorizada)
+  function aplicarHuellero(que) {
+    const h = liq.huellero
+    if (que === 'horas') { set('horas_extra')(String(h.horas_extra || '')); set('horas_extra_recargo')(String(h.horas_recargo || '')) }
+    if (que === 'dias') set('dias')(String(h.dias_trabajados))
+  }
+
+  function desprendible() {
+    generarDesprendibles([{
+      ...liq, ...totales, nombre: nombreCompleto(emp), documento: `${emp.tipo_documento || ''} ${emp.numero_documento || ''}`.trim(),
+      cargo: emp.cargo, area: emp.area, piezas,
+    }], nombreQuincena(periodo), `desprendible_${nombreCompleto(emp).replace(/\s+/g, '_')}_${periodo.anio}_${String(periodo.mes).padStart(2, '0')}_q${periodo.quincena}`)
   }
 
   function recalcularDias() {
@@ -224,11 +221,8 @@ export default function LiquidacionPersona() {
         <div className="flex-1 min-w-0 w-full space-y-4">
           {/* Destajo: piezas */}
           {(m === 'destajo' || piezas.length > 0) && (
-            <Tarjeta titulo="Piezas (destajo)" icon={Package} accion={!cerrada && (
-              <button onClick={traerProduccion} disabled={trayendo} className={`${E.btnTextoAzul} -mr-2`}>
-                <RefreshCw size={14} strokeWidth={1.8} className={trayendo ? 'animate-spin' : ''} /> Traer de producción
-              </button>
-            )}>
+            <Tarjeta titulo="Piezas (destajo)" icon={Package}>
+              {piezas.length === 0 && <p className="text-xs text-feisen-gris-medio mb-2">Agrega las piezas de la quincena; al escribir una pieza con tarifa, su valor se llena solo.</p>}
               <datalist id="tarifas-destajo">{tarifas.map(t => <option key={t.id} value={t.nombre} />)}</datalist>
               {piezas.length > 0 && (
                 <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_6rem_9rem_8rem_2rem] gap-2 mb-1.5 text-xs text-feisen-gris-medio">
@@ -241,7 +235,6 @@ export default function LiquidacionPersona() {
                     <div className="col-span-2 sm:col-span-1 min-w-0">
                       <input list="tarifas-destajo" value={p.descripcion} disabled={cerrada} placeholder="Pieza o trabajo"
                         onChange={e => elegirPieza(i, e.target.value)} className={`${E.input} disabled:bg-feisen-fondo`} />
-                      {p.origen !== 'manual' && <p className="text-[11px] text-feisen-gris-medio mt-0.5">De producción ({p.origen})</p>}
                     </div>
                     <Numero value={p.cantidad} disabled={cerrada} step="1" onChange={v => setPieza(i, { cantidad: v })} />
                     <div>
@@ -258,11 +251,6 @@ export default function LiquidacionPersona() {
                   className={`${E.btnTextoAzul} -ml-2.5 mt-2`}>
                   <Plus size={14} strokeWidth={1.8} /> Agregar pieza
                 </button>
-              )}
-              {ncInfo && ncInfo.length > 0 && (
-                <p className="mt-3 text-xs text-amber-700 border-t border-feisen-borde-suave pt-2">
-                  No conformes registradas en la quincena: {ncInfo.map(g => `${g.nc} ${g.item_nombre}`).join(', ')}. Si se descuentan, ponlo en "Descuento por tiempo o pieza dañada".
-                </p>
               )}
             </Tarjeta>
           )}
@@ -292,12 +280,61 @@ export default function LiquidacionPersona() {
             </Tarjeta>
           )}
 
+          {/* Huellero: solo sugerencia */}
+          {liq.huellero && (
+            <Tarjeta titulo="Huellero (sugerido)" icon={Fingerprint} accion={
+              <button onClick={() => setVerDias(v => !v)} className={`${E.btnTexto} -mr-2`}>
+                Ver días <ChevronDown size={14} strokeWidth={1.8} className={`transition-transform ${verDias ? 'rotate-180' : ''}`} />
+              </button>
+            }>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <span><span className="text-feisen-gris-medio">Extra:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_extra)} h</strong></span>
+                <span><span className="text-feisen-gris-medio">Domingo/festivo:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_recargo)} h</strong></span>
+                <span><span className="text-feisen-gris-medio">Días hábiles con marcación:</span> <strong className="text-feisen-texto">{liq.huellero.dias_trabajados}</strong></span>
+                {liq.huellero.incompletos > 0 && <span className="text-amber-600">{liq.huellero.incompletos} día{liq.huellero.incompletos === 1 ? '' : 's'} con una sola marcación</span>}
+              </div>
+              <p className="text-xs text-feisen-gris-medio mt-2">Verifica que las horas extra estuvieran autorizadas antes de aplicarlas. Nombre en el huellero: {liq.huellero.nombre_huellero}.</p>
+              {!cerrada && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button onClick={() => aplicarHuellero('horas')} className={E.btnSecundario}>Aplicar horas extra</button>
+                  {m === 'dia' && <button onClick={() => aplicarHuellero('dias')} className={E.btnSecundario}>Usar {liq.huellero.dias_trabajados} días</button>}
+                </div>
+              )}
+              {verDias && (
+                <div className="mt-3 border border-feisen-borde-suave rounded-lg overflow-x-auto">
+                  <table className="w-full text-xs min-w-[520px]">
+                    <thead><tr className="text-left text-feisen-gris-medio border-b border-feisen-borde-suave">
+                      <th className="font-medium px-3 py-1.5">Fecha</th><th className="font-medium px-3 py-1.5">Día</th>
+                      <th className="font-medium px-3 py-1.5">Entrada</th><th className="font-medium px-3 py-1.5">Salida</th>
+                      <th className="font-medium px-3 py-1.5 text-right">Extra</th><th className="font-medium px-3 py-1.5 text-right">Dom/fest</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-feisen-borde-suave">
+                      {liq.huellero.dias.map(d => (
+                        <tr key={d.fecha} className={d.incompleto ? 'bg-amber-50/60' : ''}>
+                          <td className="px-3 py-1.5 text-feisen-texto">{formatoFecha(d.fecha)}</td>
+                          <td className="px-3 py-1.5 text-feisen-texto-2">{d.tipo === 'habil' ? 'Hábil' : d.tipo === 'sabado' ? 'Sábado' : d.tipo === 'domingo' ? 'Domingo' : `Festivo${d.festivo ? ` · ${d.festivo}` : ''}`}</td>
+                          <td className="px-3 py-1.5 text-feisen-texto-2">{d.entrada || '—'}</td>
+                          <td className="px-3 py-1.5 text-feisen-texto-2">{d.salida || '—'}{d.incompleto && <span className="text-amber-600"> · 1 marca</span>}</td>
+                          <td className="px-3 py-1.5 text-right text-feisen-texto">{d.extra ? `${fmtH(d.extra)} h` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right text-feisen-texto">{d.recargo ? `${fmtH(d.recargo)} h` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Tarjeta>
+          )}
+
           {/* Otros devengos */}
           <Tarjeta titulo="Otros devengos">
             <div className={fila}>
               <div><L>Horas extra</L><Numero value={liq.horas_extra} disabled={cerrada} onChange={set('horas_extra')} /></div>
               <div><L>Valor hora extra</L><Dinero value={liq.valor_hora_extra} disabled={cerrada} onChange={set('valor_hora_extra')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos((Number(liq.horas_extra) || 0) * (Number(liq.valor_hora_extra) || 0))}</p></div>
+              <div><L>Horas domingo/festivo</L><Numero value={liq.horas_extra_recargo} disabled={cerrada} onChange={set('horas_extra_recargo')} /></div>
+              <div><L>Valor hora con recargo 100 %</L><p className="text-sm text-feisen-texto-2 py-2">{formatoPesos((Number(liq.valor_hora_extra) || 0) * 2)}</p></div>
+              <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos(valorHorasRecargo(liq))}</p></div>
               <div><L>Auxilio de la quincena</L><Dinero value={liq.auxilio} disabled={cerrada} onChange={set('auxilio')} /></div>
               <div><L>Subsidio a seguridad social</L><Dinero value={liq.subsidio_ss} disabled={cerrada} onChange={set('subsidio_ss')} /></div>
               <div><L>Descuento por tiempo o pieza dañada</L><Dinero value={liq.descuento_tiempo_pieza} disabled={cerrada} onChange={set('descuento_tiempo_pieza')} /></div>
@@ -345,6 +382,11 @@ export default function LiquidacionPersona() {
               </div>
             )}
             {cerrada && <p className="px-5 pb-4 text-xs text-feisen-gris-medio flex items-center gap-1.5"><Lock size={12} strokeWidth={1.8} /> Quincena cerrada</p>}
+            <div className="px-5 pb-4 -mt-1">
+              <button onClick={desprendible} disabled={cambios && !cerrada} title={cambios ? 'Guarda primero los cambios' : ''} className={`${E.btnTexto} w-full justify-center`}>
+                <FileText size={14} strokeWidth={1.8} /> Desprendible de pago (PDF)
+              </button>
+            </div>
           </div>
 
           {novedades.length > 0 && (

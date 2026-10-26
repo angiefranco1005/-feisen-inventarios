@@ -1,7 +1,6 @@
 // Lógica de la nómina quincenal (sin JSX): modalidades, días laborales,
-// cálculo de totales y lectura de la producción para sugerir el destajo.
-import { supabase } from '../../../lib/supabase'
-import { fetchAllPages } from '../../../utils/fetchAllPages'
+// cálculo de totales y lectura del archivo del huellero (horas extra sugeridas).
+import * as XLSX from 'xlsx'
 import { festivosColombia } from '../catalogosRRHH'
 
 export const MODALIDADES = {
@@ -74,6 +73,8 @@ export function diasAusente(novedades, ini, fin) {
 const num = (v) => Number(v) || 0
 export const sumaLista = (lista) => (lista || []).reduce((t, x) => t + num(x?.valor), 0)
 
+export const valorHorasRecargo = (liq) => num(liq.horas_extra_recargo) * num(liq.valor_hora_extra) * 2
+
 // Totales de una liquidación. Todos los conceptos suman si tienen valor
 // (un destajo puede tener además horas extra u otros, como en el Excel).
 export function calcularTotales(liq, piezas = []) {
@@ -81,6 +82,7 @@ export function calcularTotales(liq, piezas = []) {
   const total_devengado = total_piezas
     + num(liq.dias) * num(liq.valor_dia)
     + num(liq.horas_extra) * num(liq.valor_hora_extra)
+    + num(liq.horas_extra_recargo) * num(liq.valor_hora_extra) * 2   // domingo/festivo: recargo del 100 %
     + num(liq.valor_fijo)
     + num(liq.auxilio)
     + num(liq.subsidio_ss)
@@ -91,72 +93,130 @@ export function calcularTotales(liq, piezas = []) {
   return { total_piezas: r(total_piezas), total_devengado: r(total_devengado), total_deducciones: r(total_deducciones), neto: r(total_devengado - total_deducciones) }
 }
 
-// ─── Producción → destajo ────────────────────────────────────────────────────
-// El operario se escribe a mano en producción; se compara normalizado.
-export const normalizarAlias = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .toUpperCase().replace(/\s+/g, ' ').trim()
+// ─── Huellero → horas extra sugeridas ────────────────────────────────────────
+// Reglas de Feisen (definidas por Angie, 2026-10-26):
+//   • Horario: lunes a jueves 7:30 a. m. – 5:30 p. m.; viernes 7:30 a. m. – 4:00 p. m.
+//   • Cuenta como extra llegar antes de las 7:30 y quedarse después de la salida.
+//   • Desde 15 minutos cuenta media hora; se redondea a la media hora
+//     (15–44 min = 0,5 h; 45–74 min = 1 h; …). Se aplica a cada tramo (antes / después).
+//   • Sábado: todo lo trabajado es extra normal.
+//   • Domingo y festivo: todo lo trabajado es extra con recargo del 100 %.
+// Es SOLO una sugerencia: RRHH verifica si la extra estaba autorizada.
+export const HORARIO = { entrada: 7 * 60 + 30, salidaLJ: 17 * 60 + 30, salidaV: 16 * 60 }
+export const horasDeMinutos = (min) => (min > 0 ? Math.floor((min + 15) / 30) / 2 : 0)
 
-// Busca el colaborador de un nombre de producción: primero en los alias
-// guardados; si no, el único colaborador cuyo nombre completo contenga todas
-// las palabras del alias (p. ej. "DAVID BARBOZA" → "Juan David Barboza Ruiz").
+export const normalizarAlias = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+// Busca el colaborador de un nombre del huellero: primero en los nombres ya
+// vinculados; si no, el único colaborador que tenga todas las palabras. La
+// última palabra puede venir recortada ("DAGOBERTO NEUT" → "Dagoberto Neuto").
 export function emparejarAlias(alias, empleados, mapaAlias) {
   if (mapaAlias.has(alias)) return mapaAlias.get(alias)
   const palabras = alias.split(' ').filter(Boolean)
-  if (!palabras.length) return null
+  if (!palabras.length || palabras.every(p => /^\d+$/.test(p))) return null
   const candidatos = empleados.filter(e => {
-    const completo = new Set(normalizarAlias(`${e.nombres} ${e.apellidos}`).split(' '))
-    return palabras.every(p => completo.has(p))
+    const completo = normalizarAlias(`${e.nombres} ${e.apellidos}`).split(' ')
+    return palabras.every((p, i) => completo.includes(p)
+      || (i === palabras.length - 1 && palabras.length > 1 && completo.some(c => c.startsWith(p))))
   })
   return candidatos.length === 1 ? candidatos[0].id : null
 }
 
-const diaSiguiente = (iso) => {
-  const [a, m, d] = iso.split('-').map(Number)
-  const x = new Date(a, m - 1, d + 1)
-  return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`
+const hhmm = (min) => (min === null || min === undefined ? null : `${pad(Math.floor(min / 60))}:${pad(Math.floor(min % 60))}`)
+
+// Convierte la celda de fecha/hora del huellero en { fecha 'YYYY-MM-DD', minutos del día }
+function leerFechaHora(v) {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number') {                       // número de serie de Excel (días desde 1899-12-30)
+    if (v < 1) return null
+    const d = new Date(Math.round((v - 25569) * 86400) * 1000)
+    return { fecha: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, min: d.getUTCHours() * 60 + d.getUTCMinutes() + d.getUTCSeconds() / 60 }
+  }
+  if (v instanceof Date) return { fecha: `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`, min: v.getHours() * 60 + v.getMinutes() }
+  const m = String(v).trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?\s*m\.?)?/i)
+  if (!m) return null
+  let h = Number(m[4])
+  const ampm = (m[7] || '').toLowerCase().replace(/[^ap]/g, '')
+  if (ampm === 'p' && h < 12) h += 12
+  if (ampm === 'a' && h === 12) h = 0
+  return { fecha: `${m[3]}-${pad(m[2])}-${pad(m[1])}`, min: h * 60 + Number(m[5]) + (Number(m[6]) || 0) / 60 }
 }
 
-// Producción registrada en la quincena, agrupada por (nombre del operario, pieza, origen):
-// [{ alias, nombre, item_id, item_nombre, origen: 'moldeo'|'mecanizado', cantidad, nc }]
-export async function produccionDeQuincena(inicio, fin) {
-  const [{ data: avances, error: e1 }, { data: ordenes, error: e2 }, { data: movs, error: e3 }] = await Promise.all([
-    // Moldeo: lo que cada moldeador moldeó por día (avances)
-    fetchAllPages((d, h) => supabase.from('ordenes_moldeo_avances')
-      .select('fecha, cantidad_moldeada, ordenes_moldeo_piezas(asignado_a, item_id, items(nombre))')
-      .gte('fecha', inicio).lte('fecha', fin).range(d, h)),
-    // Moldeo: piezas no conformes de las órdenes del periodo (referencia para "pieza dañada")
-    fetchAllPages((d, h) => supabase.from('ordenes_moldeo')
-      .select('fecha, ordenes_moldeo_piezas(asignado_a, item_id, cantidad_nc, items(nombre))')
-      .gte('fecha', inicio).lte('fecha', fin).range(d, h)),
-    // Mecanizado: entradas "Mecanizado por: <operario>" (producto mecanizado)
-    fetchAllPages((d, h) => supabase.from('movimientos')
-      .select('fecha_movimiento, cantidad, item_id, motivo, numero, items(nombre)')
-      .eq('tipo', 'entrada').like('motivo', 'Mecanizado por:%')
-      .gte('fecha_movimiento', inicio).lt('fecha_movimiento', diaSiguiente(fin)).range(d, h)),
-  ])
-  const error = e1 || e2 || e3
-  const grupos = new Map()
-  const sumar = (nombre, item_id, item_nombre, origen, cantidad, nc = 0) => {
-    const alias = normalizarAlias(nombre)
-    if (!alias || !item_id) return
-    const k = `${alias}|${item_id}|${origen}`
-    if (!grupos.has(k)) grupos.set(k, { alias, nombre: nombre.trim(), item_id, item_nombre: item_nombre || 'Pieza', origen, cantidad: 0, nc: 0 })
-    const g = grupos.get(k)
-    g.cantidad += cantidad
-    g.nc += nc
+// Lee el archivo (Excel o CSV) y devuelve las marcaciones: [{ nombre, fecha, min }]
+export function leerArchivoHuellero(buffer) {
+  // raw: en CSV deja las fechas como texto; si no, la librería lee "01/10/2026" como 10 de enero (formato EE. UU.)
+  const wb = XLSX.read(buffer, { type: 'array', raw: true })
+  const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' })
+  // Columnas: busca el encabezado "Nombre" y "Fecha/Hora"; si no, usa A y B
+  let colNombre = 0, colFecha = 1, inicio = 0
+  const iEnc = filas.findIndex(f => f.some(c => /nombre/i.test(String(c))) && f.some(c => /fecha|hora/i.test(String(c))))
+  if (iEnc >= 0) {
+    colNombre = filas[iEnc].findIndex(c => /nombre/i.test(String(c)))
+    colFecha = filas[iEnc].findIndex(c => /fecha|hora/i.test(String(c)))
+    inicio = iEnc + 1
   }
-  for (const a of avances || []) {
-    const p = a.ordenes_moldeo_piezas
-    if (p) sumar(p.asignado_a, p.item_id, p.items?.nombre, 'moldeo', num(a.cantidad_moldeada))
+  const marcas = []
+  let ilegibles = 0
+  for (const f of filas.slice(inicio)) {
+    const nombre = String(f[colNombre] ?? '').trim()
+    if (!nombre) continue
+    const fh = leerFechaHora(f[colFecha])
+    if (!fh) { ilegibles++; continue }
+    marcas.push({ nombre, ...fh })
   }
-  for (const o of ordenes || []) {
-    for (const p of o.ordenes_moldeo_piezas || []) {
-      if (num(p.cantidad_nc) > 0) sumar(p.asignado_a, p.item_id, p.items?.nombre, 'moldeo', 0, num(p.cantidad_nc))
+  return { marcas, ilegibles }
+}
+
+// Calcula, por nombre del huellero, las horas extra sugeridas dentro de la quincena
+export function calcularHuellero(marcas, inicio, fin) {
+  const porPersona = new Map()
+  for (const m of marcas) {
+    if (m.fecha < inicio || m.fecha > fin) continue
+    const alias = normalizarAlias(m.nombre)
+    if (!porPersona.has(alias)) porPersona.set(alias, { alias, nombre: m.nombre, dias: new Map() })
+    const p = porPersona.get(alias)
+    if (!p.dias.has(m.fecha)) p.dias.set(m.fecha, [])
+    p.dias.get(m.fecha).push(m.min)
+  }
+  const resultado = []
+  for (const p of porPersona.values()) {
+    const dias = []
+    for (const [fecha, lista] of [...p.dias.entries()].sort()) {
+      // Marcas repetidas con segundos de diferencia cuentan como una sola
+      const ms = lista.sort((a, b) => a - b).filter((x, i, a) => i === 0 || x - a[i - 1] > 3)
+      let entrada = null, salida = null
+      if (ms.length >= 2) { entrada = ms[0]; salida = ms[ms.length - 1] }
+      else if (ms[0] < 12 * 60) entrada = ms[0]
+      else salida = ms[0]
+      const [a, mm, d] = fecha.split('-').map(Number)
+      const dow = new Date(a, mm - 1, d).getDay()
+      const festivo = festivosColombia(a).get(fecha)
+      const completo = entrada !== null && salida !== null
+      const dia = { fecha, entrada: hhmm(entrada), salida: hhmm(salida), marcas: ms.length, incompleto: !completo, extra: 0, recargo: 0 }
+      if (dow === 0 || festivo) {
+        dia.tipo = festivo ? 'festivo' : 'domingo'
+        if (festivo) dia.festivo = festivo
+        if (completo) dia.recargo = horasDeMinutos(salida - entrada)
+      } else if (dow === 6) {
+        dia.tipo = 'sabado'
+        if (completo) dia.extra = horasDeMinutos(salida - entrada)
+      } else {
+        dia.tipo = 'habil'
+        const salidaHorario = dow === 5 ? HORARIO.salidaV : HORARIO.salidaLJ
+        dia.temprano = entrada !== null ? horasDeMinutos(HORARIO.entrada - entrada) : 0
+        dia.tarde = salida !== null ? horasDeMinutos(salida - salidaHorario) : 0
+        dia.extra = dia.temprano + dia.tarde
+      }
+      dias.push(dia)
     }
+    resultado.push({
+      alias: p.alias, nombre: p.nombre, dias,
+      horas_extra: dias.reduce((t, x) => t + x.extra, 0),
+      horas_recargo: dias.reduce((t, x) => t + x.recargo, 0),
+      dias_trabajados: dias.filter(x => x.tipo === 'habil').length,
+      incompletos: dias.filter(x => x.incompleto).length,
+    })
   }
-  for (const m of movs || []) {
-    const operario = (m.motivo || '').replace(/^Mecanizado por:\s*/i, '')
-    sumar(operario, m.item_id, m.items?.nombre, 'mecanizado', num(m.cantidad))
-  }
-  return { error, grupos: [...grupos.values()].filter(g => g.cantidad > 0 || g.nc > 0) }
+  return resultado.sort((a, b) => a.nombre.localeCompare(b.nombre))
 }

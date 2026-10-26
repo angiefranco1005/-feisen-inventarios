@@ -732,7 +732,7 @@ export function exportarNominaQuincena({ titulo, filas }) {
     if (!grupo.length) continue
     const base = h.k === 'destajo' ? ['Piezas (cant.)', 'Valor piezas']
       : h.k === 'dia' ? ['Días', 'Valor día', 'Valor días'] : ['Valor fijo']
-    const headers = ['Nombre', 'Documento', ...base, 'Horas extra', 'Valor horas extra', 'Auxilio', 'Otros',
+    const headers = ['Nombre', 'Documento', ...base, 'Horas extra', 'Valor horas extra', 'Horas dom./fest.', 'Valor dom./fest. (100 %)', 'Auxilio', 'Otros',
       'Dto. tiempo o pieza dañada', 'Subsidio a SS', 'Total devengado', 'Seguridad', 'Anticipo', 'Dotación, herramienta',
       'Otras deducciones', 'Total deducciones', 'Total a pagar', 'Firma recibido']
     const datos = grupo.map(f => {
@@ -740,7 +740,8 @@ export function exportarNominaQuincena({ titulo, filas }) {
       const cols = h.k === 'destajo'
         ? [(f.piezas || []).reduce((t, p) => t + n(p.cantidad), 0), n(f.total_piezas)]
         : h.k === 'dia' ? [n(f.dias), n(f.valor_dia), n(f.dias) * n(f.valor_dia)] : [n(f.valor_fijo)]
-      return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.auxilio), suma(f.otros_devengos),
+      const recargo = n(f.horas_extra_recargo) * n(f.valor_hora_extra) * 2
+      return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.horas_extra_recargo), recargo, n(f.auxilio), suma(f.otros_devengos),
         n(f.descuento_tiempo_pieza), n(f.subsidio_ss), n(f.total_devengado), n(f.seguridad), n(f.anticipo),
         n(f.dotacion_herramienta), suma(f.otras_deducciones), n(f.total_deducciones), n(f.neto), '']
     })
@@ -750,6 +751,7 @@ export function exportarNominaQuincena({ titulo, filas }) {
     if (h.k === 'destajo') fmt[2] = '#,##0'
     if (h.k === 'dia') fmt[2] = 'General'   // días (admite medios días, p. ej. 13,5)
     fmt[2 + nBase] = 'General'              // horas extra
+    fmt[4 + nBase] = 'General'              // horas domingo/festivo
     const total = headers.map((_, c) => {
       if (c === 0) return `Totales (${grupo.length})`
       if (c === 1 || c === headers.length - 1) return ''
@@ -757,7 +759,7 @@ export function exportarNominaQuincena({ titulo, filas }) {
     })
     if (h.k === 'dia') total[3] = ''   // sumar valores de día no tiene sentido
     hojaTabla(wb, h.nombre, `Planilla de pago — ${h.nombre}`, titulo, headers, datos, {
-      anchos: [28, 14, ...base.map(() => 13), 10, 14, 12, 12, 14, 13, 15, 12, 12, 13, 13, 15, 15, 22],
+      anchos: [28, 14, ...base.map(() => 13), 10, 14, 10, 14, 12, 12, 14, 13, 15, 12, 12, 13, 13, 15, 15, 22],
       fmt, total,
     })
   }

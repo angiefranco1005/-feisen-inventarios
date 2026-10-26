@@ -1,11 +1,9 @@
-// Preparación de una quincena: carga de colaboradores, sugerencias de días y
-// piezas, y guardado de liquidaciones.
+// Preparación de una quincena: carga de colaboradores, sugerencia de días y
+// guardado de liquidaciones. Las piezas de destajo las ingresa RRHH a mano
+// (decisión de Angie, 2026-10-26: ya no se sugieren desde producción).
 import { supabase } from '../../../lib/supabase'
 import { fetchAllPages } from '../../../utils/fetchAllPages'
-import {
-  modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales,
-  produccionDeQuincena, emparejarAlias,
-} from './nominaCalculo'
+import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales } from './nominaCalculo'
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
@@ -15,33 +13,14 @@ const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Numb
 
 // Todo lo que hace falta para sugerir liquidaciones de una quincena
 export async function contextoQuincena(inicio, fin) {
-  const [{ data: empleados, error: e1 }, { data: novedades }, { data: tarifas }, { data: alias }, prod] = await Promise.all([
+  const [{ data: empleados, error: e1 }, { data: novedades }] = await Promise.all([
     supabase.from('empleados').select(CAMPOS_PAGO_EMPLEADO).order('nombres'),
     fetchAllPages((d, h) => supabase.from('novedades')
       .select('empleado_id, tipo, fecha_inicio, fecha_fin, por_horas, remunerado')
       .lte('fecha_inicio', fin).gte('fecha_fin', inicio).range(d, h)),
-    supabase.from('nomina_tarifas').select('id, item_id, descripcion, valor, activo, items(nombre)'),
-    supabase.from('nomina_alias').select('alias, empleado_id'),
-    produccionDeQuincena(inicio, fin),
   ])
   if (e1) throw new Error(e1.message)
-  const mapaAlias = new Map((alias || []).map(a => [a.alias, a.empleado_id]))
-  const tarifaPorItem = new Map((tarifas || []).filter(t => t.item_id && t.activo).map(t => [t.item_id, Number(t.valor)]))
-  const grupos = prod.grupos.map(g => ({ ...g, empleado_id: emparejarAlias(g.alias, empleados || [], mapaAlias) }))
-  return { empleados: empleados || [], novedades: novedades || [], tarifas: tarifas || [], tarifaPorItem, mapaAlias, grupos, errorProduccion: prod.error }
-}
-
-// Piezas de destajo sugeridas para una persona desde la producción
-export function piezasSugeridas(empleadoId, ctx) {
-  return ctx.grupos
-    .filter(g => g.empleado_id === empleadoId && g.cantidad > 0)
-    .map(g => ({
-      item_id: g.item_id,
-      descripcion: `${g.item_nombre}${g.origen === 'mecanizado' ? ' (mecanizado)' : ' (moldeo)'}`,
-      cantidad: g.cantidad,
-      valor_unitario: ctx.tarifaPorItem.get(g.item_id) ?? 0,
-      origen: g.origen,
-    }))
+  return { empleados: empleados || [], novedades: novedades || [] }
 }
 
 // Liquidación sugerida para una persona (sin guardar)
@@ -56,6 +35,7 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     dias: modalidad === 'dia' ? Math.max(0, laborales - ausente) : null,
     valor_dia: modalidad === 'dia' ? valorNum(emp.valor_dia) : null,
     horas_extra: null,
+    horas_extra_recargo: null,
     valor_hora_extra: valorNum(emp.valor_hora_extra),
     valor_fijo: modalidad === 'fijo' ? valorNum(emp.valor_quincena ?? (emp.salario_base ? Number(emp.salario_base) / 2 : null)) : null,
     auxilio: valorNum(emp.auxilio_quincenal),
@@ -68,8 +48,7 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     otras_deducciones: [],
     observaciones: ausente > 0 ? `${ausente} día${ausente === 1 ? '' : 's'} laboral${ausente === 1 ? '' : 'es'} con novedad en la quincena.` : null,
   }
-  const piezas = modalidad === 'destajo' ? piezasSugeridas(emp.id, ctx) : []
-  return { liq, piezas }
+  return { liq, piezas: [] }
 }
 
 // Crea la quincena con una liquidación sugerida por cada colaborador activo
@@ -109,6 +88,7 @@ export async function guardarLiquidacion(liqId, liq, piezas) {
     modalidad: liq.modalidad,
     dias: valorNum(liq.dias), valor_dia: valorNum(liq.valor_dia),
     horas_extra: valorNum(liq.horas_extra), valor_hora_extra: valorNum(liq.valor_hora_extra),
+    horas_extra_recargo: valorNum(liq.horas_extra_recargo),
     valor_fijo: valorNum(liq.valor_fijo), auxilio: valorNum(liq.auxilio), subsidio_ss: valorNum(liq.subsidio_ss),
     otros_devengos: (liq.otros_devengos || []).filter(o => o.concepto?.trim() || Number(o.valor)).map(o => ({ concepto: (o.concepto || '').trim(), valor: Number(o.valor) || 0 })),
     descuento_tiempo_pieza: valorNum(liq.descuento_tiempo_pieza),

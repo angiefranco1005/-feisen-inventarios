@@ -5,10 +5,12 @@ import { useAuth } from '../../../contexts/AuthContext'
 import { exportarNominaQuincena } from '../../../utils/exportExcel'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
-import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, Link2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas } from '../catalogosRRHH'
-import { MODALIDADES, diasLaborales, normalizarAlias, calcularTotales } from './nominaCalculo'
+import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
+import HuelleroQuincena from './HuelleroQuincena'
+import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, contextoQuincena, liquidacionSugerida, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
 // Planilla de una quincena: todas las personas con lo que se les paga
@@ -27,7 +29,6 @@ export default function PeriodoNomina() {
   const [busqueda,  setBusqueda]  = useState('')
   const [agregar,   setAgregar]   = useState('')
   const [trabajando, setTrabajando] = useState(false)
-  const [sinAsignar, setSinAsignar] = useState(null)   // producción cuyo operario no se reconoce
 
   useEffect(() => { cargar() }, [periodoId])
 
@@ -94,40 +95,15 @@ export default function PeriodoNomina() {
     }
   }
 
-  // Producción del periodo cuyo operario no corresponde a ninguna ficha
-  async function revisarProduccion() {
-    setTrabajando(true); setMsg(null)
-    try {
-      const ctx = await contextoQuincena(periodo.fecha_inicio, periodo.fecha_fin)
-      if (ctx.errorProduccion) setMsg({ tipo: 'alerta', texto: `No se pudo leer toda la producción: ${ctx.errorProduccion.message}` })
-      const m = new Map()
-      for (const g of ctx.grupos.filter(g => !g.empleado_id && g.cantidad > 0)) {
-        if (!m.has(g.alias)) m.set(g.alias, { alias: g.alias, nombre: g.nombre, piezas: 0 })
-        m.get(g.alias).piezas += g.cantidad
-      }
-      setSinAsignar([...m.values()])
-    } catch (err) {
-      setMsg({ tipo: 'error', texto: err.message })
-    }
-    setTrabajando(false)
-  }
-
-  async function vincular(alias, empleadoId) {
-    if (!empleadoId) return
-    const { error } = await supabase.from('nomina_alias').upsert({ alias: normalizarAlias(alias), empleado_id: empleadoId })
-    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
-    setSinAsignar(s => s.filter(x => x.alias !== alias))
-    setMsg({ tipo: 'exito', texto: `"${alias}" quedó vinculado a ${nombreCompleto(empPorId.get(empleadoId))}. Abre su liquidación y usa "Traer de producción" para sumar sus piezas.` })
-  }
-
+  const paraDocumentos = () => filas.map(l => ({
+    ...l, nombre: nombreCompleto(l.emp), documento: l.emp ? `${l.emp.tipo_documento || ''} ${l.emp.numero_documento || ''}`.trim() : '',
+    cargo: l.emp?.cargo, area: l.emp?.area, piezas: piezas.filter(p => p.liquidacion_id === l.id),
+  }))
   function exportar() {
-    exportarNominaQuincena({
-      titulo: nombreQuincena(periodo),
-      filas: filas.map(l => ({
-        ...l, nombre: nombreCompleto(l.emp), documento: l.emp ? `${l.emp.tipo_documento || ''} ${l.emp.numero_documento || ''}`.trim() : '',
-        piezas: piezas.filter(p => p.liquidacion_id === l.id),
-      })),
-    })
+    exportarNominaQuincena({ titulo: nombreQuincena(periodo), filas: paraDocumentos() })
+  }
+  function desprendibles() {
+    generarDesprendibles(paraDocumentos(), nombreQuincena(periodo), `desprendibles_${periodo.anio}_${String(periodo.mes).padStart(2, '0')}_q${periodo.quincena}`)
   }
 
   if (cargando) return <Spinner />
@@ -153,6 +129,9 @@ export default function PeriodoNomina() {
   }
   const sinValor = (l) => (l.modalidad === 'dia' && !Number(l.valor_dia)) || (l.modalidad === 'fijo' && !Number(l.valor_fijo))
     || (l.modalidad === 'destajo' && piezas.some(p => p.liquidacion_id === l.id && !Number(p.valor_unitario)))
+  // El huellero sugiere horas distintas a las que ya tiene la liquidación
+  const huelleroPendiente = (l) => l.huellero && (Number(l.huellero.horas_extra || 0) !== Number(l.horas_extra || 0)
+    || Number(l.huellero.horas_recargo || 0) !== Number(l.horas_extra_recargo || 0))
   const columnas = 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.5fr)_8rem_8rem_8rem_1rem]'
 
   return (
@@ -168,6 +147,9 @@ export default function PeriodoNomina() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={desprendibles} disabled={!filas.length} className={E.btnSecundario} title="Un PDF con el desprendible de cada persona de la vista">
+            <FileText {...E.ICONO} /> Desprendibles
+          </button>
           <button onClick={exportar} className={E.btnSecundario}><Download {...E.ICONO} /> Excel</button>
           <button onClick={cambiarEstado} className={cerrada ? E.btnSecundario : E.btnPrimario}>
             {cerrada ? <><Unlock {...E.ICONO} /> Reabrir</> : <><Lock {...E.ICONO} /> Cerrar quincena</>}
@@ -191,6 +173,8 @@ export default function PeriodoNomina() {
           </div>
         ))}
       </div>
+
+      <HuelleroQuincena periodo={periodo} liqs={liqs} empleados={empleados} cerrada={cerrada} onActualizado={cargar} />
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -232,6 +216,7 @@ export default function PeriodoNomina() {
                     </div>
                     <span className="hidden md:flex items-center gap-1.5 text-sm text-feisen-texto-2 truncate">
                       {detalle(l)}
+                      {huelleroPendiente(l) && <span title="El huellero sugiere horas extra distintas a las registradas" className="inline-flex items-center gap-0.5 text-xs text-feisen-azul"><Fingerprint size={12} strokeWidth={1.8} /> {(Number(l.huellero.horas_extra) + Number(l.huellero.horas_recargo)).toLocaleString('es-CO')} h</span>}
                       {sinValor(l) && <AlertTriangle size={13} strokeWidth={1.8} className="text-amber-500 flex-shrink-0" />}
                     </span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_devengado)}</span>
@@ -246,45 +231,18 @@ export default function PeriodoNomina() {
       </div>
       <p className="text-xs text-feisen-gris-medio flex items-center gap-1.5">
         <AlertTriangle size={12} strokeWidth={1.8} className="text-amber-500" /> Falta un valor (día, fijo o tarifa de alguna pieza): revísalo antes de cerrar.
+        <Fingerprint size={12} strokeWidth={1.8} className="text-feisen-azul ml-3" /> Horas que sugiere el huellero y aún no se han aplicado.
       </p>
 
       {!cerrada && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Agregar a alguien que no quedó en la quincena */}
-          <div className={E.tarjeta}>
-            <div className={E.cabTarjeta}><h2 className={E.tituloTarj}><UserPlus {...E.ICONO} className={E.iconoTitulo} /> Agregar persona</h2></div>
-            <div className="px-5 py-4 flex gap-2">
-              <select value={agregar} onChange={e => setAgregar(e.target.value)} className={`${E.input} flex-1`}>
-                <option value="">{fuera.length ? 'Seleccionar…' : 'Todos los activos ya están'}</option>
-                {fuera.map(e => <option key={e.id} value={e.id}>{nombreCompleto(e)}</option>)}
-              </select>
-              <button onClick={agregarPersona} disabled={!agregar || trabajando} className={E.btnPrimario}>Agregar</button>
-            </div>
-          </div>
-
-          {/* Producción cuyo operario no se reconoce */}
-          <div className={E.tarjeta}>
-            <div className={E.cabTarjeta}>
-              <h2 className={E.tituloTarj}><Link2 {...E.ICONO} className={E.iconoTitulo} /> Producción sin colaborador</h2>
-              <button onClick={revisarProduccion} disabled={trabajando} className={`${E.btnTextoAzul} -mr-2`}>{trabajando ? 'Revisando…' : 'Revisar'}</button>
-            </div>
-            <div className="px-5 py-3">
-              {sinAsignar === null
-                ? <p className="text-xs text-feisen-gris-medio">Busca nombres de moldeo o mecanizado de esta quincena que no coinciden con ninguna ficha, para vincularlos.</p>
-                : sinAsignar.length === 0
-                ? <p className="text-sm text-feisen-gris-medio">Toda la producción de la quincena tiene colaborador.</p>
-                : <div className="space-y-2">
-                    {sinAsignar.map(s => (
-                      <div key={s.alias} className="flex items-center gap-2">
-                        <span className="flex-1 min-w-0 text-sm text-feisen-texto truncate">{s.nombre} <span className="text-xs text-feisen-gris-medio">· {s.piezas.toLocaleString('es-CO')} piezas</span></span>
-                        <select defaultValue="" onChange={e => vincular(s.alias, e.target.value)} className={`${E.input} w-44`}>
-                          <option value="">Es…</option>
-                          {empleados.filter(e => e.estado !== 'retirado').map(e => <option key={e.id} value={e.id}>{nombreCompleto(e)}</option>)}
-                        </select>
-                      </div>
-                    ))}
-                  </div>}
-            </div>
+        <div className={E.tarjeta}>
+          <div className={E.cabTarjeta}><h2 className={E.tituloTarj}><UserPlus {...E.ICONO} className={E.iconoTitulo} /> Agregar persona</h2></div>
+          <div className="px-5 py-4 flex gap-2">
+            <select value={agregar} onChange={e => setAgregar(e.target.value)} className={`${E.input} flex-1`}>
+              <option value="">{fuera.length ? 'Seleccionar…' : 'Todos los activos ya están'}</option>
+              {fuera.map(e => <option key={e.id} value={e.id}>{nombreCompleto(e)}</option>)}
+            </select>
+            <button onClick={agregarPersona} disabled={!agregar || trabajando} className={E.btnPrimario}>Agregar</button>
           </div>
         </div>
       )}

@@ -1461,6 +1461,26 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   ordenes_moldeo_piezas, ordenes_moldeo_avances, movimientos y bodegas (políticas permisivas adicionales).
   **Pendientes nómina:** desprendible de pago en PDF por persona, cargar el histórico 2026 del Excel, y
   revisar qué columnas usa la planilla real de "Fijo" (había valores sumados a mano en fórmulas).
+- **Nómina: huellero, desprendible y destajo manual (2026-10-26, pedido de Angie):**
+  • **Destajo manual:** se quitó la sugerencia de piezas desde producción (moldeo/mecanizado); RRHH ingresa las
+    piezas y al escribir una pieza con tarifa el valor se llena solo. La migración
+    `2026-10-26_rrhh_nomina_huellero.sql` borra las piezas de origen moldeo/mecanizado de quincenas en borrador
+    y ajusta los totales guardados. Las políticas de lectura de producción para RRHH quedan sin uso.
+  • **Huellero:** RRHH sube el archivo (Excel/CSV con "Nombre" y "Fecha/Hora"; el real trae el nombre recortado
+    a ~14 letras, p. ej. "DAGOBERTO NEUT", y a veces la fecha como número de serie de Excel). Reglas de Angie:
+    L–J 7:30–17:30, V 7:30–16:00; temprano y tarde cuentan; desde 15 min = 0,5 h redondeado a la media hora
+    (`horasDeMinutos`, por tramo); sábado = extra normal; domingo/festivo = recargo 100 % (se paga al doble
+    del valor hora, columna `horas_extra_recargo`). Marcas repetidas a <3 min se unen; un día con una sola
+    marca queda "incompleto" (antes de 12:00 = entrada, si no = salida). El resultado se guarda como
+    SUGERENCIA en `nomina_liquidaciones.huellero` (no cambia lo pagado); RRHH verifica autorización y usa
+    "Aplicar horas extra" / "Usar N días". Nombres: `nomina_alias` ahora guarda nombres del huellero;
+    emparejamiento automático si todas las palabras coinciden y la última puede venir recortada (único).
+    CSV se lee con `raw: true` (si no, "01/10/2026" se interpretaba como 10 de enero).
+  • **Hallazgo:** comparado con la columna manual de su archivo NOM15OCTU (365 días-persona), la regla dicha
+    coincide en 167 y "solo medias horas completas hacia abajo" en 236; hay además turnos distintos (p. ej.
+    12:45–21:00) y extras no autorizadas. Se implementó la regla dicha; pendiente que Angie confirme.
+  • **Desprendible de pago** en PDF (`src/utils/desprendiblePagoPDF.js`): uno por persona desde la
+    liquidación o todos los de la vista desde la planilla; logo/NIT reutilizados de `exportOrdenCompraPDF.js`.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
