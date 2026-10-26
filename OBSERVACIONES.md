@@ -1363,6 +1363,9 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   (pago por días trabajados). `salario_base` se muestra como "Salario / honorarios" (para "al día" = valor
   del día). Se quitó el auxilio de transporte de la ficha (columna sin uso). Los valores de la fase 1
   ('Término indefinido', 'Obra o labor', etc.) se migraron en `2026-10-26_rrhh_tipos_contrato.sql`.
+- **Certificación bancaria en Pago (2026-10-26):** tarjeta en la sección Pago que muestra la más reciente de
+  `empleado_documentos` con `tipo='Certificación bancaria'` (sin tabla nueva). "Reemplazar" sube una nueva; las
+  anteriores quedan como historial en la pestaña Documentos.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

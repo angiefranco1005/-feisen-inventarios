@@ -327,6 +327,7 @@ export default function FichaEmpleado() {
                 onCancelar={() => { setEditando(null); setMsg(null) }}
                 onGuardar={(e) => guardar(e, b)} />
             ))}
+          {tab === 'pago' && <CertificacionBancaria empleadoId={id} perfilId={perfil?.id} />}
         </div>
       </div>
     </div>
@@ -464,6 +465,112 @@ function CampoEditable({ campo: c, valor, onChange, otros, form }) {
   )
 }
 
+// ─── Helpers de documentos (pestaña Documentos y certificación bancaria en Pago) ─
+async function subirDocumento(empleadoId, tipo, file, perfilId) {
+  const limpio = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '_')
+  const path = `${empleadoId}/docs/${Date.now()}-${limpio}`
+  const { error } = await supabase.storage.from(BUCKET_RRHH).upload(path, file)
+  if (error) throw new Error(error.message)
+  const { error: errIns } = await supabase.from('empleado_documentos')
+    .insert({ empleado_id: empleadoId, tipo, nombre: file.name, path, subido_por: perfilId })
+  if (errIns) {
+    await supabase.storage.from(BUCKET_RRHH).remove([path])
+    throw new Error(errIns.message)
+  }
+}
+
+async function abrirDocumento(d) {
+  // Se abre la pestaña antes del await para que el navegador no la bloquee
+  const ventana = window.open('', '_blank')
+  const { data, error } = await supabase.storage.from(BUCKET_RRHH).createSignedUrl(d.path, 300)
+  if (error || !data?.signedUrl) { ventana?.close(); throw new Error(error?.message || 'No se pudo abrir el archivo.') }
+  if (ventana) ventana.location.href = data.signedUrl
+  else window.location.href = data.signedUrl
+}
+
+const TIPO_CERT_BANCARIA = 'Certificación bancaria'
+
+// Tarjeta en la sección Pago: muestra la certificación bancaria más reciente.
+// Al reemplazarla, la anterior queda como historial en la pestaña Documentos.
+function CertificacionBancaria({ empleadoId, perfilId }) {
+  const input = useRef(null)
+  const [cert,     setCert]     = useState(null)
+  const [cargando, setCargando] = useState(true)
+  const [subiendo, setSubiendo] = useState(false)
+  const [msg,      setMsg]      = useState(null)
+
+  useEffect(() => { cargar() }, [empleadoId])
+
+  async function cargar() {
+    setCargando(true)
+    const { data, error } = await supabase.from('empleado_documentos')
+      .select('*, subido:profiles!empleado_documentos_subido_por_fkey(nombre)')
+      .eq('empleado_id', empleadoId).eq('tipo', TIPO_CERT_BANCARIA)
+      .order('created_at', { ascending: false }).limit(1)
+    if (error) setMsg({ tipo: 'error', texto: error.message })
+    setCert(data?.[0] || null)
+    setCargando(false)
+  }
+
+  async function subir(ev) {
+    const file = ev.target.files?.[0]
+    ev.target.value = ''
+    if (!file) return
+    setMsg(null); setSubiendo(true)
+    try {
+      await subirDocumento(empleadoId, TIPO_CERT_BANCARIA, file, perfilId)
+      setMsg({ tipo: 'exito', texto: 'Certificación bancaria cargada.' })
+      await cargar()
+    } catch (err) {
+      setMsg({ tipo: 'error', texto: `No se pudo subir: ${err.message}` })
+    }
+    setSubiendo(false)
+  }
+
+  async function abrir() {
+    try { await abrirDocumento(cert) } catch (err) { setMsg({ tipo: 'error', texto: err.message }) }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-feisen-borde">
+      <div className="px-5 py-3.5 border-b border-feisen-borde-suave">
+        <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
+          <FileText size={17} className="text-feisen-azul" /> Certificación bancaria
+        </h2>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+        {cargando ? <Spinner /> : (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {cert ? (
+              <button onClick={abrir} className="flex-1 min-w-0 flex items-center gap-3 text-left bg-feisen-fondo hover:bg-feisen-azul-suave rounded-lg px-4 py-3">
+                <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
+                  <FileText size={18} className="text-feisen-azul" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-feisen-texto truncate">{cert.nombre}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    Cargada el {new Date(cert.created_at).toLocaleDateString('es-CO')}{cert.subido?.nombre && ` · ${cert.subido.nombre}`}
+                  </p>
+                </div>
+                <ExternalLink size={16} className="text-gray-400 flex-shrink-0" />
+              </button>
+            ) : (
+              <p className="flex-1 text-sm text-gray-400">Aún no se ha cargado la certificación bancaria.</p>
+            )}
+            <button onClick={() => input.current?.click()} disabled={subiendo}
+              className="flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60 whitespace-nowrap">
+              <Upload size={16} /> {subiendo ? 'Subiendo...' : cert ? 'Reemplazar' : 'Subir certificación'}
+            </button>
+            <input ref={input} type="file" accept=".pdf,image/*" className="hidden" onChange={subir} />
+          </div>
+        )}
+        {cert && <p className="text-xs text-gray-400">Las certificaciones anteriores quedan en la pestaña Documentos.</p>}
+      </div>
+    </div>
+  )
+}
+
 // ─── Documentos adjuntos ─────────────────────────────────────────────────────
 function DocumentosEmpleado({ empleadoId, perfilId }) {
   const inputArchivo = useRef(null)
@@ -490,29 +597,18 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
     ev.target.value = ''
     if (!file) return
     setMsg(null); setSubiendo(true)
-    const limpio = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_')
-    const path = `${empleadoId}/docs/${Date.now()}-${limpio}`
-    const { error } = await supabase.storage.from(BUCKET_RRHH).upload(path, file)
-    if (error) { setMsg({ tipo: 'error', texto: error.message }); setSubiendo(false); return }
-    const { error: errIns } = await supabase.from('empleado_documentos')
-      .insert({ empleado_id: empleadoId, tipo, nombre: file.name, path, subido_por: perfilId })
-    if (errIns) {
-      await supabase.storage.from(BUCKET_RRHH).remove([path])
-      setMsg({ tipo: 'error', texto: errIns.message })
-    } else {
+    try {
+      await subirDocumento(empleadoId, tipo, file, perfilId)
       setMsg({ tipo: 'exito', texto: `${tipo}: "${file.name}" cargado.` })
       await cargar()
+    } catch (err) {
+      setMsg({ tipo: 'error', texto: err.message })
     }
     setSubiendo(false)
   }
 
   async function abrir(d) {
-    // Se abre la pestaña antes del await para que el navegador no la bloquee
-    const ventana = window.open('', '_blank')
-    const { data, error } = await supabase.storage.from(BUCKET_RRHH).createSignedUrl(d.path, 300)
-    if (error || !data?.signedUrl) { ventana?.close(); setMsg({ tipo: 'error', texto: error?.message || 'No se pudo abrir el archivo.' }); return }
-    if (ventana) ventana.location.href = data.signedUrl
-    else window.location.href = data.signedUrl
+    try { await abrirDocumento(d) } catch (err) { setMsg({ tipo: 'error', texto: err.message }) }
   }
 
   async function eliminar(d) {
