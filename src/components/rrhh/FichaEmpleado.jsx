@@ -15,8 +15,9 @@ import {
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato,
 } from './catalogosRRHH'
+import * as E from './estilos'
 
-const inputCls = 'w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul'
+const inputCls = E.input
 
 // Como en Buk: cada sección de la ficha se arma con tarjetas ("bloques"), y
 // cada tarjeta se edita por separado. El mismo arreglo de campos sirve para
@@ -137,6 +138,7 @@ export default function FichaEmpleado() {
   const navigate = useNavigate()
   const { perfil } = useAuth()
   const inputFoto = useRef(null)
+  const navRef = useRef(null)
 
   const [emp,         setEmp]         = useState(null)
   const [otros,       setOtros]       = useState([])   // para el selector de jefe
@@ -168,6 +170,11 @@ export default function FichaEmpleado() {
   }
 
   const seccion = SECCIONES.find(s => s.id === tab)
+
+  // En celular el menú de secciones es horizontal: mantener visible la activa
+  useEffect(() => {
+    navRef.current?.querySelector('[data-activo="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [tab])
 
   function cambiarTab(t) {
     if (editando) return
@@ -221,11 +228,15 @@ export default function FichaEmpleado() {
   }
 
   if (cargando) return <Spinner />
+  const volver = (
+    <button onClick={() => navigate('/rrhh/empleados')} className={`${E.btnTexto} -ml-2.5`}>
+      <ArrowLeft {...E.ICONO} /> Colaboradores
+    </button>
+  )
+
   if (!emp) return (
     <div className="max-w-6xl mx-auto space-y-4">
-      <button onClick={() => navigate('/rrhh/empleados')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-feisen-azul">
-        <ArrowLeft size={16} /> Colaboradores
-      </button>
+      {volver}
       <Alerta tipo="error" mensaje={errorCarga || 'No se encontró el colaborador.'} />
     </div>
   )
@@ -234,83 +245,78 @@ export default function FichaEmpleado() {
   const jefe = otros.find(o => o.id === emp.jefe_id)
   const diasFin = emp.estado !== 'retirado' ? diasParaVencer(emp.fecha_fin_contrato) : null
   const antig = tiempoDesde(emp.fecha_ingreso, emp.estado === 'retirado' ? emp.fecha_retiro : null)
+  const correo = emp.email_corporativo || emp.email_personal
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
-      <button onClick={() => navigate('/rrhh/empleados')} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-feisen-azul">
-        <ArrowLeft size={16} /> Colaboradores
-      </button>
+    <div className="max-w-6xl mx-auto space-y-4">
+      {volver}
 
-      {/* Encabezado tipo Buk: franja de color + foto grande */}
-      <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-        <div className="h-24 sm:h-28 bg-gradient-to-r from-feisen-azul to-feisen-azul-claro" />
-        <div className="px-5 lg:px-7 pb-5">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-14 sm:-mt-12">
-            <div className="flex flex-col items-center self-center sm:self-auto">
-              <button onClick={() => inputFoto.current?.click()} disabled={subiendoFoto} title="Cambiar foto"
-                className="relative w-28 h-28 rounded-full ring-4 ring-white bg-white group">
-                {fotoUrl
-                  ? <img src={fotoUrl} alt="" className="w-28 h-28 rounded-full object-cover" />
-                  : <div className="w-28 h-28 rounded-full bg-feisen-azul-suave flex items-center justify-center">
-                      <span className="font-bold text-feisen-azul text-4xl">{iniciales(emp)}</span>
-                    </div>}
-                <span className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Camera size={24} className="text-white" />
-                </span>
-                <span className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-feisen-azul ring-2 ring-white flex items-center justify-center">
-                  {subiendoFoto
-                    ? <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                    : <Camera size={15} className="text-white" />}
-                </span>
-              </button>
-              <button onClick={() => inputFoto.current?.click()} disabled={subiendoFoto}
-                className="mt-2 text-xs font-semibold text-feisen-azul hover:underline disabled:opacity-60">
-                {subiendoFoto ? 'Subiendo foto…' : fotoUrl ? 'Cambiar foto' : 'Subir foto'}
-              </button>
-              <input ref={inputFoto} type="file" accept="image/*" className="hidden" onChange={subirFoto} />
-            </div>
-
-            <div className="flex-1 min-w-0 text-center sm:text-left sm:pb-7">
-              <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-                <h1 className="text-2xl font-bold text-feisen-texto">{nombreCompleto(emp)}</h1>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${est.color}`}>{est.label}</span>
-              </div>
-              <p className="text-gray-600 mt-0.5">
-                {emp.cargo || 'Sin cargo'}{emp.area && <span className="text-gray-400"> · {emp.area}</span>}
-              </p>
-            </div>
+      {/* Encabezado */}
+      <div className={`${E.tarjeta} p-5`}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex flex-col items-center gap-1.5 self-center sm:self-auto">
+            <button onClick={() => inputFoto.current?.click()} disabled={subiendoFoto} title="Cambiar foto"
+              className="relative w-20 h-20 rounded-full group">
+              {fotoUrl
+                ? <img src={fotoUrl} alt="" className="w-20 h-20 rounded-full object-cover border border-feisen-borde-suave" />
+                : <div className="w-20 h-20 rounded-full bg-feisen-fondo border border-feisen-borde flex items-center justify-center">
+                    <span className="font-semibold text-feisen-texto-2 text-2xl">{iniciales(emp)}</span>
+                  </div>}
+              <span className="absolute inset-0 rounded-full bg-black/35 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                <Camera size={20} strokeWidth={1.8} className="text-white" />
+              </span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-white border border-feisen-borde flex items-center justify-center">
+                {subiendoFoto
+                  ? <span className="animate-spin h-3.5 w-3.5 border-2 border-feisen-azul border-t-transparent rounded-full" />
+                  : <Camera size={14} strokeWidth={1.8} className="text-feisen-texto-2" />}
+              </span>
+            </button>
+            <button onClick={() => inputFoto.current?.click()} disabled={subiendoFoto}
+              className="text-xs font-medium text-feisen-azul hover:underline disabled:opacity-60">
+              {subiendoFoto ? 'Subiendo…' : fotoUrl ? 'Cambiar foto' : 'Subir foto'}
+            </button>
+            <input ref={inputFoto} type="file" accept="image/*" className="hidden" onChange={subirFoto} />
           </div>
 
-          {msgFoto && <div className="mt-3"><Alerta tipo={msgFoto.tipo} mensaje={msgFoto.texto} /></div>}
-
-          {/* Datos rápidos */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5">
-            <DatoRapido icon={Contact} label="Documento" valor={`${emp.tipo_documento} ${emp.numero_documento}`} />
-            <DatoRapido icon={CalendarDays} label="Fecha de ingreso" valor={formatoFecha(emp.fecha_ingreso)} sub={antig} />
-            <DatoRapido icon={Smartphone} label="Celular" valor={emp.celular} href={emp.celular && `tel:${emp.celular}`} />
-            <DatoRapido icon={Mail} label="Correo" valor={emp.email_corporativo || emp.email_personal}
-              href={(emp.email_corporativo || emp.email_personal) && `mailto:${emp.email_corporativo || emp.email_personal}`} />
-          </div>
-
-          {diasFin !== null && diasFin <= 45 && (
-            <div className="mt-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-2.5 text-sm">
-              <AlertTriangle size={16} className="flex-shrink-0" />
-              {diasFin < 0
-                ? `El contrato venció el ${formatoFecha(emp.fecha_fin_contrato)} (hace ${-diasFin} días).`
-                : `El contrato (${emp.tipo_contrato}) vence el ${formatoFecha(emp.fecha_fin_contrato)} — faltan ${diasFin} días.`}
+          <div className="flex-1 min-w-0 text-center sm:text-left">
+            <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-start">
+              <h1 className={E.tituloPagina}>{nombreCompleto(emp)}</h1>
+              <span className="inline-flex items-center gap-1.5 text-xs text-feisen-texto-2 border border-feisen-borde rounded-full px-2 py-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${est.punto}`} /> {est.label}
+              </span>
             </div>
-          )}
+            <p className="text-sm text-feisen-texto-2 mt-0.5">
+              {emp.cargo || 'Sin cargo'}{emp.area && ` · ${emp.area}`}
+              <span className="text-feisen-gris-medio"> · {emp.codigo}</span>
+            </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-sm text-feisen-texto-2 justify-center sm:justify-start">
+              <DatoRapido icon={Contact} valor={`${emp.tipo_documento} ${emp.numero_documento}`} />
+              <DatoRapido icon={CalendarDays} valor={emp.fecha_ingreso && `Ingreso ${formatoFecha(emp.fecha_ingreso)}${antig ? ` · ${antig}` : ''}`} />
+              <DatoRapido icon={Smartphone} valor={emp.celular} href={emp.celular && `tel:${emp.celular}`} />
+              <DatoRapido icon={Mail} valor={correo} href={correo && `mailto:${correo}`} />
+            </div>
+          </div>
         </div>
+
+        {msgFoto && <div className="mt-4"><Alerta tipo={msgFoto.tipo} mensaje={msgFoto.texto} /></div>}
+
+        {diasFin !== null && diasFin <= 45 && (
+          <div className="mt-4 flex items-center gap-2 border border-amber-200 bg-amber-50 text-amber-800 rounded-lg px-3 py-2 text-sm">
+            <AlertTriangle {...E.ICONO} className="flex-shrink-0 text-amber-500" />
+            {diasFin < 0
+              ? `El contrato venció el ${formatoFecha(emp.fecha_fin_contrato)} (hace ${-diasFin} días).`
+              : `El contrato (${emp.tipo_contrato}) vence el ${formatoFecha(emp.fecha_fin_contrato)} — faltan ${diasFin} días.`}
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-5 items-start">
-        {/* Menú de secciones: vertical en escritorio, horizontal en celular */}
-        <nav className="w-full lg:w-60 flex-shrink-0 bg-white rounded-xl border border-feisen-borde p-1.5 flex lg:flex-col gap-1 overflow-x-auto lg:sticky lg:top-6">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* Menú de secciones: mismo estilo del menú lateral; horizontal en celular */}
+        <nav ref={navRef} className="w-full lg:w-52 flex-shrink-0 flex lg:flex-col gap-0.5 overflow-x-auto lg:sticky lg:top-6 -mx-1 px-1 lg:mx-0 lg:px-0">
           {SECCIONES.map(s => (
             <button key={s.id} onClick={() => cambiarTab(s.id)} disabled={!!editando && tab !== s.id}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap text-left transition-colors disabled:opacity-40
-                ${tab === s.id ? 'bg-feisen-azul-suave text-feisen-azul' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <s.icon size={17} /> {s.label}
+              data-activo={tab === s.id} className={E.navItem(tab === s.id)}>
+              <s.icon size={17} strokeWidth={tab === s.id ? 2.2 : 1.8} /> {s.label}
             </button>
           ))}
         </nav>
@@ -334,29 +340,23 @@ export default function FichaEmpleado() {
   )
 }
 
-function DatoRapido({ icon: Icon, label, valor, sub, href }) {
-  const contenido = (
-    <>
-      <p className="text-xs text-gray-400 flex items-center gap-1.5"><Icon size={13} /> {label}</p>
-      <p className={`text-sm font-medium truncate mt-0.5 ${valor ? 'text-feisen-texto' : 'text-gray-300'}`}>{valor || 'Sin registrar'}</p>
-      {sub && <p className="text-xs text-gray-400 truncate">{sub}</p>}
-    </>
-  )
-  const cls = 'block bg-feisen-fondo rounded-lg px-3.5 py-2.5 min-w-0'
-  return href ? <a href={href} className={`${cls} hover:bg-feisen-azul-suave`}>{contenido}</a> : <div className={cls}>{contenido}</div>
+function DatoRapido({ icon: Icon, valor, href }) {
+  if (!valor) return null
+  const contenido = <><Icon size={14} strokeWidth={1.8} className="text-feisen-gris-medio flex-shrink-0" /><span className="truncate">{valor}</span></>
+  const cls = 'inline-flex items-center gap-1.5 min-w-0'
+  return href ? <a href={href} className={`${cls} hover:text-feisen-azul`}>{contenido}</a> : <span className={cls}>{contenido}</span>
 }
 
 function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, guardando, msg, onEditar, onCancelar, onGuardar }) {
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-feisen-borde-suave">
-        <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
-          <bloque.icon size={17} className="text-feisen-azul" /> {bloque.titulo}
+    <div className={E.tarjeta}>
+      <div className={E.cabTarjeta}>
+        <h2 className={E.tituloTarj}>
+          <bloque.icon {...E.ICONO} className={E.iconoTitulo} /> {bloque.titulo}
         </h2>
         {!editando && (
-          <button onClick={onEditar} disabled={bloqueado}
-            className="flex items-center gap-1.5 text-sm font-semibold text-feisen-azul hover:bg-feisen-azul-suave px-3 py-1.5 rounded-lg disabled:opacity-30">
-            <Pencil size={14} /> Editar
+          <button onClick={onEditar} disabled={bloqueado} className={`${E.btnTexto} -mr-2`}>
+            <Pencil size={14} strokeWidth={1.8} /> Editar
           </button>
         )}
       </div>
@@ -373,17 +373,15 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
                   })} />
               ))}
             </div>
-            <div className="flex gap-3 justify-end pt-5">
-              <button type="button" onClick={onCancelar}
-                className="border border-feisen-borde rounded-xl px-5 py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={guardando}
-                className="bg-feisen-azul text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+            <div className="flex gap-2 justify-end pt-5">
+              <button type="button" onClick={onCancelar} className={E.btnSecundario}>Cancelar</button>
+              <button type="submit" disabled={guardando} className={E.btnPrimario}>
                 {guardando ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </form>
         ) : (
-          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3.5">
             {bloque.campos.map(c => {
               if (c.visible && !c.visible(emp)) return null
               const v = emp[c.k]
@@ -399,10 +397,10 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
               const extra = c.extra?.(emp) || (texto && typeof c.nota === 'function' ? c.nota(emp) : null)
               return (
                 <div key={c.k} className={c.full ? 'col-span-full' : ''}>
-                  <dt className="text-xs text-gray-400 mb-0.5">{c.label}</dt>
-                  <dd className={`text-sm whitespace-pre-line ${texto ? 'text-feisen-texto font-medium' : 'text-gray-300'}`}>
-                    {texto || 'Sin registrar'}
-                    {extra && <span className="block text-xs text-gray-400 font-normal">{extra}</span>}
+                  <dt className={`${E.etiqueta} mb-0.5`}>{c.label}</dt>
+                  <dd className={`text-sm whitespace-pre-line ${texto ? 'text-feisen-texto' : 'text-feisen-gris-medio/70'}`}>
+                    {texto || '—'}
+                    {extra && <span className="block text-xs text-feisen-gris-medio">{extra}</span>}
                   </dd>
                 </div>
               )
@@ -415,19 +413,19 @@ function Bloque({ bloque, emp, jefe, otros, editando, bloqueado, form, setForm, 
 }
 
 function CampoEditable({ campo: c, valor, onChange, otros, form }) {
-  const label = <label className="text-sm font-medium text-gray-700 block mb-1">{c.label}{c.req && ' *'}</label>
+  const label = <label className={E.labelForm}>{c.label}{c.req && ' *'}</label>
   const nota = typeof c.nota === 'function' ? c.nota(form) : c.nota
   const wrap = (input) => (
     <div className={c.full ? 'col-span-full' : ''}>
       {label}{input}
-      {nota && <p className="text-xs text-gray-400 mt-1">{nota}</p>}
+      {nota && <p className="text-xs text-feisen-gris-medio mt-1">{nota}</p>}
     </div>
   )
 
   if (c.tipo === 'bool') return (
-    <label className="flex items-center gap-3 border border-feisen-borde rounded-xl px-4 py-2.5 self-end cursor-pointer">
+    <label className="flex items-center gap-2.5 border border-feisen-borde rounded-lg px-3 py-2 self-end cursor-pointer">
       <input type="checkbox" checked={!!valor} onChange={e => onChange(e.target.checked)} className="w-4 h-4 accent-feisen-azul" />
-      <span className="text-sm text-gray-700">{c.label}</span>
+      <span className="text-sm text-feisen-texto">{c.label}</span>
     </label>
   )
   if (c.tipo === 'select') return wrap(
@@ -450,9 +448,9 @@ function CampoEditable({ campo: c, valor, onChange, otros, form }) {
   )
   if (c.tipo === 'money') return wrap(
     <div className="relative">
-      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-feisen-gris-medio">$</span>
       <input inputMode="numeric" value={valor === null || valor === '' ? '' : Number(String(valor).replace(/[^\d]/g, '')).toLocaleString('es-CO')}
-        onChange={e => onChange(e.target.value.replace(/[^\d]/g, ''))} className={`${inputCls} pl-8`} />
+        onChange={e => onChange(e.target.value.replace(/[^\d]/g, ''))} className={`${inputCls} pl-7`} />
     </div>
   )
   if (c.tipo === 'number') return wrap(
@@ -532,10 +530,10 @@ function CertificacionBancaria({ empleadoId, perfilId }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde">
-      <div className="px-5 py-3.5 border-b border-feisen-borde-suave">
-        <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
-          <FileText size={17} className="text-feisen-azul" /> Certificación bancaria
+    <div className={E.tarjeta}>
+      <div className={E.cabTarjeta}>
+        <h2 className={E.tituloTarj}>
+          <FileText {...E.ICONO} className={E.iconoTitulo} /> Certificación bancaria
         </h2>
       </div>
       <div className="px-5 py-4 space-y-3">
@@ -543,29 +541,27 @@ function CertificacionBancaria({ empleadoId, perfilId }) {
         {cargando ? <Spinner /> : (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             {cert ? (
-              <button onClick={abrir} className="flex-1 min-w-0 flex items-center gap-3 text-left bg-feisen-fondo hover:bg-feisen-azul-suave rounded-lg px-4 py-3">
-                <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
-                  <FileText size={18} className="text-feisen-azul" />
-                </div>
+              <button onClick={abrir} className="flex-1 min-w-0 flex items-center gap-3 text-left border border-feisen-borde-suave hover:bg-feisen-fondo rounded-lg px-3 py-2.5">
+                <FileText {...E.ICONO} className="text-feisen-gris-medio flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-feisen-texto truncate">{cert.nombre}</p>
-                  <p className="text-xs text-gray-400 truncate">
+                  <p className="text-xs text-feisen-gris-medio truncate">
                     Cargada el {new Date(cert.created_at).toLocaleDateString('es-CO')}{cert.subido?.nombre && ` · ${cert.subido.nombre}`}
                   </p>
                 </div>
-                <ExternalLink size={16} className="text-gray-400 flex-shrink-0" />
+                <ExternalLink size={15} strokeWidth={1.8} className="text-feisen-gris-medio flex-shrink-0" />
               </button>
             ) : (
-              <p className="flex-1 text-sm text-gray-400">Aún no se ha cargado la certificación bancaria.</p>
+              <p className="flex-1 text-sm text-feisen-gris-medio">Aún no se ha cargado la certificación bancaria.</p>
             )}
             <button onClick={() => input.current?.click()} disabled={subiendo}
-              className="flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60 whitespace-nowrap">
-              <Upload size={16} /> {subiendo ? 'Subiendo...' : cert ? 'Reemplazar' : 'Subir certificación'}
+              className={`${cert ? E.btnSecundario : E.btnPrimario} whitespace-nowrap`}>
+              <Upload {...E.ICONO} /> {subiendo ? 'Subiendo...' : cert ? 'Reemplazar' : 'Subir certificación'}
             </button>
             <input ref={input} type="file" accept=".pdf,image/*" className="hidden" onChange={subir} />
           </div>
         )}
-        {cert && <p className="text-xs text-gray-400">Las certificaciones anteriores quedan en la pestaña Documentos.</p>}
+        {cert && <p className="text-xs text-feisen-gris-medio">Las certificaciones anteriores quedan en la pestaña Documentos.</p>}
       </div>
     </div>
   )
@@ -636,20 +632,20 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
 
   const filaArchivo = (d, conTipo = false) => (
     <div key={d.id} className="flex items-center gap-3 px-3 py-2">
-      <FileText size={16} className="text-feisen-azul flex-shrink-0" />
+      <FileText size={15} strokeWidth={1.8} className="text-feisen-gris-medio flex-shrink-0" />
       <button onClick={() => abrir(d)} className="flex-1 min-w-0 text-left group">
         <p className="text-sm text-feisen-texto truncate group-hover:text-feisen-azul group-hover:underline">
           {conTipo && <span className="font-medium">{d.tipo} · </span>}{d.nombre}
         </p>
-        <p className="text-xs text-gray-400 truncate">
+        <p className="text-xs text-feisen-gris-medio truncate">
           {new Date(d.created_at).toLocaleDateString('es-CO')}{d.subido?.nombre && ` · ${d.subido.nombre}`}
         </p>
       </button>
-      <button onClick={() => abrir(d)} title="Ver" className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-feisen-azul-suave rounded-lg">
-        <ExternalLink size={15} />
+      <button onClick={() => abrir(d)} title="Ver" className="p-1.5 text-feisen-gris-medio hover:text-feisen-texto hover:bg-feisen-fondo rounded-lg">
+        <ExternalLink size={15} strokeWidth={1.8} />
       </button>
-      <button onClick={() => eliminar(d)} title="Eliminar" className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-feisen-rojo-suave rounded-lg">
-        <Trash2 size={15} />
+      <button onClick={() => eliminar(d)} title="Eliminar" className="p-1.5 text-feisen-gris-medio hover:text-feisen-rojo hover:bg-feisen-rojo-suave rounded-lg">
+        <Trash2 size={15} strokeWidth={1.8} />
       </button>
     </div>
   )
@@ -659,17 +655,17 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
       <input ref={inputArchivo} type="file" multiple accept=".pdf,image/*,.doc,.docx" className="hidden" onChange={subir} />
 
       {/* Checklist de documentos de ingreso */}
-      <div className="bg-white rounded-xl border border-feisen-borde">
-        <div className="px-5 py-4 border-b border-feisen-borde-suave">
+      <div className={E.tarjeta}>
+        <div className="px-5 py-3 border-b border-feisen-borde-suave">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
-              <FolderOpen size={17} className="text-feisen-azul" /> Documentos de ingreso
+            <h2 className={E.tituloTarj}>
+              <FolderOpen {...E.ICONO} className={E.iconoTitulo} /> Documentos de ingreso
             </h2>
-            <span className={`text-sm font-semibold ${completos === total ? 'text-green-600' : 'text-gray-500'}`}>
+            <span className={`text-xs font-medium ${completos === total ? 'text-green-600' : 'text-feisen-texto-2'}`}>
               {completos} de {total}{completos === total && ' · Completo'}
             </span>
           </div>
-          <div className="mt-3 h-2 rounded-full bg-feisen-fondo overflow-hidden">
+          <div className="mt-2.5 h-1 rounded-full bg-feisen-borde-suave overflow-hidden">
             <div className={`h-full rounded-full transition-all ${completos === total ? 'bg-green-500' : 'bg-feisen-azul'}`}
               style={{ width: `${(completos / total) * 100}%` }} />
           </div>
@@ -685,32 +681,31 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
               const expandido = abierto === t && ok
               return (
                 <div key={t}>
-                  <div className="flex items-center gap-3 px-5 py-3">
+                  <div className="flex items-center gap-3 px-5 py-2.5 hover:bg-feisen-fondo/60">
                     <button onClick={() => ok && setAbierto(expandido ? null : t)} disabled={!ok}
                       className="flex-1 min-w-0 flex items-center gap-3 text-left">
                       {ok
-                        ? <CheckCircle2 size={22} className="text-green-500 flex-shrink-0" />
-                        : <Circle size={22} className="text-gray-300 flex-shrink-0" />}
+                        ? <CheckCircle2 size={18} strokeWidth={2} className="text-green-500 flex-shrink-0" />
+                        : <Circle size={18} strokeWidth={1.6} className="text-feisen-borde flex-shrink-0" />}
                       <div className="min-w-0">
-                        <p className={`text-sm font-medium truncate ${ok ? 'text-feisen-texto' : 'text-gray-600'}`}>{t}</p>
-                        <p className={`text-xs truncate ${ok ? 'text-gray-400' : 'text-amber-600'}`}>
+                        <p className={`text-sm truncate ${ok ? 'text-feisen-texto' : 'text-feisen-texto-2'}`}>{t}</p>
+                        <p className={`text-xs truncate ${ok ? 'text-feisen-gris-medio' : 'text-amber-600'}`}>
                           {ok
                             ? `${archivos.length} archivo${archivos.length > 1 ? 's' : ''} · ${new Date(archivos[0].created_at).toLocaleDateString('es-CO')}`
                             : 'Pendiente'}
                         </p>
                       </div>
-                      {ok && <ChevronDown size={16} className={`text-gray-400 flex-shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} />}
+                      {ok && <ChevronDown size={15} strokeWidth={1.8} className={`text-feisen-gris-medio flex-shrink-0 transition-transform ${expandido ? 'rotate-180' : ''}`} />}
                     </button>
                     <button onClick={() => elegirArchivo(t)} disabled={!!subiendo}
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold whitespace-nowrap disabled:opacity-50
-                        ${ok ? 'text-feisen-azul hover:bg-feisen-azul-suave' : 'bg-feisen-azul text-white hover:bg-feisen-azul-claro'}`}>
+                      className={`${ok ? E.btnTexto : E.btnTextoAzul} -mr-2.5`}>
                       {subiendo === t
                         ? <><span className="animate-spin h-3.5 w-3.5 border-2 border-current border-t-transparent rounded-full" /> Subiendo…</>
-                        : ok ? <><Plus size={15} /> Agregar</> : <><Upload size={15} /> Subir</>}
+                        : ok ? <><Plus size={14} strokeWidth={1.8} /> Agregar</> : <><Upload size={14} strokeWidth={1.8} /> Subir</>}
                     </button>
                   </div>
                   {expandido && (
-                    <div className="mx-5 mb-3 ml-14 border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave">
+                    <div className="mx-5 mb-3 ml-12 border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave">
                       {archivos.map(d => filaArchivo(d))}
                     </div>
                   )}
@@ -722,24 +717,24 @@ function DocumentosEmpleado({ empleadoId, perfilId }) {
       </div>
 
       {/* Otros documentos (fuera del checklist) */}
-      <div className="bg-white rounded-xl border border-feisen-borde">
-        <div className="px-5 py-3.5 border-b border-feisen-borde-suave">
-          <h2 className="font-semibold text-feisen-texto flex items-center gap-2">
-            <FileText size={17} className="text-feisen-azul" /> Otros documentos
+      <div className={E.tarjeta}>
+        <div className={E.cabTarjeta}>
+          <h2 className={E.tituloTarj}>
+            <FileText {...E.ICONO} className={E.iconoTitulo} /> Otros documentos
           </h2>
         </div>
         <div className="px-5 py-4 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             <select value={tipoOtro} onChange={e => setTipoOtro(e.target.value)} className={`${inputCls} sm:flex-1`}>
               {OTROS_DOCUMENTOS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <button onClick={() => elegirArchivo(tipoOtro)} disabled={!!subiendo}
-              className="flex items-center justify-center gap-2 border border-feisen-borde text-feisen-azul rounded-xl px-5 py-2.5 text-sm font-semibold hover:bg-feisen-azul-suave disabled:opacity-60">
-              <Upload size={16} /> {subiendo && !DOCUMENTOS_REQUERIDOS.includes(subiendo) ? 'Subiendo...' : 'Subir archivo'}
+              className={E.btnSecundario}>
+              <Upload {...E.ICONO} /> {subiendo && !DOCUMENTOS_REQUERIDOS.includes(subiendo) ? 'Subiendo...' : 'Subir archivo'}
             </button>
           </div>
           {!cargando && (otros.length === 0
-            ? <p className="text-sm text-gray-400">No hay otros documentos.</p>
+            ? <p className="text-sm text-feisen-gris-medio">No hay otros documentos.</p>
             : <div className="border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave">
                 {otros.map(d => filaArchivo(d, true))}
               </div>)}

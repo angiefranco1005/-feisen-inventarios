@@ -1374,6 +1374,11 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   `2026-10-26_rrhh_checklist_documentos.sql` (opcional: sin ella esos archivos solo salen en "Otros").
   Gotcha: el tipo del archivo a subir se guarda en un `useRef`, no en estado, porque se lee en el `onChange`
   del input de archivo compartido.
+- **Estética limpia (2026-10-26, pedido de Angie):** el módulo sigue el estilo del menú lateral (Layout.jsx):
+  sin franja de color ni bloques de color, íconos grises finos (`strokeWidth 1.8`), texto compacto, estados
+  con punto de color, botones `rounded-lg` y el azul suave solo para lo activo. Las clases están centralizadas
+  en `src/components/rrhh/estilos.js` (cambiar ahí cambia todo el módulo). En celular el menú de secciones de
+  la ficha es horizontal y se desplaza solo hasta la sección activa.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

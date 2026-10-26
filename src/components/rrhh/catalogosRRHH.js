@@ -73,9 +73,9 @@ export const DOCUMENTOS_REQUERIDOS = [
 export const OTROS_DOCUMENTOS = ['Otrosí', 'Hoja de vida', 'Certificación bancaria', 'Otro']
 
 export const ESTADOS_EMPLEADO = {
-  activo:   { label: 'Activo',   color: 'bg-green-100 text-green-700' },
-  licencia: { label: 'Licencia', color: 'bg-amber-100 text-amber-700' },
-  retirado: { label: 'Retirado', color: 'bg-gray-100 text-gray-500' },
+  activo:   { label: 'Activo',   punto: 'bg-green-500' },
+  licencia: { label: 'Licencia', punto: 'bg-amber-500' },
+  retirado: { label: 'Retirado', punto: 'bg-gray-300' },
 }
 
 export function nombreCompleto(e) {
