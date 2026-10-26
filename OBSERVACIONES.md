@@ -1377,3 +1377,10 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
+
+### 2026-10-26 — Menú del Admin por módulos
+- Decisión de Angie: el Admin navega por módulos desplegables en el menú lateral (no una pantalla de tarjetas). Arriba quedan Inicio y Analítica general; abajo, separada, Configuración.
+- Reparto: **Inventarios** (Productos, Movimiento, Historial, Inventario físico, Kardex, Corte de inventario) · **Logística** (Pedidos, Órdenes de compra) · **Mecanizados** (Registro, Paquetes) · **Fundición** (Fundidas, Moldeo, Recogida, BOM, Nómina, Analítica, Balance de hierro, Ventas internas) · **Recursos Humanos** (Colaboradores) · **Calidad** (No conformidades). El grupo "Catálogos" desapareció.
+- Cómo se arma (`Layout.jsx`): en `NAV_ADMIN` cada ítem lleva `modulo: '<Nombre>'` (el ícono del módulo está en `MODULOS`); `abajo: true` lo manda al final. Para sumar un submódulo nuevo basta agregar la línea con su `modulo`. Al entrar a una pantalla se abre solo su módulo.
+- Ítem activo: coincidencia exacta, o subruta (`/fundidas/nueva`, `/rrhh/empleados/:id`) si ningún otro ítem coincide exacto — así `/analitica/fundicion` no marca también Analítica general.
+- El hub `/reportes` (Informes) ya no está en el menú del Admin: sus informes quedaron repartidos en Inventarios y Fundición; la ruta sigue existiendo.

@@ -1,26 +1,48 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
 import logoFeisen from '../../assets/logo-feisen.png'
 
+// Admin: menú por módulos de la empresa. Cada `modulo` se muestra desplegable con sus
+// submódulos; `abajo` va al final, separado (Configuración).
+const MODULOS = {
+  'Inventarios':      Warehouse,
+  'Logística':        Truck,
+  'Mecanizados':      Wrench,
+  'Fundición':        Flame,
+  'Recursos Humanos': HardHat,
+  'Calidad':          ShieldAlert,
+}
+
 const NAV_ADMIN = [
-  { to: '/dashboard',             icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/analitica',             icon: Activity,        label: 'Analítica' },
-  { to: '/productos',             icon: Package,         label: 'Productos' },
-  { to: '/movimientos',           icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',     icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/pedidos',               icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/ordenes-compra',        icon: FileText,         label: 'Órdenes de compra' },
-  { to: '/calidad',               icon: ShieldAlert,      label: 'Calidad' },
-  { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
-  { to: '/rrhh/empleados',        icon: Users,            label: 'Colaboradores' },
-  { to: '/mecanizados/paquetes',  icon: Boxes,           label: 'Paquetes',      grupo: 'Catálogos' },
-  { to: '/config',                icon: Settings,         label: 'Configuración', grupo: 'Catálogos' },
+  { to: '/dashboard',                         icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/analitica',                         icon: Activity,        label: 'Analítica' },
+  { to: '/productos',                         icon: Package,         label: 'Productos',          modulo: 'Inventarios' },
+  { to: '/movimientos/nuevo',                 icon: ArrowUpDown,     label: 'Movimiento',         modulo: 'Inventarios' },
+  { to: '/movimientos',                       icon: BarChart2,       label: 'Historial',          modulo: 'Inventarios' },
+  { to: '/reportes/inventario-fisico',        icon: ClipboardCheck,  label: 'Inventario físico',  modulo: 'Inventarios' },
+  { to: '/reportes/kardex',                   icon: FileSpreadsheet, label: 'Kardex',             modulo: 'Inventarios' },
+  { to: '/reportes/corte',                    icon: CalendarDays,    label: 'Corte de inventario', modulo: 'Inventarios' },
+  { to: '/pedidos',                           icon: ShoppingCart,    label: 'Pedidos',            modulo: 'Logística' },
+  { to: '/ordenes-compra',                    icon: FileText,        label: 'Órdenes de compra',  modulo: 'Logística' },
+  { to: '/mecanizados/registro',              icon: Wrench,          label: 'Registro',           modulo: 'Mecanizados' },
+  { to: '/mecanizados/paquetes',              icon: Boxes,           label: 'Paquetes',           modulo: 'Mecanizados' },
+  { to: '/fundidas',                          icon: Flame,           label: 'Fundidas',           modulo: 'Fundición' },
+  { to: '/moldeo',                            icon: Layers,          label: 'Moldeo',             modulo: 'Fundición' },
+  { to: '/recogida',                          icon: PackageCheck,    label: 'Recogida',           modulo: 'Fundición' },
+  { to: '/moldeo/catalogo',                   icon: Factory,         label: 'BOM',                modulo: 'Fundición' },
+  { to: '/nomina/fundicion',                  icon: FileSpreadsheet, label: 'Nómina',             modulo: 'Fundición' },
+  { to: '/analitica/fundicion',               icon: Activity,        label: 'Analítica',          modulo: 'Fundición' },
+  { to: '/reportes/balance-hierro',           icon: Scale,           label: 'Balance de hierro',  modulo: 'Fundición' },
+  { to: '/reportes/ventas-internas-fundicion', icon: Receipt,        label: 'Ventas internas',    modulo: 'Fundición' },
+  { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
+  { to: '/calidad',                           icon: ShieldAlert,     label: 'No conformidades',   modulo: 'Calidad' },
+  { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
 
 const NAV_LOGISTICA = [
@@ -179,35 +201,73 @@ export default function Layout({ children }) {
     setTimeout(() => { setModalPwd(false); setMsgPwd(null) }, 1500)
   }
 
-  const NavLink = ({ item }) => {
-    const activo = item.to.includes('?')
-      ? location.pathname + location.search === item.to
-      : item.to === '/reportes'
-        ? location.pathname.startsWith('/reportes')
-        : item.to === '/analitica'
-        ? location.pathname.startsWith('/analitica')
-        : item.to === '/rrhh/empleados'
-        ? location.pathname.startsWith('/rrhh/empleados')
-        : location.pathname === item.to
+  // Activo: coincidencia exacta, o subruta (/fundidas/nueva, /rrhh/empleados/:id…) siempre que
+  // ningún otro ítem del menú coincida exacto (así /analitica/fundicion no marca Analítica general)
+  const esActivo = (to) => {
+    const ruta = location.pathname
+    if (to.includes('?')) return ruta + location.search === to
+    if (ruta === to) return true
+    if (to === '/reportes' && ruta.startsWith('/reportes')) return true
+    return ruta.startsWith(to + '/') && !navItems.some(i => i.to === ruta)
+  }
+  const moduloActual = navItems.find(i => i.modulo && esActivo(i.to))?.modulo
+  const [modulosAbiertos, setModulosAbiertos] = useState(() => new Set(moduloActual ? [moduloActual] : []))
+  const toggleModulo = (m) => setModulosAbiertos(prev => {
+    const n = new Set(prev)
+    n.has(m) ? n.delete(m) : n.add(m)
+    return n
+  })
+
+  const NavLink = ({ item, sub }) => {
+    const activo = esActivo(item.to)
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
-        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm
+        className={`flex items-center gap-2.5 ${sub ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'} rounded-lg transition-colors text-sm
           ${activo
             ? 'bg-feisen-azul-suave text-feisen-azul font-semibold'
             : 'text-feisen-texto-2 font-medium hover:bg-white hover:text-feisen-texto'}`}>
-        <item.icon size={17} strokeWidth={activo ? 2.2 : 1.8} />
+        {!sub && <item.icon size={17} strokeWidth={activo ? 2.2 : 1.8} />}
         <span>{item.label}</span>
       </Link>
     )
   }
 
-  // Ítems sin grupo arriba; los agrupados (Fundición, Catálogos) debajo con su título
-  const grupos = [...new Set(navItems.filter(i => i.grupo).map(i => i.grupo))]
+  // Ítems sueltos arriba; luego los módulos desplegables (Admin); luego los agrupados con título
+  // (Fundición del Jefe de Fundición); al final los `abajo` (Configuración)
+  const grupos  = [...new Set(navItems.filter(i => i.grupo).map(i => i.grupo))]
+  const modulos = [...new Set(navItems.filter(i => i.modulo).map(i => i.modulo))]
+  const abajo   = navItems.filter(i => i.abajo)
   const MenuNav = () => (
     <>
       <div className="space-y-0.5">
-        {navItems.filter(i => !i.grupo).map(item => <NavLink key={item.to} item={item} />)}
+        {navItems.filter(i => !i.grupo && !i.modulo && !i.abajo).map(item => <NavLink key={item.to} item={item} />)}
       </div>
+      {modulos.length > 0 && (
+        <div className="pt-4 space-y-0.5">
+          <p className="text-[11px] font-medium text-feisen-gris-medio px-3 pb-1.5">Módulos</p>
+          {modulos.map(m => {
+            const Icono   = MODULOS[m] || Package
+            const abierto = modulosAbiertos.has(m)
+            const tieneActivo = m === moduloActual
+            return (
+              <div key={m}>
+                <button type="button" onClick={() => toggleModulo(m)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium
+                    ${tieneActivo && !abierto ? 'text-feisen-azul' : 'text-feisen-texto-2 hover:bg-white hover:text-feisen-texto'}`}>
+                  <Icono size={17} strokeWidth={1.8} />
+                  <span className="flex-1 text-left">{m}</span>
+                  {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </button>
+                {abierto && (
+                  <div className="space-y-0.5 mt-0.5 mb-1">
+                    {navItems.filter(i => i.modulo === m).map(item => <NavLink key={item.to} item={item} sub />)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
       {grupos.map(g => (
         <div key={g}>
           <p className="text-[11px] font-medium text-feisen-gris-medio px-3 pt-5 pb-1.5">{g}</p>
@@ -216,6 +276,11 @@ export default function Layout({ children }) {
           </div>
         </div>
       ))}
+      {abajo.length > 0 && (
+        <div className="border-t border-feisen-borde mt-4 pt-3 space-y-0.5">
+          {abajo.map(item => <NavLink key={item.to} item={item} />)}
+        </div>
+      )}
     </>
   )
 
