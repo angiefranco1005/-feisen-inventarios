@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
                 <div className="relative">
                   <input type={mostrar ? 'text' : 'password'} value={password}
                     onChange={e => setPassword(e.target.value)} required
-                    className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul pr-12"
+                    className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul pr-12"
                     placeholder="••••••••" />
                   <button type="button" onClick={() => setMostrar(v => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio">
@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
               <div>
                 <label className="block text-sm font-medium text-feisen-gris-oscuro mb-1">Confirmar contraseña</label>
                 <input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)} required
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="••••••••" />
               </div>
               {error && (

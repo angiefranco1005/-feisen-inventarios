@@ -190,13 +190,13 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
                           <label className="text-xs text-gray-500 block mb-0.5">Cantidad en esta orden</label>
                           <input type="number" step="0.001" min="0" value={sel.cantidad}
                             onChange={e => actualizarLinea(it.id, 'cantidad', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm" />
+                            className="w-full border border-feisen-borde rounded-lg px-2.5 py-1.5 text-sm" />
                         </div>
                         <div className="flex-1">
                           <label className="text-xs text-gray-500 block mb-0.5">Precio unitario</label>
                           <input type="number" step="0.01" min="0" value={sel.precio}
                             onChange={e => actualizarLinea(it.id, 'precio', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm" />
+                            className="w-full border border-feisen-borde rounded-lg px-2.5 py-1.5 text-sm" />
                         </div>
                       </div>
                     )}
@@ -212,7 +212,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
             {!nuevoProveedor ? (
               <div className="space-y-2">
                 <select value={proveedorId} onChange={e => setProveedorId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm bg-white">
                   <option value="">Selecciona un proveedor...</option>
                   {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                 </select>
@@ -222,15 +222,15 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
             ) : (
               <div className="space-y-2">
                 <input placeholder="Nombre del proveedor *" value={npNombre} onChange={e => setNpNombre(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
                 <div className="flex gap-2">
                   <input placeholder="NIT" value={npNit} onChange={e => setNpNit(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
+                    className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
                   <input placeholder="Teléfono" value={npTelefono} onChange={e => setNpTelefono(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
+                    className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <input placeholder="Contacto" value={npContacto} onChange={e => setNpContacto(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
                 <button type="button" onClick={() => setNuevoProveedor(false)}
                   className="text-xs text-gray-500 font-medium">Usar un proveedor ya guardado</button>
               </div>
@@ -240,7 +240,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
           <div>
             <label className="text-xs text-gray-500 block mb-0.5">Observaciones (opcional)</label>
             <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)} rows={2}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
           </div>
 
           <div className="flex items-center justify-between border-t pt-4">

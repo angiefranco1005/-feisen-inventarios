@@ -115,7 +115,7 @@ export default function Reportes() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-2xl p-1.5 shadow-sm overflow-x-auto">
+      <div className="flex gap-1 bg-white rounded-xl p-1.5 overflow-x-auto border border-feisen-borde">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors
@@ -132,19 +132,19 @@ export default function Reportes() {
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-feisen-gris-oscuro">Desde:</label>
             <input type="date" value={filtroFecha.desde} onChange={e => setFiltroFecha(f => ({ ...f, desde: e.target.value }))}
-              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-feisen-gris-oscuro">Hasta:</label>
             <input type="date" value={filtroFecha.hasta} onChange={e => setFiltroFecha(f => ({ ...f, hasta: e.target.value }))}
-              className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
         </div>
       )}
 
       {(tab === 'stock' || tab === 'stock_bajo' || tab === 'valor') && (
         <select value={filtroBodega} onChange={e => setFiltroBodega(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+          className="border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
           <option value="">Todas las bodegas</option>
           {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
         </select>
@@ -161,7 +161,7 @@ export default function Reportes() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {Object.entries(porCentro).map(([cc, val]) => (
-                  <div key={cc} className="bg-white rounded-2xl p-4 shadow-sm">
+                  <div key={cc} className="bg-white rounded-xl p-4 border border-feisen-borde">
                     <p className="text-sm text-feisen-gris-medio mb-1">{cc}</p>
                     <p className="text-xl font-bold text-feisen-azul">{formatCOP(val)}</p>
                   </div>
@@ -172,7 +172,7 @@ export default function Reportes() {
 
           {/* TAB STOCK y STOCK BAJO */}
           {(tab === 'stock' || tab === 'stock_bajo') && (
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
               {datos.length === 0 ? (
                 <div className="text-center py-16 text-feisen-gris-medio">
                   <Package size={40} className="mx-auto mb-3 opacity-30" />
@@ -228,7 +228,7 @@ export default function Reportes() {
           {tab === 'movimientos' && (
             <div className="space-y-3">
               {msgReversion && <Alerta tipo={msgReversion.tipo} mensaje={msgReversion.texto} />}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
                 {datos.length === 0 ? (
                   <div className="text-center py-16 text-feisen-gris-medio">
                     <ArrowUpDown size={40} className="mx-auto mb-3 opacity-30" />
@@ -320,7 +320,7 @@ export default function Reportes() {
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setConfirmRevertir(null)}
-                    className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                    className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
                     Cancelar
                   </button>
                   <button onClick={() => revertir(confirmRevertir)} disabled={revirtiendoId === confirmRevertir.id}

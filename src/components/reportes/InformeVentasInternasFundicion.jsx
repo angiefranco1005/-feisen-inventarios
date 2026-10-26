@@ -159,7 +159,7 @@ export default function InformeVentasInternasFundicion() {
         <Flame size={24} /> Ventas internas de Fundición
       </h1>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
         <p className="text-sm text-gray-500">
           Todo lo que Fundición despacha a otras bodegas (Mecanizados, Armado y Soldadura, etc.), valorizado al costo
           registrado en cada movimiento. Es el valor que se lleva como costo al centro de costos <strong>Construequipos</strong>.
@@ -171,18 +171,18 @@ export default function InformeVentasInternasFundicion() {
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha inicio</label>
             <input type="date" value={fechaInicio} max={fechaFin || undefined}
               onChange={e => setFechaInicio(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha fin</label>
             <input type="date" value={fechaFin} min={fechaInicio || undefined}
               onChange={e => setFechaFin(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Bodega de origen</label>
             <select value={bodegaId} onChange={e => setBodegaId(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
               <option value="">{bodegasFund.length > 1 ? 'Todas las de Fundición' : (bodegasFund[0]?.nombre || 'Fundición')}</option>
               {bodegasFund.length > 1 && bodegasFund.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
@@ -215,7 +215,7 @@ export default function InformeVentasInternasFundicion() {
               { label: 'Líneas de producto',                  valor: resultado.totalLineas.toLocaleString('es-CO'), color: 'text-gray-700' },
               { label: 'Líneas sin costo',                    valor: resultado.sinCosto.length.toLocaleString('es-CO'), color: resultado.sinCosto.length ? 'text-feisen-rojo' : 'text-green-700' },
             ].map(({ label, valor, color }) => (
-              <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={label} className="bg-white rounded-xl border border-feisen-borde p-4">
                 <p className="text-xs text-gray-400 mb-1">{label}</p>
                 <p className={`font-bold text-lg ${color}`}>{valor}</p>
               </div>
@@ -234,7 +234,7 @@ export default function InformeVentasInternasFundicion() {
           ) : (
             <>
               {/* Resumen por destino */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
                 <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Resumen por destino</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -267,7 +267,7 @@ export default function InformeVentasInternasFundicion() {
               </div>
 
               {/* Detalle */}
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
                 <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Detalle de movimientos</p>
                 <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
                   <table className="w-full text-sm">

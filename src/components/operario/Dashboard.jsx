@@ -180,7 +180,7 @@ export default function DashboardOperario() {
             </div>
           ) : (
             <form onSubmit={enviarPedido} className="space-y-4">
-              <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="bg-white rounded-xl p-4 space-y-3 border border-feisen-borde">
                 <p className="font-bold text-feisen-gris-oscuro">¿Qué necesitas?</p>
                 {pedidoItems.map((it, i) => {
                   const filtrados = (it.busqueda || '').trim().length > 0
@@ -195,7 +195,7 @@ export default function DashboardOperario() {
                         onFocus={() => setDropdownAbierto(i)}
                         onBlur={() => setTimeout(() => setDropdownAbierto(null), 150)}
                         placeholder="Buscar producto..."
-                        className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                        className="w-full border border-feisen-borde rounded-xl pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                       {dropdownAbierto === i && filtrados.length > 0 && (
                         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                           {filtrados.slice(0, 15).map(p => (
@@ -213,10 +213,10 @@ export default function DashboardOperario() {
                       <input required type="number" min="0.001" step="any" value={it.cantidad}
                         onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, cantidad: e.target.value } : x))}
                         placeholder="Cantidad"
-                        className="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                        className="flex-1 border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                       <select value={it.unidad}
                         onChange={e => setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, unidad: e.target.value } : x))}
-                        className="w-28 border border-gray-300 rounded-xl px-2 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                        className="w-28 border border-feisen-borde rounded-xl px-2 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                         {UNIDADES.map(u => <option key={u}>{u}</option>)}
                       </select>
                       {pedidoItems.length > 1 && (
@@ -236,11 +236,11 @@ export default function DashboardOperario() {
                 </button>
               </div>
 
-              <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-feisen-borde">
                 <p className="font-bold text-feisen-gris-oscuro mb-2">Observaciones (opcional)</p>
                 <textarea value={pedidoObs} onChange={e => setPedidoObs(e.target.value)} rows={3}
                   placeholder="Urgencia, detalles, para qué proyecto..."
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
               </div>
 
               {errorPedido && <Alerta tipo="error" mensaje={errorPedido} />}
@@ -273,7 +273,7 @@ export default function DashboardOperario() {
               <p>No tienes movimientos registrados aún.</p>
             </div>
           ) : historial.map(m => (
-            <div key={m.id} className="bg-white rounded-2xl p-4 shadow-sm">
+            <div key={m.id} className="bg-white rounded-xl p-4 border border-feisen-borde">
               <div className="flex items-center justify-between mb-1">
                 <p className="font-bold text-feisen-gris-oscuro">{m.items?.nombre}</p>
                 <span className="text-feisen-azul font-bold text-lg">
@@ -307,7 +307,7 @@ export default function DashboardOperario() {
         ) : (
           <form onSubmit={registrarSalida} className="space-y-5">
             {/* 1. Producto */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-feisen-borde">
               <label className="block text-base font-bold text-feisen-gris-oscuro mb-3">1. ¿Qué material sale?</label>
               <div className="relative">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio" />
@@ -315,7 +315,7 @@ export default function DashboardOperario() {
                   onChange={e => { setBusqueda(e.target.value); setMostrarLista(true); setForm(f => ({ ...f, item_id: '' })) }}
                   onFocus={() => setMostrarLista(true)}
                   placeholder="Escribe el nombre del material..."
-                  className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-feisen-rojo" />
+                  className="w-full border border-feisen-borde rounded-xl pl-10 pr-4 py-4 text-base focus:outline-none focus:ring-2 focus:ring-feisen-rojo" />
               </div>
               {mostrarLista && itemsFiltrados.length > 0 && (
                 <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
@@ -334,7 +334,7 @@ export default function DashboardOperario() {
             </div>
 
             {/* 2. Bodega */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-feisen-borde">
               <label className="block text-base font-bold text-feisen-gris-oscuro mb-3">2. ¿De qué bodega sale?</label>
               <div className="grid grid-cols-1 gap-2">
                 {bodegas.map(b => (
@@ -351,16 +351,16 @@ export default function DashboardOperario() {
             </div>
 
             {/* 3. Cantidad */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-feisen-borde">
               <label className="block text-base font-bold text-feisen-gris-oscuro mb-3">3. ¿Cuánto sale?</label>
               <input required type="number" min="0.001" step="any" value={form.cantidad}
                 onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
                 placeholder="0"
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-2xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-feisen-rojo" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-4 text-2xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-feisen-rojo" />
             </div>
 
             {/* 4. Centro de costo */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-feisen-borde">
               <label className="block text-base font-bold text-feisen-gris-oscuro mb-3">4. ¿Para qué línea?</label>
               <div className="grid grid-cols-1 gap-2">
                 {CENTROS_COSTO.map(cc => (

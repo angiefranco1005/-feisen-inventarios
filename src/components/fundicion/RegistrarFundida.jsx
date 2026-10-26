@@ -69,7 +69,7 @@ function InputSugerencias({ value, onChange, placeholder, storageKey }) {
         onFocus={abrirSugerencias}
         onBlur={() => { setTimeout(() => setMostrar(false), 150); guardarSugerencia(value) }}
         placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
       />
       {mostrar && sugerencias.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-40 overflow-y-auto">
@@ -338,7 +338,7 @@ export default function RegistrarFundida() {
               type="date"
               value={fecha}
               onChange={e => setFecha(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
 
@@ -349,7 +349,7 @@ export default function RegistrarFundida() {
                 type="time"
                 value={horaInicio}
                 onChange={e => setHoraInicio(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
             <div>
@@ -360,7 +360,7 @@ export default function RegistrarFundida() {
                 type="time"
                 value={horaFin}
                 onChange={e => setHoraFin(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
           </div>
@@ -403,7 +403,7 @@ export default function RegistrarFundida() {
                     value={materiales[key]}
                     onChange={e => setMat(key, e.target.value)}
                     placeholder="0"
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 pr-10"
+                    className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 pr-10"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium pointer-events-none">
                     {unit}
@@ -424,7 +424,7 @@ export default function RegistrarFundida() {
             onChange={e => setObservaciones(e.target.value)}
             placeholder="Describe cualquier problema o novedad durante el proceso…"
             rows={3}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+            className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
           />
         </div>
 

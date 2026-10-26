@@ -57,7 +57,7 @@ export default function DashboardBodeguero() {
 
       {/* Alertas stock bajo */}
       {datos.stockBajo.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
           <div className="flex items-center gap-2 px-5 py-4 bg-red-50 border-b border-red-100">
             <AlertTriangle size={18} className="text-feisen-rojo" />
             <h2 className="font-semibold text-feisen-rojo">{datos.stockBajo.length} productos con stock bajo</h2>
@@ -74,7 +74,7 @@ export default function DashboardBodeguero() {
       )}
 
       {/* Movimientos recientes */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
         <div className="px-5 py-4 border-b">
           <h2 className="font-semibold text-feisen-gris-oscuro">Movimientos recientes</h2>
         </div>

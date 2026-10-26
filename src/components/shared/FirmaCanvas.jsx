@@ -75,7 +75,7 @@ export default function FirmaCanvas({ onFirma, firmaDataUrl, label = 'Firma del 
       <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
         <PenLine size={15} /> {label}
       </label>
-      <div className={`rounded-xl overflow-hidden border-2 transition-colors ${firmaDataUrl ? 'border-green-400' : 'border-dashed border-gray-300'}`}>
+      <div className={`rounded-xl overflow-hidden border-2 transition-colors ${firmaDataUrl ? 'border-green-400' : 'border-dashed border-feisen-borde'}`}>
         <canvas
           ref={canvasRef}
           width={600}

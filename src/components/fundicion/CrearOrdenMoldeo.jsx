@@ -82,7 +82,7 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] })
         onFocus={() => setAbierto(true)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
@@ -95,7 +95,7 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] })
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-3 py-2 text-sm text-gray-400">
+        <div className="absolute z-50 w-full bg-white border border-feisen-borde rounded-xl mt-1 px-3 py-2 text-sm text-gray-400">
           Sin resultados
         </div>
       )}
@@ -125,7 +125,7 @@ function InputSug({ value, onChange, placeholder, storageKey }) {
         onFocus={abrir}
         onBlur={() => { setTimeout(() => setMostrar(false), 150); guardar(value) }}
         placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
       />
       {mostrar && sugs.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-32 overflow-y-auto">
@@ -391,7 +391,7 @@ export default function CrearOrdenMoldeo() {
           <div className="bg-white rounded-2xl border border-gray-200 p-5">
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Fecha</h2>
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
 
           {/* Máquinas — accordion */}
@@ -428,7 +428,7 @@ export default function CrearOrdenMoldeo() {
                         value={cantidades[m.id] ?? ''}
                         onChange={e => setCant(m.id, e.target.value)}
                         placeholder="0"
-                        className="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                        className="w-20 border border-feisen-borde rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                       />
                     </div>
                   ))}
@@ -504,7 +504,7 @@ export default function CrearOrdenMoldeo() {
                 <input type="number" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
                   placeholder="0"
                   onKeyDown={e => e.key === 'Enter' && agregarLibre()}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                  className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
               </div>
               <button onClick={agregarLibre}
                 className="bg-feisen-azul text-white rounded-lg p-2 hover:opacity-80 transition-opacity">

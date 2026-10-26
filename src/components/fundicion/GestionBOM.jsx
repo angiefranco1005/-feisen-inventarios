@@ -55,7 +55,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
         placeholder="Buscar pieza…"
-        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
@@ -68,7 +68,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-3 py-2 text-sm text-gray-400">
+        <div className="absolute z-50 w-full bg-white border border-feisen-borde rounded-xl mt-1 px-3 py-2 text-sm text-gray-400">
           Sin resultados
         </div>
       )}
@@ -223,11 +223,11 @@ export default function GestionBOM() {
 
       {/* Formulario nueva máquina */}
       {agregandoMaq && (
-        <div className="mb-4 bg-white border border-feisen-azul/30 rounded-2xl p-4 flex gap-3 items-center shadow-sm">
+        <div className="mb-4 bg-white border border-feisen-azul/30 rounded-xl p-4 flex gap-3 items-center">
           <input value={nuevaMaq} onChange={e => setNuevaMaq(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && crearMaquina()}
             placeholder="Nombre de la máquina (ej: Mezcladora 1 Bulto)"
-            className="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+            className="flex-1 border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             autoFocus
           />
           <button onClick={crearMaquina}
@@ -368,7 +368,7 @@ export default function GestionBOM() {
                           value={np.cantidad || ''}
                           onChange={e => setNP(maq.id, 'cantidad', e.target.value)}
                           placeholder="Cant."
-                          className="w-20 border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                          className="w-20 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                         />
                         <button onClick={() => agregarPieza(maq.id)}
                           disabled={!np.item || !np.cantidad}

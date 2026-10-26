@@ -323,20 +323,20 @@ export default function InformeNomina() {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Año</label>
             <select value={anio} onChange={e => { setAnio(Number(e.target.value)); setResumen(null) }}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+              className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
               {[2025,2026,2027].map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mes</label>
             <select value={mes} onChange={e => { setMes(Number(e.target.value)); setResumen(null) }}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+              className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
               {MESES.map((m,i) => <option key={i+1} value={i+1}>{m}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Quincena</label>
-            <div className="flex rounded-xl overflow-hidden border border-gray-300">
+            <div className="flex rounded-xl overflow-hidden border border-feisen-borde">
               {[[1,'1ra  (1–15)'],[2,'2da  (16–fin)']].map(([val,lab]) => (
                 <button key={val} type="button"
                   onClick={() => { setQuincena(val); setResumen(null) }}

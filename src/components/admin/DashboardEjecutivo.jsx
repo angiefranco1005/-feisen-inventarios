@@ -316,7 +316,7 @@ function Expandible({ titulo, count, color, children }) {
   const [open, setOpen] = useState(false)
   if (!count) return null
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
         <span className="font-semibold text-sm" style={{ color }}>{titulo} ({count})</span>
@@ -364,7 +364,7 @@ function SeccionFinanciero({ d }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Valor por categoría */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-feisen-borde p-5">
           <SectionTitle>Valor por categoría (COP)</SectionTitle>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={d.catChart} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -378,7 +378,7 @@ function SeccionFinanciero({ d }) {
         </div>
 
         {/* DIO mensual */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-feisen-borde p-5">
           <SectionTitle>Tendencia DIO mensual (días de inventario)</SectionTitle>
           {d.mensual.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-16">Sin movimientos en el período</p>
@@ -398,7 +398,7 @@ function SeccionFinanciero({ d }) {
       </div>
 
       {/* Entradas vs Salidas */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-white rounded-xl border border-feisen-borde p-5">
         <SectionTitle>Entradas vs. Salidas externas (COP/mes)</SectionTitle>
         {d.mensual.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">Sin datos en el período</p>
@@ -418,7 +418,7 @@ function SeccionFinanciero({ d }) {
       </div>
 
       {/* Costeo por bodega */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-white rounded-xl border border-feisen-borde p-5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <SectionTitle>Costeo por bodega</SectionTitle>
           {mesesDisponibles.length > 0 && (
@@ -495,7 +495,7 @@ function SeccionRotacion({ d }) {
     <div className="space-y-5">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Rotación por categoría */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-feisen-borde p-5">
           <SectionTitle>Rotación de inventario por categoría</SectionTitle>
           <p className="text-xs text-gray-400 mb-3">Ratio: valor salidas / valor stock (mayor = más rápido)</p>
           {d.rotacion.length === 0 ? (
@@ -514,7 +514,7 @@ function SeccionRotacion({ d }) {
         </div>
 
         {/* ABC Summary */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-feisen-borde p-5">
           <SectionTitle>Análisis ABC — Pareto 80/20</SectionTitle>
           <p className="text-xs text-gray-400 mb-4">Clasificación por valor de salidas en el período</p>
           <div className="space-y-3">
@@ -552,7 +552,7 @@ function SeccionRotacion({ d }) {
           }))
           .sort((a, b) => b.valor - a.valor)
         return (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-4 items-center">
               <p className="font-semibold text-sm text-gray-700">
                 Inventario parado — {filas.length} ítem{filas.length !== 1 ? 's' : ''}
@@ -599,7 +599,7 @@ function SeccionRotacion({ d }) {
         </div>
       )}
       {mostrarABC && d.abcItems.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
@@ -643,7 +643,7 @@ function SeccionLeadTime({ d }) {
       </div>
 
       {d.leadTimeChart.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-feisen-borde p-5">
           <SectionTitle>Lead time promedio por área (días)</SectionTitle>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={d.leadTimeChart} layout="vertical" margin={{ left: 8, right: 32 }}>
@@ -659,7 +659,7 @@ function SeccionLeadTime({ d }) {
 
       {/* Pedidos retrasados */}
       {d.pedidosRetrasados.length > 0 && (
-        <div className="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-red-200 overflow-hidden border-feisen-borde">
           <button onClick={() => setVerRetrasados(o => !o)}
             className="w-full flex items-center justify-between px-5 py-4 hover:bg-red-50 transition-colors">
             <span className="font-semibold text-sm text-feisen-rojo flex items-center gap-2">
@@ -863,7 +863,7 @@ function SeccionAlertas({ d }) {
 function FiltrosGlobales({ filtros, setFiltros, bodegas, categorias, categoriasDisp }) {
   const catsAMostrar = filtros.bodegaId ? categoriasDisp : categorias
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3 items-center">
+    <div className="bg-white rounded-xl border border-feisen-borde p-4 flex flex-wrap gap-3 items-center">
       <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Filtros</span>
       <select value={filtros.bodegaId}
         onChange={e => setFiltros(f => ({ ...f, bodegaId: e.target.value, categoriaId: '' }))}

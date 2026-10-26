@@ -152,11 +152,11 @@ export default function GestionItems() {
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio" />
         <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar producto..."
-          className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          className="w-full border border-feisen-borde rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
       </div>
 
       {/* Tabla / tarjetas */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
         {itemsFiltrados.length === 0 ? (
           <div className="text-center py-16 text-feisen-gris-medio">
             <Package size={40} className="mx-auto mb-3 opacity-30" />
@@ -250,7 +250,7 @@ export default function GestionItems() {
             <Alerta tipo="alerta" mensaje={`¿Eliminar "${confirmEliminar.nombre}"? Esta acción no se puede deshacer. Si tiene stock o movimientos, no se permitirá.`} />
             <div className="flex gap-3">
               <button onClick={() => setConfirmEliminar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
                 Cancelar
               </button>
               <button onClick={() => eliminar(confirmEliminar)}
@@ -269,7 +269,7 @@ export default function GestionItems() {
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Nombre del producto *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Acero en barra 1 pulgada" />
             </div>
 
@@ -277,7 +277,7 @@ export default function GestionItems() {
               <div>
                 <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Categoría</label>
                 <select value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                   <option value="">Sin categoría</option>
                   {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
@@ -285,7 +285,7 @@ export default function GestionItems() {
               <div>
                 <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Unidad de medida</label>
                 <select value={form.unidad_medida} onChange={e => setForm(f => ({ ...f, unidad_medida: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                   {UNIDADES_MEDIDA.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
@@ -294,7 +294,7 @@ export default function GestionItems() {
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega *</label>
               <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                 <option value="">Selecciona un almacén</option>
                 {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
               </select>
@@ -306,7 +306,7 @@ export default function GestionItems() {
                   <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Precio de costo (COP)</label>
                   <input type="number" min="0" step="1" value={form.precio_costo}
                     onChange={e => setForm(f => ({ ...f, precio_costo: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                    className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                     placeholder="0" />
                 </div>
               )}
@@ -314,7 +314,7 @@ export default function GestionItems() {
                 <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Stock mínimo</label>
                 <input type="number" min="0" step="0.001" value={form.stock_minimo}
                   onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
               </div>
             </div>
@@ -325,7 +325,7 @@ export default function GestionItems() {
               {form.foto_url && (
                 <img src={form.foto_url} alt="preview" className="w-24 h-24 rounded-xl object-cover mb-2 border" />
               )}
-              <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-gray-300 rounded-xl px-4 py-3 text-sm text-feisen-gris-medio hover:border-feisen-azul transition-colors">
+              <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-feisen-borde rounded-xl px-4 py-3 text-sm text-feisen-gris-medio hover:border-feisen-azul transition-colors">
                 <Upload size={18} />
                 {subiendo ? 'Subiendo...' : 'Subir foto (JPG, PNG)'}
                 <input type="file" accept="image/*" className="hidden" onChange={subirFoto} disabled={subiendo} />
@@ -334,7 +334,7 @@ export default function GestionItems() {
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setModalAbierto(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro hover:bg-feisen-gris transition-colors">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro hover:bg-feisen-gris transition-colors">
                 Cancelar
               </button>
               <button type="submit"

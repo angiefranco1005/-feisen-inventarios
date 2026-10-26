@@ -369,7 +369,7 @@ export default function RecogidaFundida() {
           value={tab === 'pendientes' ? busqueda : busquedaComp}
           onChange={e => tab === 'pendientes' ? setBusqueda(e.target.value) : setBusquedaComp(e.target.value)}
           placeholder="Buscar por N°, fecha o pieza…"
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+          className="w-full pl-10 pr-4 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
         />
       </div>
 

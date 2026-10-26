@@ -267,13 +267,13 @@ export default function ListaOrdenesMoldeo() {
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por N°, fecha, pieza, máquina…"
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+            className="w-full pl-10 pr-4 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
           />
         </div>
         {ordenes.some(o => o.estado === 'cancelado') && (
           <button onClick={() => setMostrarCanceladas(v => !v)}
             className={`shrink-0 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors
-              ${mostrarCanceladas ? 'bg-gray-200 text-gray-700 border-gray-300' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
+              ${mostrarCanceladas ? 'bg-gray-200 text-gray-700 border-feisen-borde' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
             {mostrarCanceladas ? 'Ocultar canceladas' : 'Ver canceladas'}
           </button>
         )}
@@ -605,7 +605,7 @@ export default function ListaOrdenesMoldeo() {
                                 <input type="date"
                                   value={fechaAvance[orden.id] || hoyCol()}
                                   onChange={e => setFechaAvance(prev => ({ ...prev, [orden.id]: e.target.value }))}
-                                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                                  className="border border-feisen-borde rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                                 />
                               </div>
 
@@ -788,7 +788,7 @@ export default function ListaOrdenesMoldeo() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setConfirmCancelar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 No, volver
               </button>
               <button onClick={() => cancelarOrden(confirmCancelar)} disabled={cancelando}
@@ -849,7 +849,7 @@ export default function ListaOrdenesMoldeo() {
 
             <div className="flex gap-3 pt-1">
               <button onClick={() => setEditModal(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={guardarEdicion} disabled={editGuardando}

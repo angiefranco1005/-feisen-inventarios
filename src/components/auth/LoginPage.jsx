@@ -56,14 +56,14 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm font-medium text-feisen-gris-oscuro mb-1">Correo electrónico</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="tu@correo.com" autoComplete="email" />
             </div>
             <div>
               <label className="block text-sm font-medium text-feisen-gris-oscuro mb-1">Contraseña</label>
               <div className="relative">
                 <input type={mostrarPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul pr-12"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul pr-12"
                   placeholder="••••••••" autoComplete="current-password" />
                 <button type="button" onClick={() => setMostrarPass(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-feisen-gris-medio">
@@ -107,7 +107,7 @@ export default function LoginPage() {
               <div>
                 <label className="block text-sm font-medium text-feisen-gris-oscuro mb-1">Correo electrónico</label>
                 <input type="email" value={emailRecuperar} onChange={e => setEmailRecuperar(e.target.value)} required
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="tu@correo.com" />
               </div>
               {error && (

@@ -62,7 +62,7 @@ export default function DashboardJefeArea() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden border border-feisen-borde">
         <div className="px-5 py-4 border-b">
           <h2 className="font-semibold text-feisen-gris-oscuro">Mis movimientos recientes</h2>
         </div>

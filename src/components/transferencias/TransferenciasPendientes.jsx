@@ -260,7 +260,7 @@ export default function TransferenciasPendientes() {
       {cargando ? (
         <div className="flex justify-center py-12"><Spinner /></div>
       ) : transferencias.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+        <div className="bg-white rounded-xl border border-feisen-borde p-10 text-center">
           <Clock size={32} className="mx-auto mb-3 text-gray-300" />
           <p className="text-gray-400 text-sm">No hay transferencias {filtro !== 'todas' ? `en estado "${ESTADO_CONFIG[filtro]?.label || filtro}"` : ''}.</p>
         </div>
@@ -273,7 +273,7 @@ export default function TransferenciasPendientes() {
             const enProceso = procesando === trf.id
 
             return (
-              <div key={trf.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div key={trf.id} className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
                 {/* Cabecera */}
                 <div
                   className="px-5 py-4 flex items-center gap-3 cursor-pointer select-none"
@@ -382,7 +382,7 @@ export default function TransferenciasPendientes() {
                   className={`w-full text-left px-4 py-3 rounded-xl text-sm border-2 transition-all font-medium
                     ${motivoRec === m && !motivoCustom
                       ? 'border-feisen-rojo bg-red-50 text-feisen-rojo'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                      : 'border-gray-200 text-gray-600 hover:border-feisen-borde'}`}>
                   {m}
                 </button>
               ))}
@@ -400,7 +400,7 @@ export default function TransferenciasPendientes() {
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => { setModalRechazo(null); setMotivoRec(''); setMotivoCustom('') }}
-                className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-gray-300">
+                className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:border-feisen-borde">
                 Cancelar
               </button>
               <button

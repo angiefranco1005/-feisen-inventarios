@@ -398,7 +398,7 @@ export default function GestionProductos() {
               className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
                 ${filtroStockBajo
                   ? 'bg-feisen-azul text-white border-feisen-azul'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                  : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
               {filtroStockBajo ? 'Ver todos' : 'Filtrar alertas'}
             </button>
           </div>
@@ -426,7 +426,7 @@ export default function GestionProductos() {
         </select>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
         {filtrados.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <Package size={40} className="mx-auto mb-3 opacity-30" />
@@ -613,7 +613,7 @@ export default function GestionProductos() {
               <input required type="number" min="0.001" step="0.001"
                 value={formMec.cantidad}
                 onChange={e => setFormMec(f => ({ ...f, cantidad: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 placeholder="1" />
             </div>
 
@@ -622,13 +622,13 @@ export default function GestionProductos() {
               <input type="text"
                 value={formMec.operario}
                 onChange={e => setFormMec(f => ({ ...f, operario: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 placeholder="Nombre del operario (opcional)" />
             </div>
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalMecanizar(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardandoMec}
                 className="flex-1 bg-orange-500 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
                 <Wrench size={15} /> {guardandoMec ? 'Registrando...' : 'Confirmar mecanizado'}
@@ -644,7 +644,7 @@ export default function GestionProductos() {
           <div className="space-y-4">
             <Alerta tipo="alerta" mensaje={`¿Eliminar "${confirm.nombre}"? Si tiene stock o movimientos no se permitirá.`} />
             <div className="flex gap-3">
-              <button onClick={() => setConfirm(null)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button onClick={() => setConfirm(null)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button onClick={() => eliminar(confirm)} className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold">Eliminar</button>
             </div>
           </div>
@@ -660,7 +660,7 @@ export default function GestionProductos() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Motor Honda GX160" />
             </div>
 
@@ -669,7 +669,7 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
                 <select required value={form.bodega_id}
                   onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value, categoria_id: '' }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   <option value="">Selecciona</option>
                   {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
                 </select>
@@ -677,7 +677,7 @@ export default function GestionProductos() {
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Categoría</label>
                 <select value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
                   disabled={!form.bodega_id}>
                   <option value="">Sin categoría</option>
                   {categorias.filter(c => c.bodega_id === form.bodega_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -689,7 +689,7 @@ export default function GestionProductos() {
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Unidad de medida</label>
                 <select value={form.unidad_medida} onChange={e => setForm(f => ({ ...f, unidad_medida: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
@@ -697,14 +697,14 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Stock mínimo</label>
                 <input type="number" min="0" step="1" value={form.stock_minimo}
                   onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Stock máximo</label>
                 <input type="number" min="0" step="1" value={form.stock_maximo}
                   onChange={e => setForm(f => ({ ...f, stock_maximo: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
               </div>
             </div>
@@ -714,7 +714,7 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Cantidad inicial en bodega</label>
                 <input type="number" min="0" step="0.001" value={form.cantidad_inicial}
                   onChange={e => setForm(f => ({ ...f, cantidad_inicial: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
                 <p className="text-xs text-gray-400 mt-1">Puedes dejarlo en 0 y registrar entradas después.</p>
               </div>
@@ -725,7 +725,7 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Peso unitario (kg) *</label>
                 <input required type="number" min="0.01" step="0.01" value={form.peso_unitario}
                   onChange={e => setForm(f => ({ ...f, peso_unitario: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="Ej: 13.8" />
               </div>
             )}
@@ -735,7 +735,7 @@ export default function GestionProductos() {
                 <label className="text-sm font-medium text-gray-700 block mb-1">Precio de costo (COP)</label>
                 <input type="number" min="0" step="1" value={form.precio_costo}
                   onChange={e => setForm(f => ({ ...f, precio_costo: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                   placeholder="0" />
               </div>
             )}
@@ -743,7 +743,7 @@ export default function GestionProductos() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Foto (opcional)</label>
               {form.foto_url && <img src={form.foto_url} alt="preview" className="w-20 h-20 rounded-xl object-cover mb-2 border" />}
-              <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-400 hover:border-feisen-azul transition-colors">
+              <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-feisen-borde rounded-xl px-4 py-3 text-sm text-gray-400 hover:border-feisen-azul transition-colors">
                 <Upload size={16} />
                 {subiendo ? 'Subiendo...' : 'Subir foto'}
                 <input type="file" accept="image/*" className="hidden" onChange={subirFoto} disabled={subiendo} />
@@ -752,7 +752,7 @@ export default function GestionProductos() {
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModal(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit"
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">
                 {editando ? 'Guardar cambios' : 'Crear producto'}

@@ -46,7 +46,7 @@ export default function DashboardLogistica() {
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
         <div className="px-5 py-4 border-b flex items-center gap-2">
           <BarChart2 size={18} className="text-feisen-azul" />
           <h2 className="font-semibold text-gray-700">Mis movimientos recientes</h2>

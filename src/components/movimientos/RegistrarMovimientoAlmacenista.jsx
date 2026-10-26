@@ -44,7 +44,7 @@ function SelectorItem({ value, items, onSelect }) {
             if (busqueda && !coincide) { setBusqueda(''); onSelect(null) }
           }, 150)}
           placeholder="Buscar producto..."
-          className="w-full border border-gray-300 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+          className="w-full border border-feisen-borde rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
         />
       </div>
       {mostrarLista && filtrados.length > 0 && (
@@ -79,7 +79,7 @@ function InputConSugerencias({ value, onChange, placeholder, sugerencias = [], c
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
-        className={`w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-${colorRing}`}
+        className={`w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-${colorRing}`}
       />
       {open && filtradas.length > 0 && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
@@ -734,7 +734,7 @@ export default function RegistrarMovimientoAlmacenista() {
       </div>
 
       {/* Fecha del movimiento — compartida entre entrada y salida */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4">
+      <div className="bg-white rounded-xl border border-feisen-borde px-5 py-4">
         <label className="text-sm font-semibold text-gray-700 block mb-1.5">
           Fecha del movimiento
         </label>
@@ -743,7 +743,7 @@ export default function RegistrarMovimientoAlmacenista() {
           value={fechaMov}
           max={new Date().toLocaleDateString('en-CA')}
           onChange={e => setFechaMov(e.target.value)}
-          className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+          className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
         />
         <p className="text-xs text-gray-400 mt-1">
           Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.
@@ -782,7 +782,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── FORMULARIO ENTRADA ── */}
       {tipo === 'entrada' && (
-        <form key={formKey} onSubmit={handleEntrada} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+        <form key={formKey} onSubmit={handleEntrada} className="bg-white rounded-xl border border-feisen-borde p-6 space-y-5">
 
           {/* Tipo de entrada — solo para FUNDICIÓN */}
           {esFundicion && (
@@ -832,7 +832,7 @@ export default function RegistrarMovimientoAlmacenista() {
                 <select
                   value={pedidoId}
                   onChange={e => setPedidoId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                   <option value="">Sin pedido asociado</option>
                   {pedidos.map(p => (
                     <option key={p.id} value={p.id}>
@@ -883,7 +883,7 @@ export default function RegistrarMovimientoAlmacenista() {
                 value={colada}
                 onChange={e => setColada(e.target.value)}
                 placeholder="Ej: C-2026-001"
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
           )}
@@ -904,7 +904,7 @@ export default function RegistrarMovimientoAlmacenista() {
                       type="number" min="0.001" step="0.001" placeholder="Cant."
                       value={prod.cantidad}
                       onChange={e => actualizarProducto(idx, 'cantidad', e.target.value)}
-                      className="w-24 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                      className="w-24 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                     />
                     {prod.unidad && (
                       <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
@@ -953,7 +953,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── FORMULARIO SALIDA ── */}
       {tipo === 'salida' && (
-        <form key={formKey} onSubmit={handleSalida} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-5">
+        <form key={formKey} onSubmit={handleSalida} className="bg-white rounded-xl border border-feisen-borde p-6 space-y-5">
 
           {/* Tipo de salida — solo para FUNDICIÓN */}
           {esFundicion && (
@@ -1005,7 +1005,7 @@ export default function RegistrarMovimientoAlmacenista() {
                     value={numeroOrden}
                     onChange={e => setNumeroOrden(e.target.value)}
                     placeholder="Ej: ORD-2026-001"
-                    className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                    className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
                   />
                 </div>
               )}
@@ -1019,13 +1019,13 @@ export default function RegistrarMovimientoAlmacenista() {
                       <button type="button"
                         onClick={() => setDestinoMec('ALMACEN')}
                         className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
-                          ${destinoMec === 'ALMACEN' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                          ${destinoMec === 'ALMACEN' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-feisen-borde'}`}>
                         🏬 Almacén
                       </button>
                       <button type="button"
                         onClick={() => setDestinoMec('SOLDADURA Y ARMADO')}
                         className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
-                          ${destinoMec === 'SOLDADURA Y ARMADO' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                          ${destinoMec === 'SOLDADURA Y ARMADO' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-feisen-borde'}`}>
                         🔧 Soldadura y Armado
                       </button>
                     </div>
@@ -1038,7 +1038,7 @@ export default function RegistrarMovimientoAlmacenista() {
                         <Boxes size={16} /> Usar un paquete de piezas (opcional)
                       </label>
                       <select value={paqueteSelId} onChange={e => setPaqueteSelId(e.target.value)}
-                        className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                        className="w-full border-2 border-feisen-borde rounded-xl px-4 py-3.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                         <option value="">Selecciona un paquete…</option>
                         {paquetesMec.map(p => (
                           <option key={p.id} value={p.id}>{p.nombre} ({(p.paquete_items || []).length} piezas)</option>
@@ -1049,7 +1049,7 @@ export default function RegistrarMovimientoAlmacenista() {
                           onChange={e => setMultiplicadorPaq(e.target.value)}
                           title="Cuántas veces se arma el paquete"
                           placeholder="Cant."
-                          className="w-24 border-2 border-gray-300 rounded-xl px-3 py-3.5 text-base text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                          className="w-24 border-2 border-feisen-borde rounded-xl px-3 py-3.5 text-base text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                         <button type="button" onClick={aplicarPaquete} disabled={!paqueteSelId}
                           className="flex-1 bg-feisen-azul text-white rounded-xl px-4 py-3.5 text-base font-semibold disabled:opacity-40 hover:opacity-90">
                           Agregar paquete
@@ -1085,7 +1085,7 @@ export default function RegistrarMovimientoAlmacenista() {
                   onChange={e => setNotas(e.target.value)}
                   placeholder="Observaciones adicionales…"
                   rows={2}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
                 />
               </div>
             </>
@@ -1113,7 +1113,7 @@ export default function RegistrarMovimientoAlmacenista() {
                   onChange={e => setNotas(e.target.value)}
                   placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
                   rows={3}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
                 />
               </div>
             </>
@@ -1129,7 +1129,7 @@ export default function RegistrarMovimientoAlmacenista() {
                   value={numeroOF}
                   onChange={e => setNumeroOF(e.target.value)}
                   placeholder="Ej: OF-2026-042"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
                 />
               </div>
               <div>
@@ -1141,7 +1141,7 @@ export default function RegistrarMovimientoAlmacenista() {
                   onChange={e => setNotas(e.target.value)}
                   placeholder="Observaciones adicionales…"
                   rows={2}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
+                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
                 />
               </div>
             </>
@@ -1195,7 +1195,7 @@ export default function RegistrarMovimientoAlmacenista() {
                     type="number" min="0.001" step="0.001" placeholder="Cant."
                     value={prod.cantidad}
                     onChange={e => actualizarSProducto(idx, 'cantidad', e.target.value)}
-                    className="w-24 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
+                    className="w-24 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
                   />
                   {prod.unidad && (
                     <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
@@ -1294,7 +1294,7 @@ export default function RegistrarMovimientoAlmacenista() {
                 onChange={e => setNuevaSug(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarSugerenciaManual(tabLista, nuevaSug) } }}
                 placeholder="Agregar nombre..."
-                className="flex-1 border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
               />
               <button type="button" onClick={() => agregarSugerenciaManual(tabLista, nuevaSug)}
                 className="bg-feisen-azul text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90">

@@ -76,7 +76,7 @@ function SeccionBodegas() {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl p-6 space-y-4 border border-feisen-borde">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-feisen-gris-oscuro flex items-center gap-2">
           <Warehouse size={18} className="text-feisen-azul" /> Bodegas / Zonas
@@ -120,7 +120,7 @@ function SeccionBodegas() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setConfirmEliminar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">
                 Cancelar
               </button>
               <button onClick={() => eliminar(confirmEliminar)}
@@ -138,16 +138,16 @@ function SeccionBodegas() {
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Descripción</label>
               <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                rows={2} className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                rows={2} className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModal(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
               <button type="submit"
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold">Guardar</button>
             </div>
@@ -236,7 +236,7 @@ function SeccionUsuarios() {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl p-6 space-y-4 border border-feisen-borde">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-feisen-gris-oscuro flex items-center gap-2">
           <Users size={18} className="text-feisen-azul" /> Usuarios del sistema
@@ -284,7 +284,7 @@ function SeccionUsuarios() {
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Rol *</label>
               <select required value={formEditar.rol} onChange={e => setFormEditar(f => ({ ...f, rol: e.target.value, almacen: '' }))}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                 {ROLES.map(r => <option key={r} value={r}>{ROLES_LABEL[r]}</option>)}
               </select>
             </div>
@@ -292,7 +292,7 @@ function SeccionUsuarios() {
               <div>
                 <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega asignada</label>
                 <select value={formEditar.almacen} onChange={e => setFormEditar(f => ({ ...f, almacen: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   <option value="">Sin bodega asignada</option>
                   {bodegas.map(b => <option key={b.id} value={b.nombre}>{b.nombre}</option>)}
                 </select>
@@ -300,7 +300,7 @@ function SeccionUsuarios() {
             )}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalEditar(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
               <button type="submit" disabled={guardando}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
                 {guardando ? 'Guardando...' : 'Guardar cambios'}
@@ -318,23 +318,23 @@ function SeccionUsuarios() {
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Nombre completo *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Correo electrónico *</label>
               <input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Contraseña inicial *</label>
               <input required type="password" minLength={6} value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Rol *</label>
               <select required value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value, almacen: '' }))}
-                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
+                className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul">
                 {ROLES.map(r => <option key={r} value={r}>{ROLES_LABEL[r]}</option>)}
               </select>
             </div>
@@ -342,7 +342,7 @@ function SeccionUsuarios() {
               <div>
                 <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Bodega asignada</label>
                 <select value={form.almacen} onChange={e => setForm(f => ({ ...f, almacen: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   <option value="">Sin bodega asignada</option>
                   {bodegas.map(b => <option key={b.id} value={b.nombre}>{b.nombre}</option>)}
                 </select>
@@ -350,7 +350,7 @@ function SeccionUsuarios() {
             )}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModal(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-feisen-gris-oscuro">Cancelar</button>
               <button type="submit" disabled={guardando}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
                 {guardando ? 'Creando...' : 'Crear usuario'}

@@ -59,7 +59,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
         placeholder="Buscar pieza mecanizada…"
-        className="w-full border-2 border-gray-300 rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
+        className="w-full border-2 border-feisen-borde rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1.5 max-h-80 overflow-y-auto">
@@ -72,7 +72,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-sm mt-1 px-4 py-3 text-sm text-gray-400">
+        <div className="absolute z-50 w-full bg-white border border-feisen-borde rounded-xl mt-1 px-4 py-3 text-sm text-gray-400">
           Sin resultados. Recuerda: solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.
         </div>
       )}
@@ -220,11 +220,11 @@ export default function GestionPaquetes() {
 
       {/* Formulario nuevo paquete */}
       {agregandoPaq && (
-        <div className="mb-5 bg-white border border-feisen-azul/30 rounded-2xl p-5 flex flex-col sm:flex-row gap-3 sm:items-center shadow-sm">
+        <div className="mb-5 bg-white border border-feisen-azul/30 rounded-xl p-5 flex flex-col sm:flex-row gap-3 sm:items-center">
           <input value={nuevoNombre} onChange={e => setNuevoNombre(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && crearPaquete()}
             placeholder="Nombre del paquete (ej: Mezcladora 1 Bulto)"
-            className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+            className="flex-1 border-2 border-feisen-borde rounded-xl px-4 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             autoFocus
           />
           <div className="flex gap-2 shrink-0">
@@ -339,7 +339,7 @@ export default function GestionPaquetes() {
                           value={np.cantidad || ''}
                           onChange={e => setNP(paq.id, 'cantidad', e.target.value)}
                           placeholder="Cantidad"
-                          className="flex-1 sm:flex-none sm:w-40 border-2 border-gray-300 rounded-xl px-4 py-4 text-lg text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                          className="flex-1 sm:flex-none sm:w-40 border-2 border-feisen-borde rounded-xl px-4 py-4 text-lg text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                         />
                         <button onClick={() => agregarPieza(paq.id)}
                           disabled={!np.item || !np.cantidad}
@@ -364,7 +364,7 @@ export default function GestionPaquetes() {
             <p className="text-sm text-gray-500">Se eliminarán también sus {confirmElim.paquete_items.length} pieza(s). Esta acción no se puede deshacer.</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmElim(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button onClick={() => eliminarPaquete(confirmElim)}
                 className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold">Sí, eliminar</button>
             </div>

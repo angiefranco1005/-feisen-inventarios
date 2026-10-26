@@ -175,7 +175,7 @@ export default function DashboardAdmin() {
 
       {/* Stats rápidas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-xl p-5 border border-feisen-borde">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
               <Package size={20} className="text-feisen-azul" />
@@ -184,7 +184,7 @@ export default function DashboardAdmin() {
           </div>
           <p className="text-3xl font-bold text-gray-800">{stats.productos}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-xl p-5 border border-feisen-borde">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
               <ArrowUpDown size={20} className="text-green-600" />
@@ -193,7 +193,7 @@ export default function DashboardAdmin() {
           </div>
           <p className="text-3xl font-bold text-gray-800">{stats.movHoy}</p>
         </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-xl p-5 border border-feisen-borde">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
               <ShoppingCart size={20} className="text-amber-500" />
@@ -205,7 +205,7 @@ export default function DashboardAdmin() {
       </div>
 
       {/* Valor del inventario — expandible por bodega */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
           <h2 className="font-semibold text-gray-700 flex items-center gap-2">
             <TrendingUp size={18} className="text-feisen-azul" /> Valor del inventario
@@ -259,7 +259,7 @@ export default function DashboardAdmin() {
 
       {/* Alertas stock bajo */}
       {stockBajos.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-amber-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-amber-100 flex items-center gap-2 bg-amber-50">
             <AlertTriangle size={18} className="text-amber-500" />
             <h2 className="font-semibold text-amber-800">

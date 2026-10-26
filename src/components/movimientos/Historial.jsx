@@ -756,7 +756,7 @@ export default function Historial() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDelete(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={() => eliminarMovimiento(confirmDelete)} disabled={eliminando}
@@ -806,7 +806,7 @@ export default function Historial() {
             ))}
             <div className="flex gap-3 pt-1">
               <button onClick={() => setEditModal(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={guardarEdicion} disabled={editGuardando}
@@ -855,7 +855,7 @@ export default function Historial() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setConfirmRevert(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={() => revertir(confirmRevert)} disabled={revirtiendo}

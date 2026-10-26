@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, ChevronRight, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -18,8 +18,8 @@ const NAV_ADMIN = [
   { to: '/ordenes-compra',        icon: FileText,         label: 'Órdenes de compra' },
   { to: '/calidad',               icon: ShieldAlert,      label: 'Calidad' },
   { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
-  { to: '/mecanizados/paquetes',  icon: Boxes,           label: 'Paquetes' },
-  { to: '/config',                icon: Settings,         label: 'Configuración' },
+  { to: '/mecanizados/paquetes',  icon: Boxes,           label: 'Paquetes',      grupo: 'Catálogos' },
+  { to: '/config',                icon: Settings,         label: 'Configuración', grupo: 'Catálogos' },
 ]
 
 const NAV_LOGISTICA = [
@@ -48,12 +48,12 @@ const NAV_JEFE_FUNDICION = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
   { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
-  { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
-  { to: '/moldeo',                         icon: Layers,           label: 'Moldeo' },
-  { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida' },
-  { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina' },
-  { to: '/analitica/fundicion',            icon: Activity,         label: 'Analítica' },
-  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM' },
+  { to: '/fundidas',                       icon: Flame,            label: 'Fundidas',  grupo: 'Fundición' },
+  { to: '/moldeo',                         icon: Layers,           label: 'Moldeo',    grupo: 'Fundición' },
+  { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida',  grupo: 'Fundición' },
+  { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina',    grupo: 'Fundición' },
+  { to: '/analitica/fundicion',            icon: Activity,         label: 'Analítica', grupo: 'Fundición' },
+  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM',       grupo: 'Fundición' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
@@ -182,41 +182,62 @@ export default function Layout({ children }) {
         : location.pathname === item.to
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
-        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors
-          ${activo ? 'bg-feisen-azul text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-        <item.icon size={20} />
+        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm
+          ${activo
+            ? 'bg-feisen-azul-suave text-feisen-azul font-semibold'
+            : 'text-feisen-texto-2 font-medium hover:bg-white hover:text-feisen-texto'}`}>
+        <item.icon size={17} strokeWidth={activo ? 2.2 : 1.8} />
         <span>{item.label}</span>
-        {activo && <ChevronRight size={16} className="ml-auto" />}
       </Link>
     )
   }
 
+  // Ítems sin grupo arriba; los agrupados (Fundición, Catálogos) debajo con su título
+  const grupos = [...new Set(navItems.filter(i => i.grupo).map(i => i.grupo))]
+  const MenuNav = () => (
+    <>
+      <div className="space-y-0.5">
+        {navItems.filter(i => !i.grupo).map(item => <NavLink key={item.to} item={item} />)}
+      </div>
+      {grupos.map(g => (
+        <div key={g}>
+          <p className="text-[11px] font-medium text-feisen-gris-medio px-3 pt-5 pb-1.5">{g}</p>
+          <div className="space-y-0.5">
+            {navItems.filter(i => i.grupo === g).map(item => <NavLink key={item.to} item={item} />)}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+
+  const iniciales = perfil?.nombre?.trim().split(/\s+/).slice(0, 2).map(p => p.charAt(0).toUpperCase()).join('') || '?'
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-feisen-fondo flex flex-col lg:flex-row">
 
       {/* SIDEBAR DESKTOP */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white shadow-sm sticky top-0 h-screen overflow-y-auto px-4 py-6 border-r border-gray-100">
+      <aside className="hidden lg:flex flex-col w-60 bg-feisen-fondo border-r border-feisen-borde sticky top-0 self-start h-screen overflow-y-auto px-3 py-5">
         {/* Logo */}
-        <div className="mb-8 px-2">
-          <img src={logoFeisen} alt="Feisen" className="h-9 w-auto" />
-          <p className="text-xs text-gray-400 leading-tight mt-1">ERP</p>
+        <div className="px-3 mb-6">
+          <img src={logoFeisen} alt="Feisen" className="h-7 w-auto" />
+          <p className="text-[11px] text-feisen-gris-medio mt-1.5">ERP · Inventarios</p>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-1">
-          {navItems.map(item => <NavLink key={item.to} item={item} />)}
+        <nav className="flex-1">
+          <MenuNav />
         </nav>
 
         {/* Ver como (solo admin real) */}
         {esAdminReal && (
-          <div className="border-t pt-4 mt-2 pb-1">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2 flex items-center gap-1.5">
+          <div className="border-t border-feisen-borde pt-3 mt-4 pb-1">
+            <p className="text-[11px] font-medium text-feisen-gris-medio px-3 mb-1.5 flex items-center gap-1.5">
               <Eye size={12} /> Vista previa
             </p>
             <select
               value={rolPreview || ''}
               onChange={e => setRolPreview(e.target.value || null)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              className="w-full border border-feisen-borde rounded-lg px-3 py-1.5 text-sm bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             >
               <option value="">Mi vista (Admin)</option>
               <option value="LOGISTICA">Ver como Logística</option>
@@ -236,41 +257,37 @@ export default function Layout({ children }) {
         )}
 
         {/* Perfil */}
-        <div className="border-t pt-4 mt-4 space-y-1">
-          <div className="flex items-center gap-3 px-2 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-              <span className="font-bold text-feisen-azul text-sm">
-                {perfil?.nombre?.charAt(0)?.toUpperCase() || '?'}
-              </span>
+        <div className="border-t border-feisen-borde pt-3 mt-4">
+          <div className="flex items-center gap-2.5 px-3 mb-2">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${perfil?.rol === 'ADMIN' ? 'bg-feisen-rojo-suave text-feisen-rojo' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+              <span className="font-semibold text-xs">{iniciales}</span>
             </div>
             <div className="overflow-hidden">
-              <p className="font-semibold text-sm text-gray-800 truncate">{perfil?.nombre}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.color}`}>
-                {badge.label}
-              </span>
+              <p className="font-semibold text-sm text-feisen-texto truncate">{perfil?.nombre}</p>
+              <p className="text-[11px] text-feisen-gris-medio truncate">{badge.label}</p>
             </div>
           </div>
           <button onClick={() => { setFormPwd({ nueva: '', confirmar: '' }); setMsgPwd(null); setModalPwd(true) }}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-medium transition-colors">
-            <KeyRound size={16} /> Cambiar contraseña
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-feisen-texto-2 hover:bg-white transition-colors text-[13px]">
+            <KeyRound size={15} strokeWidth={1.8} /> Cambiar contraseña
           </button>
           <button onClick={actualizar}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-gray-600 hover:bg-gray-100 text-sm font-medium transition-colors">
-            <RefreshCw size={16} /> Actualizar app
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-feisen-texto-2 hover:bg-white transition-colors text-[13px]">
+            <RefreshCw size={15} strokeWidth={1.8} /> Actualizar app
           </button>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-feisen-rojo hover:bg-red-50 text-sm font-medium transition-colors">
-            <LogOut size={16} /> Cerrar sesión
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-feisen-rojo hover:bg-feisen-rojo-suave transition-colors text-[13px]">
+            <LogOut size={15} strokeWidth={1.8} /> Cerrar sesión
           </button>
         </div>
       </aside>
 
       {/* HEADER MÓVIL */}
-      <header className="lg:hidden bg-white shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100">
+      <header className="lg:hidden bg-white border-b border-feisen-borde px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <img src={logoFeisen} alt="Feisen" className="h-7 w-auto" />
         <div className="flex items-center gap-3">
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.color}`}>{badge.label}</span>
-          <button onClick={() => setMenuAbierto(v => !v)} className="text-gray-600 p-1">
+          <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-feisen-azul-suave text-feisen-azul">{badge.label}</span>
+          <button onClick={() => setMenuAbierto(v => !v)} className="text-feisen-gris-oscuro p-1">
             {menuAbierto ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -279,10 +296,10 @@ export default function Layout({ children }) {
       {/* MENÚ MÓVIL */}
       {menuAbierto && (
         <div className="lg:hidden fixed inset-0 z-30 bg-white pt-16 px-4 pb-6 overflow-y-auto">
-          <nav className="space-y-1 mb-6">
-            {navItems.map(item => <NavLink key={item.to} item={item} />)}
+          <nav className="mb-6">
+            <MenuNav />
           </nav>
-          <div className="border-t pt-4 space-y-1">
+          <div className="border-t border-feisen-borde pt-4 space-y-1">
             <button onClick={() => { setMenuAbierto(false); setFormPwd({ nueva: '', confirmar: '' }); setMsgPwd(null); setModalPwd(true) }}
               className="w-full flex items-center gap-2 px-4 py-3 rounded-xl text-gray-600 hover:bg-gray-100 font-medium">
               <KeyRound size={18} /> Cambiar contraseña
@@ -300,7 +317,7 @@ export default function Layout({ children }) {
       )}
 
       {/* CONTENIDO */}
-      <main className="flex-1 p-4 lg:p-8 pb-24 lg:pb-8">
+      <main className="flex-1 min-w-0 p-4 lg:px-10 lg:py-8 pb-24 lg:pb-10">
         {rolPreview && (
           <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -320,7 +337,7 @@ export default function Layout({ children }) {
       </main>
 
       {/* BARRA INFERIOR MÓVIL */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex z-20">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-feisen-borde pb-safe flex z-20">
         {mobileItems.map(item => {
           const activo = item.to.includes('?')
             ? location.pathname + location.search === item.to
@@ -328,7 +345,7 @@ export default function Layout({ children }) {
           return (
             <Link key={item.to} to={item.to}
               className={`flex-1 flex flex-col items-center py-3 gap-1 transition-colors
-                ${activo ? 'text-feisen-azul' : 'text-gray-400'}`}>
+                ${activo ? 'text-feisen-azul' : 'text-feisen-gris-medio'}`}>
               <item.icon size={20} />
               <span className="text-xs font-medium leading-tight text-center">{item.label}</span>
             </Link>
@@ -363,18 +380,18 @@ export default function Layout({ children }) {
               <input required type="password" minLength={6} value={formPwd.nueva}
                 onChange={e => setFormPwd(f => ({ ...f, nueva: e.target.value }))}
                 placeholder="Mínimo 6 caracteres"
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Confirmar contraseña *</label>
               <input required type="password" minLength={6} value={formPwd.confirmar}
                 onChange={e => setFormPwd(f => ({ ...f, confirmar: e.target.value }))}
                 placeholder="Repite la contraseña"
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalPwd(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardandoPwd}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
                 {guardandoPwd ? 'Guardando...' : 'Guardar'}

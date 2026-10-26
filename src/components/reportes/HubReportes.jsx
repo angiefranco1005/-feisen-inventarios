@@ -61,7 +61,7 @@ export default function HubReportes() {
           <Link
             key={r.to}
             to={r.to}
-            className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 flex items-center gap-5 hover:shadow-md hover:border-gray-200 transition-all group"
+            className="bg-white border border-feisen-borde rounded-xl p-5 flex items-center gap-5 hover:shadow-md hover:border-gray-200 transition-all group"
           >
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${r.bg}`}>
               <r.icon size={24} className={r.color} />

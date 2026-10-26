@@ -9,8 +9,8 @@
   }
 
   body {
-    background-color: #F4F5F7;
-    color: #4B5563;
+    background-color: #F7F8FA;
+    color: #1F2937;
   }
 
   /* Evitar zoom en inputs en iOS */
@@ -20,8 +20,8 @@
 
   /* Scrollbar sutil */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #F4F5F7; }
-  ::-webkit-scrollbar-thumb { background: #9CA3AF; border-radius: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: #6B7280; }
 }
 

@@ -79,7 +79,7 @@ export default function DashboardConsultor() {
           <Package size={22} className="text-feisen-azul" /> Stock actual — Bodega Motores
         </h1>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
           {stock.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <Package size={40} className="mx-auto mb-3 opacity-30" />

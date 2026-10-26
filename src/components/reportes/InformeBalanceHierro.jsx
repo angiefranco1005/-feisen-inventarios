@@ -330,7 +330,7 @@ export default function InformeBalanceHierro() {
         <Scale size={24} /> Balance de hierro — Fundición
       </h1>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
         <p className="text-sm text-gray-500">
           Cruza, mes a mes, lo que entra de hierro, lo que se descuenta al fundir, las piezas buenas, el vaceadero y la merma,
           contra el stock del sistema y tu conteo físico. Sirve para detectar a tiempo faltantes o descuadres.
@@ -340,23 +340,23 @@ export default function InformeBalanceHierro() {
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Desde (mes)</label>
             <input type="month" value={mesDesde} max={mesHasta} onChange={e => setMesDesde(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Hasta (mes)</label>
             <input type="month" value={mesHasta} min={mesDesde} onChange={e => setMesHasta(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Merma esperada (%)</label>
             <input type="number" step="0.1" min="0" value={mermaPct} onChange={e => setMermaPct(e.target.value)}
               placeholder={res ? `histórico ${res.historico.toFixed(1)}` : 'vacío = histórico'}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1.5">Tolerancia (puntos %)</label>
             <input type="number" step="0.5" min="0" value={tolerancia} onChange={e => setTolerancia(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
         </div>
 
@@ -388,7 +388,7 @@ export default function InformeBalanceHierro() {
               { label: 'Hierro cargado sin descontar (kg)', valor: kg(res.meses.reduce((s, b) => s + b.fundidasSinDescontar, 0)), sub: 'fundidas sin orden cerrada', color: res.fundidasSinDescontar.length ? 'text-feisen-rojo' : 'text-green-700' },
               { label: 'Salidas de hierro que no son horno (kg)', valor: kg(res.meses.reduce((s, b) => s + b.otrasSalidas, 0)), sub: `${res.salidasNoHorno.length} movimientos`, color: res.salidasNoHorno.length ? 'text-amber-700' : 'text-green-700' },
             ].map(c => (
-              <div key={c.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={c.label} className="bg-white rounded-xl border border-feisen-borde p-4">
                 <p className="text-xs text-gray-400 mb-1">{c.label}</p>
                 <p className={`font-bold text-lg ${c.color}`}>{c.valor}</p>
                 <p className="text-xs text-gray-400">{c.sub}</p>
@@ -419,7 +419,7 @@ export default function InformeBalanceHierro() {
           </div>
 
           {/* Balance mensual */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Balance mensual (kg)</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm whitespace-nowrap">
@@ -452,7 +452,7 @@ export default function InformeBalanceHierro() {
           </div>
 
           {/* Producción y merma mensual */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Fundido, piezas y merma (kg)</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm whitespace-nowrap">
@@ -488,7 +488,7 @@ export default function InformeBalanceHierro() {
           </div>
 
           {/* Detalle por orden */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <div className="px-4 pt-4 pb-2 flex items-center gap-3">
               <p className="text-sm font-semibold text-gray-700">Detalle por orden de moldeo</p>
               <select value={mesDetalle} onChange={e => setMesDetalle(e.target.value)}
@@ -528,7 +528,7 @@ export default function InformeBalanceHierro() {
           </div>
 
           {/* Piezas no conformes por mes */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Piezas no conformes y faltantes por mes</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm whitespace-nowrap">
@@ -559,7 +559,7 @@ export default function InformeBalanceHierro() {
           </div>
 
           {/* Conteo físico */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
+          <div className="bg-white rounded-xl border border-feisen-borde p-4 space-y-3">
             <p className="text-sm font-semibold text-gray-700">Conteo físico vs. sistema al cierre de {labelMes(ultimoMes.mes)}</p>
             <p className="text-xs text-gray-400">Escribe lo que hay en patio/bodega. Esa diferencia es la señal más directa de faltante. No se guarda; se incluye en el Excel si lo diligencias antes de descargar.</p>
             <div className="overflow-x-auto">
@@ -582,7 +582,7 @@ export default function InformeBalanceHierro() {
                         <td className="px-3 py-2 text-right text-gray-700">{kg(r.sistema)}</td>
                         <td className="px-3 py-2 text-right">
                           <input type="number" step="0.1" value={v ?? ''} onChange={e => setConteo(c => ({ ...c, [r.id]: e.target.value }))}
-                            className="w-28 border border-gray-300 rounded-lg px-2 py-1 text-right text-sm" />
+                            className="w-28 border border-feisen-borde rounded-lg px-2 py-1 text-right text-sm" />
                         </td>
                         <td className={`px-3 py-2 text-right font-semibold ${dif === null ? 'text-gray-300' : dif < -0.5 ? 'text-feisen-rojo' : 'text-gray-700'}`}>
                           {dif === null ? '—' : kg(dif)}
@@ -597,7 +597,7 @@ export default function InformeBalanceHierro() {
 
           {/* Salidas que no son horno */}
           {res.salidasNoHorno.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
               <p className="px-4 pt-4 pb-2 text-sm font-semibold text-gray-700">Salidas de hierro que NO son consumo de horno</p>
               <div className="overflow-x-auto max-h-80 overflow-y-auto">
                 <table className="w-full text-sm whitespace-nowrap">

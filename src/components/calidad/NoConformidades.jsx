@@ -480,7 +480,7 @@ export default function NoConformidades() {
 
             <div className="flex gap-3 pt-1">
               <button onClick={() => { setModalCrear(false); setMsg(null) }}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={crearNC} disabled={guardando}
@@ -541,7 +541,7 @@ export default function NoConformidades() {
 
             <div className="flex gap-3">
               <button onClick={() => { setNcACerrar(null); setMsg(null) }}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={cerrarNC} disabled={guardando}

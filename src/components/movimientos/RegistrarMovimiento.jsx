@@ -219,7 +219,7 @@ export default function RegistrarMovimiento() {
               {tiposDisponibles.map(t => (
                 <button key={t} type="button" onClick={() => setForm(f => ({ ...f, tipo: t, destino: '' }))}
                   className={`px-3 py-3 rounded-xl text-sm font-semibold border transition-colors
-                    ${form.tipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    ${form.tipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
                   {TIPO_LABEL[t]}
                 </button>
               ))}
@@ -236,7 +236,7 @@ export default function RegistrarMovimiento() {
               onChange={e => { setBusqueda(e.target.value); setMostrarLista(true); setForm(f => ({ ...f, item_id: '' })) }}
               onFocus={() => setMostrarLista(true)}
               placeholder="Escribe para buscar..."
-              className="w-full border border-gray-300 rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+              className="w-full border border-feisen-borde rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           </div>
           {mostrarLista && itemsFiltrados.length > 0 && (
             <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
@@ -256,7 +256,7 @@ export default function RegistrarMovimiento() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Bodega *</label>
             <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+              className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
               <option value="">Selecciona bodega</option>
               {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
@@ -275,7 +275,7 @@ export default function RegistrarMovimiento() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Solicitud de pedido (opcional)</label>
               <select value={form.pedido_id} onChange={e => setForm(f => ({ ...f, pedido_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                 <option value="">Sin pedido asociado</option>
                 {pedidos.map(p => (
                   <option key={p.id} value={p.id}>
@@ -291,7 +291,7 @@ export default function RegistrarMovimiento() {
               <input required type="number" min="0.001" step="0.001" value={form.cantidad}
                 onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
                 placeholder="0"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
 
             {/* Proveedor */}
@@ -299,7 +299,7 @@ export default function RegistrarMovimiento() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Proveedor (opcional)</label>
               <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))}
                 placeholder="Ej: Distribuidora Motors S.A.S."
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
 
             {/* Foto remisión */}
@@ -313,7 +313,7 @@ export default function RegistrarMovimiento() {
                 </div>
               ) : (
                 <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-6 text-sm text-gray-400 transition-colors
-                  ${subiendo ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  ${subiendo ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
                   {subiendo
                     ? <><FileImage size={24} className="animate-pulse" /><span>Subiendo...</span></>
                     : <><Upload size={24} /><span>Toca para adjuntar foto de la remisión</span></>
@@ -335,7 +335,7 @@ export default function RegistrarMovimiento() {
                 {DESTINOS.map(d => (
                   <button key={d} type="button" onClick={() => setForm(f => ({ ...f, destino: d }))}
                     className={`w-full px-4 py-3 rounded-xl text-sm font-medium border text-left transition-colors
-                      ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
                     {d}
                   </button>
                 ))}
@@ -348,7 +348,7 @@ export default function RegistrarMovimiento() {
               <input required type="number" min="0.001" step="0.001" value={form.cantidad}
                 onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
                 placeholder="0"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
 
             {/* N° OF */}
@@ -356,7 +356,7 @@ export default function RegistrarMovimiento() {
               <label className="block text-sm font-medium text-gray-700 mb-2">N° Orden de Fabricación (opcional)</label>
               <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
                 placeholder="Ej: 8465"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
 
             {/* Serial motor */}
@@ -364,7 +364,7 @@ export default function RegistrarMovimiento() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Serial del motor (opcional)</label>
               <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
                 placeholder="Ej: 215325060196"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
 
             {/* Referencia */}
@@ -372,7 +372,7 @@ export default function RegistrarMovimiento() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Referencia / Observación (opcional)</label>
               <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
                 placeholder="Ej: Factura 001"
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
           </>
         )}
@@ -385,7 +385,7 @@ export default function RegistrarMovimiento() {
           <label className="block text-sm font-medium text-gray-700 mb-2">Fecha del movimiento</label>
           <input type="date" value={fechaMov} max={HOY_COL}
             onChange={e => setFechaMov(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           <p className="text-xs text-gray-400 mt-1">Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.</p>
         </div>
 

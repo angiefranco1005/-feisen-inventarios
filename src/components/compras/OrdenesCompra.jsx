@@ -62,12 +62,12 @@ export default function OrdenesCompra() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+      <div className="bg-white rounded-xl border border-feisen-borde p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por número, proveedor o pedido..."
-            className="w-full border border-gray-300 rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            className="w-full border border-feisen-borde rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none whitespace-nowrap">
           <input type="checkbox" checked={mostrarAnuladas} onChange={e => setMostrarAnuladas(e.target.checked)}

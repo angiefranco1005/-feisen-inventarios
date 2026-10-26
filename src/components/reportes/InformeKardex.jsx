@@ -315,7 +315,7 @@ export default function InformeKardex() {
       </h1>
 
       {/* ── Filtros ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+      <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
         <p className="text-sm text-gray-500">
           Muestra el stock al inicio y al fin del período, más todas las entradas, salidas y transferencias intermedias,
           con su valor en COP.
@@ -329,7 +329,7 @@ export default function InformeKardex() {
               value={fechaInicio}
               onChange={e => setFechaInicio(e.target.value)}
               max={fechaFin || undefined}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             />
           </div>
           <div>
@@ -339,7 +339,7 @@ export default function InformeKardex() {
               value={fechaFin}
               onChange={e => setFechaFin(e.target.value)}
               min={fechaInicio || undefined}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             />
           </div>
           <div>
@@ -347,7 +347,7 @@ export default function InformeKardex() {
             <select
               value={bodegaId}
               onChange={e => setBodegaId(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
             >
               <option value="">Todas las bodegas</option>
               {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -358,7 +358,7 @@ export default function InformeKardex() {
             <select
               value={categoriaId}
               onChange={e => setCategoriaId(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
             >
               <option value="">Todas las categorías</option>
               {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -399,7 +399,7 @@ export default function InformeKardex() {
               { label: 'Salidas (valor)',        valor: resultado.totalSalidas,    color: 'text-feisen-rojo' },
               { label: 'Valor fin período',      valor: resultado.totalValorFinal, color: 'text-feisen-azul' },
             ].map(({ label, valor, color }) => (
-              <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={label} className="bg-white rounded-xl border border-feisen-borde p-4">
                 <p className="text-xs text-gray-400 mb-1">{label}</p>
                 <p className={`font-bold text-lg ${color}`}>{fmt(valor)}</p>
               </div>
@@ -409,7 +409,7 @@ export default function InformeKardex() {
           <p className="text-xs text-gray-400 text-right">{periodoLabel} · {resultado.filas.length} ítems</p>
 
           {/* Tabla preview */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">

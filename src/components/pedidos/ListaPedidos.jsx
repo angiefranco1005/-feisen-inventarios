@@ -62,7 +62,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
   const diasColor = diasTranscurridos >= 6 ? 'bg-red-100 text-red-600' : diasTranscurridos >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
       <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <Ico size={20} className={p.estado === 'pendiente' ? 'text-amber-500' : p.estado === 'en_transito' ? 'text-blue-500' : 'text-green-500'} />
@@ -283,7 +283,7 @@ function SelectorProducto({ value, onSelect, productos }) {
             if (busqueda && !coincide) { setBusqueda(''); onSelect('', '', null) }
           }, 150)}
           placeholder="Buscar producto..."
-          className="w-full border border-gray-300 rounded-xl pl-10 pr-3 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          className="w-full border border-feisen-borde rounded-xl pl-10 pr-3 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
       </div>
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
@@ -1007,7 +1007,7 @@ export default function ListaPedidos() {
                 {/* Cantidad + Unidad */}
                 <div className="flex gap-2 items-center">
                   {/* Botones +/− */}
-                  <div className="flex items-center flex-1 border border-gray-300 rounded-xl overflow-hidden bg-white">
+                  <div className="flex items-center flex-1 border border-feisen-borde rounded-xl overflow-hidden bg-white">
                     <button type="button"
                       onClick={() => { const c = [...items]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItems(c) }}
                       className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
@@ -1020,7 +1020,7 @@ export default function ListaPedidos() {
                   </div>
                   {/* Unidad */}
                   <select value={it.unidad} onChange={e => { const c = [...items]; c[idx].unidad = e.target.value; setItems(c) }}
-                    className="w-24 border border-gray-300 rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
+                    className="w-24 border border-feisen-borde rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
                     {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -1056,7 +1056,7 @@ export default function ListaPedidos() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
               <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
@@ -1073,7 +1073,7 @@ export default function ListaPedidos() {
                 </div>
               ) : (
                 <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
-                  ${subiendoFoto ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  ${subiendoFoto ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
                   {subiendoFoto
                     ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
                     : <><Upload size={28} /><span>Adjuntar foto de la muestra o referencia</span></>
@@ -1086,7 +1086,7 @@ export default function ListaPedidos() {
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalNuevo(false)}
-                className="flex-1 border border-gray-300 rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={subiendoFoto}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">Crear pedido</button>
             </div>
@@ -1112,7 +1112,7 @@ export default function ListaPedidos() {
                 <label className="text-xs text-gray-500 block mb-1">Fecha de la entrada</label>
                 <input type="date" value={fechaRecepcion} max={hoyCol()}
                   onChange={e => setFechaRecepcion(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                  className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                 <p className="text-xs text-gray-400 mt-1">Por defecto hoy. Cámbiala si el material llegó otro día.</p>
               </div>
             )}
@@ -1133,7 +1133,7 @@ export default function ListaPedidos() {
                       type="number" min="0" step="0.001"
                       value={cantRec[it.id] ?? ''}
                       onChange={e => setCantRec(r => ({ ...r, [it.id]: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                      className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                     />
                     <span className="text-xs text-gray-400">{it.unidad}</span>
                   </div>
@@ -1144,7 +1144,7 @@ export default function ListaPedidos() {
             )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setModalRecibido(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button type="button" onClick={confirmarRecibido} disabled={guardandoRecibido}
@@ -1164,16 +1164,16 @@ export default function ListaPedidos() {
               <label className="text-sm font-medium text-gray-700 block mb-1">N° Orden de Compra *</label>
               <input required value={formTransito.numero_oc} onChange={e => setFormTransito(f => ({ ...f, numero_oc: e.target.value }))}
                 placeholder="Ej: OC-2026-001"
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Fecha estimada de llegada</label>
               <input type="date" value={formTransito.fecha_estimada} onChange={e => setFormTransito(f => ({ ...f, fecha_estimada: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalTransito(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit"
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Confirmar</button>
             </div>
@@ -1196,7 +1196,7 @@ export default function ListaPedidos() {
                     setItemsEdit(c)
                   }} />
                 <div className="flex gap-2 items-center">
-                  <div className="flex items-center flex-1 border border-gray-300 rounded-xl overflow-hidden bg-white">
+                  <div className="flex items-center flex-1 border border-feisen-borde rounded-xl overflow-hidden bg-white">
                     <button type="button"
                       onClick={() => { const c = [...itemsEdit]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItemsEdit(c) }}
                       className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
@@ -1208,7 +1208,7 @@ export default function ListaPedidos() {
                       className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">+</button>
                   </div>
                   <select value={it.unidad} onChange={e => { const c = [...itemsEdit]; c[idx].unidad = e.target.value; setItemsEdit(c) }}
-                    className="w-24 border border-gray-300 rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
+                    className="w-24 border border-feisen-borde rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
                     {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -1242,7 +1242,7 @@ export default function ListaPedidos() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
               <textarea value={obsEdit} onChange={e => setObsEdit(e.target.value)} rows={3}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
                 placeholder="Especificaciones, referencias, etc." />
             </div>
 
@@ -1259,7 +1259,7 @@ export default function ListaPedidos() {
                 </div>
               ) : (
                 <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
-                  ${subiendoFotoEdit ? 'border-gray-200 bg-gray-50' : 'border-gray-300 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+                  ${subiendoFotoEdit ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
                   {subiendoFotoEdit
                     ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
                     : <><Upload size={28} /><span>Adjuntar foto de muestra o referencia</span></>
@@ -1272,7 +1272,7 @@ export default function ListaPedidos() {
 
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalEditar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardandoEdit || subiendoFotoEdit}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">
                 {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
@@ -1293,14 +1293,14 @@ export default function ListaPedidos() {
                   className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-colors
                     ${motivoCierre === m
                       ? 'border-feisen-azul bg-blue-50 text-feisen-azul'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'}`}>
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-feisen-borde hover:bg-gray-50'}`}>
                   {motivoCierre === m ? '✓ ' : ''}{m}
                 </button>
               ))}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setConfirmCerrar(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
                 Cancelar
               </button>
               <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
@@ -1320,7 +1320,7 @@ export default function ListaPedidos() {
             <Alerta tipo="alerta" mensaje={`¿Eliminar ${confirmElim.numero}? Esta acción no se puede deshacer. Los movimientos vinculados quedarán sin pedido asociado.`} />
             <div className="flex gap-3">
               <button onClick={() => setConfirmElim(null)}
-                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button onClick={() => eliminarPedido(confirmElim)}
                 className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold">Sí, eliminar</button>
             </div>

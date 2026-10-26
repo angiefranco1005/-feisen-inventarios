@@ -297,7 +297,7 @@ export default function RegistroMecanizado() {
             <div className="flex items-center gap-4 justify-center">
               <button
                 onClick={() => setCantidad(c => Math.max(1, Number(c) - 1))}
-                className="w-14 h-14 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-700 hover:border-blue-400 active:bg-gray-100 shadow-sm"
+                className="w-14 h-14 rounded-full bg-white border-2 border-feisen-borde flex items-center justify-center text-gray-700 hover:border-blue-400 active:bg-gray-100 shadow-sm"
               >
                 <Minus className="w-6 h-6" />
               </button>
@@ -313,7 +313,7 @@ export default function RegistroMecanizado() {
 
               <button
                 onClick={() => setCantidad(c => Math.min(stockDisponible(selItem.id), Number(c) + 1))}
-                className="w-14 h-14 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center text-gray-700 hover:border-blue-400 active:bg-gray-100 shadow-sm"
+                className="w-14 h-14 rounded-full bg-white border-2 border-feisen-borde flex items-center justify-center text-gray-700 hover:border-blue-400 active:bg-gray-100 shadow-sm"
               >
                 <Plus className="w-6 h-6" />
               </button>

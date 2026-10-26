@@ -485,7 +485,7 @@ export default function InventarioFisico() {
         {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
         {cargando ? <Spinner /> : (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
             {inventarios.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
                 <Package size={40} className="text-gray-200" />
@@ -630,12 +630,12 @@ export default function InventarioFisico() {
         <div>
           <label className="text-xs font-medium text-gray-500 block mb-1">Fecha del conteo</label>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
         <div className="col-span-2 sm:col-span-2">
           <label className="text-xs font-medium text-gray-500 block mb-1">Título (opcional)</label>
           <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: Bodega Mecanizados — cierre de mes"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           <p className="text-[11px] text-gray-400 mt-1">Para reconocer este inventario más fácil en la lista.</p>
         </div>
       </div>
@@ -663,7 +663,7 @@ export default function InventarioFisico() {
       )}
 
       {/* Barra de progreso */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-6">
+      <div className="bg-white rounded-xl border border-feisen-borde p-4 flex items-center gap-6">
         <div className="flex-1">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
             <span>Progreso del conteo</span>
@@ -690,28 +690,28 @@ export default function InventarioFisico() {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar producto..."
-            className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+            className="w-full pl-9 pr-3 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         </div>
         <select value={filtroBodega} onChange={e => setFiltroBodega(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+          className="border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
           <option value="">Todas las bodegas</option>
           {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
         </select>
         <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-          className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+          className="border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
           <option value="">Todas las categorías</option>
           {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button onClick={() => setSoloConDif(v => !v)}
           className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl border font-medium transition-colors
-            ${soloConDif ? 'bg-feisen-rojo text-white border-feisen-rojo' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+            ${soloConDif ? 'bg-feisen-rojo text-white border-feisen-rojo' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
           <AlertTriangle size={13} /> Solo diferencias ({conDiferencia})
         </button>
       </div>
 
       {/* Tabla */}
       {cargando ? <Spinner /> : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -752,7 +752,7 @@ export default function InventarioFisico() {
                         value={conteos[item.key] ?? ''}
                         onChange={e => setConteos(prev => ({ ...prev, [item.key]: e.target.value }))}
                         placeholder="—"
-                        className="w-24 text-center border border-gray-300 rounded-xl px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-medium"
+                        className="w-24 text-center border border-feisen-borde rounded-xl px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-medium"
                       />
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -776,7 +776,7 @@ export default function InventarioFisico() {
 
       {/* Reporte de diferencias */}
       {conDiferencia > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
             <AlertTriangle size={16} className="text-feisen-rojo" />
             <h2 className="font-semibold text-gray-700">Reporte de diferencias ({conDiferencia} productos)</h2>
@@ -882,7 +882,7 @@ export default function InventarioFisico() {
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setModalConfirm(false)} disabled={aplicando}
-                className="px-4 py-2 border border-gray-300 rounded-xl text-sm text-gray-600 hover:bg-gray-50">
+                className="px-4 py-2 border border-feisen-borde rounded-xl text-sm text-gray-600 hover:bg-gray-50">
                 Cancelar
               </button>
               <button onClick={aplicarCorrecciones} disabled={aplicando}

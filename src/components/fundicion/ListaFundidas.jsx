@@ -103,7 +103,7 @@ export default function ListaFundidas() {
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar por N°, fecha, hornero, vaceador…"
-          className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full pl-10 pr-4 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
         />
       </div>
 

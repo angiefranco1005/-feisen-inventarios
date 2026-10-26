@@ -64,7 +64,7 @@ function SeccionBodegas() {
   if (cargando) return <Spinner />
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Warehouse size={18} className="text-feisen-azul" /> Bodegas</h2>
         <button onClick={() => abrir()}
@@ -96,17 +96,17 @@ function SeccionBodegas() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Bodega Motores" />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Descripción</label>
               <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Opcional" />
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Guardar</button>
             </div>
           </form>
@@ -170,7 +170,7 @@ function SeccionCategorias() {
   }))
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Tag size={18} className="text-feisen-azul" /> Categorías</h2>
         <button onClick={() => abrir()}
@@ -206,7 +206,7 @@ function SeccionCategorias() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
               <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                 <option value="">Selecciona bodega</option>
                 {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
               </select>
@@ -214,11 +214,11 @@ function SeccionCategorias() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Motores" />
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Guardar</button>
             </div>
           </form>
@@ -268,7 +268,7 @@ function SeccionRoles() {
   if (cargando) return <Spinner />
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Shield size={18} className="text-feisen-azul" /> Roles</h2>
         <button onClick={abrir}
@@ -298,14 +298,14 @@ function SeccionRoles() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre del rol *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-mono uppercase"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-mono uppercase"
                 placeholder="Ej: JEFE_MECANIZADOS" />
               <p className="text-xs text-gray-400 mt-1">Se guardará en mayúsculas con guion bajo.</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre visible *</label>
               <input required value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Jefe Mecanizados" />
             </div>
             <div>
@@ -321,7 +321,7 @@ function SeccionRoles() {
               </div>
             </div>
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">
                 {guardando ? 'Guardando...' : 'Crear rol'}
               </button>
@@ -461,7 +461,7 @@ function SeccionUsuarios() {
   if (cargando) return <Spinner />
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Users size={18} className="text-feisen-azul" /> Usuarios</h2>
         <button onClick={abrirNuevo}
@@ -512,7 +512,7 @@ function SeccionUsuarios() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Nombre completo *</label>
               <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder="Ej: Efrain Palma" />
             </div>
             <div>
@@ -522,7 +522,7 @@ function SeccionUsuarios() {
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder={editando ? 'Dejar igual o escribir nuevo email' : 'correo@feisen.com'}
               />
             </div>
@@ -534,14 +534,14 @@ function SeccionUsuarios() {
                 minLength={editando ? 0 : 6}
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
                 placeholder={editando ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
               />
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Rol *</label>
               <select required value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
+                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                 {todosRoles.map(r => <option key={r.nombre} value={r.nombre}>{r.label}</option>)}
               </select>
             </div>
@@ -572,7 +572,7 @@ function SeccionUsuarios() {
             )}
 
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
+              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">
                 {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Crear usuario'}
               </button>

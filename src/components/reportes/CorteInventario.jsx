@@ -182,7 +182,7 @@ export default function CorteInventario() {
       <h1 className="text-2xl font-bold text-feisen-azul">Inventario en fecha</h1>
 
       {/* ── Selector ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+      <div className="bg-white rounded-xl border border-feisen-borde p-6">
         <p className="text-sm text-gray-500 mb-4">
           Selecciona una fecha de corte para ver el stock tal como estaba ese día — de una bodega puntual
           o de <strong>todas</strong> ("Todas las bodegas"). El cálculo parte del inventario actual y
@@ -196,7 +196,7 @@ export default function CorteInventario() {
               value={fecha}
               onChange={e => setFecha(e.target.value)}
               max={HOY}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
             />
           </div>
           <div className="flex-1">
@@ -204,7 +204,7 @@ export default function CorteInventario() {
             <select
               value={bodegaId}
               onChange={e => setBodegaId(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
+              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
             >
               <option value="">Todas las bodegas</option>
               {bodegasDisp.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -280,7 +280,7 @@ export default function CorteInventario() {
             const abierta = bodegasAbiertas[bodega.nombre]
 
             return (
-              <div key={bodega.nombre} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div key={bodega.nombre} className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
                 {/* Header bodega */}
                 <button
                   type="button"
