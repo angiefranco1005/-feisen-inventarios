@@ -3,6 +3,7 @@
 -- Fecha: 2026-10-26
 -- Ejecutar en Supabase Dashboard > SQL Editor
 -- ============================================================
+-- Se puede correr varias veces: cada paso solo agrega lo que falta.
 -- Pedido de Angie: la coordinadora de RRHH maneja la bodega de
 -- Administración (categorías Dotación, Papelería y Aseo): ve su stock, crea
 -- y edita sus productos, registra entradas/salidas y hace pedidos.
@@ -17,14 +18,20 @@ WHERE NOT EXISTS (
   WHERE UPPER(TRANSLATE(TRIM(nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')) = 'ADMINISTRACION'
 );
 
--- 2. Categorías (globales; solo las que falten) ----------------------------
-INSERT INTO public.categorias (nombre)
-SELECT c.nombre FROM (VALUES ('Dotación'), ('Papelería'), ('Aseo')) AS c(nombre)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.categorias x
-  WHERE UPPER(TRANSLATE(TRIM(x.nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou'))
-      = UPPER(TRANSLATE(c.nombre, 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou'))
-);
+-- 2. Categorías de la bodega (cada categoría pertenece a una bodega:
+--    categorias.bodega_id es obligatorio en la base real; schema.sql está
+--    desactualizado). Solo se crean las que falten en Administración.
+INSERT INTO public.categorias (nombre, bodega_id)
+SELECT c.nombre, b.id
+FROM (VALUES ('Dotación'), ('Papelería'), ('Aseo')) AS c(nombre)
+CROSS JOIN public.bodegas b
+WHERE UPPER(TRANSLATE(TRIM(b.nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')) = 'ADMINISTRACION'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.categorias x
+    WHERE x.bodega_id = b.id
+      AND UPPER(TRANSLATE(TRIM(x.nombre), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou'))
+        = UPPER(TRANSLATE(c.nombre, 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou'))
+  );
 
 -- 3. Asignar la bodega a los usuarios con rol RRHH -------------------------
 INSERT INTO public.profile_bodegas (profile_id, bodega_id)
@@ -75,7 +82,9 @@ CREATE POLICY "items_delete_roles_bodega" ON public.items FOR DELETE
   );
 
 -- Verificación: la bodega, sus categorías y quién la tiene asignada
-SELECT b.nombre AS bodega, p.nombre AS usuario, p.rol
+SELECT b.nombre AS bodega,
+       (SELECT string_agg(c.nombre, ', ' ORDER BY c.nombre) FROM public.categorias c WHERE c.bodega_id = b.id) AS categorias,
+       p.nombre AS usuario, p.rol
 FROM public.bodegas b
 LEFT JOIN public.profile_bodegas pb ON pb.bodega_id = b.id
 LEFT JOIN public.profiles p ON p.id = pb.profile_id

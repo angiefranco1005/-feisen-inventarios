@@ -5,6 +5,7 @@ Registro de decisiones, pendientes y "gotchas" para retomar el contexto rápido.
 ## Gotchas importantes
 
 - **`supabase/schema.sql` está desactualizado frente a la base real.** No confiar en él para constraints/columnas — verificar siempre en vivo (`pg_get_constraintdef`, `pg_get_functiondef`) antes de asumir el comportamiento de un trigger o un CHECK. Ya se encontraron dos desfases (ver abajo) causados por migraciones aplicadas en Supabase que nunca se reflejaron en este archivo.
+- **`categorias` pertenece a una bodega (`bodega_id` NOT NULL en la base real)**, aunque `schema.sql` la muestra global. La migración de la bodega de Administración falló la primera vez por suponer lo contrario (2026-10-26). Al crear categorías por SQL, siempre con `bodega_id`.
 - **El dominio `costeoequipos.netlify.app` apunta a esta app (inventario), NO a la app de costeo.** Verificar siempre a qué proyecto apunta un dominio antes de diagnosticar algo como bug.
 - **Cada bodega tiene su propio renglón de catálogo (`items`) para el mismo nombre de producto** — no es un ítem global con stock por bodega, es un `id` de `items` distinto por bodega. Cualquier transferencia entre bodegas debe buscar el ítem de **destino** por nombre normalizado (`UPPER(TRIM(...))`, colapsando espacios), nunca reutilizar el `item_id` de origen. Ver el patrón `normaliza()` en `GestionProductos.jsx` (función "mecanizar") y ahora también en `TransferenciasPendientes.jsx`.
 - **Trigger `fn_actualizar_stock` (vivo, verificado 2026-09-16):** `tipo='entrada'` usa `bodega_destino_id` para sumar stock; `tipo='salida'` usa `bodega_origen_id` para restar. Un movimiento `'salida'` **nunca** acredita `bodega_destino_id` aunque el campo esté lleno — es solo metadato descriptivo. Cualquier transferencia entre bodegas necesita DOS movimientos (una salida + una entrada), no uno solo.
@@ -1513,7 +1514,7 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
     (Dashboard → Edge Functions → nueva función con ese código, o `supabase functions deploy enviar-desprendible`).
     Migración `2026-10-26_rrhh_nomina_aprobacion.sql`.
 - **RRHH maneja la bodega "Administración" y hace pedidos (2026-10-26, pedido de Angie):** categorías
-  Dotación, Papelería y Aseo (globales). El rol RRHH ahora tiene Productos, Movimiento (pantalla de
+  Dotación, Papelería y Aseo, creadas dentro de la bodega Administración (cada categoría pertenece a una bodega). El rol RRHH ahora tiene Productos, Movimiento (pantalla de
   almacenista), Historial y Pedidos, limitados a sus bodegas por `profile_bodegas` como los jefes de área;
   área de los pedidos = 'ADMINISTRACION'. Migración `2026-10-26_rrhh_bodega_administracion.sql`: crea la
   bodega y categorías si no existen (comparando sin tildes), asigna la bodega a los usuarios RRHH y agrega
