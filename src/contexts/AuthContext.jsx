@@ -60,12 +60,13 @@ export function AuthProvider({ children }) {
   const esConsultor        = rolEfectivo === 'CONSULTOR'
   const esJefeFundicion    = rolEfectivo === 'JEFE_FUNDICION'
   const esJefeMecanizados  = rolEfectivo === 'JEFE_MECANIZADOS'
+  const esRRHH             = rolEfectivo === 'RRHH'
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
-      esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados,
+      esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esRRHH,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,

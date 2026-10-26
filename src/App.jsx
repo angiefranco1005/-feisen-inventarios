@@ -34,6 +34,8 @@ import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
 import TransferenciasPendientes from './components/transferencias/TransferenciasPendientes'
 import NoConformidades          from './components/calidad/NoConformidades'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
+import ListaEmpleados           from './components/rrhh/ListaEmpleados'
+import FichaEmpleado            from './components/rrhh/FichaEmpleado'
 
 function Cargando() {
   return (
@@ -67,6 +69,17 @@ function AppRoutes() {
         <Route path="/dashboard" element={<Layout><DashboardConsultor /></Layout>} />
         <Route path="/pedidos"   element={<Layout><ListaPedidos /></Layout>} />
         <Route path="*"          element={<Layout><DashboardConsultor /></Layout>} />
+      </Routes>
+    )
+  }
+
+  // RRHH (coordinadora de Recursos Humanos) — solo el módulo de personas
+  if (rolEfectivo === 'RRHH') {
+    return (
+      <Routes>
+        <Route path="/rrhh/empleados"     element={<Layout><ListaEmpleados /></Layout>} />
+        <Route path="/rrhh/empleados/:id" element={<Layout><FichaEmpleado /></Layout>} />
+        <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
       </Routes>
     )
   }
@@ -192,6 +205,8 @@ function AppRoutes() {
       <Route path="/analitica/fundicion"    element={<Layout><AnaliticaFundicion /></Layout>} />
       <Route path="/mecanizados/registro"   element={<Layout><RegistroMecanizado /></Layout>} />
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
+      <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
+      <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
       <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

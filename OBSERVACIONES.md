@@ -1325,3 +1325,31 @@ El más antiguo de cada grupo conservó su número. Siguiente número libre: PED
 - Menú lateral compacto (ítem activo en azul suave, sin bloque azul fuerte), iniciales del usuario y rol en texto. Ítems con `grupo` se muestran bajo un título: **Catálogos** (Paquetes, Configuración) para Admin y **Fundición** (Fundidas, Moldeo, Recogida, Nómina, Analítica, BOM) para Jefe de Fundición. Para agrupar un ítem nuevo basta agregarle `grupo: '<Título>'` en `Layout.jsx`.
 - En todas las pantallas: tarjetas blancas con borde fino `border-feisen-borde` y `rounded-xl` en vez de sombra (`shadow-sm`); bordes de inputs `border-gray-300` → `border-feisen-borde`. Modal y Alerta con bordes y fondos suaves. Para pantallas nuevas seguir ese patrón: `bg-white rounded-xl border border-feisen-borde`.
 - Para revisar el diseño sin iniciar sesión: `vite.demo.config.mjs` (fuera de git, en `.git/info/exclude`) usa un Supabase falso; `?rol=ADMIN|JEFE_FUNDICION|ALMACENISTA…` en la URL cambia el rol.
+
+## Módulo: Recursos Humanos — Fase 1: fichas de colaborador (2026-10-26)
+
+Inspirado en la ficha de colaborador de Buk. Pedido por Angie para que la coordinadora de RRHH maneje su
+trabajo desde la app; se construye por fases ("sobre la marcha").
+
+- **Rol nuevo `RRHH`** (label "Recursos Humanos", fila en tabla `roles`). Este rol SOLO ve el módulo de
+  personas (`/rrhh/empleados`), sin inventario. ADMIN también lo ve en su menú ("Colaboradores") y puede usar
+  "Ver como Recursos Humanos" en la vista previa. Para la coordinadora: crear su usuario en Configuración →
+  Usuarios con rol RRHH (no necesita bodegas).
+- **Tablas:** `empleados` (una fila por persona; datos personales, laborales, seguridad social, pago,
+  emergencia, tallas de dotación, `foto_path`, `jefe_id` autorreferencia, `usuario_id` opcional para un
+  futuro autoservicio) y `empleado_documentos` (adjuntos por tipo). Código `EMP-0001` con `siguienteNumero`
+  (max+1). `numero_documento` es UNIQUE. No se borran empleados: se marcan `estado='retirado'` con fecha y
+  motivo (como en Buk).
+- **Seguridad:** RLS en ambas tablas y en el bucket → solo `ADMIN` y `RRHH`. El bucket `rrhh` es **privado**
+  (salarios, cédulas, contratos): siempre `createSignedUrl(s)`, nunca `getPublicUrl` (a diferencia del bucket
+  `remisiones`, que es público).
+- **Fechas DATE:** se parsean como fecha local en `catalogosRRHH.js` (`new Date('YYYY-MM-DD')` las toma en
+  UTC y en Colombia muestra el día anterior).
+- **Alertas:** contratos con `fecha_fin_contrato` a ≤45 días (o vencidos) se listan arriba en el listado y
+  en el encabezado de la ficha.
+- Catálogos (áreas, tipos de contrato, tipos de documento adjunto…) están fijos en
+  `src/components/rrhh/catalogosRRHH.js`; si la coordinadora necesita editarlos, pasarlos a tablas.
+- Migración: `supabase/migraciones/2026-10-26_rrhh_empleados.sql` (correr a mano en SQL Editor).
+- **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
+  beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
+  listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

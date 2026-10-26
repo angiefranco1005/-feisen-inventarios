@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -18,6 +18,7 @@ const NAV_ADMIN = [
   { to: '/ordenes-compra',        icon: FileText,         label: 'Órdenes de compra' },
   { to: '/calidad',               icon: ShieldAlert,      label: 'Calidad' },
   { to: '/reportes',              icon: TrendingUp,       label: 'Informes' },
+  { to: '/rrhh/empleados',        icon: Users,            label: 'Colaboradores' },
   { to: '/mecanizados/paquetes',  icon: Boxes,           label: 'Paquetes',      grupo: 'Catálogos' },
   { to: '/config',                icon: Settings,         label: 'Configuración', grupo: 'Catálogos' },
 ]
@@ -106,6 +107,10 @@ const MOBILE_JEFE_FUNDICION = [
   { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
 ]
 
+const NAV_RRHH = [
+  { to: '/rrhh/empleados', icon: Users, label: 'Colaboradores' },
+]
+
 const NAV_CONSULTOR = [
   { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
   { to: '/pedidos',    icon: ShoppingCart,    label: 'Pedidos' },
@@ -123,10 +128,11 @@ const BADGE = {
   CONSULTOR:         { color: 'bg-gray-500 text-white',      label: 'Consultor' },
   JEFE_FUNDICION:    { color: 'bg-orange-600 text-white',    label: 'Jefe Fundición' },
   JEFE_MECANIZADOS:  { color: 'bg-purple-600 text-white',    label: 'Jefe Mecanizados' },
+  RRHH:              { color: 'bg-pink-600 text-white',      label: 'Recursos Humanos' },
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esConsultor, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -142,6 +148,7 @@ export default function Layout({ children }) {
     : esJefeFundicion    ? NAV_JEFE_FUNDICION
     : esJefeMecanizados  ? NAV_JEFE_MECANIZADOS
     : esConsultor        ? NAV_CONSULTOR
+    : esRRHH             ? NAV_RRHH
     : []
 
   // Barra inferior móvil — curada para que las acciones clave siempre sean visibles
@@ -179,6 +186,8 @@ export default function Layout({ children }) {
         ? location.pathname.startsWith('/reportes')
         : item.to === '/analitica'
         ? location.pathname.startsWith('/analitica')
+        : item.to === '/rrhh/empleados'
+        ? location.pathname.startsWith('/rrhh/empleados')
         : location.pathname === item.to
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
@@ -246,6 +255,7 @@ export default function Layout({ children }) {
               <option value="CONSULTOR">Ver como Consultor</option>
               <option value="JEFE_FUNDICION">Ver como Jefe Fundición</option>
               <option value="JEFE_MECANIZADOS">Ver como Jefe Mecanizados</option>
+              <option value="RRHH">Ver como Recursos Humanos</option>
             </select>
             {rolPreview && (
               <button onClick={() => setRolPreview(null)}
