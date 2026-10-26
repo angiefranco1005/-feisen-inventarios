@@ -244,6 +244,8 @@ export const TIPOS_NOVEDAD = {
   licencia: {
     label: 'Licencia', plural: 'Licencias', punto: 'bg-violet-500', texto: 'text-violet-600',
     conteo: 'calendario', soporte: true, remunerable: true,
+    // Licencia de luto: 5 días hábiles (Ley 1280 de 2009)
+    conteoPorSubtipo: { Luto: 'habiles' },
     subtipos: ['Maternidad', 'Paternidad', 'Luto', 'Remunerada', 'No remunerada', 'Otra'],
   },
 }
@@ -264,6 +266,7 @@ export const hoyISO = () => isoLocal(new Date())
 
 // Festivos de Colombia de un año (Ley 51 de 1983 / "Ley Emiliani"): fijos,
 // trasladables al lunes siguiente y los que dependen de la Pascua.
+// Devuelve un Map 'YYYY-MM-DD' → nombre del festivo.
 const cacheFestivos = new Map()
 export function festivosColombia(anio) {
   if (cacheFestivos.has(anio)) return cacheFestivos.get(anio)
@@ -276,15 +279,38 @@ export function festivosColombia(anio) {
   const pascua = new Date(anio, mes - 1, dia)
   const masDias = (n) => { const x = new Date(pascua); x.setDate(x.getDate() + n); return x }
   const lista = [
-    new Date(anio, 0, 1), new Date(anio, 4, 1), new Date(anio, 6, 20), new Date(anio, 7, 7),
-    new Date(anio, 11, 8), new Date(anio, 11, 25),
-    ...[[0, 6], [2, 19], [5, 29], [7, 15], [9, 12], [10, 1], [10, 11]].map(([mm, dd]) => lunes(new Date(anio, mm, dd))),
-    masDias(-3), masDias(-2),                         // Jueves y Viernes Santo
-    lunes(masDias(39)), lunes(masDias(60)), lunes(masDias(68)), // Ascensión, Corpus Christi, Sagrado Corazón
+    [new Date(anio, 0, 1),   'Año Nuevo'],
+    [lunes(new Date(anio, 0, 6)),   'Día de los Reyes Magos'],
+    [lunes(new Date(anio, 2, 19)),  'Día de San José'],
+    [masDias(-3),            'Jueves Santo'],
+    [masDias(-2),            'Viernes Santo'],
+    [new Date(anio, 4, 1),   'Día del Trabajo'],
+    [lunes(masDias(39)),     'Ascensión del Señor'],
+    [lunes(masDias(60)),     'Corpus Christi'],
+    [lunes(masDias(68)),     'Sagrado Corazón'],
+    [lunes(new Date(anio, 5, 29)),  'San Pedro y San Pablo'],
+    [new Date(anio, 6, 20),  'Día de la Independencia'],
+    [new Date(anio, 7, 7),   'Batalla de Boyacá'],
+    [lunes(new Date(anio, 7, 15)),  'Asunción de la Virgen'],
+    [lunes(new Date(anio, 9, 12)),  'Día de la Raza'],
+    [lunes(new Date(anio, 10, 1)),  'Todos los Santos'],
+    [lunes(new Date(anio, 10, 11)), 'Independencia de Cartagena'],
+    [new Date(anio, 11, 8),  'Inmaculada Concepción'],
+    [new Date(anio, 11, 25), 'Navidad'],
   ]
-  const set = new Set(lista.map(isoLocal))
-  cacheFestivos.set(anio, set)
-  return set
+  const mapa = new Map(lista.map(([fecha, nombre]) => [isoLocal(fecha), nombre]))
+  cacheFestivos.set(anio, mapa)
+  return mapa
+}
+
+// Festivos que caen entre dos fechas: [{ fecha, nombre }]
+export function festivosEntre(ini, fin) {
+  if (!ini || !fin || fin < ini) return []
+  const out = []
+  for (let an = Number(ini.slice(0, 4)); an <= Number(fin.slice(0, 4)); an++) {
+    for (const [fecha, nombre] of festivosColombia(an)) if (fecha >= ini && fecha <= fin) out.push({ fecha, nombre })
+  }
+  return out.sort((x, y) => x.fecha.localeCompare(y.fecha))
 }
 
 function fechaDe(iso) { const [a, m, d] = iso.split('-').map(Number); return new Date(a, m - 1, d) }
@@ -302,6 +328,12 @@ export function diasHabiles(ini, fin) {
     if (d.getDay() !== 0 && !festivosColombia(d.getFullYear()).has(isoLocal(d))) n++
   }
   return n
+}
+
+// Cómo se cuentan los días de una novedad: 'habiles' o 'calendario'
+export function conteoNovedad(tipo, subtipo) {
+  const t = TIPOS_NOVEDAD[tipo]
+  return t?.conteoPorSubtipo?.[subtipo] || t?.conteo || 'calendario'
 }
 
 export function horasEntre(hIni, hFin) {

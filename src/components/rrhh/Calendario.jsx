@@ -102,13 +102,15 @@ export default function Calendario() {
     return m
   }, [celdas, empleados, novedades, capas, empPorId])
 
+  // Festivos de Colombia visibles en el mes: fecha → nombre
   const festivos = useMemo(() => {
-    const s = new Set()
-    for (const a of new Set(celdas.map(c => Number(c.fecha.slice(0, 4))))) for (const f of festivosColombia(a)) s.add(f)
-    return s
+    const m = new Map()
+    for (const a of new Set(celdas.map(c => Number(c.fecha.slice(0, 4))))) for (const [f, n] of festivosColombia(a)) m.set(f, n)
+    return m
   }, [celdas])
 
   const proximos = useMemo(() => proximosCumpleanos(empleados, 30), [empleados])
+  const festivosMes = [...festivos].filter(([f]) => f.slice(0, 7) === `${mes.a}-${String(mes.m + 1).padStart(2, '0')}`)
 
   function moverMes(delta) {
     setMes(({ a, m }) => { const d = new Date(a, m + delta, 1); return { a: d.getFullYear(), m: d.getMonth() } })
@@ -179,7 +181,7 @@ export default function Calendario() {
                   const evs = eventos.get(c.fecha) || []
                   const esHoy = c.fecha === hoy
                   const sel = c.fecha === diaSel
-                  const festivo = festivos.has(c.fecha)
+                  const festivo = festivos.get(c.fecha)
                   return (
                     <button key={c.fecha} onClick={() => setDiaSel(c.fecha)}
                       className={`relative text-left min-h-[3.5rem] sm:min-h-[6.5rem] p-1 sm:p-1.5 border-feisen-borde-suave transition-colors
@@ -190,8 +192,8 @@ export default function Calendario() {
                           ${esHoy ? 'bg-feisen-azul text-white font-semibold' : !c.delMes ? 'text-feisen-gris-medio/60' : festivo || c.finde ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
                           {c.dia}
                         </span>
-                        {festivo && c.delMes && <span className="hidden sm:inline text-[10px] text-feisen-rojo/70">Festivo</span>}
                       </div>
+                      {festivo && c.delMes && <p className="hidden sm:block text-[10px] leading-3 text-feisen-rojo/80 truncate px-0.5" title={festivo}>{festivo}</p>}
                       {/* Celular: solo puntos */}
                       {evs.length > 0 && (
                         <div className="sm:hidden flex flex-wrap gap-0.5 mt-0.5 px-0.5">
@@ -226,7 +228,7 @@ export default function Calendario() {
             <div className={E.cabTarjeta}>
               <h2 className={E.tituloTarj}>
                 {diaSel === hoy ? 'Hoy' : formatoFecha(diaSel)}
-                {festivos.has(diaSel) && <span className="text-xs font-normal text-feisen-rojo">· Festivo</span>}
+                {festivos.has(diaSel) && <span className="text-xs font-normal text-feisen-rojo truncate">· {festivos.get(diaSel)}</span>}
               </h2>
               <button onClick={() => setModal({ nueva: diaSel })} className={`${E.btnTextoAzul} -mr-2`} title="Registrar novedad este día">
                 <Plus size={14} strokeWidth={1.8} /> Novedad
@@ -271,6 +273,22 @@ export default function Calendario() {
                   })}
                 </div>}
           </div>
+
+          {festivosMes.length > 0 && (
+            <div className={E.tarjeta}>
+              <div className={E.cabTarjeta}>
+                <h2 className={E.tituloTarj}>Festivos de {MESES[mes.m].toLowerCase()}</h2>
+              </div>
+              <div className="px-5 py-2.5 space-y-1.5">
+                {festivosMes.map(([f, n]) => (
+                  <button key={f} onClick={() => setDiaSel(f)} className="w-full flex items-center gap-3 text-left text-sm hover:text-feisen-azul">
+                    <span className="w-8 text-feisen-rojo font-medium">{Number(f.slice(8, 10))}</span>
+                    <span className="text-feisen-texto-2 truncate">{n}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className={E.tarjeta}>
             <div className={E.cabTarjeta}>

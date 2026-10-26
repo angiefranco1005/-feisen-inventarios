@@ -7,7 +7,7 @@ import { Paperclip, FileText, ExternalLink, Trash2, X, AlertTriangle } from 'luc
 import * as E from './estilos'
 import {
   BUCKET_RRHH, TIPOS_NOVEDAD, nombreCompleto, formatoFecha, hoyISO,
-  diasCalendario, diasHabiles, horasEntre, abrirArchivoRRHH,
+  diasCalendario, diasHabiles, horasEntre, abrirArchivoRRHH, festivosEntre, conteoNovedad,
 } from './catalogosRRHH'
 
 const limpiarNombre = (n) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_')
@@ -34,8 +34,7 @@ function formDesde(n, empleadoFijo, fechaInicial) {
 // Días sugeridos según el tipo (vacaciones en días hábiles; lo demás, calendario)
 function diasSugeridos(f) {
   if (f.por_horas) return ''
-  const t = TIPOS_NOVEDAD[f.tipo]
-  const n = t?.conteo === 'habiles' ? diasHabiles(f.fecha_inicio, f.fecha_fin) : diasCalendario(f.fecha_inicio, f.fecha_fin)
+  const n = conteoNovedad(f.tipo, f.subtipo) === 'habiles' ? diasHabiles(f.fecha_inicio, f.fecha_fin) : diasCalendario(f.fecha_inicio, f.fecha_fin)
   return n ? String(n) : ''
 }
 
@@ -79,6 +78,8 @@ export default function ModalNovedad({ novedad, empleados, empleadoFijo, fechaIn
   }
 
   const horas = form.por_horas ? horasEntre(form.hora_inicio, form.hora_fin) : null
+  const habiles = conteoNovedad(form.tipo, form.subtipo) === 'habiles'
+  const festivosRango = festivosEntre(form.fecha_inicio, form.por_horas ? form.fecha_inicio : form.fecha_fin)
   const cruces = existentes.filter(n => n.id !== novedad?.id && n.empleado_id === form.empleado_id
     && n.fecha_inicio <= form.fecha_fin && n.fecha_fin >= form.fecha_inicio)
 
@@ -218,16 +219,24 @@ export default function ModalNovedad({ novedad, empleados, empleadoFijo, fechaIn
             <div><L req>Desde</L><input required type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} className={E.input} /></div>
             <div><L req>Hasta</L><input required type="date" min={form.fecha_inicio} value={form.fecha_fin} onChange={e => set('fecha_fin', e.target.value)} className={E.input} /></div>
             <div>
-              <L>{tipo.conteo === 'habiles' ? 'Días hábiles' : 'Días'}</L>
+              <L>{habiles ? 'Días hábiles' : 'Días'}</L>
               <input type="number" min="0" step="0.5" value={form.dias}
                 onChange={e => { setDiasManual(true); setForm(f => ({ ...f, dias: e.target.value })) }} className={E.input} />
             </div>
             <p className="col-span-3 text-xs text-feisen-gris-medio -mt-1">
-              {tipo.conteo === 'habiles'
-                ? 'Se calculan de lunes a sábado sin domingos ni festivos. Ajústalos si en Feisen el sábado no es hábil.'
-                : 'Días calendario. Puedes ajustarlos si hace falta.'}
+              {habiles
+                ? 'Días hábiles: lunes a sábado, sin domingos ni festivos de Colombia.'
+                : 'Días calendario (incluyen domingos y festivos).'} Puedes ajustarlos si hace falta.
             </p>
           </div>
+        )}
+
+        {festivosRango.length > 0 && (
+          <p className="text-xs text-feisen-rojo/90 -mt-1">
+            {form.por_horas ? 'Ese día es festivo' : `En estas fechas hay ${festivosRango.length === 1 ? 'un festivo' : `${festivosRango.length} festivos`}`}
+            {': '}{festivosRango.map(f => `${formatoFecha(f.fecha)} (${f.nombre})`).join(', ')}
+            {!form.por_horas && (habiles ? ' — no se cuentan.' : ' — se cuentan como días calendario.')}
+          </p>
         )}
 
         {cruces.length > 0 && (
