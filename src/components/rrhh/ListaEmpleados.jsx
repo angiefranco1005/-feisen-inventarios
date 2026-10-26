@@ -51,7 +51,7 @@ export default function ListaEmpleados() {
     setCargando(true)
     const [{ data, error }, { data: cats }] = await Promise.all([
       supabase.from('empleados')
-        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento')
+        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento, preaviso_fecha_entrega, preaviso_para_fin, preaviso_documento_id')
         .order('nombres'),
       supabase.from('cargos').select('id, nombre, area').order('nombre'),
     ])
@@ -217,6 +217,12 @@ export default function ListaEmpleados() {
                     // Término fijo: plazo para dar el preaviso de no prórroga (30 días antes)
                     const p = preavisoDe(e)
                     if (!p || e.dias < 0) return null
+                    if (p.entregado) return (
+                      <span className={`block text-xs ${p.entregado.aTiempo ? 'text-green-700' : 'text-feisen-rojo'}`}>
+                        Preaviso entregado el {formatoFecha(p.entregado.fecha)}{!p.entregado.aTiempo && ' (fuera de plazo)'}
+                        {!p.entregado.conCarta && <span className="text-amber-600"> · falta la carta</span>}
+                      </span>
+                    )
                     const vencido = p.limite < hoyISO()
                     return (
                       <span className={`block text-xs ${vencido ? 'text-feisen-rojo' : 'text-orange-600'}`}>

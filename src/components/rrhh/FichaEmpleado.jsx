@@ -18,6 +18,7 @@ import {
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import NovedadesEmpleado from './NovedadesEmpleado'
+import ModalPreaviso from './ModalPreaviso'
 
 const inputCls = E.input
 
@@ -164,6 +165,7 @@ export default function FichaEmpleado() {
   const [form,        setForm]        = useState({})
   const [guardando,   setGuardando]   = useState(false)
   const [msg,         setMsg]         = useState(null)  // { bloque, tipo, texto }
+  const [modalPreaviso, setModalPreaviso] = useState(false)
 
   useEffect(() => { cargar() }, [id])
 
@@ -246,6 +248,7 @@ export default function FichaEmpleado() {
 
   const est = ESTADOS_EMPLEADO[emp.estado] || ESTADOS_EMPLEADO.activo
   const diasFin = emp.estado !== 'retirado' ? diasParaVencer(emp.fecha_fin_contrato) : null
+  const preaviso = preavisoDe(emp)
   const antig = tiempoDesde(emp.fecha_ingreso, emp.estado === 'retirado' ? emp.fecha_retiro : null)
   const correo = emp.email_corporativo || emp.email_personal
 
@@ -303,15 +306,41 @@ export default function FichaEmpleado() {
         {msgFoto && <div className="mt-4"><Alerta tipo={msgFoto.tipo} mensaje={msgFoto.texto} /></div>}
 
         {diasFin !== null && diasFin <= 45 && (
-          <div className="mt-4 flex items-center gap-2 border border-amber-200 bg-amber-50 text-amber-800 rounded-lg px-3 py-2 text-sm">
-            <AlertTriangle {...E.ICONO} className="flex-shrink-0 text-amber-500" />
-            {diasFin < 0
-              ? `El contrato venció el ${formatoFecha(emp.fecha_fin_contrato)} (hace ${-diasFin} días).`
-              : `El contrato (${emp.tipo_contrato}) vence el ${formatoFecha(emp.fecha_fin_contrato)} — faltan ${diasFin} días.`}
-            {diasFin >= 0 && preavisoDe(emp) && (preavisoDe(emp).limite < hoyISO()
-              ? ` Ya pasó el plazo para el preaviso de no prórroga (${formatoFecha(preavisoDe(emp).limite)}).`
-              : ` Si no se va a prorrogar, entrega el preaviso a más tardar el ${formatoFecha(preavisoDe(emp).limite)}.`)}
+          <div className="mt-4 border border-amber-200 bg-amber-50 text-amber-800 rounded-lg px-3 py-2 text-sm space-y-1.5">
+            <p className="flex items-center gap-2">
+              <AlertTriangle {...E.ICONO} className="flex-shrink-0 text-amber-500" />
+              {diasFin < 0
+                ? `El contrato venció el ${formatoFecha(emp.fecha_fin_contrato)} (hace ${-diasFin} días).`
+                : `El contrato (${emp.tipo_contrato}) vence el ${formatoFecha(emp.fecha_fin_contrato)} — faltan ${diasFin} días.`}
+            </p>
+            {/* Término fijo: preaviso de no prórroga */}
+            {preaviso && diasFin >= 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap pl-6">
+                {preaviso.entregado ? (
+                  <span className={preaviso.entregado.aTiempo ? 'text-green-700' : 'text-feisen-rojo'}>
+                    Preaviso entregado el {formatoFecha(preaviso.entregado.fecha)}
+                    {!preaviso.entregado.aTiempo && ` — fuera del plazo legal (${formatoFecha(preaviso.limite)})`}
+                    {!preaviso.entregado.conCarta && <span className="text-amber-700"> · falta la carta</span>}
+                  </span>
+                ) : (
+                  <span>
+                    {preaviso.limite < hoyISO()
+                      ? `Ya pasó el plazo para el preaviso de no prórroga (${formatoFecha(preaviso.limite)}).`
+                      : `Si no se va a prorrogar, entrega el preaviso a más tardar el ${formatoFecha(preaviso.limite)}.`}
+                  </span>
+                )}
+                <button onClick={() => setModalPreaviso(true)} className="text-sm font-medium text-feisen-azul hover:underline whitespace-nowrap">
+                  {preaviso.entregado ? 'Ver o editar' : 'Registrar preaviso entregado'}
+                </button>
+              </div>
+            )}
           </div>
+        )}
+
+        {modalPreaviso && (
+          <ModalPreaviso empleado={emp} perfilId={perfil?.id}
+            onCerrar={() => setModalPreaviso(false)}
+            onGuardado={(nuevo) => { setEmp(nuevo); setModalPreaviso(false) }} />
         )}
       </div>
 

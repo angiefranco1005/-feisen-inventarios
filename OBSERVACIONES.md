@@ -1428,6 +1428,13 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   encabezado de la ficha. Se calcula con `fecha_fin_contrato`: si el contrato se prorroga, basta con
   actualizar esa fecha. **No hay forma de marcar "preaviso entregado"**; el recordatorio sigue hasta el
   vencimiento (posible mejora: guardar fecha de entrega y la carta como documento).
+  **Resuelto el mismo día:** columnas `empleados.preaviso_fecha_entrega`, `preaviso_para_fin` (la fecha fin a
+  la que corresponde) y `preaviso_documento_id` (carta en `empleado_documentos`, tipo 'Preaviso de no
+  prórroga'). Se registra desde el encabezado de la ficha o desde "Preavisos por dar" en el calendario
+  (`ModalPreaviso.jsx`); al registrarlo sale de pendientes. Si el contrato se prorroga y cambia la fecha fin,
+  el registro deja de aplicar y el recordatorio vuelve para el nuevo vencimiento. Si la fecha de entrega es
+  posterior al plazo legal se avisa (el contrato se entiende prorrogado). La carta es opcional al registrar
+  ("falta la carta"). Migración `2026-10-26_rrhh_preaviso_entregado.sql`.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

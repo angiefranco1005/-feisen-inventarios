@@ -69,7 +69,8 @@ export const DOCUMENTOS_REQUERIDOS = [
 ]
 
 // Documentos que no hacen parte del checklist pero se pueden adjuntar
-export const OTROS_DOCUMENTOS = ['Otrosí', 'Hoja de vida', 'Certificación bancaria', 'Otro']
+export const TIPO_DOC_PREAVISO = 'Preaviso de no prórroga'
+export const OTROS_DOCUMENTOS = ['Otrosí', 'Hoja de vida', 'Certificación bancaria', TIPO_DOC_PREAVISO, 'Otro']
 
 export const ESTADOS_EMPLEADO = {
   activo:   { label: 'Activo',   punto: 'bg-green-500' },
@@ -382,11 +383,16 @@ export function sumarDias(iso, n) {
   return isoLocal(d)
 }
 
-// { aviso, limite, fin } del contrato vigente, o null si no aplica
+// { aviso, limite, fin, entregado } del contrato vigente, o null si no aplica.
+// `entregado` = { fecha, aTiempo, conCarta } si ya se registró el preaviso para ESTA fecha fin.
 export function preavisoDe(emp) {
   if (!emp || emp.estado === 'retirado' || emp.tipo_contrato !== 'Término fijo' || !emp.fecha_fin_contrato) return null
   const fin = emp.fecha_fin_contrato
-  return { fin, aviso: sumarDias(fin, -DIAS_RECORDATORIO_PREAVISO), limite: sumarDias(fin, -DIAS_PREAVISO_LEGAL) }
+  const limite = sumarDias(fin, -DIAS_PREAVISO_LEGAL)
+  const entregado = emp.preaviso_fecha_entrega && emp.preaviso_para_fin === fin
+    ? { fecha: emp.preaviso_fecha_entrega, aTiempo: emp.preaviso_fecha_entrega <= limite, conCarta: !!emp.preaviso_documento_id }
+    : null
+  return { fin, aviso: sumarDias(fin, -DIAS_RECORDATORIO_PREAVISO), limite, entregado }
 }
 
 // Preavisos que ya toca dar (desde 35 días antes y hasta el vencimiento), ordenados por fecha límite.
@@ -394,7 +400,7 @@ export function preavisosPendientes(empleados) {
   const hoy = hoyISO()
   return empleados
     .map(e => ({ empleado: e, ...preavisoDe(e) }))
-    .filter(p => p.fin && p.aviso <= hoy && p.fin >= hoy)
+    .filter(p => p.fin && p.aviso <= hoy && p.fin >= hoy && !p.entregado)
     .map(p => ({ ...p, diasAlLimite: diasCalendario(hoy, p.limite) - 1 }))
     .sort((a, b) => a.limite.localeCompare(b.limite))
 }

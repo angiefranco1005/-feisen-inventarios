@@ -5,9 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
-import { ChevronLeft, ChevronRight, Cake, Plus, FileText, BellRing } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Cake, Plus, FileText, BellRing, CheckCircle2 } from 'lucide-react'
 import * as E from './estilos'
 import ModalNovedad from './ModalNovedad'
+import ModalPreaviso from './ModalPreaviso'
 import {
   TIPOS_NOVEDAD, nombreCompleto, formatoFecha, hoyISO, festivosColombia, cumpleEnAnio, proximosCumpleanos,
   preavisoDe, preavisosPendientes, DIAS_RECORDATORIO_PREAVISO,
@@ -38,6 +39,7 @@ export default function Calendario() {
   const [capas,     setCapas]     = useState(() => new Set(CAPAS.map(c => c.id)))
   const [diaSel,    setDiaSel]    = useState(hoy)
   const [modal,     setModal]     = useState(null)   // novedad a editar | { nueva: fecha }
+  const [preavisoDe_, setPreavisoDe_] = useState(null) // colaborador al que se registra el preaviso
 
   useEffect(() => { cargar() }, [])
 
@@ -45,7 +47,7 @@ export default function Calendario() {
     setCargando(true)
     const [{ data: emps, error }, { data: novs }] = await Promise.all([
       supabase.from('empleados')
-        .select('id, nombres, apellidos, cargo, estado, fecha_nacimiento, fecha_fin_contrato, tipo_contrato, eps, arl, foto_path')
+        .select('id, nombres, apellidos, cargo, estado, fecha_nacimiento, fecha_fin_contrato, tipo_contrato, eps, arl, foto_path, preaviso_fecha_entrega, preaviso_para_fin, preaviso_documento_id')
         .order('nombres'),
       fetchAllPages((d, h) => supabase.from('novedades').select('*').order('fecha_inicio').range(d, h)),
     ])
@@ -124,7 +126,11 @@ export default function Calendario() {
   function toggleCapa(id) { setCapas(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }) }
 
   function Chip({ ev, compacto }) {
-    if (ev.tipo === 'preaviso') return (
+    if (ev.tipo === 'preaviso') return ev.entregado ? (
+      <span className="flex items-center gap-1 text-[11px] leading-4 text-feisen-texto-2 bg-feisen-fondo rounded px-1 truncate">
+        <CheckCircle2 size={10} strokeWidth={2} className="flex-shrink-0 text-green-600" /> Preaviso {corto(ev.e)}
+      </span>
+    ) : (
       <span className="flex items-center gap-1 text-[11px] leading-4 text-orange-700 bg-orange-50 rounded px-1 truncate">
         <BellRing size={10} strokeWidth={2} className="flex-shrink-0" /> {compacto ? `Preaviso ${corto(ev.e)}` : `Dar preaviso · ${corto(ev.e)}`}
       </span>
@@ -259,12 +265,16 @@ export default function Calendario() {
                       </button>
                     )
                     if (ev.tipo === 'preaviso') return (
-                      <button key={j} onClick={() => navigate(`/rrhh/empleados/${ev.e.id}`)} className="w-full flex items-start gap-3 px-5 py-2.5 hover:bg-feisen-fondo text-left">
-                        <BellRing size={16} strokeWidth={1.8} className="text-orange-600 flex-shrink-0 mt-0.5" />
+                      <button key={j} onClick={() => setPreavisoDe_(ev.e)} className="w-full flex items-start gap-3 px-5 py-2.5 hover:bg-feisen-fondo text-left">
+                        {ev.entregado
+                          ? <CheckCircle2 size={16} strokeWidth={1.8} className="text-green-600 flex-shrink-0 mt-0.5" />
+                          : <BellRing size={16} strokeWidth={1.8} className="text-orange-600 flex-shrink-0 mt-0.5" />}
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm text-feisen-texto truncate">Dar preaviso a {nombreCompleto(ev.e)}</p>
+                          <p className="text-sm text-feisen-texto truncate">{ev.entregado ? 'Preaviso entregado' : 'Dar preaviso'} a {nombreCompleto(ev.e)}</p>
                           <p className="text-xs text-feisen-gris-medio">
-                            Su contrato a término fijo vence el {formatoFecha(ev.fin)}. El preaviso de no prórroga debe entregarse a más tardar el {formatoFecha(ev.limite)} (30 días antes).
+                            {ev.entregado
+                              ? `Entregado el ${formatoFecha(ev.entregado.fecha)}${ev.entregado.aTiempo ? '' : ' (fuera de plazo)'}${ev.entregado.conCarta ? '' : ' · falta la carta'}. Contrato vence el ${formatoFecha(ev.fin)}.`
+                              : `Su contrato a término fijo vence el ${formatoFecha(ev.fin)}. El preaviso de no prórroga debe entregarse a más tardar el ${formatoFecha(ev.limite)} (30 días antes). Toca para registrarlo.`}
                           </p>
                         </div>
                       </button>
@@ -304,11 +314,12 @@ export default function Calendario() {
               </div>
               <div className="divide-y divide-feisen-borde-suave">
                 {pendientesPreaviso.map(p => (
-                  <button key={p.empleado.id} onClick={() => navigate(`/rrhh/empleados/${p.empleado.id}`)}
+                  <button key={p.empleado.id} onClick={() => setPreavisoDe_(p.empleado)}
                     className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-feisen-fondo text-left">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-feisen-texto truncate">{nombreCompleto(p.empleado)}</p>
                       <p className="text-xs text-feisen-gris-medio">Vence {formatoFecha(p.fin)} · preaviso hasta {formatoFecha(p.limite)}</p>
+                      <p className="text-xs text-feisen-azul">Registrar entregado</p>
                     </div>
                     <span className={`text-xs whitespace-nowrap ${p.diasAlLimite < 0 ? 'text-feisen-rojo font-medium' : p.diasAlLimite <= 2 ? 'text-orange-600 font-medium' : 'text-feisen-texto-2'}`}>
                       {p.diasAlLimite < 0 ? 'Plazo vencido' : p.diasAlLimite === 0 ? 'Hoy es el último día' : `Quedan ${p.diasAlLimite} días`}
@@ -317,7 +328,7 @@ export default function Calendario() {
                 ))}
               </div>
               <p className="px-5 py-2 text-[11px] text-feisen-gris-medio border-t border-feisen-borde-suave">
-                Se avisa {DIAS_RECORDATORIO_PREAVISO} días antes del vencimiento; la ley exige el preaviso con mínimo 30 días.
+                Se avisa {DIAS_RECORDATORIO_PREAVISO} días antes del vencimiento; la ley exige el preaviso con mínimo 30 días. Al registrarlo como entregado sale de esta lista.
               </p>
             </div>
           )}
@@ -369,6 +380,12 @@ export default function Calendario() {
           </div>
         </div>
       </div>
+
+      {preavisoDe_ && (
+        <ModalPreaviso empleado={preavisoDe_} perfilId={perfil?.id}
+          onCerrar={() => setPreavisoDe_(null)}
+          onGuardado={(nuevo) => { setPreavisoDe_(null); setEmpleados(es => es.map(e => (e.id === nuevo.id ? nuevo : e))) }} />
+      )}
 
       {modal && (
         <ModalNovedad
