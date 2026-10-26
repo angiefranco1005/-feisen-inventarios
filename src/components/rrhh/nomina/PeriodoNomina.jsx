@@ -6,19 +6,19 @@ import { exportarNominaQuincena } from '../../../utils/exportExcel'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
 import Modal from '../../shared/Modal'
-import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange } from 'lucide-react'
+import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange, CheckCircle2, Mail, MailX, Send } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas } from '../catalogosRRHH'
 import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
 import HuelleroQuincena from './HuelleroQuincena'
-import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
+import { generarDesprendibles, desprendibleBase64, nombreArchivoDesprendible } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, contextoQuincena, liquidacionSugerida, cambiarQuincena, rangoQuincena, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
 // Planilla de una quincena: todas las personas con lo que se les paga
 export default function PeriodoNomina() {
   const { periodoId } = useParams()
   const navigate = useNavigate()
-  const { perfil } = useAuth()
+  const { perfil, esAdmin } = useAuth()
   const [periodo,   setPeriodo]   = useState(null)
   const [liqs,      setLiqs]      = useState([])
   const [piezas,    setPiezas]    = useState([])
@@ -31,6 +31,7 @@ export default function PeriodoNomina() {
   const [agregar,   setAgregar]   = useState('')
   const [trabajando, setTrabajando] = useState(false)
   const [editFechas, setEditFechas] = useState(null)   // { anio, mes, quincena } mientras se edita
+  const [envio,      setEnvio]      = useState(null)   // { hechos, total, errores[] } mientras se envían correos
 
   useEffect(() => { cargar() }, [periodoId])
 
@@ -64,11 +65,14 @@ export default function PeriodoNomina() {
   }, [liqs, empPorId, fMod, busqueda])
 
   const suma = (lista, k) => lista.reduce((t, l) => t + (Number(l[k]) || 0), 0)
-  const cerrada = periodo?.estado === 'cerrada'
+  // borrador → cerrada (RRHH) → aprobada (gerencia). Cerrada o aprobada = solo lectura.
+  const cerrada = !!periodo && periodo.estado !== 'borrador'
+  const aprobada = periodo?.estado === 'aprobada'
+  const correoDe = (e) => (e?.email_corporativo || e?.email_personal || '').trim()
   const fuera = empleados.filter(e => e.estado !== 'retirado' && !liqs.some(l => l.empleado_id === e.id))
 
   async function cambiarEstado() {
-    const cerrar = !cerrada
+    const cerrar = periodo.estado === 'borrador'
     if (!window.confirm(cerrar
       ? '¿Cerrar la quincena? Ya no se podrá editar (se puede reabrir después).'
       : '¿Reabrir la quincena para hacer cambios?')) return
@@ -77,6 +81,67 @@ export default function PeriodoNomina() {
       .eq('id', periodoId).select('*').single()
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
     setPeriodo(data)
+  }
+
+  // ── Aprobación de gerencia y envío de desprendibles ──
+  async function aprobarYEnviar() {
+    const conCorreo = liqs.filter(l => correoDe(empPorId.get(l.empleado_id)))
+    const sinCorreo = liqs.filter(l => !correoDe(empPorId.get(l.empleado_id)))
+    if (!window.confirm(`¿Aprobar la nómina ${nombreQuincena(periodo).toLowerCase()}?\n\n`
+      + `Se enviará el desprendible por correo a ${conCorreo.length} persona${conCorreo.length === 1 ? '' : 's'}.`
+      + (sinCorreo.length ? `\n${sinCorreo.length} no tiene${sinCorreo.length === 1 ? '' : 'n'} correo en la ficha: ${sinCorreo.map(l => nombreCompleto(empPorId.get(l.empleado_id))).join(', ')}.` : '')
+      + '\n\nDespués de aprobada, nadie de RRHH puede modificarla.')) return
+    setMsg(null)
+    const { data, error } = await supabase.from('nomina_periodos')
+      .update({ estado: 'aprobada', aprobada_por: perfil?.id, aprobada_en: new Date().toISOString() })
+      .eq('id', periodoId).select('*').single()
+    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
+    setPeriodo(data)
+    await enviarDesprendibles(conCorreo.filter(l => !l.email_enviado_en), data)
+  }
+
+  async function desaprobar() {
+    if (!window.confirm('¿Quitar la aprobación? La quincena vuelve a "cerrada" y RRHH podrá reabrirla. Los correos ya enviados no se recuperan.')) return
+    const { data, error } = await supabase.from('nomina_periodos')
+      .update({ estado: 'cerrada', aprobada_por: null, aprobada_en: null }).eq('id', periodoId).select('*').single()
+    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
+    setPeriodo(data)
+  }
+
+  // Envía uno por uno (cada correo lleva su PDF) y deja el estado en cada liquidación
+  async function enviarDesprendibles(lista, per = periodo) {
+    if (!lista.length) { setMsg({ tipo: 'info', texto: 'No hay desprendibles pendientes por enviar.' }); return }
+    const { data: pzs } = await supabase.from('nomina_piezas').select('liquidacion_id, descripcion, cantidad, valor_unitario').in('liquidacion_id', lista.map(l => l.id))
+    const errores = []
+    setEnvio({ hechos: 0, total: lista.length, errores })
+    for (const [i, l] of lista.entries()) {
+      const emp = empPorId.get(l.empleado_id)
+      const doc = {
+        ...l, nombre: nombreCompleto(emp), documento: `${emp?.tipo_documento || ''} ${emp?.numero_documento || ''}`.trim(),
+        cargo: emp?.cargo, area: emp?.area, tipo_contrato: emp?.tipo_contrato, piezas: (pzs || []).filter(p => p.liquidacion_id === l.id),
+      }
+      try {
+        const { error } = await supabase.functions.invoke('enviar-desprendible', {
+          body: {
+            liquidacion_id: l.id, para: correoDe(emp), nombre: doc.nombre, periodo: nombreQuincena(per),
+            pdf_base64: desprendibleBase64(doc, nombreQuincena(per)), nombre_archivo: nombreArchivoDesprendible(doc, per),
+          },
+        })
+        if (error) {
+          let detalle = error.message
+          try { detalle = (await error.context?.json())?.error || detalle } catch { /* sin detalle */ }
+          throw new Error(detalle)
+        }
+      } catch (err) {
+        errores.push(`${doc.nombre}: ${err.message}`)
+      }
+      setEnvio({ hechos: i + 1, total: lista.length, errores })
+    }
+    setEnvio(null)
+    setMsg(errores.length
+      ? { tipo: 'error', texto: `Se enviaron ${lista.length - errores.length} de ${lista.length}. Fallaron: ${errores.join(' · ')}` }
+      : { tipo: 'exito', texto: `Se enviaron los ${lista.length} desprendibles por correo.` })
+    await cargar()
   }
 
   // Mover la quincena a otras fechas (solo en borrador)
@@ -147,6 +212,8 @@ export default function PeriodoNomina() {
   }
   const sinValor = (l) => (l.modalidad === 'dia' && !Number(l.valor_dia)) || (l.modalidad === 'fijo' && !Number(l.valor_fijo))
     || (l.modalidad === 'destajo' && piezas.some(p => p.liquidacion_id === l.id && !Number(p.valor_unitario)))
+  // Con correo y sin desprendible enviado (para "Enviar pendientes")
+  const pendientesEnvio = liqs.filter(l => !l.email_enviado_en && correoDe(empPorId.get(l.empleado_id)))
   // El huellero sugiere horas distintas a las que ya tiene la liquidación
   const huelleroPendiente = (l) => l.huellero && (Number(l.huellero.horas_extra || 0) !== Number(l.horas_extra || 0)
     || Number(l.huellero.horas_recargo || 0) !== Number(l.horas_extra_recargo || 0))
@@ -161,7 +228,11 @@ export default function PeriodoNomina() {
           <h1 className={E.tituloPagina}>{nombreQuincena(periodo)}</h1>
           <p className={E.subtituloPagina}>
             {diasLaborales(periodo.fecha_inicio, periodo.fecha_fin)} días laborales (lunes a viernes sin festivos) ·{' '}
-            {cerrada ? <span className="inline-flex items-center gap-1"><Lock size={12} strokeWidth={1.8} /> Cerrada</span> : <span className="text-amber-600">En borrador</span>}
+            {aprobada
+              ? <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 size={12} strokeWidth={1.8} /> Aprobada por gerencia</span>
+              : cerrada
+              ? <span className="inline-flex items-center gap-1"><Lock size={12} strokeWidth={1.8} /> Cerrada · pendiente de aprobación de gerencia</span>
+              : <span className="text-amber-600">En borrador</span>}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -174,13 +245,39 @@ export default function PeriodoNomina() {
             <FileText {...E.ICONO} /> Desprendibles
           </button>
           <button onClick={exportar} className={E.btnSecundario}><Download {...E.ICONO} /> Excel</button>
-          <button onClick={cambiarEstado} className={cerrada ? E.btnSecundario : E.btnPrimario}>
-            {cerrada ? <><Unlock {...E.ICONO} /> Reabrir</> : <><Lock {...E.ICONO} /> Cerrar quincena</>}
-          </button>
+          {!aprobada && (
+            <button onClick={cambiarEstado} disabled={!!envio} className={cerrada ? E.btnSecundario : E.btnPrimario}>
+              {cerrada ? <><Unlock {...E.ICONO} /> Reabrir</> : <><Lock {...E.ICONO} /> Cerrar quincena</>}
+            </button>
+          )}
+          {cerrada && !aprobada && esAdmin && (
+            <button onClick={aprobarYEnviar} disabled={!!envio} className={E.btnPrimario}>
+              <CheckCircle2 {...E.ICONO} /> Aprobar y enviar desprendibles
+            </button>
+          )}
+          {aprobada && esAdmin && pendientesEnvio.length > 0 && (
+            <button onClick={() => enviarDesprendibles(pendientesEnvio)} disabled={!!envio} className={E.btnPrimario}>
+              <Send {...E.ICONO} /> Enviar pendientes ({pendientesEnvio.length})
+            </button>
+          )}
+          {aprobada && esAdmin && (
+            <button onClick={desaprobar} disabled={!!envio} className={E.btnSecundario}>Quitar aprobación</button>
+          )}
         </div>
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+      {envio && (
+        <div className={`${E.tarjeta} px-5 py-3`}>
+          <p className="text-sm text-feisen-texto">Enviando desprendibles… {envio.hechos} de {envio.total}</p>
+          <div className="mt-2 h-1 rounded-full bg-feisen-borde-suave overflow-hidden">
+            <div className="h-full bg-feisen-azul transition-all" style={{ width: `${(envio.hechos / envio.total) * 100}%` }} />
+          </div>
+        </div>
+      )}
+      {cerrada && !aprobada && !esAdmin && (
+        <Alerta tipo="info" mensaje="Quincena cerrada. Falta la aprobación de gerencia; al aprobarla se envía a cada persona su desprendible por correo." />
+      )}
 
       {/* Totales */}
       <div className={`${E.tarjeta} grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-feisen-borde-suave overflow-hidden`}>
@@ -244,7 +341,14 @@ export default function PeriodoNomina() {
                     </span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_devengado)}</span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_deducciones)}</span>
-                    <span className="text-sm text-right font-medium text-feisen-texto">{formatoPesos(l.neto)}</span>
+                    <span className="text-sm text-right font-medium text-feisen-texto inline-flex items-center justify-end gap-1.5">
+                      {aprobada && (l.email_enviado_en
+                        ? <Mail size={13} strokeWidth={1.8} className="text-green-600" title={`Enviado a ${l.email_enviado_a}`} />
+                        : l.email_error
+                        ? <MailX size={13} strokeWidth={1.8} className="text-feisen-rojo" title={l.email_error} />
+                        : !correoDe(l.emp) && <MailX size={13} strokeWidth={1.8} className="text-feisen-gris-medio" title="Sin correo en la ficha" />)}
+                      {formatoPesos(l.neto)}
+                    </span>
                     <ChevronRight size={16} strokeWidth={1.8} className="hidden md:block text-feisen-gris-medio justify-self-end" />
                     <p className="md:hidden col-span-2 pl-11 text-xs text-feisen-texto-2 truncate">{detalle(l)}</p>
                   </button>

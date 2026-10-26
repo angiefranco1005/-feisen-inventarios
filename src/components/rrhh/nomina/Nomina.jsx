@@ -6,7 +6,7 @@ import { fetchAllPages } from '../../../utils/fetchAllPages'
 import Spinner from '../../shared/Spinner'
 import Modal from '../../shared/Modal'
 import Alerta from '../../shared/Alerta'
-import { Plus, ChevronRight, Wallet, Tags, Lock } from 'lucide-react'
+import { Plus, ChevronRight, Wallet, Tags, Lock, CheckCircle2 } from 'lucide-react'
 import * as E from '../estilos'
 import { formatoPesos } from '../catalogosRRHH'
 import { nombreQuincena, rangoQuincena, crearQuincena } from './nominaQuincena'
@@ -114,8 +114,9 @@ export default function Nomina() {
                   <p className="text-xs text-feisen-gris-medio">{t.personas} persona{t.personas === 1 ? '' : 's'}</p>
                 </div>
                 <span className="text-sm text-feisen-texto">{formatoPesos(t.neto)}</span>
-                <span className={`inline-flex items-center gap-1.5 text-xs ${p.estado === 'cerrada' ? 'text-feisen-texto-2' : 'text-amber-600'}`}>
-                  {p.estado === 'cerrada' ? <><Lock size={12} strokeWidth={1.8} /> Cerrada</> : 'En borrador'}
+                <span className={`inline-flex items-center gap-1.5 text-xs ${p.estado === 'aprobada' ? 'text-green-700' : p.estado === 'cerrada' ? 'text-feisen-texto-2' : 'text-amber-600'}`}>
+                  {p.estado === 'aprobada' ? <><CheckCircle2 size={12} strokeWidth={1.8} /> Aprobada</>
+                    : p.estado === 'cerrada' ? <><Lock size={12} strokeWidth={1.8} /> Por aprobar</> : 'En borrador'}
                 </span>
                 <ChevronRight size={16} strokeWidth={1.8} className="text-feisen-gris-medio" />
               </button>

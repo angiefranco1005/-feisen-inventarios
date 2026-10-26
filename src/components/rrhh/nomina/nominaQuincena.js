@@ -4,11 +4,11 @@
 import { supabase } from '../../../lib/supabase'
 import { BUCKET_RRHH } from '../catalogosRRHH'
 import { fetchAllPages } from '../../../utils/fetchAllPages'
-import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales } from './nominaCalculo'
+import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales, valoresHora, valorDiaBase } from './nominaCalculo'
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
-export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path'
+export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal'
 
 const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
 
@@ -30,6 +30,8 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
   const novs = ctx.novedades.filter(n => n.empleado_id === emp.id)
   const laborales = diasLaborales(inicio, fin)
   const ausente = diasAusente(novs, inicio, fin)
+  const valorFijo = modalidad === 'fijo' ? valorNum(emp.valor_quincena ?? (emp.salario_base ? Number(emp.salario_base) / 2 : null)) : null
+  const horas = valoresHora(valorDiaBase(modalidad, emp.valor_dia, valorFijo))
   const liq = {
     empleado_id: emp.id,
     modalidad,
@@ -37,8 +39,9 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     valor_dia: modalidad === 'dia' ? valorNum(emp.valor_dia) : null,
     horas_extra: null,
     horas_extra_recargo: null,
-    valor_hora_extra: valorNum(emp.valor_hora_extra),
-    valor_fijo: modalidad === 'fijo' ? valorNum(emp.valor_quincena ?? (emp.salario_base ? Number(emp.salario_base) / 2 : null)) : null,
+    valor_hora_extra: valorNum(emp.valor_hora_extra) ?? horas.extra,
+    valor_hora_recargo: valorNum(emp.valor_hora_recargo) ?? horas.recargo,
+    valor_fijo: valorFijo,
     auxilio: valorNum(emp.auxilio_quincenal),
     subsidio_ss: valorNum(emp.subsidio_ss),
     otros_devengos: [],
@@ -93,7 +96,7 @@ export function quincenaDeFecha(iso) {
 // de los de "al día" (días laborales − novedades) y borra la sugerencia del
 // huellero, que corresponde a las fechas anteriores. Lo demás no se toca.
 export async function cambiarQuincena(periodo, { anio, mes, quincena }) {
-  if (periodo.estado === 'cerrada') throw new Error('La quincena está cerrada. Reábrela para cambiar sus fechas.')
+  if (periodo.estado !== 'borrador') throw new Error('La quincena está cerrada o aprobada. Reábrela para cambiar sus fechas.')
   const { inicio, fin } = rangoQuincena(anio, mes, quincena)
   const { data: otra } = await supabase.from('nomina_periodos').select('id')
     .eq('anio', anio).eq('mes', mes).eq('quincena', quincena).neq('id', periodo.id).maybeSingle()
@@ -134,7 +137,7 @@ export async function guardarLiquidacion(liqId, liq, piezas) {
     modalidad: liq.modalidad,
     dias: valorNum(liq.dias), valor_dia: valorNum(liq.valor_dia),
     horas_extra: valorNum(liq.horas_extra), valor_hora_extra: valorNum(liq.valor_hora_extra),
-    horas_extra_recargo: valorNum(liq.horas_extra_recargo),
+    horas_extra_recargo: valorNum(liq.horas_extra_recargo), valor_hora_recargo: valorNum(liq.valor_hora_recargo),
     valor_fijo: valorNum(liq.valor_fijo), auxilio: valorNum(liq.auxilio), subsidio_ss: valorNum(liq.subsidio_ss),
     otros_devengos: (liq.otros_devengos || []).filter(o => o.concepto?.trim() || Number(o.valor)).map(o => ({ concepto: (o.concepto || '').trim(), valor: Number(o.valor) || 0 })),
     descuento_tiempo_pieza: valorNum(liq.descuento_tiempo_pieza),

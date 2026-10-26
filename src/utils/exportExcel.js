@@ -745,7 +745,8 @@ export function exportarNominaQuincena({ titulo, filas }) {
       const cols = h.k === 'destajo'
         ? [(f.piezas || []).reduce((t, p) => t + n(p.cantidad), 0), n(f.total_piezas)]
         : h.k === 'dia' ? [n(f.dias), n(f.valor_dia), n(f.dias) * n(f.valor_dia)] : [n(f.valor_fijo)]
-      const recargo = n(f.horas_extra_recargo) * n(f.valor_hora_extra) * 2
+      const vRecargo = f.valor_hora_recargo !== null && f.valor_hora_recargo !== undefined && f.valor_hora_recargo !== '' ? n(f.valor_hora_recargo) : n(f.valor_hora_extra) * 2
+      const recargo = n(f.horas_extra_recargo) * vRecargo
       return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.horas_extra_recargo), recargo, n(f.auxilio), suma(f.otros_devengos),
         n(f.descuento_tiempo_pieza), n(f.subsidio_ss), n(f.total_devengado), n(f.seguridad), n(f.anticipo),
         n(f.dotacion_herramienta), suma(f.otras_deducciones), n(f.total_deducciones), n(f.neto), '']

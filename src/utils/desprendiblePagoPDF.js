@@ -3,7 +3,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { FEISEN_LOGO_PNG, LOGO_ASPECT, NIT_FEISEN } from './exportOrdenCompraPDF'
-import { esContratista, etiquetasPago } from '../components/rrhh/nomina/nominaCalculo'
+import { esContratista, etiquetasPago, valorHoraRecargo } from '../components/rrhh/nomina/nominaCalculo'
 
 const AZUL = [6, 71, 148]
 const GRIS = [110, 110, 110]
@@ -21,7 +21,7 @@ export function conceptosLiquidacion(l) {
   if (n(l.dias)) dev.push(['Días trabajados', cant(l.dias), pesos(l.valor_dia), n(l.dias) * n(l.valor_dia)])
   if (n(l.valor_fijo)) dev.push(['Valor fijo de la quincena', '', '', n(l.valor_fijo)])
   if (n(l.horas_extra)) dev.push([T.horas, cant(l.horas_extra), pesos(l.valor_hora_extra), n(l.horas_extra) * n(l.valor_hora_extra)])
-  if (n(l.horas_extra_recargo)) dev.push([T.recargo, cant(l.horas_extra_recargo), pesos(n(l.valor_hora_extra) * 2), n(l.horas_extra_recargo) * n(l.valor_hora_extra) * 2])
+  if (n(l.horas_extra_recargo)) dev.push([T.recargo, cant(l.horas_extra_recargo), pesos(valorHoraRecargo(l)), n(l.horas_extra_recargo) * valorHoraRecargo(l)])
   if (n(l.auxilio)) dev.push(['Auxilio', '', '', n(l.auxilio)])
   if (n(l.subsidio_ss)) dev.push(['Subsidio a seguridad social', '', '', n(l.subsidio_ss)])
   for (const o of l.otros_devengos || []) if (n(o.valor)) dev.push([o.concepto || 'Otro', '', '', n(o.valor)])
@@ -40,7 +40,8 @@ const alinearNumeros = (d) => { if (d.column.index > 0 && d.section !== 'body') 
 function pagina(doc, l, periodo) {
   const ancho = doc.internal.pageSize.getWidth()
   const m = 15
-  try { doc.addImage(FEISEN_LOGO_PNG, 'PNG', m, 12, 48, 48 / LOGO_ASPECT) } catch { /* sin logo no se bloquea */ }
+  // alias 'logo': la imagen se guarda una sola vez aunque haya muchas páginas (PDF más liviano para el correo)
+  try { doc.addImage(FEISEN_LOGO_PNG, 'PNG', m, 12, 48, 48 / LOGO_ASPECT, 'logo', 'FAST') } catch { /* sin logo no se bloquea */ }
   doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...AZUL)
   doc.text('Desprendible de pago', ancho - m, 17, { align: 'right' })
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GRIS)
@@ -110,10 +111,18 @@ function pagina(doc, l, periodo) {
 
 // lista: liquidaciones con { nombre, documento, cargo, area, modalidad, piezas, ...campos y totales }
 export function crearDesprendibles(lista, periodo) {
-  const doc = new jsPDF({ unit: 'mm', format: 'letter' })
+  const doc = new jsPDF({ unit: 'mm', format: 'letter', compress: true })
   lista.forEach((l, i) => { if (i > 0) doc.addPage(); pagina(doc, l, periodo) })
   return doc
 }
+
+// Un solo desprendible en base64 (para adjuntarlo al correo)
+export function desprendibleBase64(l, periodo) {
+  return crearDesprendibles([l], periodo).output('datauristring').split(',')[1]
+}
+
+export const nombreArchivoDesprendible = (l, p) =>
+  `desprendible_${(l.nombre || 'colaborador').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '_')}_${p.anio}_${String(p.mes).padStart(2, '0')}_q${p.quincena}.pdf`
 
 export function generarDesprendibles(lista, periodo, nombreArchivo) {
   crearDesprendibles(lista, periodo).save(`${nombreArchivo}.pdf`)

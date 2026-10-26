@@ -18,6 +18,7 @@ import {
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import NovedadesEmpleado from './NovedadesEmpleado'
+import { valoresHora } from './nomina/nominaCalculo'
 import ModalPreaviso from './ModalPreaviso'
 
 const inputCls = E.input
@@ -135,11 +136,19 @@ const SECCIONES = [
     id: 'pago', label: 'Pago', icon: Wallet,
     bloques: [
       { id: 'nomina', titulo: 'Valores para la nómina', icon: Wallet,
-        ayuda: 'Se usan al crear cada quincena. La forma de pago sale del contrato: contratista al destajo (por pieza, con las tarifas de destajo), contratista al día (días × valor del día) o fijo (planta).',
+        ayuda: 'Se usan al crear cada quincena. La forma de pago sale del contrato: contratista al destajo (por pieza, con las tarifas de destajo), contratista al día (días × valor del día) o fijo (planta). Al escribir el valor del día (o de la quincena) se calculan solos los valores hora; se pueden ajustar.',
+        // Valor hora automático: día ÷ 8,4 × 1,25 (adicional) y × 2 (domingo/festivo)
+        derivar: (f, k) => {
+          if (k !== 'valor_dia' && k !== 'valor_quincena') return f
+          const dia = Number(f.valor_dia) || (Number(f.valor_quincena) ? Number(f.valor_quincena) / 15 : 0)
+          const v = valoresHora(dia)
+          return v.extra ? { ...f, valor_hora_extra: String(v.extra), valor_hora_recargo: String(v.recargo) } : f
+        },
         campos: [
         { k: 'valor_dia', label: 'Valor del día', tipo: 'money', nota: 'Contratistas al día' },
         { k: 'valor_quincena', label: 'Valor por quincena', tipo: 'money', nota: 'Personal fijo (planta). Si está vacío se usa la mitad del salario base.' },
-        { k: 'valor_hora_extra', label: 'Valor hora adicional', tipo: 'money', nota: 'Horas extra (planta) o servicios adicionales (contratistas)' },
+        { k: 'valor_hora_extra', label: 'Valor hora adicional', tipo: 'money', nota: 'Día ÷ 8,4 × 1,25. Horas extra (planta) o servicios adicionales (contratistas)' },
+        { k: 'valor_hora_recargo', label: 'Valor hora domingo/festivo', tipo: 'money', nota: 'Día ÷ 8,4 × 2' },
         { k: 'auxilio_quincenal', label: 'Auxilio por quincena', tipo: 'money' },
         { k: 'subsidio_ss', label: 'Subsidio a seguridad social', tipo: 'money', nota: 'Lo que Feisen le reconoce (p. ej. 270.500 o 150.000)' },
         { k: 'aporte_ss', label: 'Seguridad social que se descuenta', tipo: 'money', nota: 'Valor de la planilla que paga Feisen' },

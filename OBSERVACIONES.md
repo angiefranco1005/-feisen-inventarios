@@ -1495,6 +1495,23 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   conservan. Si se sube un huellero de otras fechas, la tarjeta dice de qué fechas es el archivo y ofrece
   mover la nómina a esa quincena y cargarlo de una vez. Motivo: Angie creó la nómina del 16–31 y su archivo
   era del 1–15.
+- **Valor hora automático y aprobación con envío de desprendibles (2026-10-26, decisiones de Angie):**
+  • Valor hora desde el valor del día (`valoresHora`, `HORAS_DIA = 8.4`): adicional = día ÷ 8,4 × 1,25 y
+    domingo/festivo = día ÷ 8,4 × 2 (Angie: el 100 % es sobre la hora NORMAL), truncado a $100. Fórmula
+    verificada en el Excel NOM: hasta la 1.ª quincena de julio 2026 dividían por 9; desde la 2.ª de julio por
+    8,4 (42 h ÷ 5 días). Fijo: día = quincena ÷ 15. Se llena solo en la ficha y en la liquidación al cambiar
+    el valor del día/fijo; siempre editable. Nueva columna `valor_hora_recargo` (empleados y liquidaciones);
+    las liquidaciones viejas sin ella usan el doble de la hora adicional (`valorHoraRecargo`).
+  • Flujo: borrador → cerrada (RRHH) → **aprobada (solo ADMIN, trigger `fn_nomina_periodo_aprobacion`)**. Al
+    aprobar, la app genera el PDF de cada persona (~65 KB, logo con alias) y llama la Edge Function
+    `enviar-desprendible` uno por uno; quedan `email_enviado_a/_en/_error` por liquidación, con "Enviar
+    pendientes" y "Quitar aprobación". Correo = `email_corporativo` o `email_personal` de la ficha.
+  • **Configuración pendiente (Angie / quien maneje el dominio):** crear cuenta en Resend, verificar el
+    dominio feisen.com.co (registros DNS que da Resend), crear API key; en Supabase → Edge Functions →
+    Secrets: `RESEND_API_KEY`, `NOMINA_REMITENTE` (p. ej. `Feisen Nómina <nomina@feisen.com.co>`) y opcional
+    `NOMINA_RESPONDER_A`; desplegar la función `supabase/functions/enviar-desprendible/index.ts`
+    (Dashboard → Edge Functions → nueva función con ese código, o `supabase functions deploy enviar-desprendible`).
+    Migración `2026-10-26_rrhh_nomina_aprobacion.sql`.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).

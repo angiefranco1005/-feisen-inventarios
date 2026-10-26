@@ -88,7 +88,27 @@ export function diasAusente(novedades, ini, fin) {
 const num = (v) => Number(v) || 0
 export const sumaLista = (lista) => (lista || []).reduce((t, x) => t + num(x?.valor), 0)
 
-export const valorHorasRecargo = (liq) => num(liq.horas_extra_recargo) * num(liq.valor_hora_extra) * 2
+// ─── Valor hora a partir del valor del día ───────────────────────────────────
+// Fórmula que Feisen ya usaba en el Excel desde la 2.ª quincena de julio 2026
+// (verificada fila por fila): hora normal = día ÷ 8,4 h (42 h semanales ÷ 5 días;
+// antes de esa fecha dividían por 9). Hora adicional = normal × 1,25;
+// domingo/festivo = normal × 2 (recargo del 100 %, decisión de Angie 2026-10-26).
+// Se trunca a $100, como en el Excel. Siempre editable en la ficha y la liquidación.
+export const HORAS_DIA = 8.4
+const a100 = (v) => Math.floor(v / 100) * 100
+export function valoresHora(valorDia) {
+  const d = num(valorDia)
+  if (!d) return { extra: null, recargo: null }
+  return { extra: a100(d / HORAS_DIA * 1.25), recargo: a100(d / HORAS_DIA * 2) }
+}
+// Valor de un día de trabajo según la forma de pago (fijo: quincena ÷ 15)
+export const valorDiaBase = (modalidad, valorDia, valorQuincena) =>
+  (modalidad === 'fijo' ? (num(valorQuincena) ? num(valorQuincena) / 15 : null) : (num(valorDia) || null))
+
+// Valor de la hora de domingo/festivo; las liquidaciones viejas sin ese valor usan el doble de la hora adicional
+export const valorHoraRecargo = (liq) => (liq.valor_hora_recargo !== null && liq.valor_hora_recargo !== undefined && liq.valor_hora_recargo !== ''
+  ? num(liq.valor_hora_recargo) : num(liq.valor_hora_extra) * 2)
+export const valorHorasRecargo = (liq) => num(liq.horas_extra_recargo) * valorHoraRecargo(liq)
 
 // Totales de una liquidación. Todos los conceptos suman si tienen valor
 // (un destajo puede tener además horas extra u otros, como en el Excel).
@@ -97,7 +117,7 @@ export function calcularTotales(liq, piezas = []) {
   const total_devengado = total_piezas
     + num(liq.dias) * num(liq.valor_dia)
     + num(liq.horas_extra) * num(liq.valor_hora_extra)
-    + num(liq.horas_extra_recargo) * num(liq.valor_hora_extra) * 2   // domingo/festivo: recargo del 100 %
+    + valorHorasRecargo(liq)   // domingo/festivo: recargo del 100 %
     + num(liq.valor_fijo)
     + num(liq.auxilio)
     + num(liq.subsidio_ss)

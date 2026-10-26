@@ -6,7 +6,7 @@ import Alerta from '../../shared/Alerta'
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Lock, Trash2, CalendarClock, Package, Fingerprint, FileText, ChevronDown } from 'lucide-react'
 import * as E from '../estilos'
 import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD } from '../catalogosRRHH'
-import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, esContratista, etiquetasPago } from './nominaCalculo'
+import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, esContratista, etiquetasPago, valoresHora, valorDiaBase } from './nominaCalculo'
 import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
@@ -103,7 +103,7 @@ export default function LiquidacionPersona() {
     setLiq({
       ...l,
       dias: aTexto(l.dias), valor_dia: aTexto(l.valor_dia), horas_extra: aTexto(l.horas_extra), valor_hora_extra: aTexto(l.valor_hora_extra),
-      horas_extra_recargo: aTexto(l.horas_extra_recargo),
+      horas_extra_recargo: aTexto(l.horas_extra_recargo), valor_hora_recargo: aTexto(l.valor_hora_recargo),
       valor_fijo: aTexto(l.valor_fijo), auxilio: aTexto(l.auxilio), subsidio_ss: aTexto(l.subsidio_ss),
       descuento_tiempo_pieza: aTexto(l.descuento_tiempo_pieza), seguridad: aTexto(l.seguridad), anticipo: aTexto(l.anticipo),
       dotacion_herramienta: aTexto(l.dotacion_herramienta), observaciones: l.observaciones || '',
@@ -116,9 +116,20 @@ export default function LiquidacionPersona() {
     setCargando(false)
   }
 
-  const cerrada = periodo?.estado === 'cerrada'
+  const cerrada = !!periodo && periodo.estado !== 'borrador'   // cerrada o aprobada: solo lectura
   const totales = useMemo(() => (liq ? calcularTotales(liq, piezas) : null), [liq, piezas])
-  const set = (k) => (v) => { setLiq(l => ({ ...l, [k]: v })); setCambios(true) }
+  // Al cambiar el valor del día (o el fijo) se recalculan los valores hora: día ÷ 8,4 × 1,25 y × 2
+  const set = (k) => (v) => {
+    setLiq(l => {
+      const nl = { ...l, [k]: v }
+      if (k === 'valor_dia' || k === 'valor_fijo' || k === 'modalidad') {
+        const h = valoresHora(valorDiaBase(nl.modalidad, nl.valor_dia, nl.valor_fijo))
+        if (h.extra) { nl.valor_hora_extra = String(h.extra); nl.valor_hora_recargo = String(h.recargo) }
+      }
+      return nl
+    })
+    setCambios(true)
+  }
   const setPieza = (i, cambiosPieza) => { setPiezas(ps => ps.map((p, j) => (j === i ? { ...p, ...cambiosPieza } : p))); setCambios(true) }
 
   // Al escribir una pieza que coincide con una tarifa, se toma su valor
@@ -215,7 +226,9 @@ export default function LiquidacionPersona() {
         </div>
       </div>
 
-      {cerrada && <Alerta tipo="info" mensaje="La quincena está cerrada: solo lectura. Para cambiar algo, reábrela desde la planilla." />}
+      {cerrada && <Alerta tipo="info" mensaje={periodo.estado === 'aprobada'
+        ? 'La quincena está aprobada por gerencia: solo lectura.'
+        : 'La quincena está cerrada: solo lectura. Para cambiar algo, reábrela desde la planilla.'} />}
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
       <div className="flex flex-col lg:flex-row gap-4 items-start">
@@ -334,12 +347,13 @@ export default function LiquidacionPersona() {
               <div><L>{T.valorHora}</L><Dinero value={liq.valor_hora_extra} disabled={cerrada} onChange={set('valor_hora_extra')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos((Number(liq.horas_extra) || 0) * (Number(liq.valor_hora_extra) || 0))}</p></div>
               <div><L>{T.recargo}</L><Numero value={liq.horas_extra_recargo} disabled={cerrada} onChange={set('horas_extra_recargo')} /></div>
-              <div><L>{T.valorRecargo}</L><p className="text-sm text-feisen-texto-2 py-2">{formatoPesos((Number(liq.valor_hora_extra) || 0) * 2)}</p></div>
+              <div><L>{T.valorRecargo}</L><Dinero value={liq.valor_hora_recargo} disabled={cerrada} onChange={set('valor_hora_recargo')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos(valorHorasRecargo(liq))}</p></div>
               <div><L>Auxilio de la quincena</L><Dinero value={liq.auxilio} disabled={cerrada} onChange={set('auxilio')} /></div>
               <div><L>Subsidio a seguridad social</L><Dinero value={liq.subsidio_ss} disabled={cerrada} onChange={set('subsidio_ss')} /></div>
               <div><L>Descuento por tiempo o pieza dañada</L><Dinero value={liq.descuento_tiempo_pieza} disabled={cerrada} onChange={set('descuento_tiempo_pieza')} /></div>
             </div>
+            <p className="text-[11px] text-feisen-gris-medio mt-2">Los valores hora se calculan del valor del día: ÷ 8,4 × 1,25 (adicional) y ÷ 8,4 × 2 (domingo/festivo). Puedes ajustarlos.</p>
             <div className="mt-4">
               <L>Otros (bonificaciones, piezas varias…)</L>
               <Conceptos lista={liq.otros_devengos} disabled={cerrada} agregar="Agregar devengo" onChange={set('otros_devengos')} />
@@ -382,7 +396,9 @@ export default function LiquidacionPersona() {
                 </button>}
               </div>
             )}
-            {cerrada && <p className="px-5 pb-4 text-xs text-feisen-gris-medio flex items-center gap-1.5"><Lock size={12} strokeWidth={1.8} /> Quincena cerrada</p>}
+            {cerrada && <p className="px-5 pb-4 text-xs text-feisen-gris-medio flex items-center gap-1.5"><Lock size={12} strokeWidth={1.8} /> {periodo.estado === 'aprobada' ? 'Quincena aprobada' : 'Quincena cerrada'}</p>}
+            {liq.email_enviado_en && <p className="px-5 pb-3 -mt-2 text-xs text-green-700">Desprendible enviado a {liq.email_enviado_a} el {new Date(liq.email_enviado_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
+            {liq.email_error && !liq.email_enviado_en && <p className="px-5 pb-3 -mt-2 text-xs text-feisen-rojo">No se pudo enviar el desprendible: {liq.email_error}</p>}
             <div className="px-5 pb-4 -mt-1">
               <button onClick={desprendible} disabled={cambios && !cerrada} title={cambios ? 'Guarda primero los cambios' : ''} className={`${E.btnTexto} w-full justify-center`}>
                 <FileText size={14} strokeWidth={1.8} /> Desprendible de pago (PDF)
