@@ -689,3 +689,24 @@ export function exportarConsumoExcel(resumen, nombreArchivo = 'consumo_feisen') 
   })
   XLSX.writeFile(wb, `${nombreArchivo}_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
+
+// ─────────────────────────────────────────────────────────────
+//  RRHH — Registro de novedades (ausencias), con los filtros aplicados
+//  filas: [{ codigo, colaborador, documento, area, vinculacion, tipo, subtipo,
+//            inicio, fin, dias, horas, remunerado, soportes, observaciones }]
+// ─────────────────────────────────────────────────────────────
+export function exportarNovedades(filas, subtitulo = '') {
+  const wb = XLSX.utils.book_new()
+  const headers = ['Código', 'Colaborador', 'Documento', 'Área', 'Vinculación', 'Tipo', 'Detalle',
+    'Desde', 'Hasta', 'Días', 'Horas', 'Remunerado', 'Soportes', 'Observaciones']
+  const datos = filas.map(f => [f.codigo || '', f.colaborador, f.documento, f.area || '', f.vinculacion, f.tipo,
+    f.subtipo || '', f.inicio, f.fin, f.dias ?? '', f.horas ?? '', f.remunerado, f.soportes, f.observaciones || ''])
+  const totalDias = filas.reduce((t, f) => t + (Number(f.dias) || 0), 0)
+  const totalHoras = filas.reduce((t, f) => t + (Number(f.horas) || 0), 0)
+  hojaTabla(wb, 'Novedades', 'Registro de novedades — Feisen', subtitulo, headers, datos, {
+    anchos: [11, 30, 14, 20, 22, 13, 22, 12, 12, 8, 8, 12, 10, 40],
+    fmt: { 9: '#,##0.##', 10: '#,##0.##' },
+    total: ['', `${filas.length} novedades`, '', '', '', '', '', '', 'Total', totalDias, totalHoras, '', '', ''],
+  })
+  XLSX.writeFile(wb, `novedades_feisen_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}

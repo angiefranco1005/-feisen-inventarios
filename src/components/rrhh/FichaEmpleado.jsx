@@ -7,7 +7,7 @@ import Alerta from '../shared/Alerta'
 import {
   ArrowLeft, Camera, Pencil, User, Briefcase, HeartPulse, Wallet, FolderOpen,
   Upload, FileText, Trash2, ExternalLink, Mail, Smartphone, CalendarDays, AlertTriangle,
-  MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus,
+  MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock,
 } from 'lucide-react'
 import {
   BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
@@ -17,6 +17,7 @@ import {
 } from './catalogosRRHH'
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
+import NovedadesEmpleado from './NovedadesEmpleado'
 
 const inputCls = E.input
 
@@ -139,6 +140,7 @@ const SECCIONES = [
       ] },
     ],
   },
+  { id: 'novedades', label: 'Novedades', icon: CalendarClock },
   { id: 'documentos', label: 'Documentos', icon: FolderOpen },
 ]
 
@@ -324,6 +326,8 @@ export default function FichaEmpleado() {
         <div className="flex-1 min-w-0 w-full space-y-4">
           {tab === 'documentos'
             ? <DocumentosEmpleado empleadoId={id} perfilId={perfil?.id} />
+            : tab === 'novedades'
+            ? <NovedadesEmpleado empleado={emp} perfilId={perfil?.id} />
             : seccion.bloques.map(b => (
               <Bloque key={b.id} bloque={b} registro={emp} ctx={ctx}
                 editando={editando === b.id} bloqueado={!!editando && editando !== b.id}

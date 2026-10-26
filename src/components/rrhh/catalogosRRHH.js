@@ -220,3 +220,93 @@ export async function abrirArchivoRRHH(path) {
   if (ventana) ventana.location.href = data.signedUrl
   else window.location.href = data.signedUrl
 }
+
+// ─── Novedades (ausencias) ───────────────────────────────────────────────────
+// `conteo`: cómo se sugieren los días (vacaciones = días hábiles; el resto,
+// días calendario). `soporte`: si normalmente lleva soporte (para marcar los
+// que faltan). `remunerable`: si se pregunta si es remunerado.
+export const TIPOS_NOVEDAD = {
+  incapacidad: {
+    label: 'Incapacidad', plural: 'Incapacidades', punto: 'bg-rose-500', texto: 'text-rose-600',
+    conteo: 'calendario', soporte: true, remunerable: false,
+    subtipos: ['Enfermedad general', 'Accidente de trabajo', 'Enfermedad laboral'],
+  },
+  permiso: {
+    label: 'Permiso', plural: 'Permisos', punto: 'bg-sky-500', texto: 'text-sky-600',
+    conteo: 'calendario', soporte: false, remunerable: true,
+    subtipos: ['Cita médica', 'Calamidad doméstica', 'Diligencia personal', 'Estudio', 'Otro'],
+  },
+  vacaciones: {
+    label: 'Vacaciones', plural: 'Vacaciones', punto: 'bg-emerald-500', texto: 'text-emerald-600',
+    conteo: 'habiles', soporte: false, remunerable: false,
+    subtipos: ['Disfrutadas', 'Anticipadas', 'Compensadas en dinero'],
+  },
+  licencia: {
+    label: 'Licencia', plural: 'Licencias', punto: 'bg-violet-500', texto: 'text-violet-600',
+    conteo: 'calendario', soporte: true, remunerable: true,
+    subtipos: ['Maternidad', 'Paternidad', 'Luto', 'Remunerada', 'No remunerada', 'Otra'],
+  },
+}
+
+// Para filtrar por tipo de vinculación (contrato + modalidad del contratista)
+export function vinculacionDe(emp) {
+  if (!emp?.tipo_contrato) return 'Sin contrato registrado'
+  if (emp.tipo_contrato === 'Contratista') {
+    const v = TIPOS_VINCULACION.find(t => t.value === emp.tipo_vinculacion)
+    return v ? `Contratista · ${v.value === 'destajo' ? 'Al destajo' : 'Al día'}` : 'Contratista'
+  }
+  return emp.tipo_contrato
+}
+export const VINCULACIONES = ['Indefinido', 'Término fijo', 'Contratista · Al destajo', 'Contratista · Al día', 'Contratista']
+
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+export const hoyISO = () => isoLocal(new Date())
+
+// Festivos de Colombia de un año (Ley 51 de 1983 / "Ley Emiliani"): fijos,
+// trasladables al lunes siguiente y los que dependen de la Pascua.
+const cacheFestivos = new Map()
+export function festivosColombia(anio) {
+  if (cacheFestivos.has(anio)) return cacheFestivos.get(anio)
+  const lunes = (d) => { const x = new Date(d); const dia = x.getDay(); if (dia !== 1) x.setDate(x.getDate() + ((8 - dia) % 7)); return x }
+  // Domingo de Pascua (algoritmo de Butcher / Meeus)
+  const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100, d = Math.floor(b / 4), e = b % 4
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1
+  const pascua = new Date(anio, mes - 1, dia)
+  const masDias = (n) => { const x = new Date(pascua); x.setDate(x.getDate() + n); return x }
+  const lista = [
+    new Date(anio, 0, 1), new Date(anio, 4, 1), new Date(anio, 6, 20), new Date(anio, 7, 7),
+    new Date(anio, 11, 8), new Date(anio, 11, 25),
+    ...[[0, 6], [2, 19], [5, 29], [7, 15], [9, 12], [10, 1], [10, 11]].map(([mm, dd]) => lunes(new Date(anio, mm, dd))),
+    masDias(-3), masDias(-2),                         // Jueves y Viernes Santo
+    lunes(masDias(39)), lunes(masDias(60)), lunes(masDias(68)), // Ascensión, Corpus Christi, Sagrado Corazón
+  ]
+  const set = new Set(lista.map(isoLocal))
+  cacheFestivos.set(anio, set)
+  return set
+}
+
+function fechaDe(iso) { const [a, m, d] = iso.split('-').map(Number); return new Date(a, m - 1, d) }
+
+export function diasCalendario(ini, fin) {
+  if (!ini || !fin || fin < ini) return 0
+  return Math.round((fechaDe(fin) - fechaDe(ini)) / 86400000) + 1
+}
+
+// Días hábiles entre dos fechas (lunes a sábado, sin domingos ni festivos)
+export function diasHabiles(ini, fin) {
+  if (!ini || !fin || fin < ini) return 0
+  let n = 0
+  for (let d = fechaDe(ini); d <= fechaDe(fin); d.setDate(d.getDate() + 1)) {
+    if (d.getDay() !== 0 && !festivosColombia(d.getFullYear()).has(isoLocal(d))) n++
+  }
+  return n
+}
+
+export function horasEntre(hIni, hFin) {
+  if (!hIni || !hFin) return 0
+  const [a, b] = hIni.split(':').map(Number), [c, d] = hFin.split(':').map(Number)
+  const min = (c * 60 + d) - (a * 60 + b)
+  return min > 0 ? Math.round((min / 60) * 100) / 100 : 0
+}

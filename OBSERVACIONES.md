@@ -1396,6 +1396,19 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
   (no existe por ahora). Solo afecta el área de RRHH, no bodegas ni roles. Migración
   `2026-10-26_rrhh_areas_almacen_logistica.sql`. Los selects de la ficha muestran igual un valor guardado
   que ya no está en el catálogo ("ya no está en la lista") para no perderlo al editar.
+- **Registro de novedades (2026-10-26, pedido de Angie):** tablas `novedades` (tipo incapacidad / permiso /
+  vacaciones / licencia + subtipo, fechas, días u horas, remunerado, y para incapacidades entidad, número,
+  diagnóstico y prórroga) y `novedad_soportes` (archivos en `novedades/{id}/` del bucket rrhh). Código
+  NOV-0001. Página `/rrhh/novedades` con filtros por persona, tipo, vinculación (contrato + modalidad del
+  contratista, `vinculacionDe()`) y periodo; indicadores (ausentes hoy, días por tipo, sin soporte), vista
+  "Por persona" y exportación a Excel (`exportarNovedades`). También pestaña "Novedades" en la ficha.
+  Días sugeridos: vacaciones en días **hábiles lunes a sábado sin domingos ni festivos de Colombia**
+  (`festivosColombia()` calcula fijos, Ley Emiliani y los de Pascua; verificado contra el calendario 2026);
+  el resto en días calendario. Siempre editables. **Pendiente de confirmar con Angie:** si en Feisen el
+  sábado es hábil para vacaciones. Una novedad que cruza el borde del periodo filtrado cuenta todos sus días.
+  Incapacidades y licencias se marcan "sin soporte" mientras no tengan archivo.
+  **Ideas siguientes:** saldo de vacaciones por persona (15 días hábiles por año trabajado − disfrutadas),
+  aprobación de permisos por el jefe, y que el colaborador solicite desde su usuario.
 - **Pendientes / próximas fases sugeridas:** historial de cambios de cargo y salario, familiares /
   beneficiarios, vacaciones y ausencias (incapacidades, permisos), carga masiva desde Excel, exportar
   listado a Excel, autoservicio del empleado (enlazando `usuario_id`).
