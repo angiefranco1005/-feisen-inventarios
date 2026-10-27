@@ -1603,3 +1603,10 @@ el avance se registra a diario y la orden se cierra a mano.
 - Propuesta del módulo 1 (Productos y stock), maqueta navegable: https://claude.ai/artifact/9QJKnxahqXpvxVNhYg2LRL. Orden propuesto: 1 Productos y stock · 2 Inicio/tablero · 3 Movimientos · 4 Pedidos y compras.
 - Ajustes de Angie a la propuesta (2026-10-27): cada perfil ve **solo su bodega asignada**; **solo ADMIN** ve todas las bodegas y el valor por bodega; filtro por categoría + búsqueda por palabras del nombre (sin tildes, cualquier orden) para quien no sabe la categoría.
 - Brecha en la app actual a corregir al implementar: en `GestionProductos.jsx` LOGÍSTICA ve todas las bodegas (`!esAdmin && !esLogistica`). Leonardo Cardozo (CONSULTOR) no tiene bodega asignada.
+
+## 2026-10-27 — Módulo Productos y stock rediseñado (implementado)
+- `GestionProductos.jsx` con el diseño de la propuesta: indicadores que filtran (Agotados / Bajo el mínimo / Sin mínimo), aviso de mínimos, franja "Valor por bodega" (solo ADMIN), búsqueda por palabras del nombre sin tildes (`utils/busqueda.js`), filtro por categoría con conteos, chips de estado, tabla en escritorio y tarjetas en celular, panel de detalle (`DetalleProducto.jsx`).
+- **Logística ya no ve todas las bodegas**: se quitaron las excepciones `!esLogistica` en Productos. Solo ADMIN ve todo y el valor del inventario. Costo unitario lo siguen viendo ADMIN, ALMACENISTA y LOGÍSTICA (como antes).
+- Ojo: la RLS de `items`/`stock` deja LEER todo a cualquier autenticado; la restricción por bodega es del front (`bodegasPermitidas`). La escritura sí está limitada por bodega en la RLS.
+- Mínimo sugerido (`utils/consumo.js`): salidas no revertidas de los últimos 90 días desde las bodegas visibles (incluye traslados), cobertura de 15 días → `ceil(consumo/90*15)`. Se aprueba en lote en `ModalMinimosSugeridos.jsx` o por producto en el panel. El historial de movimientos empezó hace menos de 90 días, así que al principio el sugerido queda algo bajo.
+- La búsqueda del Consultor (Ventas) usa el mismo `coincideBusqueda`.

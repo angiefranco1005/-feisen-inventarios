@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useBodegasConsulta } from './useBodegasConsulta'
 import Spinner from '../shared/Spinner'
+import { coincideBusqueda } from '../../utils/busqueda'
 import { Package, Search, X, History } from 'lucide-react'
 
 // Vista de consulta (Ventas / Comercial): stock de sus bodegas asignadas (MOTORES),
@@ -44,7 +45,7 @@ export default function DashboardConsultor() {
   const filtrados = stock.filter(s => {
     if (soloConStock && !(Number(s.cantidad_actual) > 0)) return false
     if (categoria && s.items?.categorias?.nombre !== categoria) return false
-    if (busqueda && !s.items?.nombre?.toLowerCase().includes(busqueda.toLowerCase())) return false
+    if (!coincideBusqueda(`${s.items?.nombre || ''} ${s.items?.categorias?.nombre || ''}`, busqueda)) return false
     return true
   })
 
@@ -61,7 +62,7 @@ export default function DashboardConsultor() {
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar producto..."
+            placeholder="Escribe parte del nombre: forte, 6,5 hp…"
             className="w-full border border-feisen-borde rounded-xl pl-9 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
           {busqueda && (
             <button type="button" onClick={() => setBusqueda('')}

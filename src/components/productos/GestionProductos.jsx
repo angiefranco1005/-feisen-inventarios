@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
@@ -7,8 +7,11 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
-import { Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight, Package, AlertTriangle, Upload, RefreshCw, Download, History, Wrench } from 'lucide-react'
+import { Plus, Search, Package, AlertTriangle, Upload, RefreshCw, Download, Wrench, ArrowUpDown, X } from 'lucide-react'
 import { exportarInventarioActual } from '../../utils/exportExcel'
+import { coincideBusqueda } from '../../utils/busqueda'
+import DetalleProducto, { ESTADOS, colorNivel } from './DetalleProducto'
+import ModalMinimosSugeridos from './ModalMinimosSugeridos'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
@@ -22,7 +25,8 @@ const CATEGORIAS_MECANIZABLES = new Set([
 
 export default function GestionProductos() {
   const navigate = useNavigate()
-  const { perfil, esAdmin, esLogistica, bodegasPermitidas, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
+  // Solo ADMIN ve todas las bodegas y el valor del inventario; el resto (Logística incluida) solo su bodega asignada
   const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'OPERARIO' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS' || perfil?.rol === 'JEFE_ENSAMBLE' || perfil?.rol === 'RRHH'
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
@@ -33,14 +37,16 @@ export default function GestionProductos() {
   const [busqueda,        setBusqueda]        = useState('')
   const [filtroBodega,    setFiltroBodega]    = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('')
-  const [filtroStockBajo, setFiltroStockBajo] = useState(false)
+  const [filtroEstado,    setFiltroEstado]    = useState('') // '', agotado, bajo, sinmin, inactivo
+  const [detalleId,       setDetalleId]       = useState(null)
+  const [modalSugeridos,  setModalSugeridos]  = useState(false)
   const [msg,             setMsg]             = useState(null)
   const [modal,      setModal]      = useState(false)
   const [editando,   setEditando]   = useState(null)
   const [confirm,    setConfirm]    = useState(null)
   const [subiendo,   setSubiendo]   = useState(false)
   const [pagina,     setPagina]     = useState(1)
-  const POR_PAGINA = 20
+  const POR_PAGINA = 25
 
   // ── Estado modal Mecanizar ──────────────────────────────────────────────────
   const [modalMecanizar,  setModalMecanizar]  = useState(false)
@@ -52,13 +58,13 @@ export default function GestionProductos() {
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
-  useEffect(() => { setPagina(1) }, [busqueda, filtroBodega, filtroCategoria, filtroStockBajo])
+  useEffect(() => { setPagina(1) }, [busqueda, filtroBodega, filtroCategoria, filtroEstado])
 
   async function cargar() {
     setCargando(true)
 
-    // Si no es admin/logistica y no tiene bodegas asignadas → no ve nada
-    if (!esAdmin && !esLogistica && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
+    // Si no es admin y no tiene bodegas asignadas → no ve nada
+    if (!esAdmin && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
       setItems([]); setCategorias([]); setBodegas([])
       setCargando(false); return
     }
@@ -68,18 +74,16 @@ export default function GestionProductos() {
       let q = supabase.from('items')
         .select('*, categorias(nombre), bodegas!bodega_id(nombre), stock(item_id, bodega_id, cantidad_actual)')
         .order('nombre').range(from, to)
-      if (!esAdmin && !esLogistica && bodegasPermitidas) q = q.in('bodega_id', bodegasPermitidas)
+      if (!esAdmin && bodegasPermitidas) q = q.in('bodega_id', bodegasPermitidas)
       return q
     }
 
     const [
-      { data: it1, error: e1 },
-      { data: it2 },
+      { data: it, error: e1 },
       { data: cats, error: e2 },
       { data: bods, error: e3 },
     ] = await Promise.all([
-      buildItemsQ(0, 999),
-      buildItemsQ(1000, 1999),
+      fetchAllPages(buildItemsQ),
       supabase.from('categorias').select('*').order('nombre'),
       supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
     ])
@@ -87,8 +91,6 @@ export default function GestionProductos() {
       const errMsg = (e1 || e2 || e3)?.message || 'Error desconocido'
       setMsg({ tipo: 'error', texto: `Error cargando datos: ${errMsg}` })
     }
-    const it = [...(it1 || []), ...(it2 || [])]
-
     // Índice de stock construido desde el stock embebido en cada item
     const stockIdx = {}
     for (const i of it) {
@@ -122,7 +124,7 @@ export default function GestionProductos() {
 
     setItems(todosItems)
     // Para no-admin: filtrar categorías y bodegas visibles
-    if (!esAdmin && !esLogistica && bodegasPermitidas) {
+    if (!esAdmin && bodegasPermitidas) {
       setCategorias((cats || []).filter(c => bodegasPermitidas.includes(c.bodega_id)))
       setBodegas((bods || []).filter(b => bodegasPermitidas.includes(b.id)))
     } else {
@@ -313,280 +315,365 @@ export default function GestionProductos() {
     cargar()
   }
 
+  // Existencia que el perfil puede ver: admin suma todas las bodegas; el resto solo las suyas
   function getStock(item) {
-    if (!bodegasPermitidas || esLogistica) return item.stock?.reduce((s, r) => s + (r.cantidad_actual || 0), 0) ?? null
-    const relevante = item.stock?.find(s => bodegasPermitidas.includes(s.bodega_id))
-    return relevante?.cantidad_actual ?? null
+    const filas = (item.stock || []).filter(s => !bodegasPermitidas || bodegasPermitidas.includes(s.bodega_id))
+    if (filas.length === 0) return null
+    return filas.reduce((t, r) => t + (Number(r.cantidad_actual) || 0), 0)
   }
 
-  function stockBajo(item) {
-    const cant = getStock(item)
-    return item.stock_minimo > 0 && cant !== null && cant <= item.stock_minimo
+  function estadoDe(item) {
+    if (!item.activo) return 'inactivo'
+    const cant = getStock(item) ?? 0
+    if (cant <= 0) return 'agotado'
+    if (item.stock_minimo > 0) return cant <= item.stock_minimo ? 'bajo' : 'ok'
+    return 'sinmin'
   }
 
-  function sinStock(item) {
-    const cant = getStock(item)
-    return cant !== null && cant === 0
-  }
+  const verValor = esAdmin
+  const verCosto = esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA'
+  const nombreBodegaPorId = useMemo(() => Object.fromEntries(bodegas.map(b => [b.id, b.nombre])), [bodegas])
+  const nombreBodega = id => nombreBodegaPorId[id] || '—'
+  // Columna/filtro de bodega solo si el perfil ve más de una
+  const variasBodegas = bodegas.length > 1
 
-  const filtrados = items.filter(i => {
-    const matchNombre    = i.nombre.toLowerCase().includes(busqueda.toLowerCase())
-    const matchBodega    = !filtroBodega    || i.bodega_id    === filtroBodega
-    const matchCategoria = !filtroCategoria || i.categoria_id === filtroCategoria
-    const matchStockBajo = !filtroStockBajo || stockBajo(i)
-    return matchNombre && matchBodega && matchCategoria && matchStockBajo
+  // Alcance: productos de la bodega elegida (o todas las visibles)
+  const enBodega = items.filter(i => !filtroBodega || i.bodega_id === filtroBodega)
+  const activos  = items.filter(i => i.activo)
+  const conteo = { agotado: 0, bajo: 0, sinmin: 0, ok: 0, inactivo: 0 }
+  enBodega.forEach(i => { conteo[estadoDe(i)]++ })
+  const kpi = { agotado: 0, bajo: 0, sinmin: 0 }
+  activos.forEach(i => { const e = estadoDe(i); if (e in kpi) kpi[e]++ })
+  const valorTotal = verValor
+    ? activos.reduce((t, i) => t + (getStock(i) || 0) * (Number(i.precio_costo) || 0), 0)
+    : 0
+
+  // Franja de bodegas (solo administración): valor y agotados de cada una
+  const resumenBodegas = verValor ? bodegas.map(b => {
+    const suyos = activos.filter(i => i.bodega_id === b.id)
+    const valor = activos.reduce((t, i) => t + (i.stock || []).filter(s => s.bodega_id === b.id)
+      .reduce((u, s) => u + (Number(s.cantidad_actual) || 0) * (Number(i.precio_costo) || 0), 0), 0)
+    return { ...b, valor, productos: suyos.length, agotados: suyos.filter(i => estadoDe(i) === 'agotado').length }
+  }).filter(b => b.productos > 0 || b.valor > 0) : []
+  const maxValorBodega = Math.max(1, ...resumenBodegas.map(b => b.valor))
+
+  // Categorías con conteo, tomadas de los productos visibles en la bodega elegida
+  const categoriasConConteo = Object.values(enBodega.reduce((acc, i) => {
+    const id = i.categoria_id || '__sin__'
+    acc[id] = acc[id] || { id, nombre: i.categorias?.nombre || 'Sin categoría', n: 0 }
+    acc[id].n++
+    return acc
+  }, {})).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+
+  const filtrados = enBodega.filter(i => {
+    const e = estadoDe(i)
+    const matchEstado    = filtroEstado ? e === filtroEstado : e !== 'inactivo'
+    const matchCategoria = !filtroCategoria || (i.categoria_id || '__sin__') === filtroCategoria
+    const matchBusqueda  = coincideBusqueda(`${i.nombre} ${i.categorias?.nombre || ''}`, busqueda)
+    return matchEstado && matchCategoria && matchBusqueda
   })
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
   const paginaActual = Math.min(pagina, totalPaginas)
   const paginados    = filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA)
 
-  const totalStockBajo  = items.filter(i => i.activo && stockBajo(i)).length
-  const totalSinStock   = items.filter(i => i.activo && sinStock(i)).length
-  const totalAlertas    = totalStockBajo + totalSinStock
-
-  // Categorías filtradas por bodega seleccionada (para el select de filtro)
-  const hayTransferidas = items.some(i => i.categoria_id === '__fundicion__')
-  const categoriasFiltroBodega = [
-    ...(filtroBodega ? categorias.filter(c => c.bodega_id === filtroBodega) : categorias),
-    ...(hayTransferidas ? [{ id: '__fundicion__', nombre: 'Fundición' }] : []),
-  ]
+  const detalle = detalleId ? items.find(i => i.id === detalleId) : null
+  const hayFiltros = busqueda || filtroCategoria || filtroEstado || filtroBodega
+  const fmt = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })
+  const millones = n => n >= 1e6 ? `$${(n / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M` : `$${Math.round(n).toLocaleString('es-CO')}`
+  const pctNivel = (item) => {
+    const q = getStock(item) || 0
+    const tope = Math.max(Number(item.stock_maximo) || 0, (Number(item.stock_minimo) || 0) * 3, q, 1)
+    return Math.min(100, (q / tope) * 100)
+  }
+  const toggleEstado = e => setFiltroEstado(v => v === e ? '' : e)
 
   if (cargando) return <Spinner texto="Cargando productos..." />
 
+  if (!esAdmin && bodegasPermitidas !== null && bodegasPermitidas.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto text-center py-20 space-y-2">
+        <Package size={40} className="mx-auto text-gray-300" />
+        <h1 className="text-lg font-semibold text-feisen-texto">No tienes una bodega asignada</h1>
+        <p className="text-sm text-feisen-texto-2">Pide a administración que te asigne una bodega en Configuración → Usuarios para ver sus productos.</p>
+      </div>
+    )
+  }
+
+  const EstadoBadge = ({ e }) => <span className={`text-xs font-medium px-2 py-0.5 rounded-md whitespace-nowrap ${ESTADOS[e].clase}`}>{ESTADOS[e].texto}</span>
+
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-feisen-azul">Productos</h1>
+    <div className="max-w-6xl mx-auto space-y-5">
+      {/* Encabezado */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs text-gray-400">Inventarios</p>
+          <h1 className="text-xl font-semibold text-feisen-texto">Productos y stock</h1>
+          <p className="text-sm text-feisen-texto-2 mt-0.5">
+            {esAdmin
+              ? 'Existencias de todas las bodegas y lo que necesita atención.'
+              : <>Bodega asignada{bodegas.length > 1 ? 's' : ''}{' '}
+                  {bodegas.map(b => <span key={b.id} className="inline-block bg-feisen-azul-suave text-feisen-azul font-semibold text-xs px-2 py-0.5 rounded-md mr-1">{b.nombre}</span>)}
+                  · Solo ves los productos de tu bodega.</>}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
-          <button onClick={cargar} title="Refrescar"
-            className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
-            <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+          <button onClick={cargar} title="Refrescar" className="p-2 rounded-lg border border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo">
+            <RefreshCw size={16} />
           </button>
-          <button
-            onClick={() => exportarInventarioActual(filtrados)}
-            title="Descargar Excel"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
-            <Download size={16} /> Excel
+          <button onClick={() => exportarInventarioActual(filtrados.map(i => ({ ...i, stock: [{ cantidad_actual: getStock(i) ?? 0 }] })))}
+            title="Descargar Excel de lo que estás viendo"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo text-sm font-medium">
+            <Download size={15} /> Excel
+          </button>
+          <button onClick={() => navigate('/movimientos/nuevo')}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg border border-feisen-borde bg-white text-feisen-texto hover:bg-feisen-fondo text-sm font-medium">
+            <ArrowUpDown size={15} /> Registrar movimiento
           </button>
           {puedeEditar && (
-            <button onClick={abrirNuevo}
-              className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90 transition-opacity">
-              <Plus size={18} /> Nuevo producto
+            <button onClick={abrirNuevo} className="flex items-center gap-1.5 bg-feisen-azul text-white px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90">
+              <Plus size={16} /> Nuevo producto
             </button>
           )}
         </div>
       </div>
 
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+      {msg && !modal && !modalMecanizar && !confirm && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      {totalAlertas > 0 && (
-        <div className={`rounded-xl border px-4 py-3 ${totalSinStock > 0 ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-200'}`}>
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className={`flex-shrink-0 mt-0.5 ${totalSinStock > 0 ? 'text-feisen-rojo' : 'text-amber-500'}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${totalSinStock > 0 ? 'text-red-800' : 'text-amber-800'}`}>
-                ⚠️ {totalSinStock > 0 && `${totalSinStock} producto${totalSinStock > 1 ? 's' : ''} SIN STOCK`}
-                {totalSinStock > 0 && totalStockBajo > totalSinStock && ' · '}
-                {totalStockBajo > totalSinStock && `${totalStockBajo - totalSinStock} bajo mínimo`}
-              </p>
-              <p className={`text-xs mt-0.5 ${totalSinStock > 0 ? 'text-red-600' : 'text-amber-600'}`}>
-                Revisa el inventario y genera los pedidos necesarios.
-              </p>
-            </div>
-            <button onClick={() => setFiltroStockBajo(v => !v)}
-              className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium border transition-colors
-                ${filtroStockBajo
-                  ? 'bg-feisen-azul text-white border-feisen-azul'
-                  : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
-              {filtroStockBajo ? 'Ver todos' : 'Filtrar alertas'}
-            </button>
+      {/* Indicadores: los de excepción filtran la lista */}
+      <div className={`grid grid-cols-2 gap-3 ${verValor ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        {verValor && (
+          <div className="bg-white border border-feisen-borde rounded-xl px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Valor del inventario</p>
+            <p className="text-2xl font-semibold text-feisen-texto tabular-nums mt-0.5">{millones(valorTotal)}</p>
+            <p className="text-xs text-feisen-texto-2">{bodegas.length} bodegas · a precio de costo</p>
           </div>
+        )}
+        {[
+          { e: 'agotado', t: 'Agotados',           ctx: 'Existencia en cero',     punto: 'bg-feisen-rojo', cifra: 'text-feisen-rojo' },
+          { e: 'bajo',    t: 'Bajo el mínimo',     ctx: 'Hay que pedir pronto',   punto: 'bg-amber-500',   cifra: 'text-amber-700' },
+          { e: 'sinmin',  t: 'Sin mínimo definido', ctx: `de ${fmt(activos.length)} productos activos`, punto: 'bg-gray-400', cifra: 'text-feisen-texto' },
+        ].map(k => (
+          <button key={k.e} onClick={() => toggleEstado(k.e)} aria-pressed={filtroEstado === k.e}
+            className={`text-left bg-white border rounded-xl px-4 py-3 transition-colors ${!verValor && k.e === 'sinmin' ? 'col-span-2 lg:col-span-1' : ''} ${filtroEstado === k.e ? 'border-feisen-azul ring-1 ring-feisen-azul' : 'border-feisen-borde hover:border-gray-300'}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full ${k.punto}`} />{k.t}</p>
+            <p className={`text-2xl font-semibold tabular-nums mt-0.5 ${k.cifra}`}>{fmt(kpi[k.e])}</p>
+            <p className="text-xs text-feisen-texto-2">{k.ctx}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Aviso de mínimos: sin mínimo, las alertas de stock bajo no pueden avisar */}
+      {puedeEditar && activos.length > 0 && kpi.sinmin / activos.length > 0.3 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-amber-50 rounded-xl px-4 py-3">
+          <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 hidden sm:block" />
+          <p className="text-sm text-feisen-texto flex-1">
+            <b>Las alertas de stock bajo casi no están avisando.</b> Solo {fmt(activos.length - kpi.sinmin)} de {fmt(activos.length)} productos
+            {esAdmin ? '' : ' de tu bodega'} tienen un mínimo configurado. Te sugerimos uno por producto según lo que salió en los últimos 90 días.
+          </p>
+          <button onClick={() => setModalSugeridos(true)}
+            className="self-start sm:self-auto px-3 py-1.5 rounded-lg border border-amber-300 text-sm font-medium text-amber-800 hover:bg-amber-100 whitespace-nowrap">
+            Revisar sugerencias
+          </button>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar producto..."
-            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
-        </div>
-        <select value={filtroBodega}
-          onChange={e => { setFiltroBodega(e.target.value); setFiltroCategoria('') }}
-          className="border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-600">
-          <option value="">Todas las bodegas</option>
-          {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-        </select>
-        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-          className="border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-600"
-          disabled={categoriasFiltroBodega.length === 0}>
-          <option value="">Todas las categorías</option>
-          {categoriasFiltroBodega.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
-      </div>
+      {/* Franja de bodegas — solo administración */}
+      {verValor && resumenBodegas.length > 1 && (
+        <section className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+          <div className="flex items-baseline justify-between px-4 py-2.5 border-b border-feisen-borde-suave">
+            <h2 className="text-sm font-semibold text-feisen-texto">Valor por bodega</h2>
+            <span className="text-xs text-gray-400">Toca una bodega para filtrar</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+            {resumenBodegas.map(b => (
+              <button key={b.id} onClick={() => { setFiltroBodega(v => v === b.id ? '' : b.id); setFiltroCategoria('') }} aria-pressed={filtroBodega === b.id}
+                className={`text-left px-4 py-3 border-r border-b border-feisen-borde-suave space-y-1.5 min-w-0 ${filtroBodega === b.id ? 'bg-feisen-azul-suave' : 'hover:bg-feisen-fondo'}`}>
+                <p className="text-xs font-medium text-feisen-texto-2 truncate">{b.nombre}</p>
+                <p className="text-[15px] font-semibold tabular-nums text-feisen-texto">{millones(b.valor)}</p>
+                <div className="h-1 rounded-full bg-feisen-borde-suave overflow-hidden">
+                  <div className="h-full bg-feisen-azul rounded-full" style={{ width: `${Math.max(b.valor ? 2 : 0, (b.valor / maxValorBodega) * 100)}%` }} />
+                </div>
+                <p className="text-[11px] text-gray-400">{b.agotados ? <span className="text-feisen-rojo font-semibold">{b.agotados} agotados</span> : 'Sin agotados'} · {fmt(b.productos)} prod.</p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
+      {/* Lista */}
+      <section className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-feisen-borde-suave">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              placeholder="Escribe parte del nombre: polea 8, correa, rodamiento…" aria-label="Buscar producto por nombre"
+              className="w-full border border-feisen-borde rounded-lg pl-9 pr-8 py-2 text-sm bg-feisen-fondo focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:bg-white" />
+            {busqueda && (
+              <button onClick={() => setBusqueda('')} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"><X size={14} /></button>
+            )}
+          </div>
+          {variasBodegas && !verValor && (
+            <select value={filtroBodega} onChange={e => { setFiltroBodega(e.target.value); setFiltroCategoria('') }} aria-label="Filtrar por bodega"
+              className={`border rounded-lg px-3 py-2 text-sm max-w-full ${filtroBodega ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde bg-white text-feisen-texto-2'}`}>
+              <option value="">Todas mis bodegas</option>
+              {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>
+          )}
+          <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} aria-label="Filtrar por categoría"
+            className={`border rounded-lg px-3 py-2 text-sm max-w-full min-w-0 ${filtroCategoria ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde bg-white text-feisen-texto-2'}`}>
+            <option value="">Todas las categorías</option>
+            {categoriasConConteo.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.n})</option>)}
+          </select>
+          <div className="flex flex-wrap gap-1.5">
+            {[['', 'Todos', enBodega.length - conteo.inactivo], ['agotado', 'Agotados', conteo.agotado], ['bajo', 'Bajo mínimo', conteo.bajo], ['sinmin', 'Sin mínimo', conteo.sinmin], ['inactivo', 'Inactivos', conteo.inactivo]]
+              .filter(([e, , n]) => e !== 'inactivo' || n > 0)
+              .map(([e, t, n]) => (
+                <button key={e || 'todos'} onClick={() => setFiltroEstado(e)} aria-pressed={filtroEstado === e}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${filtroEstado === e ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                  {t} <span className="opacity-60 tabular-nums">{fmt(n)}</span>
+                </button>
+              ))}
+          </div>
+          {verValor && filtroBodega && (
+            <button onClick={() => setFiltroBodega('')} className="flex items-center gap-1 bg-feisen-azul-suave text-feisen-azul rounded-full pl-2.5 pr-1.5 py-1 text-xs font-medium">
+              Bodega: {nombreBodega(filtroBodega)} <X size={13} />
+            </button>
+          )}
+        </div>
+
         {filtrados.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <Package size={40} className="mx-auto mb-3 opacity-30" />
-            <p>No hay productos{busqueda ? ' que coincidan' : ''}.</p>
+          <div className="text-center py-14 px-4 text-sm text-feisen-texto-2">
+            <Package size={36} className="mx-auto mb-3 text-gray-300" />
+            {busqueda.trim()
+              ? <>No encontramos “{busqueda.trim()}”{filtroCategoria ? ' en esa categoría' : ''}. Prueba con una sola palabra del nombre{hayFiltros && (filtroCategoria || filtroEstado) ? ' o quita los filtros' : ''}.</>
+              : hayFiltros ? 'Ningún producto coincide con los filtros.' : 'Todavía no hay productos en esta bodega.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500">Producto</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Categoría</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
-                  <th className="text-center px-4 py-3 font-semibold text-gray-500">Stock</th>
-                  {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && <th className="text-right px-4 py-3 font-semibold text-gray-500">Precio costo</th>}
-                  <th className="text-center px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Estado</th>
-                  {puedeEditar && <th className="text-center px-4 py-3 font-semibold text-gray-500">Acciones</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {paginados.map(item => (
-                  <tr key={item.id} className={`transition-colors ${!item.activo ? 'opacity-40' : sinStock(item) ? 'bg-red-50 hover:bg-red-100' : stockBajo(item) ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {item.foto_url
-                          ? <img src={item.foto_url} alt={item.nombre} className="w-10 h-10 rounded-lg object-cover border flex-shrink-0" />
-                          : <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                              <Package size={16} className="text-gray-400" />
-                            </div>
-                        }
-                        <div>
-                          <p className="font-medium text-gray-800">{item.nombre}</p>
-                          <p className="text-xs text-gray-400">{item.unidad_medida}</p>
-                          {item.peso_unitario && (
-                            <p className="text-xs text-orange-500 font-medium">{Number(item.peso_unitario)} kg/und</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">{item.categorias?.nombre || '—'}</td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-xs bg-blue-50 text-feisen-azul px-2 py-1 rounded-full">
-                        {item.bodegas?.nombre || '—'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {getStock(item) === null ? (
-                        <span className="text-gray-300 text-sm">—</span>
-                      ) : sinStock(item) ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="inline-flex items-center gap-1 bg-feisen-rojo text-white font-bold text-sm px-3 py-1 rounded-xl">
-                            <AlertTriangle size={12} /> 0
-                          </span>
-                          <p className="text-xs text-red-500 font-semibold">Sin stock</p>
-                        </div>
-                      ) : stockBajo(item) ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="inline-flex items-center gap-1 bg-amber-500 text-white font-bold text-sm px-3 py-1 rounded-xl">
-                            <AlertTriangle size={12} /> {getStock(item)}
-                          </span>
-                          <p className="text-xs text-amber-600 font-semibold">Bajo mínimo ({item.stock_minimo})</p>
-                        </div>
-                      ) : item.stock_maximo > 0 && getStock(item) > item.stock_maximo ? (
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-block bg-purple-100 text-purple-700 font-bold text-base px-3 py-1 rounded-xl">
-                            {getStock(item)}
-                          </span>
-                          <p className="text-xs text-purple-500 font-semibold">Sobrestock (máx. {item.stock_maximo})</p>
-                        </div>
-                      ) : (
-                        <div>
-                          <span className="inline-block bg-green-100 text-green-700 font-bold text-base px-3 py-1 rounded-xl">
-                            {getStock(item)}
-                          </span>
-                          {(item.stock_minimo > 0 || item.stock_maximo > 0) && (
-                            <p className="text-xs text-gray-300 mt-0.5">
-                              {item.stock_minimo > 0 && `mín. ${item.stock_minimo}`}
-                              {item.stock_minimo > 0 && item.stock_maximo > 0 && ' · '}
-                              {item.stock_maximo > 0 && `máx. ${item.stock_maximo}`}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && (
-                      <td className="px-4 py-3 text-right font-semibold text-feisen-azul">
-                        {item.precio_costo > 0
-                          ? `$${Number(item.precio_costo).toLocaleString('es-CO')}`
-                          : <span className="text-amber-500 text-xs flex items-center justify-end gap-1"><AlertTriangle size={12} /> Sin precio</span>
-                        }
-                      </td>
-                    )}
-                    <td className="px-4 py-3 text-center hidden sm:table-cell">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${item.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {item.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    {puedeEditar && (
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => navigate(`/movimientos?item=${item.id}`)} title="Ver historial de movimientos"
-                            className="p-1.5 text-gray-400 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
-                            <History size={15} />
-                          </button>
-                          <button onClick={() => abrirEditar(item)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg">
-                            <Edit2 size={15} />
-                          </button>
-                          <button onClick={() => toggleActivo(item)} className={`p-1.5 rounded-lg ${item.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                            {item.activo ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                          </button>
-                          {puedeBorrar(item) && (
-                            <button onClick={() => { setMsg(null); setConfirm(item) }} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
+          <>
+            {/* Escritorio: tabla */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-feisen-borde-suave text-[11px] uppercase tracking-wide text-gray-400">
+                    <th className="text-left font-semibold px-4 py-2.5">Producto</th>
+                    {variasBodegas && <th className="text-left font-semibold px-4 py-2.5">Bodega</th>}
+                    <th className="text-left font-semibold px-4 py-2.5">Estado</th>
+                    <th className="text-right font-semibold px-4 py-2.5">Existencia</th>
+                    {verCosto && <th className="text-right font-semibold px-4 py-2.5">{verValor ? 'Valor' : 'Costo unit.'}</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-feisen-borde-suave">
+                  {paginados.map(item => {
+                    const e = estadoDe(item), q = getStock(item)
+                    return (
+                      <tr key={item.id} tabIndex={0} onClick={() => setDetalleId(item.id)}
+                        onKeyDown={ev => { if (ev.key === 'Enter') setDetalleId(item.id) }}
+                        className={`cursor-pointer ${detalleId === item.id ? 'bg-feisen-azul-suave' : 'hover:bg-feisen-fondo'} ${!item.activo ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-feisen-texto">{item.nombre}</p>
+                          <p className="text-xs text-gray-400">{item.categorias?.nombre || 'Sin categoría'} · {item.unidad_medida}</p>
+                        </td>
+                        {variasBodegas && <td className="px-4 py-2.5 text-feisen-texto-2 whitespace-nowrap">{item.bodegas?.nombre || '—'}</td>}
+                        <td className="px-4 py-2.5"><EstadoBadge e={e} /></td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="font-semibold tabular-nums text-feisen-texto">
+                              {q === null ? '—' : fmt(q)}
+                              {item.stock_minimo > 0 && <span className="text-[11px] font-normal text-gray-400 ml-1">mín {fmt(item.stock_minimo)}</span>}
+                            </span>
+                            <span className="w-20 h-1 rounded-full bg-feisen-borde-suave overflow-hidden">
+                              <span className={`block h-full rounded-full ${colorNivel(e)}`} style={{ width: `${pctNivel(item)}%` }} />
+                            </span>
+                          </div>
+                        </td>
+                        {verCosto && (
+                          <td className="px-4 py-2.5 text-right tabular-nums">
+                            {!(item.precio_costo > 0)
+                              ? <span className="text-xs text-amber-600">Sin precio</span>
+                              : verValor ? `$${Math.round((q || 0) * item.precio_costo).toLocaleString('es-CO')}` : `$${Number(item.precio_costo).toLocaleString('es-CO')}`}
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Celular: tarjetas */}
+            <div className="md:hidden divide-y divide-feisen-borde-suave">
+              {paginados.map(item => {
+                const e = estadoDe(item), q = getStock(item)
+                return (
+                  <button key={item.id} onClick={() => setDetalleId(item.id)}
+                    className={`w-full text-left flex items-center justify-between gap-3 px-4 py-3 ${!item.activo ? 'opacity-50' : ''}`}>
+                    <span className="min-w-0">
+                      <span className="block font-medium text-feisen-texto">{item.nombre}</span>
+                      <span className="block text-xs text-gray-400 mt-0.5">{variasBodegas && item.bodegas?.nombre ? `${item.bodegas.nombre} · ` : ''}{item.categorias?.nombre || 'Sin categoría'}</span>
+                      <span className="inline-block mt-1.5"><EstadoBadge e={e} /></span>
+                    </span>
+                    <span className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="font-semibold tabular-nums text-feisen-texto">{q === null ? '—' : fmt(q)} <span className="text-[11px] font-normal text-gray-400">{item.unidad_medida}</span></span>
+                      <span className="w-16 h-1 rounded-full bg-feisen-borde-suave overflow-hidden">
+                        <span className={`block h-full rounded-full ${colorNivel(e)}`} style={{ width: `${pctNivel(item)}%` }} />
+                      </span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Pie con paginación */}
+        {filtrados.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-t border-feisen-borde-suave text-xs text-gray-400">
+            <span className="tabular-nums">
+              Mostrando {(paginaActual - 1) * POR_PAGINA + 1}–{Math.min(paginaActual * POR_PAGINA, filtrados.length)} de {fmt(filtrados.length)} productos
+            </span>
+            {totalPaginas > 1 && (
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
+                  className="px-2.5 py-1 rounded-md border border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-30">←</button>
+                <span className="px-2 tabular-nums text-feisen-texto-2">{paginaActual} / {totalPaginas}</span>
+                <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
+                  className="px-2.5 py-1 rounded-md border border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-30">→</button>
+              </div>
+            )}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* PAGINACIÓN */}
-      {totalPaginas > 1 && (
-        <div className="flex items-center justify-between px-1">
-          <p className="text-sm text-gray-400">
-            {(paginaActual - 1) * POR_PAGINA + 1}–{Math.min(paginaActual * POR_PAGINA, filtrados.length)} de {filtrados.length} productos
-          </p>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
-              ← Anterior
-            </button>
-            {Array.from({ length: totalPaginas }, (_, i) => i + 1)
-              .filter(n => n === 1 || n === totalPaginas || Math.abs(n - paginaActual) <= 1)
-              .reduce((acc, n, idx, arr) => {
-                if (idx > 0 && n - arr[idx - 1] > 1) acc.push('…')
-                acc.push(n)
-                return acc
-              }, [])
-              .map((n, i) =>
-                n === '…'
-                  ? <span key={`e${i}`} className="px-2 text-gray-400 text-sm">…</span>
-                  : <button key={n} onClick={() => setPagina(n)}
-                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
-                        ${paginaActual === n ? 'bg-feisen-azul text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                      {n}
-                    </button>
-              )
-            }
-            <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
-              Siguiente →
-            </button>
-          </div>
-        </div>
+      {/* PANEL DE DETALLE */}
+      {detalle && (
+        <DetalleProducto
+          item={detalle}
+          existencia={getStock(detalle)}
+          estado={estadoDe(detalle)}
+          bodegasVisibles={bodegasPermitidas}
+          nombreBodega={nombreBodega}
+          verValor={verValor}
+          verCosto={verCosto}
+          puedeEditar={puedeEditar}
+          puedeBorrar={puedeBorrar(detalle)}
+          onCerrar={() => setDetalleId(null)}
+          onEditar={() => abrirEditar(detalle)}
+          onToggleActivo={() => toggleActivo(detalle)}
+          onEliminar={() => { setMsg(null); setConfirm(detalle) }}
+          onNivelesGuardados={(id, mn, mx) => setItems(its => its.map(i => i.id === id ? { ...i, stock_minimo: mn, stock_maximo: mx } : i))}
+        />
+      )}
+
+      {/* MÍNIMOS SUGERIDOS */}
+      {modalSugeridos && (
+        <ModalMinimosSugeridos
+          items={items}
+          bodegasVisibles={bodegasPermitidas}
+          existenciaDe={i => getStock(i) ?? 0}
+          onCerrar={() => setModalSugeridos(false)}
+          onAplicado={n => { setModalSugeridos(false); setMsg({ tipo: 'exito', texto: `Mínimo aplicado a ${n} producto${n === 1 ? '' : 's'}.` }); cargar() }}
+        />
       )}
 
       {/* MODAL MECANIZAR */}

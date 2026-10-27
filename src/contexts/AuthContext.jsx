@@ -6,7 +6,7 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session,           setSession]           = useState(null)
   const [perfil,            setPerfil]            = useState(null)
-  const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = ve todo (ADMIN + LOGISTICA)
+  const [bodegasPermitidas, setBodegasPermitidas] = useState(null) // null = ve todo (solo ADMIN); el resto solo sus bodegas
   const [bodegasOperacion,  setBodegasOperacion]  = useState(null) // null = opera en todo (solo ADMIN)
   const [cargando,          setCargando]          = useState(true)
   const [rolPreview,        setRolPreview]        = useState(null) // null = sin modo vista
