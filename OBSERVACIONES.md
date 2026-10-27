@@ -1596,3 +1596,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - Vista de stock con búsqueda, filtro por categoría y "solo con existencias"; cada producto enlaza a su historial.
 - CONSULTOR ahora tiene **Historial** (solo lectura, sin precios): movimientos que entran/salen de sus bodegas y selector de productos solo de esas bodegas.
 - Decidido (Angie, 2026-10-27): CONSULTOR **no** tiene Pedidos. Solo Stock + Historial de MOTORES (ningún consultor había creado pedidos). `verTodo` en ListaPedidos aún incluye esConsultor, pero la ruta ya no existe para ese rol. Leonardo Cardozo es CONSULTOR sin bodegas → no ve stock ni historial.
+
+## 2026-10-27 — Rediseño de inventario (propuesta) y skill de UX
+- Skill de UX del proyecto: `.claude/skills/ux-feisen/SKILL.md` (principios, estética `feisen-*`, patrones de pantalla, referentes y checklist). Usarla en cada pantalla nueva o rediseñada.
+- Hallazgo: 1.398 de 1.421 productos activos **no tienen `stock_minimo`**, por eso las alertas de stock bajo casi nunca saltan (329 agotados, solo 10 "bajo mínimo"). La propuesta incluye un mínimo sugerido por consumo de 90 días, aprobado en lote.
+- Propuesta del módulo 1 (Productos y stock), maqueta navegable: https://claude.ai/artifact/9QJKnxahqXpvxVNhYg2LRL. Orden propuesto: 1 Productos y stock · 2 Inicio/tablero · 3 Movimientos · 4 Pedidos y compras.
