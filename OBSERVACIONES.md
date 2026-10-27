@@ -1601,3 +1601,5 @@ el avance se registra a diario y la orden se cierra a mano.
 - Skill de UX del proyecto: `.claude/skills/ux-feisen/SKILL.md` (principios, estética `feisen-*`, patrones de pantalla, referentes y checklist). Usarla en cada pantalla nueva o rediseñada.
 - Hallazgo: 1.398 de 1.421 productos activos **no tienen `stock_minimo`**, por eso las alertas de stock bajo casi nunca saltan (329 agotados, solo 10 "bajo mínimo"). La propuesta incluye un mínimo sugerido por consumo de 90 días, aprobado en lote.
 - Propuesta del módulo 1 (Productos y stock), maqueta navegable: https://claude.ai/artifact/9QJKnxahqXpvxVNhYg2LRL. Orden propuesto: 1 Productos y stock · 2 Inicio/tablero · 3 Movimientos · 4 Pedidos y compras.
+- Ajustes de Angie a la propuesta (2026-10-27): cada perfil ve **solo su bodega asignada**; **solo ADMIN** ve todas las bodegas y el valor por bodega; filtro por categoría + búsqueda por palabras del nombre (sin tildes, cualquier orden) para quien no sabe la categoría.
+- Brecha en la app actual a corregir al implementar: en `GestionProductos.jsx` LOGÍSTICA ve todas las bodegas (`!esAdmin && !esLogistica`). Leonardo Cardozo (CONSULTOR) no tiene bodega asignada.

@@ -34,6 +34,13 @@ sin capacitación entienda la pantalla en 5 segundos**.
    ("Este producto no tiene stock mínimo. Defínelo para recibir alertas →").
 10. **Permisos sin ruido.** Lo que el rol no puede ver no aparece (ni deshabilitado). Precios y
     valores solo para ADMIN.
+11. **Cada perfil ve solo su bodega.** Todo perfil tiene al menos una bodega asignada y solo ve
+    los productos, conteos y movimientos de esa bodega. **Solo ADMIN ve todas las bodegas** y el
+    valor por bodega; ningún otro rol (tampoco Logística) tiene vista global. En pantallas
+    no-admin se muestra la bodega asignada en el encabezado y se ocultan columna y filtro de bodega.
+12. **Buscar sin saber la categoría.** La búsqueda por nombre es la vía principal: palabras sueltas,
+    en cualquier orden, sin importar tildes ni mayúsculas ("polea 8" encuentra "POLEA 8 X 2B").
+    El filtro por categoría es un complemento con conteos, nunca un paso obligatorio.
 
 ## Estética (igual al menú lateral y a la app de OF)
 
@@ -84,6 +91,7 @@ salir del campo; botón principal abajo a la derecha (fijo abajo en celular).
 - [ ] ¿Funciona a 375 px de ancho sin scroll horizontal?
 - [ ] ¿Los números están alineados a la derecha y con formato COP?
 - [ ] ¿El estado vacío explica qué hacer?
-- [ ] ¿Cada rol ve solo lo suyo (precios solo ADMIN)?
+- [ ] ¿Cada rol ve solo lo suyo: su bodega asignada, y precios/valores solo ADMIN?
+- [ ] ¿Se puede encontrar un producto escribiendo parte del nombre, sin elegir categoría?
 - [ ] ¿Usa los tokens `feisen-*` y no colores sueltos?
 - [ ] Se anotó la decisión en `OBSERVACIONES.md`.
