@@ -74,12 +74,13 @@ function AppRoutes() {
     )
   }
 
-  // CONSULTOR → dashboard + pedidos propios
+  // CONSULTOR (Ventas / Comercial) → stock e historial de sus bodegas (MOTORES) + pedidos
   if (rolEfectivo === 'CONSULTOR') {
     return (
       <Routes>
         <Route path="/"          element={<Layout><DashboardConsultor /></Layout>} />
         <Route path="/dashboard" element={<Layout><DashboardConsultor /></Layout>} />
+        <Route path="/movimientos" element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"   element={<Layout><ListaPedidos /></Layout>} />
         <Route path="*"          element={<Layout><DashboardConsultor /></Layout>} />
       </Routes>

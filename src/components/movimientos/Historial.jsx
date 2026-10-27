@@ -7,6 +7,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import { useBodegasConsulta } from '../consultor/useBodegasConsulta'
 import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
 
 const TIPO_CONFIG = {
@@ -101,7 +102,9 @@ async function buscarMovimientoPar(m, opts = {}) {
 }
 
 export default function Historial() {
-  const { perfil, esAdmin, esLogistica, esAlmacenista, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, esAlmacenista, esConsultor, bodegasOperacion } = useAuth()
+  // Consultor (Ventas): solo lectura de sus bodegas (MOTORES); undefined mientras se resuelven
+  const bodegasConsulta = useBodegasConsulta(esConsultor)
   const [searchParams] = useSearchParams()
   const [movimientos,  setMovimientos]  = useState([])
   const [items,        setItems]        = useState([])
@@ -125,7 +128,10 @@ export default function Historial() {
   const [fechaInicio,        setFechaInicio]        = useState('')
   const [fechaFin,           setFechaFin]           = useState('')
 
-  useEffect(() => { cargar('', '') }, [])
+  useEffect(() => {
+    if (esConsultor && bodegasConsulta === undefined) return
+    cargar('', '')
+  }, [esConsultor ? bodegasConsulta : null])
 
   // Pre-filtrar por item si viene en la URL (?item=<id>)
   useEffect(() => {
@@ -165,7 +171,11 @@ export default function Historial() {
         )
       }
 
-      if (!verTodo) {
+      if (esConsultor) {
+        // Ventas: movimientos que entran o salen de sus bodegas (sin bodegas → nada)
+        const ids = bodegasConsulta?.length ? bodegasConsulta : ['00000000-0000-0000-0000-000000000000']
+        q = q.or(`bodega_origen_id.in.(${ids.join(',')}),bodega_destino_id.in.(${ids.join(',')})`)
+      } else if (!verTodo) {
         if (esAlmacenista) {
           // Almacenista: solo sus propios movimientos
           q = q.eq('usuario_id', perfil.id)
@@ -195,7 +205,12 @@ export default function Historial() {
             }
             return { data: todas, error: null }
           })(),
-      fetchAllPages((d, h) => supabase.from('items').select('id, nombre, bodega_id').order('nombre').range(d, h)),
+      fetchAllPages((d, h) => {
+        let q = supabase.from('items').select('id, nombre, bodega_id').order('nombre').range(d, h)
+        // Ventas solo puede filtrar por los productos de sus bodegas
+        if (esConsultor) q = q.in('bodega_id', bodegasConsulta?.length ? bodegasConsulta : ['00000000-0000-0000-0000-000000000000'])
+        return q
+      }),
     ])
     if (errMovs) {
       setMsg({ tipo: 'error', texto: 'No se pudo cargar el historial: ' + errMovs.message })

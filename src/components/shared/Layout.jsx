@@ -177,12 +177,14 @@ const MOBILE_RRHH = [
 ]
 
 const NAV_CONSULTOR = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/pedidos',    icon: ShoppingCart,    label: 'Pedidos' },
+  { to: '/dashboard',   icon: Package,      label: 'Stock' },
+  { to: '/movimientos', icon: BarChart2,    label: 'Historial' },
+  { to: '/pedidos',     icon: ShoppingCart, label: 'Pedidos' },
 ]
 const MOBILE_CONSULTOR = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/pedidos',   icon: ShoppingCart,    label: 'Pedidos' },
+  { to: '/dashboard',   icon: Package,      label: 'Stock' },
+  { to: '/movimientos', icon: BarChart2,    label: 'Historial' },
+  { to: '/pedidos',     icon: ShoppingCart, label: 'Pedidos' },
 ]
 
 const BADGE = {
