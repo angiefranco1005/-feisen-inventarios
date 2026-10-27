@@ -73,7 +73,9 @@ CREATE TRIGGER trg_desempeno_eval_updated_at BEFORE UPDATE ON public.desempeno_e
 ALTER TABLE public.desempeno_ciclos       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.desempeno_evaluaciones ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "desempeno_ciclos_rrhh_admin" ON public.desempeno_ciclos;
 CREATE POLICY "desempeno_ciclos_rrhh_admin" ON public.desempeno_ciclos FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "desempeno_evaluaciones_rrhh_admin" ON public.desempeno_evaluaciones;
 CREATE POLICY "desempeno_evaluaciones_rrhh_admin" ON public.desempeno_evaluaciones FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));

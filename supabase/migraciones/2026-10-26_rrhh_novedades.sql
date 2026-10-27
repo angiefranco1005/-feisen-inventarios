@@ -57,10 +57,12 @@ CREATE INDEX IF NOT EXISTS idx_novedad_soportes_novedad ON public.novedad_soport
 ALTER TABLE public.novedades        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.novedad_soportes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "novedades_rrhh_admin" ON public.novedades;
 CREATE POLICY "novedades_rrhh_admin" ON public.novedades FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH'))
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
 
+DROP POLICY IF EXISTS "novedad_soportes_rrhh_admin" ON public.novedad_soportes;
 CREATE POLICY "novedad_soportes_rrhh_admin" ON public.novedad_soportes FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH'))
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));

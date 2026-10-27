@@ -60,6 +60,7 @@ CREATE TRIGGER trg_cargos_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.fn_empleados_updated_at();
 
 ALTER TABLE public.cargos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "cargos_rrhh_admin" ON public.cargos;
 CREATE POLICY "cargos_rrhh_admin" ON public.cargos FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH'))
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));

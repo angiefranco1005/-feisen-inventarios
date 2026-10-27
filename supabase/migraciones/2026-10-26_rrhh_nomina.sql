@@ -127,14 +127,19 @@ ALTER TABLE public.nomina_periodos      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.nomina_liquidaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.nomina_piezas        ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "nomina_tarifas_rrhh_admin" ON public.nomina_tarifas;
 CREATE POLICY "nomina_tarifas_rrhh_admin" ON public.nomina_tarifas FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "nomina_alias_rrhh_admin" ON public.nomina_alias;
 CREATE POLICY "nomina_alias_rrhh_admin" ON public.nomina_alias FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "nomina_periodos_rrhh_admin" ON public.nomina_periodos;
 CREATE POLICY "nomina_periodos_rrhh_admin" ON public.nomina_periodos FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "nomina_liquidaciones_rrhh_admin" ON public.nomina_liquidaciones;
 CREATE POLICY "nomina_liquidaciones_rrhh_admin" ON public.nomina_liquidaciones FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "nomina_piezas_rrhh_admin" ON public.nomina_piezas;
 CREATE POLICY "nomina_piezas_rrhh_admin" ON public.nomina_piezas FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH')) WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
 

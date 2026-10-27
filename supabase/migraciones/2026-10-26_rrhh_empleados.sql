@@ -118,10 +118,12 @@ CREATE INDEX IF NOT EXISTS idx_empleado_documentos_empleado
 ALTER TABLE public.empleados           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.empleado_documentos ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "empleados_rrhh_admin" ON public.empleados;
 CREATE POLICY "empleados_rrhh_admin" ON public.empleados FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH'))
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
 
+DROP POLICY IF EXISTS "empleado_documentos_rrhh_admin" ON public.empleado_documentos;
 CREATE POLICY "empleado_documentos_rrhh_admin" ON public.empleado_documentos FOR ALL
   USING (public.get_my_rol() IN ('ADMIN', 'RRHH'))
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'RRHH'));
@@ -132,11 +134,15 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('rrhh', 'rrhh', false)
 ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "rrhh_storage_select" ON storage.objects;
 CREATE POLICY "rrhh_storage_select" ON storage.objects FOR SELECT
   USING (bucket_id = 'rrhh' AND public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "rrhh_storage_insert" ON storage.objects;
 CREATE POLICY "rrhh_storage_insert" ON storage.objects FOR INSERT
   WITH CHECK (bucket_id = 'rrhh' AND public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "rrhh_storage_update" ON storage.objects;
 CREATE POLICY "rrhh_storage_update" ON storage.objects FOR UPDATE
   USING (bucket_id = 'rrhh' AND public.get_my_rol() IN ('ADMIN', 'RRHH'));
+DROP POLICY IF EXISTS "rrhh_storage_delete" ON storage.objects;
 CREATE POLICY "rrhh_storage_delete" ON storage.objects FOR DELETE
   USING (bucket_id = 'rrhh' AND public.get_my_rol() IN ('ADMIN', 'RRHH'));
