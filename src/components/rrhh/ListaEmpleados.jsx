@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from 'lucide-react'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -127,18 +127,18 @@ export default function ListaEmpleados() {
     setGuardando(false)
   }
 
-  // Término fijo: la fecha fin se sugiere con ingreso + duración (sigue siendo editable)
+  // Término fijo y aprendices: la fecha fin se sugiere con ingreso + duración (sigue siendo editable)
   const set = (k) => (ev) => setForm(f => {
     const nf = { ...f, [k]: ev.target.value }
     if (k === 'cargo_id') {
       const area = cargos.find(c => c.id === nf.cargo_id)?.area
       if (area) nf.area = area
     }
-    const fin = nf.tipo_contrato === 'Término fijo' && ['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k)
+    const fin = tieneFechaFin(nf.tipo_contrato) && ['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k)
       && calcularFinContrato(nf.fecha_ingreso, nf.duracion_meses)
     return fin ? { ...nf, fecha_fin_contrato: fin } : nf
   })
-  const esFijo        = form.tipo_contrato === 'Término fijo'
+  const esFijo        = tieneFechaFin(form.tipo_contrato)
   const esContratista = form.tipo_contrato === 'Contratista'
 
   const columnas = 'md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_6.5rem]'

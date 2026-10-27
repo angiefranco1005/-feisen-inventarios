@@ -10,7 +10,7 @@ import {
   MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock, Target,
 } from 'lucide-react'
 import {
-  BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
+  BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, esAprendiz, tieneFechaFin, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato, preavisoDe, hoyISO,
@@ -88,8 +88,8 @@ const SECCIONES = [
         { k: 'email_corporativo', label: 'Correo corporativo', tipo: 'email' },
       ] },
       { id: 'contrato', titulo: 'Contrato', icon: FileText,
-        // Término fijo: la fecha fin se sugiere sola con ingreso + duración (editable por si hubo prórroga)
-        derivar: (f, k) => (['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k) && f.tipo_contrato === 'Término fijo'
+        // Término fijo y aprendices: la fecha fin se sugiere sola con ingreso + duración (editable por si hubo prórroga)
+        derivar: (f, k) => (['fecha_ingreso', 'duracion_meses', 'tipo_contrato'].includes(k) && tieneFechaFin(f.tipo_contrato)
           && calcularFinContrato(f.fecha_ingreso, f.duracion_meses))
           ? { ...f, fecha_fin_contrato: calcularFinContrato(f.fecha_ingreso, f.duracion_meses) } : f,
         campos: [
@@ -98,17 +98,18 @@ const SECCIONES = [
         { k: 'tipo_contrato', label: 'Tipo de contrato', tipo: 'select', opciones: TIPOS_CONTRATO, req: true },
         { k: 'duracion_meses', label: 'Duración (meses)', tipo: 'number', req: true,
           mostrar: (e) => e.duracion_meses ? `${e.duracion_meses} mes${e.duracion_meses > 1 ? 'es' : ''}` : null,
-          visible: (f) => f.tipo_contrato === 'Término fijo',
+          visible: (f) => tieneFechaFin(f.tipo_contrato),
 },
         { k: 'fecha_fin_contrato', label: 'Fecha fin de contrato', tipo: 'date', req: true,
-          visible: (f) => f.tipo_contrato === 'Término fijo',
+          visible: (f) => tieneFechaFin(f.tipo_contrato),
           nota: 'Se calcula con la fecha de ingreso y la duración. Cámbiala si el contrato se prorrogó.' },
         { k: 'tipo_vinculacion', label: 'Tipo de vinculación', tipo: 'select', opciones: TIPOS_VINCULACION, req: true,
           visible: (f) => f.tipo_contrato === 'Contratista' },
         { k: 'jornada', label: 'Jornada', tipo: 'select', opciones: JORNADAS },
         { k: 'salario_base', label: 'Salario / honorarios', tipo: 'money',
           nota: (f) => f.tipo_vinculacion === 'dia' && f.tipo_contrato === 'Contratista' ? 'Valor por día trabajado'
-            : f.tipo_vinculacion === 'destajo' && f.tipo_contrato === 'Contratista' ? 'Se paga según las piezas producidas (opcional)' : null },
+            : f.tipo_vinculacion === 'destajo' && f.tipo_contrato === 'Contratista' ? 'Se paga según las piezas producidas (opcional)'
+            : esAprendiz(f.tipo_contrato) ? 'Apoyo de sostenimiento (no es salario): etapa lectiva 50 % del SMMLV, etapa práctica 75 % (Ley 789 de 2002)' : null },
       ] },
       { id: 'estado', titulo: 'Estado', icon: Clock, campos: [
         { k: 'estado', label: 'Estado', tipo: 'select', req: true,
@@ -127,7 +128,9 @@ const SECCIONES = [
         { k: 'fondo_pension', label: 'Fondo de pensiones' },
         { k: 'fondo_cesantias', label: 'Fondo de cesantías' },
         { k: 'caja_compensacion', label: 'Caja de compensación' },
-        { k: 'arl', label: 'ARL' },
+        { k: 'arl', label: 'ARL',
+          nota: (f) => f?.tipo_contrato === 'Aprendiz SENA · etapa lectiva' ? 'Aprendiz en etapa lectiva: solo EPS, no lleva ARL ni pensión.'
+            : f?.tipo_contrato === 'Aprendiz SENA · etapa práctica' ? 'Aprendiz en etapa práctica: EPS y ARL, sin pensión.' : null },
         { k: 'nivel_riesgo_arl', label: 'Nivel de riesgo ARL', tipo: 'select', numerico: true,
           opciones: [1, 2, 3, 4, 5].map(n => ({ value: String(n), label: `Riesgo ${n}` })) },
       ] },

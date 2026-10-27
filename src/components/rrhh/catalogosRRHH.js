@@ -24,7 +24,12 @@ export const TIPOS_DOCUMENTO = [
   { value: 'PA',  label: 'Pasaporte' },
 ]
 
-export const TIPOS_CONTRATO = ['Indefinido', 'Término fijo', 'Contratista']
+export const TIPOS_CONTRATO = ['Indefinido', 'Término fijo', 'Contratista', 'Aprendiz SENA · etapa lectiva', 'Aprendiz SENA · etapa práctica']
+
+// Contrato de aprendizaje (Ley 789 de 2002): tiene fecha fin como el término fijo,
+// pero no lleva preaviso y lo que se paga es apoyo de sostenimiento, no salario
+export const esAprendiz = (tipo) => (tipo || '').startsWith('Aprendiz SENA')
+export const tieneFechaFin = (tipo) => tipo === 'Término fijo' || esAprendiz(tipo)
 
 // Solo para contratistas: cómo se les paga
 export const TIPOS_VINCULACION = [
@@ -260,7 +265,7 @@ export function vinculacionDe(emp) {
   }
   return emp.tipo_contrato
 }
-export const VINCULACIONES = ['Indefinido', 'Término fijo', 'Contratista · Al destajo', 'Contratista · Al día', 'Contratista']
+export const VINCULACIONES = ['Indefinido', 'Término fijo', 'Contratista · Al destajo', 'Contratista · Al día', 'Contratista', 'Aprendiz SENA · etapa lectiva', 'Aprendiz SENA · etapa práctica']
 
 const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 export const hoyISO = () => isoLocal(new Date())
