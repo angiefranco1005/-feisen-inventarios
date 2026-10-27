@@ -1595,4 +1595,4 @@ el avance se registra a diario y la orden se cierra a mano.
 - Causa de "ve todos los productos": con el modo "ver como" del ADMIN, `bodegasPermitidas` es null (admin) y la vista de consultor mostraba todo. Ahora `src/components/consultor/useBodegasConsulta.js` usa MOTORES en ese caso.
 - Vista de stock con búsqueda, filtro por categoría y "solo con existencias"; cada producto enlaza a su historial.
 - CONSULTOR ahora tiene **Historial** (solo lectura, sin precios): movimientos que entran/salen de sus bodegas y selector de productos solo de esas bodegas.
-- Pendiente a decidir: en Pedidos, CONSULTOR ve los pedidos de todas las áreas (`verTodo` en ListaPedidos). Leonardo Cardozo es CONSULTOR sin bodegas → no ve stock ni historial.
+- Decidido (Angie, 2026-10-27): en Pedidos, CONSULTOR sigue viendo los pedidos de todas las áreas (`verTodo` en ListaPedidos). Leonardo Cardozo es CONSULTOR sin bodegas → no ve stock ni historial.
