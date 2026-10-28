@@ -251,6 +251,7 @@ function AppRoutes() {
       <Route path="/nomina/fundicion"       element={<Layout><InformeNomina /></Layout>} />
       <Route path="/analitica/fundicion"    element={<Layout><AnaliticaFundicion /></Layout>} />
       <Route path="/mecanizados/registro"   element={<Layout><RegistroMecanizado /></Layout>} />
+      <Route path="/transferencias"         element={<Layout><TransferenciasPendientes /></Layout>} />
       <Route path="/ensamble"               element={<Layout><OrdenesEnsamble /></Layout>} />
       <Route path="/ensamble/recetas"       element={<Layout><RecetasEnsamble /></Layout>} />
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />

@@ -32,6 +32,7 @@ const NAV_ADMIN = [
   { to: '/pedidos',                           icon: ShoppingCart,    label: 'Pedidos',            modulo: 'Logística' },
   { to: '/ordenes-compra',                    icon: FileText,        label: 'Órdenes de compra',  modulo: 'Logística' },
   { to: '/mecanizados/registro',              icon: Wrench,          label: 'Registro',           modulo: 'Mecanizados' },
+  { to: '/transferencias',                    icon: ClipboardList,   label: 'Transferencias',     modulo: 'Mecanizados' },
   { to: '/fundidas',                          icon: Flame,           label: 'Fundidas',           modulo: 'Fundición' },
   { to: '/moldeo',                            icon: Layers,          label: 'Moldeo',             modulo: 'Fundición' },
   { to: '/recogida',                          icon: PackageCheck,    label: 'Recogida',           modulo: 'Fundición' },

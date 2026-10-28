@@ -4,8 +4,9 @@
 -- ============================================================
 -- La tabla empleados solo la leen ADMIN y RRHH (tiene salario, documento, cuentas).
 -- El Jefe de Mecanizados necesita elegir al operario de una lista, así que esta
--- función expone SOLO id, nombres, apellidos y área de los colaboradores activos,
--- y solo a ADMIN, RRHH y JEFE_MECANIZADOS. No cambia ninguna política de empleados.
+-- función expone SOLO id, nombres, apellidos y área de los colaboradores activos
+-- DEL ÁREA MECANIZADOS (decisión de Angie, 2026-10-28), y solo a ADMIN, RRHH y
+-- JEFE_MECANIZADOS. No cambia ninguna política de empleados.
 
 CREATE OR REPLACE FUNCTION public.operarios_mecanizado()
 RETURNS TABLE (id uuid, nombres text, apellidos text, area text)
@@ -17,8 +18,9 @@ AS $$
   SELECT e.id, e.nombres, e.apellidos, e.area
   FROM public.empleados e
   WHERE e.estado = 'activo'
+    AND e.area ILIKE 'mecaniz%'
     AND public.get_my_rol() IN ('ADMIN', 'RRHH', 'JEFE_MECANIZADOS')
-  ORDER BY (e.area ILIKE 'mecaniz%') DESC, e.nombres, e.apellidos
+  ORDER BY e.nombres, e.apellidos
 $$;
 
 REVOKE ALL ON FUNCTION public.operarios_mecanizado() FROM public, anon;

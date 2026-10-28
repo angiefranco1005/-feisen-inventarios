@@ -222,7 +222,7 @@ export default function TransferenciasPendientes() {
   }
 
   const pendientes  = transferencias.filter(t => t.estado === 'pendiente').length
-  const titulo      = esMecanizados ? 'Transferencias de Fundición' : 'Mis transferencias a Mecanizados'
+  const titulo      = esMecanizados ? 'Transferencias de Fundición' : esFundicion ? 'Mis transferencias a Mecanizados' : 'Transferencias Fundición → Mecanizados'
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -232,7 +232,9 @@ export default function TransferenciasPendientes() {
         <p className="text-gray-500 text-sm mt-1">
           {esMecanizados
             ? 'Aprueba o rechaza lo que envía Fundición. El stock se mueve al aprobar.'
-            : 'Seguimiento de todo lo que has enviado a Mecanizados.'}
+            : esFundicion
+              ? 'Seguimiento de todo lo que has enviado a Mecanizados.'
+              : 'Todo lo que Fundición envía a Mecanizados. Mecanizados las aprueba o rechaza al recibirlas.'}
         </p>
       </div>
 

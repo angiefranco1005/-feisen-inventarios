@@ -3,11 +3,10 @@ import { supabase } from '../../lib/supabase'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { Check, Plus, Search, X } from 'lucide-react'
 
-// Elegir quién mecanizó, de la lista de colaboradores activos (se pueden marcar varios:
-// trabajo en pareja). Los del área Mecanizados salen primero como botones; el resto se
-// busca por nombre. Si la persona no está en la lista (contratista, alguien nuevo),
-// se puede agregar escrita a mano.
-// La lista viene de la función `operarios_mecanizado()` (solo nombre, apellidos y área;
+// Elegir quién mecanizó, de los colaboradores activos del área Mecanizados (se pueden
+// marcar varios: trabajo en pareja). Si la persona no está en la lista (contratista,
+// alguien nuevo), se puede agregar escrita a mano.
+// La lista viene de la función `operarios_mecanizado()` (solo nombre, apellidos y área, y solo del área Mecanizados;
 // ver supabase/migraciones/2026-10-28_operarios_mecanizado.sql). Si la función no responde,
 // queda el campo de texto de antes para no bloquear el registro.
 
@@ -89,7 +88,7 @@ export default function SelectorOperarios({ value, onChange }) {
 
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="¿Otra persona? Escribe su nombre"
+        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="¿Alguien que no está en la lista? Escribe su nombre"
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); otros.length === 1 ? (alternar(otros[0]), setBusqueda('')) : agregarTexto() } }}
           className="w-full border-2 border-gray-200 rounded-xl pl-12 pr-4 py-3 text-base focus:outline-none focus:border-blue-500" />
       </div>
