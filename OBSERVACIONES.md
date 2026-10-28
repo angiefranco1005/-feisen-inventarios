@@ -1646,7 +1646,6 @@ el avance se registra a diario y la orden se cierra a mano.
   - Gotcha: `space-y-*` del contenedor le pone margin-top a los hijos `fixed` (panel, aviso) → se usan con `!mt-0`.
 - `Historial.jsx`: misma lógica (editar, revertir, eliminar, par de transferencia). Lista agrupada por día y por número (una fila por movimiento: "X y 11 más", cantidad con signo), chips con conteo (Todos/Salidas/Entradas/Editados), fechas en un chip, búsqueda por palabras sin tildes, panel lateral con datos, productos y firmas. Las acciones de admin van por línea en el menú ⋯ del panel. Al refrescar ya no se pone toda la pantalla en "Cargando".
 - Se quitó el filtro por producto con lista desplegable (la búsqueda ya encuentra por producto); el `?item=` de la URL sigue funcionando como chip que se quita con la x.
-- Pendiente: `RegistrarMovimiento.jsx` (el de LOGÍSTICA) sigue con el diseño viejo.
 - Revisión local sin base: `vite.mov-demo.config.mjs` (fuera de git) con un Supabase falso en `.claude/demo-mov/supabase-mock.js` (también fuera de git; el scratchpad de la sesión se borra solo); abrir `http://[::1]:5178/movimientos?rol=ADMIN`, `/reportes/inventario-fisico`, `/reportes/kardex`, `/reportes/corte`.
 
 ## 2026-10-28 — Inventario físico rediseñado (implementado)
@@ -1661,4 +1660,8 @@ el avance se registra a diario y la orden se cierra a mano.
 ## 2026-10-28 — Kardex e Inventario a una fecha rediseñados (implementado)
 - `reportes/InformeKardex.jsx` (`/reportes/kardex`): mismo cálculo y mismo Excel. Periodos rápidos (Este mes, Mes pasado, Últimos 30 días, Este año) además de las fechas; filtros en una sola franja; 4 indicadores neutros (Valor al inicio, Entradas, Salidas, Valor al final; en "$29,9 M" con el valor exacto al pasar el mouse); búsqueda; chips **Con movimiento** (por defecto: oculta los productos quietos) / Todos; tabla en escritorio y tarjetas con Inicio · Entradas · Salidas · Traslados · Final en celular; 200 filas a la vez. Ya no usa verde/rojo para entradas/salidas (no son problemas).
 - `reportes/CorteInventario.jsx` (`/reportes/corte`, título "Inventario a una fecha"): mismo cálculo y Excel. Resumen en tarjeta blanca (se quitaron la franja azul y el total con degradado azul→rojo), búsqueda por producto/categoría, chips Con stock / Todos, bodegas plegables con subtotal, stock en rojo solo cuando es 0 y "hoy X" debajo cuando cambió.
-- Con esto el módulo Inventarios queda completo en el diseño nuevo, salvo `RegistrarMovimiento.jsx` (perfil Logística).
+- Con esto el módulo Inventarios queda completo en el diseño nuevo (Logística incluido, ver abajo).
+
+## 2026-10-28 — Registrar movimiento de LOGÍSTICA rediseñado (implementado)
+- `movimientos/RegistrarMovimiento.jsx` (perfil LOGÍSTICA): mismo guardado (un producto por movimiento, número MOV-XX-NNNN, validación de stock, pedido → recibido, foto de remisión, firma). Cambia la forma: Salida/Entrada grande, fecha compacta, buscador por palabras con existencias, tarjeta del producto elegido con − / + y alerta roja si no alcanza, destinos como botones, bloques "De dónde viene" / "¿A dónde va?", botón fijo abajo y aviso al guardar (se quitó la pantalla de éxito de 2,5 s). Carga el `stock` de sus bodegas para mostrar "Hay X · quedan Y".
+- Sigue siendo de **un solo producto** por movimiento (el de Almacén permite varios). Pasarlo a varios es un cambio de lógica aparte.

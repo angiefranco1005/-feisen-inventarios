@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
-import { CheckCircle, Search, Upload, FileImage } from 'lucide-react'
+import { Search, Upload, FileImage, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import FirmaCanvas from '../shared/FirmaCanvas'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
@@ -28,7 +30,11 @@ export default function RegistrarMovimiento() {
   const [cargando,       setCargando]       = useState(true)
   const [guardando,      setGuardando]      = useState(false)
   const [subiendo,       setSubiendo]       = useState(false)
-  const [exito,          setExito]          = useState(false)
+  const [stockPorClave,  setStockPorClave]  = useState({}) // `${item_id}_${bodega_id}` → cantidad
+  const navigate  = useNavigate()
+  const buscarRef = useRef(null)
+  const [aviso, avisar] = useAviso()
+  useAtajoBuscar(buscarRef)
   const [error,          setError]          = useState('')
   const [firmaDataUrl,   setFirmaDataUrl]   = useState(null)
   // Fecha en que ocurrió el movimiento (hora de Colombia). Por defecto hoy; se puede mover hacia atrás.
@@ -67,11 +73,18 @@ export default function RegistrarMovimiento() {
         bodegasQ = bodegasQ.in('id', bodegasOperacion)
       }
 
-      const [{ data: bods }, { data: its }, { data: peds }] = await Promise.all([
+      const stockQ = fetchAllPages((d, h) => {
+        let q = supabase.from('stock').select('item_id, bodega_id, cantidad_actual').order('item_id').order('bodega_id').range(d, h)
+        if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
+        return q
+      })
+      const [{ data: bods }, { data: its }, { data: peds }, { data: stk }] = await Promise.all([
         bodegasQ,
         itemsQ,
         supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito', 'recibido']).order('created_at', { ascending: false }).limit(50),
+        stockQ,
       ])
+      setStockPorClave(Object.fromEntries((stk || []).map(r => [`${r.item_id}_${r.bodega_id}`, Number(r.cantidad_actual) || 0])))
       setBodegas(bods || [])
       setItems(its || [])
       setItemsFiltrados(its || [])
@@ -82,17 +95,14 @@ export default function RegistrarMovimiento() {
     cargar()
   }, [])
 
+  // Búsqueda por palabras sueltas, sin tildes ni orden (igual que el resto de la app)
   useEffect(() => {
-    setItemsFiltrados(
-      busqueda.trim()
-        ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-        : items
-    )
+    setItemsFiltrados(busqueda.trim() ? items.filter(i => coincideBusqueda(i.nombre, busqueda)) : items)
   }, [busqueda, items])
 
   function seleccionarItem(item) {
-    setForm(f => ({ ...f, item_id: item.id, item_nombre: item.nombre, bodega_id: item.bodega_id || f.bodega_id }))
-    setBusqueda(item.nombre)
+    setForm(f => ({ ...f, item_id: item.id, item_nombre: item.nombre, bodega_id: item.bodega_id || f.bodega_id, cantidad: f.cantidad || '1' }))
+    setBusqueda('')
     setMostrarLista(false)
   }
 
@@ -108,6 +118,9 @@ export default function RegistrarMovimiento() {
     setForm(f => ({ ...f, foto_remision_url: publicUrl }))
     setSubiendo(false)
   }
+
+  // El botón de guardar queda abajo y los errores arriba: al aparecer uno, subir a mostrarlo
+  useEffect(() => { if (error) window.scrollTo({ top: 0, behavior: 'smooth' }) }, [error])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -179,222 +192,191 @@ export default function RegistrarMovimiento() {
         .update({ estado: 'recibido', fecha_recibido: new Date().toISOString() })
         .eq('id', form.pedido_id)
     }
-    setExito(true)
-    setTimeout(() => {
-      setExito(false)
-      setForm(f => ({
-        ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '',
-        numero_of: '', serial_motor: '', destino: '', proveedor: '', pedido_id: '', foto_remision_url: '',
-      }))
-      setBusqueda('')
-      setFirmaDataUrl(null)
-      setFechaMov(HOY_COL)
-    }, 2500)
+    // Aviso corto y formulario limpio para el siguiente (antes: pantalla de éxito de 2,5 s)
+    avisar(`${form.tipo === 'entrada' ? 'Entrada' : 'Salida'} ${numero} registrada`, { texto: 'Ver', alHacer: () => navigate('/movimientos') })
+    const delta = form.tipo === 'entrada' ? cantidad : -cantidad
+    const clave = `${form.item_id}_${form.bodega_id}`
+    setStockPorClave(prev => ({ ...prev, [clave]: (prev[clave] || 0) + delta }))
+    setForm(f => ({
+      ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '',
+      numero_of: '', serial_motor: '', destino: '', proveedor: '', pedido_id: '', foto_remision_url: '',
+    }))
+    setBusqueda('')
+    setFirmaDataUrl(null)
+    setFechaMov(HOY_COL)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (cargando) return <Spinner texto="Cargando formulario..." />
 
-  if (exito) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-      <CheckCircle size={64} className="text-green-500 mb-4" />
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Movimiento registrado!</h2>
-      <p className="text-gray-500">El inventario fue actualizado.</p>
-    </div>
-  )
-
   const esEntrada = form.tipo === 'entrada'
   const titulo    = esAdmin ? 'Registrar movimiento' : (esEntrada ? 'Registro de entrada' : 'Registro de salida')
+  const itemSel   = items.find(i => i.id === form.item_id)
+  const hay       = (itemId, bodegaId) => stockPorClave[`${itemId}_${bodegaId}`] ?? 0
+  const haySel    = itemSel ? hay(itemSel.id, form.bodega_id || itemSel.bodega_id) : 0
+  const cantNum   = parseFloat(form.cantidad) || 0
+  const falta     = !esEntrada && itemSel && cantNum > haySel
+  const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+  const campo = (etiqueta, contenido, opcional = false) => (
+    <div className="space-y-1.5 min-w-0">
+      <label className="block text-sm font-medium text-feisen-texto">{etiqueta} {opcional && <span className="font-normal text-gray-400">(opcional)</span>}</label>
+      {contenido}
+    </div>
+  )
+  const bloque = (titulo, contenido) => (
+    <section className="bg-white border border-feisen-borde rounded-xl p-4 space-y-3 min-w-0">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{titulo}</h2>
+      {contenido}
+    </section>
+  )
 
   return (
-    <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold text-feisen-azul mb-6">{titulo}</h1>
+    <div className="max-w-2xl mx-auto space-y-4">
+      {aviso}
+      <EncabezadoPagina modulo="Inventarios" titulo={titulo}
+        subtitulo={bodegas.length === 1 && <span>Bodega <ChipBodega>{bodegas[0].nombre}</ChipBodega></span>} />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      {tiposDisponibles.length > 1 && (
+        <Segmentado grande valor={form.tipo} onCambiar={t => { setForm(f => ({ ...f, tipo: t, destino: '' })); setError('') }}
+          opciones={[
+            { valor: 'salida',  texto: 'Salida',  icono: ArrowUpRight },
+            { valor: 'entrada', texto: 'Entrada', icono: ArrowDownLeft },
+          ].filter(o => tiposDisponibles.includes(o.valor))} />
+      )}
 
-        {/* Tipo */}
-        {tiposDisponibles.length > 1 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de movimiento *</label>
-            <div className="grid grid-cols-2 gap-2">
-              {tiposDisponibles.map(t => (
-                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, tipo: t, destino: '' }))}
-                  className={`px-3 py-3 rounded-xl text-sm font-semibold border transition-colors
-                    ${form.tipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
-                  {TIPO_LABEL[t]}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      <div className="flex items-center gap-2 text-sm text-feisen-texto-2">
+        <CalendarDays size={16} className="shrink-0" />
+        <label htmlFor="fecha-mov-log">Fecha del movimiento</label>
+        <input id="fecha-mov-log" type="date" value={fechaMov} max={HOY_COL} onChange={e => setFechaMov(e.target.value)}
+          className="border border-feisen-borde rounded-lg px-2.5 py-1.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul" />
+        {fechaMov !== HOY_COL && <button type="button" onClick={() => setFechaMov(HOY_COL)} className="text-feisen-azul font-medium">Hoy</button>}
+      </div>
 
+      {error && <Alerta tipo="error" mensaje={error} />}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Producto */}
-        <div className="relative">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Producto *</label>
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" />
-            <input value={busqueda}
-              onChange={e => { setBusqueda(e.target.value); setMostrarLista(true); setForm(f => ({ ...f, item_id: '' })) }}
-              onFocus={() => setMostrarLista(true)}
-              placeholder="Escribe para buscar..."
-              className="w-full border border-feisen-borde rounded-xl pl-9 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-          </div>
-          {mostrarLista && itemsFiltrados.length > 0 && (
-            <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
-              {itemsFiltrados.slice(0, 20).map(item => (
-                <button key={item.id} type="button" onClick={() => seleccionarItem(item)}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b last:border-0 flex justify-between items-center">
-                  <span className="font-medium text-gray-800">{item.nombre}</span>
-                  <span className="text-xs text-gray-400">{item.unidad_medida}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Bodega (solo si hay más de una) */}
-        {bodegas.length > 1 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Bodega *</label>
-            <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-              <option value="">Selecciona bodega</option>
-              {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-            </select>
-          </div>
-        )}
-        {bodegas.length === 1 && (
-          <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 text-gray-700 font-medium">
-            📦 {bodegas[0].nombre}
-          </div>
-        )}
-
-        {/* ─── CAMPOS ENTRADA ─── */}
-        {esEntrada && (
-          <>
-            {/* Solicitud de pedido */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Solicitud de pedido (opcional)</label>
-              <select value={form.pedido_id} onChange={e => setForm(f => ({ ...f, pedido_id: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-                <option value="">Sin pedido asociado</option>
-                {pedidos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.numero} — {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cantidad */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
-              <input required type="number" min="0.001" step="0.001" value={form.cantidad}
-                onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-                placeholder="0"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
-
-            {/* Proveedor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Proveedor (opcional)</label>
-              <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))}
-                placeholder="Ej: Distribuidora Motors S.A.S."
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
-
-            {/* Foto remisión */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Foto de remisión (opcional)</label>
-              {form.foto_remision_url ? (
-                <div className="space-y-2">
-                  <img src={form.foto_remision_url} alt="Remisión" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
-                  <button type="button" onClick={() => setForm(f => ({ ...f, foto_remision_url: '' }))}
-                    className="text-xs text-feisen-rojo hover:underline">Quitar imagen</button>
+        {bloque('Producto', <>
+          {!itemSel ? (
+            <>
+              <div className="relative">
+                <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input ref={buscarRef} type="search" value={busqueda} autoComplete="off" aria-label="Buscar producto"
+                  onChange={e => { setBusqueda(e.target.value); setMostrarLista(true) }}
+                  onFocus={() => setMostrarLista(true)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (busqueda.trim() && itemsFiltrados[0]) seleccionarItem(itemsFiltrados[0]) } }}
+                  placeholder="Buscar producto por palabras del nombre…"
+                  className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+              </div>
+              {mostrarLista && busqueda.trim() && (
+                <div className="border border-feisen-borde rounded-lg overflow-hidden divide-y divide-feisen-borde-suave">
+                  {itemsFiltrados.length === 0 && (
+                    <p className="px-3 py-3 text-sm text-feisen-texto-2">Ningún producto tiene “{busqueda.trim()}” en el nombre. Prueba con una sola palabra.</p>
+                  )}
+                  {itemsFiltrados.slice(0, 8).map(item => {
+                    const h = hay(item.id, item.bodega_id)
+                    return (
+                      <button key={item.id} type="button" onClick={() => seleccionarItem(item)}
+                        className="w-full text-left px-3 py-2.5 min-h-[52px] bg-white hover:bg-feisen-fondo">
+                        <span className="block text-sm text-feisen-texto break-words">{item.nombre}</span>
+                        <span className={`block text-xs tabular-nums ${!esEntrada && h <= 0 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>
+                          {h > 0 ? `Hay ${h.toLocaleString('es-CO')} ${item.unidad_medida}` : 'Sin stock'}
+                          {bodegas.length > 1 ? ` · ${bodegas.find(b => b.id === item.bodega_id)?.nombre || ''}` : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                  {itemsFiltrados.length > 8 && <p className="px-3 py-2 text-xs text-gray-400 bg-white">Mostrando 8 de {itemsFiltrados.length}. Escribe otra palabra para afinar.</p>}
                 </div>
-              ) : (
-                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-6 text-sm text-gray-400 transition-colors
-                  ${subiendo ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
-                  {subiendo
-                    ? <><FileImage size={24} className="animate-pulse" /><span>Subiendo...</span></>
-                    : <><Upload size={24} /><span>Toca para adjuntar foto de la remisión</span></>
-                  }
-                  <input type="file" accept="image/*" className="hidden" onChange={subirRemision} disabled={subiendo} />
-                </label>
               )}
-            </div>
-          </>
-        )}
-
-        {/* ─── CAMPOS SALIDA ─── */}
-        {!esEntrada && (
-          <>
-            {/* Destino */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Destino *</label>
-              <div className="space-y-2">
-                {DESTINOS.map(d => (
-                  <button key={d} type="button" onClick={() => setForm(f => ({ ...f, destino: d }))}
-                    className={`w-full px-4 py-3 rounded-xl text-sm font-medium border text-left transition-colors
-                      ${form.destino === d ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
-                    {d}
-                  </button>
-                ))}
+            </>
+          ) : (
+            <div className={`rounded-lg border px-3 py-3 space-y-3 ${falta ? 'border-transparent bg-feisen-rojo-suave' : 'border-feisen-borde'}`}>
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-feisen-texto break-words">{itemSel.nombre}</p>
+                  <p className={`text-xs tabular-nums ${falta ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
+                    {falta ? `Solo hay ${haySel.toLocaleString('es-CO')} ${itemSel.unidad_medida}`
+                      : esEntrada ? `Hay ${haySel.toLocaleString('es-CO')} · quedarán ${(haySel + cantNum).toLocaleString('es-CO')} ${itemSel.unidad_medida}`
+                      : `Hay ${haySel.toLocaleString('es-CO')} · quedan ${(haySel - cantNum).toLocaleString('es-CO')} ${itemSel.unidad_medida}`}
+                  </p>
+                </div>
+                <button type="button" aria-label="Cambiar producto" onClick={() => { setForm(f => ({ ...f, item_id: '', item_nombre: '' })); setTimeout(() => buscarRef.current?.focus(), 0) }}
+                  className="p-2 -m-1 rounded-lg text-gray-400 hover:text-feisen-texto hover:bg-white"><X size={17} /></button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Contador valor={form.cantidad} onCambiar={v => setForm(f => ({ ...f, cantidad: v.replace(',', '.') }))} etiqueta="Cantidad" ancho="w-20" />
+                <span className="text-sm text-feisen-texto-2">{itemSel.unidad_medida}</span>
               </div>
             </div>
+          )}
+          {bodegas.length > 1 && campo('Bodega',
+            <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))} className={claseInput}>
+              <option value="">Selecciona bodega</option>
+              {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+            </select>)}
+        </>)}
 
-            {/* Cantidad */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Cantidad *</label>
-              <input required type="number" min="0.001" step="0.001" value={form.cantidad}
-                onChange={e => setForm(f => ({ ...f, cantidad: e.target.value }))}
-                placeholder="0"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+        {/* Entrada */}
+        {esEntrada && bloque('De dónde viene', <>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {campo('Proveedor', <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))}
+              placeholder="Ej: Distribuidora Motors S.A.S." className={claseInput} />, true)}
+            {campo('Pedido asociado',
+              <select value={form.pedido_id} onChange={e => setForm(f => ({ ...f, pedido_id: e.target.value }))} className={claseInput}>
+                <option value="">Sin pedido asociado</option>
+                {pedidos.map(p => <option key={p.id} value={p.id}>{p.numero} · {p.estado === 'en_transito' ? 'En tránsito' : p.estado === 'recibido' ? 'Recibido' : 'Pendiente'}</option>)}
+              </select>, true)}
+          </div>
+          {campo('Foto de la remisión', form.foto_remision_url ? (
+            <div className="space-y-2">
+              <img src={form.foto_remision_url} alt="Remisión" className="w-full max-h-48 object-contain rounded-lg border border-feisen-borde bg-feisen-fondo" />
+              <button type="button" onClick={() => setForm(f => ({ ...f, foto_remision_url: '' }))} className="text-sm text-feisen-rojo font-medium">Quitar foto</button>
             </div>
+          ) : (
+            <label className={`flex items-center justify-center gap-2 cursor-pointer border border-dashed rounded-lg px-4 py-5 text-sm transition-colors
+              ${subiendo ? 'border-feisen-borde bg-feisen-fondo text-gray-400' : 'border-feisen-borde text-feisen-texto-2 hover:border-feisen-azul hover:text-feisen-azul'}`}>
+              {subiendo ? <><FileImage size={18} className="animate-pulse" /> Subiendo…</> : <><Upload size={18} /> Toca para adjuntar la foto</>}
+              <input type="file" accept="image/*" className="hidden" onChange={subirRemision} disabled={subiendo} />
+            </label>
+          ), true)}
+        </>)}
 
-            {/* N° OF */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">N° Orden de Fabricación (opcional)</label>
-              <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))}
-                placeholder="Ej: 8465"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
+        {/* Salida */}
+        {!esEntrada && bloque('¿A dónde va?', <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {DESTINOS.map(d => (
+              <button key={d} type="button" aria-pressed={form.destino === d} onClick={() => setForm(f => ({ ...f, destino: d }))}
+                className={`min-h-[48px] px-3 rounded-lg border text-sm font-semibold transition-colors active:scale-[.98]
+                  ${form.destino === d ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {campo('N° orden de fabricación', <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))} placeholder="Ej: 8465" className={claseInput} />, true)}
+            {campo('Serial del motor', <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))} placeholder="Ej: 215325060196" className={claseInput} />, true)}
+          </div>
+          {campo('Referencia / observación', <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))} placeholder="Ej: Factura 001" className={claseInput} />, true)}
+        </>)}
 
-            {/* Serial motor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Serial del motor (opcional)</label>
-              <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))}
-                placeholder="Ej: 215325060196"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
+        {bloque('Firma', <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />)}
 
-            {/* Referencia */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Referencia / Observación (opcional)</label>
-              <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))}
-                placeholder="Ej: Factura 001"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
-          </>
-        )}
-
-        {/* Firma del responsable */}
-        <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} />
-
-        {/* Fecha del movimiento */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Fecha del movimiento</label>
-          <input type="date" value={fechaMov} max={HOY_COL}
-            onChange={e => setFechaMov(e.target.value)}
-            className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-          <p className="text-xs text-gray-400 mt-1">Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.</p>
+        {/* Botón fijo abajo */}
+        <div className="sticky bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-4 z-10">
+          <div className="flex items-center gap-3 bg-white border border-feisen-borde rounded-xl shadow-sm pl-4 pr-2 py-2">
+            <p className="flex-1 min-w-0 text-sm leading-tight">
+              {itemSel
+                ? <><b className="block text-feisen-texto truncate">{itemSel.nombre}</b>
+                    <span className={`text-xs tabular-nums ${falta ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>{esEntrada ? '+' : '−'}{cantNum.toLocaleString('es-CO')} {itemSel.unidad_medida}{falta ? ' · sin stock' : ''}</span></>
+                : <><b className="block text-feisen-texto">Sin producto</b><span className="text-xs text-feisen-texto-2">Busca uno arriba</span></>}
+            </p>
+            <button type="submit" disabled={guardando || subiendo}
+              className="bg-feisen-azul text-white rounded-lg px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition">
+              {guardando ? 'Registrando…' : esEntrada ? 'Registrar entrada' : 'Registrar salida'}
+            </button>
+          </div>
         </div>
-
-        {error && <Alerta tipo="error" mensaje={error} />}
-
-        <button type="submit" disabled={guardando || subiendo}
-          className="w-full bg-feisen-azul text-white rounded-2xl py-4 text-base font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
-          {guardando ? 'Registrando...' : esEntrada ? 'Registrar entrada' : 'Registrar salida'}
-        </button>
       </form>
     </div>
   )
