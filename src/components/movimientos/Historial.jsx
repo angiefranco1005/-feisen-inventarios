@@ -76,32 +76,46 @@ async function aplicarAjustesStock(item_id, ajustes) {
 // entrega en una salida (cada bodega tiene su propio renglón de `items`).
 const bodegaDelMovimiento = (m) => m.tipo === 'salida' ? m.bodega_origen_id : (m.bodega_destino_id || m.bodega_origen_id)
 
-// Buscador de producto para el modal de edición (palabras sueltas, sin tildes)
+// Cambiar el producto en el modal de edición: muestra el producto actual con un botón
+// "Cambiar producto"; al tocarlo aparece un buscador (palabras sueltas, sin tildes) con
+// la lista EN LÍNEA, no flotante — una lista absoluta quedaba oculta/cortada dentro del
+// modal con scroll en tablet.
 function SelectorProductoEdicion({ items, valorId, onElegir }) {
-  const [texto,   setTexto]   = useState('')
-  const [abierto, setAbierto] = useState(false)
+  const [texto,     setTexto]     = useState('')
+  const [buscando,  setBuscando]  = useState(false)
   const actual = items.find(i => i.id === valorId)
   const filtrados = texto.trim() ? items.filter(i => coincideBusqueda(i.nombre, texto)) : items
+
+  if (!buscando) return (
+    <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+      <span className="flex-1 min-w-0 text-sm text-gray-800">{actual?.nombre || '—'}</span>
+      <button type="button" onClick={() => { setTexto(''); setBuscando(true) }}
+        className="shrink-0 bg-feisen-azul text-white rounded-lg px-3 py-2 text-sm font-semibold hover:opacity-90">
+        Cambiar producto
+      </button>
+    </div>
+  )
+
   return (
-    <div className="relative">
-      <input value={abierto ? texto : (actual?.nombre || '')}
-        onChange={e => { setTexto(e.target.value); setAbierto(true) }}
-        onFocus={() => { setTexto(''); setAbierto(true) }}
-        onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        placeholder="Buscar producto por nombre…"
-        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-      {abierto && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
-          {filtrados.slice(0, 40).map(i => (
-            <button key={i.id} type="button" onMouseDown={() => { onElegir(i); setAbierto(false) }}
-              className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 hover:bg-blue-50
-                ${i.id === valorId ? 'font-semibold text-feisen-azul' : 'text-gray-800'}`}>
-              {i.nombre}
-            </button>
-          ))}
-          {filtrados.length === 0 && <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados en esta bodega.</p>}
-        </div>
-      )}
+    <div className="border-2 border-feisen-azul rounded-xl p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <input autoFocus value={texto} onChange={e => setTexto(e.target.value)}
+          placeholder="Escribe parte del nombre…"
+          className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+        <button type="button" onClick={() => setBuscando(false)}
+          className="shrink-0 text-sm text-gray-500 px-2 py-2">Cancelar</button>
+      </div>
+      <div className="max-h-56 overflow-y-auto divide-y divide-gray-50">
+        {filtrados.slice(0, 50).map(i => (
+          <button key={i.id} type="button" onClick={() => { onElegir(i); setBuscando(false) }}
+            className={`w-full text-left px-3 py-3 text-sm hover:bg-blue-50 rounded-lg
+              ${i.id === valorId ? 'font-semibold text-feisen-azul' : 'text-gray-800'}`}>
+            {i.nombre}
+          </button>
+        ))}
+        {filtrados.length === 0 && <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados en esta bodega.</p>}
+        {filtrados.length > 50 && <p className="px-3 py-2 text-xs text-gray-400">Mostrando 50 de {filtrados.length}. Escribe más del nombre para acotar.</p>}
+      </div>
     </div>
   )
 }
