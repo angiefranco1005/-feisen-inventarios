@@ -1611,3 +1611,9 @@ el avance se registra a diario y la orden se cierra a mano.
 - Ojo: la RLS de `items`/`stock` deja LEER todo a cualquier autenticado; la restricción por bodega es del front (`bodegasPermitidas`). La escritura sí está limitada por bodega en la RLS.
 - Mínimo sugerido (`utils/consumo.js`): salidas no revertidas de los últimos 90 días desde las bodegas visibles (incluye traslados), cobertura de 15 días → `ceil(consumo/90*15)`. Se aprueba en lote en `ModalMinimosSugeridos.jsx` o por producto en el panel. El historial de movimientos empezó hace menos de 90 días, así que al principio el sugerido queda algo bajo.
 - La búsqueda del Consultor (Ventas) usa el mismo `coincideBusqueda`.
+
+## 2026-10-28 — Paquetes también para Almacén
+- `paquetes` ahora tiene `bodega_id` (migración `supabase/migraciones/2026-10-28_paquetes_por_bodega.sql`; los 21 paquetes existentes quedan en MECANIZADOS según la bodega de sus piezas). **El front nuevo depende de esa columna**: ya aplicada en Supabase el 2026-10-28 con el conector (21 paquetes → MECANIZADOS, 0 piezas en otra bodega).
+- `GestionPaquetes.jsx`: pestañas Mecanizados / Almacén. Mecanizados sigue limitado a "Producto Mecanizado"; Almacén puede usar cualquier producto activo de su catálogo. Búsqueda con `coincideBusqueda`. Sigue siendo solo ADMIN (RLS y menú); en el menú pasó de "Mecanizados" a "Inventarios" (la ruta sigue siendo `/mecanizados/paquetes`).
+- `RegistrarMovimientoAlmacenista.jsx`: carga los paquetes activos de la bodega del usuario (`bodega_id = bodega.id`) y muestra el mismo selector (`selectorPaquete`) en la salida de producción interna de Mecanizados y en la salida estándar (Almacén). Si la bodega no tiene paquetes, el selector no aparece.
+- `BODEGA_ALMACEN_ID` agregado a `utils/bodegasCatalogo.js`.

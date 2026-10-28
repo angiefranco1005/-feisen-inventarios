@@ -1,9 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Boxes } from 'lucide-react'
+import { BODEGA_MECANIZADOS_ID, BODEGA_ALMACEN_ID, CAT_PRODUCTO_MECANIZADO_ID } from '../../utils/bodegasCatalogo'
+import { fetchAllPages } from '../../utils/fetchAllPages'
+import { coincideBusqueda } from '../../utils/busqueda'
 
-const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
-const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
+// Bodegas que arman paquetes. Mecanizados solo usa piezas de "Producto Mecanizado";
+// Almacén puede usar cualquier producto activo de su catálogo.
+const BODEGAS_PAQUETES = [
+  { id: BODEGA_MECANIZADOS_ID, nombre: 'Mecanizados', categoriaId: CAT_PRODUCTO_MECANIZADO_ID,
+    ayuda: 'Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.' },
+  { id: BODEGA_ALMACEN_ID,     nombre: 'Almacén',     categoriaId: null,
+    ayuda: 'Cualquier producto activo de la bodega de Almacén.' },
+]
 
 // ── Input editable inline ─────────────────────────────────────────────────────
 function InlineEdit({ valor, onGuardar, placeholder = '', className = '' }) {
@@ -41,12 +50,12 @@ function InlineEdit({ valor, onGuardar, placeholder = '', className = '' }) {
 }
 
 // ── Selector de ítem del catálogo de Mecanizados ──────────────────────────────
-function SelectorItem({ items, excluir = [], onSeleccionar }) {
+function SelectorItem({ items, excluir = [], onSeleccionar, ayuda }) {
   const [busqueda, setBusqueda] = useState('')
   const [abierto,  setAbierto]  = useState(false)
 
   const filtrados = (busqueda.trim()
-    ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    ? items.filter(i => coincideBusqueda(i.nombre, busqueda))
     : items
   ).filter(i => !excluir.includes(i.id))
 
@@ -58,7 +67,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
         onChange={e => { setBusqueda(e.target.value); setAbierto(true) }}
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 150)}
-        placeholder="Buscar pieza mecanizada…"
+        placeholder="Buscar producto por nombre…"
         className="w-full border-2 border-feisen-borde rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-feisen-azul focus:border-feisen-azul"
       />
       {abierto && filtrados.length > 0 && (
@@ -73,7 +82,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
         <div className="absolute z-50 w-full bg-white border border-feisen-borde rounded-xl mt-1 px-4 py-3 text-sm text-gray-400">
-          Sin resultados. Recuerda: solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.
+          Sin resultados. {ayuda}
         </div>
       )}
     </div>
@@ -82,8 +91,10 @@ function SelectorItem({ items, excluir = [], onSeleccionar }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function GestionPaquetes() {
+  const [bodegaId,     setBodegaId]     = useState(BODEGA_MECANIZADOS_ID)
+  const bodegaCfg = BODEGAS_PAQUETES.find(b => b.id === bodegaId)
   const [paquetes,     setPaquetes]     = useState([])
-  const [items,        setItems]        = useState([])  // catálogo de Mecanizados
+  const [items,        setItems]        = useState([])  // catálogo de la bodega elegida
   const [expandido,    setExpandido]    = useState(null)
   const [cargando,     setCargando]     = useState(true)
 
@@ -99,20 +110,25 @@ export default function GestionPaquetes() {
 
   const [error, setError] = useState('')
 
-  useEffect(() => { cargar() }, [])
+  useEffect(() => { cargar() }, [bodegaId])
 
   async function cargar() {
     setCargando(true)
+    setExpandido(null)
+    setError('')
     const [{ data: paqs }, { data: its }] = await Promise.all([
       supabase.from('paquetes')
         .select('id, nombre, descripcion, activo, paquete_items(id, item_id, cantidad, items(nombre, unidad_medida))')
+        .eq('bodega_id', bodegaId)
         .order('nombre'),
-      supabase.from('items')
-        .select('id, nombre, unidad_medida')
-        .eq('bodega_id', BODEGA_MECANIZADOS)
-        .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
-        .eq('activo', true)
-        .order('nombre'),
+      fetchAllPages((d, h) => {
+        let q = supabase.from('items')
+          .select('id, nombre, unidad_medida')
+          .eq('bodega_id', bodegaId)
+          .eq('activo', true)
+        if (bodegaCfg.categoriaId) q = q.eq('categoria_id', bodegaCfg.categoriaId)
+        return q.order('nombre').order('id').range(d, h)
+      }),
     ])
     setPaquetes((paqs || []).map(p => ({
       ...p,
@@ -143,7 +159,7 @@ export default function GestionPaquetes() {
   async function crearPaquete() {
     if (!nuevoNombre.trim()) return
     const { data, error: err } = await supabase.from('paquetes')
-      .insert({ nombre: nuevoNombre.trim(), activo: true }).select().single()
+      .insert({ nombre: nuevoNombre.trim(), activo: true, bodega_id: bodegaId }).select().single()
     if (err) { setError('Error al crear paquete: ' + err.message); return }
     setPaquetes(prev => [...prev, { ...data, paquete_items: [] }].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
     setNuevoNombre('')
@@ -190,8 +206,6 @@ export default function GestionPaquetes() {
     setNuevaPieza(prev => ({ ...prev, [paqId]: { ...(prev[paqId] || {}), [campo]: val } }))
   }
 
-  if (cargando) return <p className="text-center text-gray-400 py-20">Cargando…</p>
-
   return (
     <div className="max-w-5xl mx-auto p-5 md:p-8 pb-24">
 
@@ -202,14 +216,25 @@ export default function GestionPaquetes() {
             <Boxes size={28} className="text-feisen-azul" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Paquetes de Mecanizados</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Kits de piezas para la salida de ensamble (producción interna)</p>
+            <h1 className="text-2xl font-bold text-gray-800">Paquetes</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Kits de productos por máquina, para sacarlos completos en la salida</p>
           </div>
         </div>
         <button onClick={() => setAgregandoPaq(v => !v)}
           className="flex items-center gap-2 bg-feisen-rojo text-white rounded-xl px-5 py-3 text-base font-semibold hover:opacity-90 transition-opacity">
           <Plus size={18} /> Nuevo paquete
         </button>
+      </div>
+
+      {/* Bodega dueña de los paquetes */}
+      <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 max-w-md">
+        {BODEGAS_PAQUETES.map(b => (
+          <button key={b.id} type="button" onClick={() => setBodegaId(b.id)}
+            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors
+              ${bodegaId === b.id ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
+            {b.nombre}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -240,13 +265,15 @@ export default function GestionPaquetes() {
         </div>
       )}
 
-      {paquetes.length === 0 && !agregandoPaq && (
-        <p className="text-center text-gray-400 py-10 text-sm">No hay paquetes creados aún.</p>
+      {cargando && <p className="text-center text-gray-400 py-20">Cargando…</p>}
+
+      {!cargando && paquetes.length === 0 && !agregandoPaq && (
+        <p className="text-center text-gray-400 py-10 text-sm">No hay paquetes de {bodegaCfg.nombre} creados aún.</p>
       )}
 
       {/* Lista de paquetes */}
       <div className="space-y-4">
-        {paquetes.map(paq => {
+        {!cargando && paquetes.map(paq => {
           const filas      = paq.paquete_items
           const abierto    = expandido === paq.id
           const idsUsados  = filas.map(r => r.item_id)
@@ -322,11 +349,12 @@ export default function GestionPaquetes() {
 
                   <div className="px-6 py-6 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
                     <p className="text-sm font-bold text-gray-400 uppercase mb-1">Agregar pieza</p>
-                    <p className="text-sm text-gray-400 mb-4">Solo piezas de categoría "Producto Mecanizado" en la bodega de Mecanizados.</p>
+                    <p className="text-sm text-gray-400 mb-4">{bodegaCfg.ayuda}</p>
                     <div className="space-y-4">
                       <SelectorItem
                         items={items}
                         excluir={idsUsados}
+                        ayuda={bodegaCfg.ayuda}
                         onSeleccionar={item => setNP(paq.id, 'item', item)}
                       />
                       {np.item && (
