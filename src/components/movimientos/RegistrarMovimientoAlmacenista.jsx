@@ -1,73 +1,164 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, nombreBodega } from '../../utils/bodegasCatalogo'
-import { Plus, Trash2, CheckCircle, Search, Flame, ShoppingCart, Wrench, Factory, Settings, Boxes, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Search, Flame, ShoppingCart, Wrench, Factory, Settings, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import FirmaCanvas from '../shared/FirmaCanvas'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 
-const PROD0 = { item_id: '', item_nombre: '', unidad: '', cantidad: '', peso_unitario: null }
+const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 
-// ── Selector de producto con búsqueda ──────────────────────────────────────
-function SelectorItem({ value, items, onSelect }) {
-  const [busqueda,     setBusqueda]     = useState(value || '')
-  const [mostrarLista, setMostrarLista] = useState(false)
+// ── Piezas de la pantalla ───────────────────────────────────────────────────
+function Bloque({ titulo, detalle, children }) {
+  return (
+    <section className="bg-white border border-feisen-borde rounded-xl p-4 space-y-3 min-w-0">
+      {titulo && (
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{titulo}</h2>
+          {detalle && <span className="text-xs text-gray-400">{detalle}</span>}
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
 
-  // Sincronizar con el padre cuando se resetea el valor a ''
-  useEffect(() => { setBusqueda(value || '') }, [value])
+function Campo({ etiqueta, opcional, children }) {
+  return (
+    <div className="space-y-1.5 min-w-0">
+      <label className="block text-sm font-medium text-feisen-texto">
+        {etiqueta} {opcional && <span className="font-normal text-gray-400">(opcional)</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
 
-  const filtrados = busqueda.trim()
-    ? items.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    : items
+function BotonOpcion({ activo, onClick, children }) {
+  return (
+    <button type="button" aria-pressed={activo} onClick={onClick}
+      className={`min-h-[48px] px-3 rounded-lg border text-sm font-semibold transition-colors active:scale-[.98]
+        ${activo ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+      {children}
+    </button>
+  )
+}
 
-  function elegir(item) {
-    setBusqueda(item.nombre)
-    setMostrarLista(false)
-    onSelect(item)
+// ── Productos del movimiento: buscador + una tarjeta por producto con − / + ──
+// Búsqueda por palabras sueltas sin tildes (coincideBusqueda). La lista de resultados
+// va en línea (no flotante) para que no quede tapada en tablet.
+function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nombreBodega, extra }) {
+  const [texto, setTexto] = useState('')
+  const inputRef = useRef(null)
+  useAtajoBuscar(inputRef)
+  const resultados = texto.trim() ? items.filter(i => coincideBusqueda(i.nombre, texto)) : []
+  const MAX = 8
+
+  function agregar(item) {
+    setLineas(prev => prev.some(l => l.item_id === item.id)
+      ? prev.map(l => l.item_id === item.id ? { ...l, cantidad: String((parseFloat(l.cantidad) || 0) + 1) } : l)
+      : [...prev, { item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida, cantidad: '1', peso_unitario: item.peso_unitario ?? null }])
+    setTexto('')
+    inputRef.current?.focus()
   }
+  const cambiarCantidad = (id, v) => setLineas(prev => prev.map(l => l.item_id === id ? { ...l, cantidad: v.replace(',', '.') } : l))
+  const quitar = id => setLineas(prev => prev.filter(l => l.item_id !== id))
 
   return (
-    <div className="relative flex-1 min-w-0">
+    <div className="space-y-2.5">
       <div className="relative">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setMostrarLista(true); if (!e.target.value) onSelect(null) }}
-          onFocus={() => setMostrarLista(true)}
-          onBlur={() => setTimeout(() => {
-            setMostrarLista(false)
-            const coincide = items.some(i => i.nombre === busqueda)
-            if (busqueda && !coincide) { setBusqueda(''); onSelect(null) }
-          }, 150)}
-          placeholder="Buscar producto..."
-          className="w-full border border-feisen-borde rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-        />
+        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input ref={inputRef} type="search" value={texto} autoComplete="off"
+          onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); if (resultados[0]) agregar(resultados[0]) }
+            if (e.key === 'Escape') setTexto('')
+          }}
+          placeholder={esSalida ? 'Buscar producto: “tllo 3/8”, “rodamiento 62”…' : 'Buscar el producto que llegó…'}
+          aria-label="Buscar producto"
+          className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
       </div>
-      {mostrarLista && filtrados.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-          {filtrados.slice(0, 25).map(i => (
-            <button key={i.id} type="button"
-              onMouseDown={() => elegir(i)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 flex justify-between items-center">
-              <span className="font-medium text-gray-800">{i.nombre}</span>
-              <span className="text-xs text-gray-400 ml-2">{i.unidad_medida}</span>
-            </button>
-          ))}
+
+      {texto.trim() && (
+        <div className="border border-feisen-borde rounded-lg overflow-hidden divide-y divide-feisen-borde-suave">
+          {resultados.length === 0 && (
+            <p className="px-3 py-3 text-sm text-feisen-texto-2">
+              Ningún producto de {nombreBodega || 'la bodega'} tiene “{texto.trim()}” en el nombre. Prueba con una sola palabra.
+            </p>
+          )}
+          {resultados.slice(0, MAX).map(i => {
+            const ya = lineas.some(l => l.item_id === i.id)
+            const hay = stockPorItem[i.id] ?? 0
+            return (
+              <button key={i.id} type="button" onClick={() => agregar(i)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 min-h-[52px] text-left bg-white hover:bg-feisen-fondo">
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm text-feisen-texto break-words">{i.nombre}</span>
+                  <span className={`block text-xs tabular-nums ${esSalida && hay <= 0 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>
+                    {esSalida ? (hay > 0 ? `Disponible ${cant(hay)} ${i.unidad_medida}` : 'Sin stock') : `Hay ${cant(hay)} ${i.unidad_medida}`}
+                  </span>
+                </span>
+                <span className={`w-8 h-8 rounded-lg grid place-items-center shrink-0 text-sm font-semibold ${ya ? 'bg-feisen-fondo text-feisen-texto-2' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+                  {ya ? '+1' : <Plus size={16} />}
+                </span>
+              </button>
+            )
+          })}
+          {resultados.length > MAX && (
+            <p className="px-3 py-2 text-xs text-gray-400 bg-white">Mostrando {MAX} de {resultados.length}. Escribe otra palabra para afinar.</p>
+          )}
         </div>
+      )}
+
+      {lineas.length === 0 ? (
+        <p className="border border-dashed border-feisen-borde rounded-lg px-4 py-5 text-center text-sm text-feisen-texto-2">
+          {esSalida ? 'Busca un producto arriba' + ' o toca un paquete para agregar varias piezas de una vez.' : 'Busca arriba los productos que llegaron.'}
+        </p>
+      ) : (
+        <ul className="border border-feisen-borde rounded-lg overflow-hidden divide-y divide-feisen-borde-suave">
+          {lineas.map(l => {
+            const hay = stockPorItem[l.item_id] ?? 0
+            const n = parseFloat(l.cantidad) || 0
+            const falta = esSalida && n > hay
+            return (
+              <li key={l.item_id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 pl-3 pr-1.5 py-2.5 ${falta ? 'bg-feisen-rojo-suave' : 'bg-white'}`}>
+                <div className="flex-1 min-w-[11rem]">
+                  <p className="text-sm font-medium text-feisen-texto break-words">{l.item_nombre}</p>
+                  <p className={`text-xs tabular-nums ${falta ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
+                    {falta ? `Solo hay ${cant(hay)} ${l.unidad} en ${nombreBodega || 'la bodega'}`
+                      : esSalida ? `Quedan ${cant(hay - n)} ${l.unidad}` : `Quedarán ${cant(hay + n)} ${l.unidad}`}
+                  </p>
+                  {extra?.(l)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Contador valor={l.cantidad} onCambiar={v => cambiarCantidad(l.item_id, v)} etiqueta={`Cantidad de ${l.item_nombre}`} />
+                  <span className="text-xs text-feisen-texto-2 w-9">{l.unidad}</span>
+                  <button type="button" onClick={() => quitar(l.item_id)} aria-label={`Quitar ${l.item_nombre}`}
+                    className="p-2.5 rounded-lg text-gray-400 hover:text-feisen-rojo hover:bg-white">
+                    <X size={17} />
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </div>
   )
 }
 
 // ── Input con sugerencias (recibe el array directamente) ─────────────────
-function InputConSugerencias({ value, onChange, placeholder, sugerencias = [], colorRing = 'feisen-azul' }) {
+function InputConSugerencias({ value, onChange, placeholder, sugerencias = [] }) {
   const [open, setOpen] = useState(false)
   const filtradas = value.trim()
-    ? sugerencias.filter(s => s.toLowerCase().includes(value.toLowerCase()) && s.toLowerCase() !== value.toLowerCase())
+    ? sugerencias.filter(s => coincideBusqueda(s, value) && s.toLowerCase() !== value.toLowerCase())
     : sugerencias
 
   return (
@@ -79,15 +170,14 @@ function InputConSugerencias({ value, onChange, placeholder, sugerencias = [], c
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
-        className={`w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-${colorRing}`}
+        className={claseInput}
       />
       {open && filtradas.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
+        <div className="absolute z-30 top-full left-0 right-0 mt-1 bg-white border border-feisen-borde rounded-lg shadow-sm max-h-44 overflow-y-auto">
           {filtradas.map((s, i) => (
             <button key={i} type="button"
               onMouseDown={() => { onChange(s); setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 border-b last:border-0 flex items-center gap-2">
-              <span className="text-gray-300 text-xs">↩</span>
+              className="w-full text-left px-3 py-2.5 text-sm text-feisen-texto hover:bg-feisen-fondo border-b border-feisen-borde-suave last:border-0">
               {s}
             </button>
           ))}
@@ -96,7 +186,6 @@ function InputConSugerencias({ value, onChange, placeholder, sugerencias = [], c
     </div>
   )
 }
-
 
 // ── Agrupar productos duplicados sumando sus cantidades ───────────────────
 function agruparProductos(lista) {
@@ -144,7 +233,6 @@ export default function RegistrarMovimientoAlmacenista() {
   const [bodega,      setBodega]      = useState(null)
   const [cargando,    setCargando]    = useState(true)
   const [guardando,        setGuardando]        = useState(false)
-  const [exito,            setExito]            = useState(false)
   const [exitoPendiente,   setExitoPendiente]   = useState(false)
   const [avisoSinEntrada,  setAvisoSinEntrada]  = useState([]) // productos de la transferencia que no existen en el catálogo del destino
   const [error,            setError]            = useState('')
@@ -153,12 +241,12 @@ export default function RegistrarMovimientoAlmacenista() {
   // ── Estado ENTRADA ──
   const [proveedor,  setProveedor]  = useState('')
   const [colada,     setColada]     = useState('')
-  const [productos,  setProductos]  = useState([{ ...PROD0 }])
+  const [productos,  setProductos]  = useState([])
   const [pedidos,    setPedidos]    = useState([])
   const [pedidoId,   setPedidoId]   = useState('')
 
   // ── Estado SALIDA ──
-  const [sProductos,     setSProductos]     = useState([{ ...PROD0 }])
+  const [sProductos,     setSProductos]     = useState([])
   const [receptor,       setReceptor]       = useState('')
   const [notas,          setNotas]          = useState('')
   const [destinoBodegaId,setDestinoBodegaId]= useState('') // ID de bodega destino (transferencia interna)
@@ -176,6 +264,11 @@ export default function RegistrarMovimientoAlmacenista() {
   const [multiplicadorPaq, setMultiplicadorPaq] = useState(1)
   // Paquetes activos (con sus piezas) de la bodega del usuario: Mecanizados y Almacén
   const [paquetesBodega, setPaquetesBodega] = useState([])
+  // Existencia de cada producto en la bodega: para mostrar "Disponible" y avisar antes de guardar
+  const [stockPorItem,   setStockPorItem]   = useState({})
+  const navigate = useNavigate()
+  const [aviso, avisar] = useAviso()
+  const verEnHistorial = { texto: 'Ver', alHacer: () => navigate('/movimientos') }
 
   // Por ID, no por nombre: la bodega se puede renombrar sin que se pierda este flujo
   const esFundicion   = esBodegaFundicion(bodega)
@@ -339,6 +432,15 @@ export default function RegistrarMovimientoAlmacenista() {
     cargar()
   }, [])
 
+  async function cargarStock(bodegaId) {
+    const { data } = await fetchAllPages((d, h) => supabase.from('stock')
+      .select('item_id, cantidad_actual').eq('bodega_id', bodegaId).order('item_id').range(d, h))
+    setStockPorItem(Object.fromEntries((data || []).map(r => [r.item_id, Number(r.cantidad_actual) || 0])))
+  }
+  useEffect(() => { if (bodega?.id) cargarStock(bodega.id) }, [bodega?.id])
+  // El botón de guardar está abajo y los errores arriba: al aparecer un error, subir a mostrarlo
+  useEffect(() => { if (error) window.scrollTo({ top: 0, behavior: 'smooth' }) }, [error])
+
   // ── Paquetes de la bodega (kits de piezas por máquina para la salida) ──
   useEffect(() => {
     if (!bodega?.id) { setPaquetesBodega([]); return }
@@ -389,45 +491,23 @@ export default function RegistrarMovimientoAlmacenista() {
       return
     }
 
-    setSProductos(nuevasLineas)
+    // Se SUMA a lo que ya está en la lista (se pueden sacar varios paquetes en la misma salida)
+    setSProductos(prev => {
+      const res = [...prev]
+      for (const nl of nuevasLineas) {
+        const k = res.findIndex(l => l.item_id === nl.item_id)
+        if (k >= 0) res[k] = { ...res[k], cantidad: String((parseFloat(res[k].cantidad) || 0) + parseFloat(nl.cantidad)) }
+        else res.push(nl)
+      }
+      return res
+    })
     setError(faltantes > 0
       ? `Se agregaron ${nuevasLineas.length} de ${piezas.length} piezas del paquete — ${faltantes} ya no están en el catálogo activo.`
       : '')
+    if (!faltantes) avisar(`${paq.nombre}: ${nuevasLineas.length} productos × ${mult} ${mult === 1 ? 'máquina' : 'máquinas'}`)
     setPaqueteSelId('')
     setMultiplicadorPaq(1)
   }
-
-  // Selector de paquete (kit de piezas por máquina) para no seleccionar pieza por pieza.
-  // Se usa en la salida de producción interna de Mecanizados y en la salida de Almacén.
-  const selectorPaquete = paquetesBodega.length > 0 && (
-    <div className="bg-blue-50 border-2 border-blue-100 rounded-xl p-4 space-y-3">
-      <label className="flex items-center gap-2 text-sm font-semibold text-feisen-azul">
-        <Boxes size={16} /> Usar un paquete de piezas (opcional)
-      </label>
-      <select value={paqueteSelId} onChange={e => setPaqueteSelId(e.target.value)}
-        className="w-full border-2 border-feisen-borde rounded-xl px-4 py-3.5 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-        <option value="">Selecciona un paquete…</option>
-        {paquetesBodega.map(p => (
-          <option key={p.id} value={p.id}>{p.nombre} ({(p.paquete_items || []).length} piezas)</option>
-        ))}
-      </select>
-      <div className="flex items-center gap-2">
-        <input type="number" min="1" step="1" value={multiplicadorPaq}
-          onChange={e => setMultiplicadorPaq(e.target.value)}
-          title="Cuántas máquinas se van a armar"
-          aria-label="Cuántas máquinas"
-          placeholder="Cant."
-          className="w-24 border-2 border-feisen-borde rounded-xl px-3 py-3.5 text-base text-center bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        <button type="button" onClick={aplicarPaquete} disabled={!paqueteSelId}
-          className="flex-1 bg-feisen-azul text-white rounded-xl px-4 py-3.5 text-base font-semibold disabled:opacity-40 hover:opacity-90">
-          Agregar paquete
-        </button>
-      </div>
-      <p className="text-xs text-feisen-azul/70">
-        Escribe cuántas máquinas vas a armar. Reemplaza la lista de "Productos" de abajo con las piezas del paquete multiplicadas por esa cantidad. Puedes ajustar o agregar más después.
-      </p>
-    </div>
-  )
 
   // ── Generador de número ──
   async function generarNumero(prefixBase) {
@@ -481,13 +561,14 @@ export default function RegistrarMovimientoAlmacenista() {
       // Resetear formulario inmediatamente
       setProveedor('')
       setColada('')
-      setProductos([{ ...PROD0 }])
+      setProductos([])
       setPedidoId('')
       setFechaMov(HOY_COL)
       setFirmaEntradaUrl(null)
       setFormKey(k => k + 1)
-      setExito(true)
-      setTimeout(() => setExito(false), 2500)
+      avisar(`Entrada ${numero} registrada`, verEnHistorial)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      cargarStock(bodega.id)
     } catch (err) {
       setError('Error inesperado: ' + err.message)
     } finally {
@@ -559,7 +640,7 @@ export default function RegistrarMovimientoAlmacenista() {
         })
         if (errTrf) { setError('Error al registrar transferencia: ' + errTrf.message); return }
 
-        setSProductos([{ ...PROD0 }])
+        setSProductos([])
         setNotas('')
         setDestinoBodegaId('')
         setFirmaDataUrl(null)
@@ -679,7 +760,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       if (!esInterna && !esMecanizados) guardarSugerencia('feisen_receptores', receptor.trim())
       // Resetear formulario inmediatamente
-      setSProductos([{ ...PROD0 }])
+      setSProductos([])
       setReceptor('')
       setNotas('')
       setDestinoBodegaId('')
@@ -692,8 +773,9 @@ export default function RegistrarMovimientoAlmacenista() {
       setDestinoMec('')
       setFechaMov(HOY_COL)
       setFormKey(k => k + 1)
-      setExito(true)
-      setTimeout(() => setExito(false), 2500)
+      avisar(`Salida ${numero} registrada`, verEnHistorial)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      cargarStock(bodega.id)
       if (sinCatalogarNombres.length > 0) {
         setAvisoSinEntrada(sinCatalogarNombres.map(n => ({ n, d: destPareadoNombre })))
         setTimeout(() => setAvisoSinEntrada([]), 15000)
@@ -705,544 +787,302 @@ export default function RegistrarMovimientoAlmacenista() {
     }
   }
 
-  // ── Helpers líneas producto (entrada) ──
-  function actualizarProducto(idx, campo, valor) {
-    setProductos(prev => prev.map((p, i) => i === idx ? { ...p, [campo]: valor } : p))
-  }
-  function seleccionarProducto(idx, item) {
-    if (!item) {
-      setProductos(prev => prev.map((p, i) => i === idx ? { ...PROD0 } : p))
-      return
-    }
-    setProductos(prev => prev.map((p, i) => i === idx
-      ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida, peso_unitario: item.peso_unitario ?? null }
-      : p
-    ))
-  }
-
-  // ── Helpers líneas producto (salida) ──
-  function actualizarSProducto(idx, campo, valor) {
-    setSProductos(prev => prev.map((p, i) => i === idx ? { ...p, [campo]: valor } : p))
-  }
-  function seleccionarSProducto(idx, item) {
-    if (!item) { actualizarSProducto(idx, 'item_id', ''); actualizarSProducto(idx, 'item_nombre', ''); actualizarSProducto(idx, 'unidad', ''); return }
-    setSProductos(prev => prev.map((p, i) => i === idx ? { ...p, item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida } : p))
-  }
-
   if (cargando) return <div className="flex justify-center py-20"><Spinner /></div>
 
-  return (
-    <div className="max-w-xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-feisen-azul">Registrar movimiento</h1>
-        <button type="button" onClick={() => setModalListas(true)}
-          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-feisen-azul border border-gray-200 rounded-xl px-3 py-2 transition-colors bg-white">
-          <Settings size={13} /> Mis listas
+  const esSalida = tipo === 'salida'
+  const lineas    = esSalida ? sProductos : productos
+  const setLineas = esSalida ? setSProductos : setProductos
+  const conCantidad = lineas.filter(l => parseFloat(l.cantidad) > 0)
+  const totalUnidades = conCantidad.reduce((s, l) => s + parseFloat(l.cantidad), 0)
+  const sinStock = esSalida ? lineas.filter(l => parseFloat(l.cantidad) > (stockPorItem[l.item_id] ?? 0)).length : 0
+  const esProduccionFundicion = esFundicion && tipoEntrada === 'produccion'
+  const esEnvioMecanizados = esFundicion && tipoSalida === 'interna' && destinoBodegaId === MECANIZADOS_BODEGA_ID
+  const textoBoton = guardando ? 'Registrando…'
+    : !esSalida ? (esProduccionFundicion ? 'Registrar producción' : 'Registrar entrada')
+    : esEnvioMecanizados ? 'Enviar a Mecanizados' : 'Registrar salida'
+  const usaPaquetes = esSalida && paquetesBodega.length > 0 && ((esMecanizados && tipoSalidaMec === 'produccion') || (!esFundicion && !esMecanizados))
+
+  // Botón principal fijo abajo (encima de la barra de navegación en celular), con el resumen
+  const barraAccion = (
+    <div className="sticky bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-4 z-10 mt-2">
+      <div className="flex items-center gap-3 bg-white border border-feisen-borde rounded-xl shadow-sm pl-4 pr-2 py-2">
+        <div className="flex-1 min-w-0 text-sm leading-tight">
+          {conCantidad.length === 0
+            ? <><p className="font-semibold text-feisen-texto">Sin productos</p><p className="text-feisen-texto-2 text-xs">Agrega al menos uno</p></>
+            : <><p className="font-semibold text-feisen-texto tabular-nums">{conCantidad.length} {conCantidad.length === 1 ? 'producto' : 'productos'}</p>
+                <p className={`text-xs tabular-nums ${sinStock ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
+                  {sinStock ? `${sinStock} sin stock suficiente` : `${cant(totalUnidades)} en total`}
+                </p></>}
+        </div>
+        <button type="submit" disabled={guardando}
+          className="bg-feisen-azul text-white rounded-lg px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition">
+          {textoBoton}
         </button>
       </div>
+    </div>
+  )
 
-      {/* Bodega badge / selector en modo vista */}
-      {esAdminEnPreview ? (
-        <div className="mb-5 flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-500">Bodega (vista):</span>
-          <select
-            value={bodegaPreviewId}
-            onChange={e => cambiarBodegaPreview(e.target.value)}
-            className="border border-amber-300 rounded-xl px-3 py-1.5 text-sm bg-amber-50 text-amber-800 font-semibold focus:outline-none focus:ring-2 focus:ring-amber-300"
-          >
-            {bodegasDisponibles.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-          </select>
-        </div>
-      ) : bodega && (
-        <div className="mb-5 flex items-center gap-2">
-          <span className="text-sm text-gray-500">Bodega:</span>
-          <span className="bg-feisen-azul text-white text-xs font-semibold px-3 py-1 rounded-full">{bodega.nombre}</span>
-        </div>
-      )}
-
-      {/* Tabs Entrada / Salida */}
-      <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-        {['entrada', 'salida'].map(t => (
-          <button key={t} type="button"
-            onClick={() => { setTipo(t); setError(''); setExito(false) }}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-colors
-              ${tipo === t ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
-            {t === 'entrada' ? '📥 Entrada' : '📤 Salida'}
-          </button>
-        ))}
-      </div>
-
-      {/* Fecha del movimiento — compartida entre entrada y salida */}
-      <div className="bg-white rounded-xl border border-feisen-borde px-5 py-4">
-        <label className="text-sm font-semibold text-gray-700 block mb-1.5">
-          Fecha del movimiento
-        </label>
-        <input
-          type="date"
-          value={fechaMov}
-          max={new Date().toLocaleDateString('en-CA')}
-          onChange={e => setFechaMov(e.target.value)}
-          className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-        />
-        <p className="text-xs text-gray-400 mt-1">
-          Por defecto es hoy. Cambia si el movimiento ocurrió en otra fecha.
-        </p>
-      </div>
-
-      {exito && (
-        <div className="mb-4 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-          <CheckCircle size={20} className="text-green-500 shrink-0" />
-          <p className="text-green-700 font-medium text-sm">
-            {tipo === 'entrada' ? '¡Entrada registrada exitosamente!' : '¡Salida registrada exitosamente!'}
+  const listaProductos = (
+    <Bloque titulo="Productos" detalle={conCantidad.length ? `${conCantidad.length} ${conCantidad.length === 1 ? 'producto' : 'productos'}` : null}>
+      <ListaProductos items={items} lineas={lineas} setLineas={setLineas} stockPorItem={stockPorItem}
+        esSalida={esSalida} nombreBodega={bodega?.nombre}
+        extra={l => esProduccionFundicion && l.peso_unitario && parseFloat(l.cantidad) > 0 && (
+          <p className="text-xs text-feisen-texto-2 tabular-nums">
+            Peso total: {(parseFloat(l.cantidad) * parseFloat(l.peso_unitario)).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
           </p>
-        </div>
-      )}
+        )} />
+    </Bloque>
+  )
+
+  const campoNotas = (placeholder = 'Observaciones adicionales…') => (
+    <Campo etiqueta="Notas" opcional>
+      <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={placeholder} rows={2}
+        className={claseInput + ' resize-none'} />
+    </Campo>
+  )
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      {aviso}
+      <EncabezadoPagina modulo="Inventarios" titulo="Registrar movimiento"
+        subtitulo={esAdminEnPreview
+          ? <span className="inline-flex items-center gap-2">Bodega (vista)
+              <select value={bodegaPreviewId} onChange={e => cambiarBodegaPreview(e.target.value)}
+                className="border border-feisen-borde rounded-md px-2 py-0.5 text-xs font-semibold text-feisen-azul bg-feisen-azul-suave focus:outline-none">
+                {bodegasDisponibles.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+              </select></span>
+          : bodega && <span>Bodega <ChipBodega>{bodega.nombre}</ChipBodega></span>}>
+        <button type="button" onClick={() => setModalListas(true)}
+          className="inline-flex items-center gap-1.5 text-sm text-feisen-texto-2 hover:text-feisen-texto border border-feisen-borde rounded-lg px-3 py-2 bg-white hover:bg-feisen-fondo transition-colors">
+          <Settings size={15} /> Mis listas
+        </button>
+      </EncabezadoPagina>
+
+      <Segmentado grande valor={tipo} onCambiar={t => { setTipo(t); setError('') }}
+        opciones={[
+          { valor: 'salida',  texto: 'Salida',  icono: ArrowUpRight },
+          { valor: 'entrada', texto: 'Entrada', icono: ArrowDownLeft },
+        ]} />
+
+      <div className="flex items-center gap-2 text-sm text-feisen-texto-2">
+        <CalendarDays size={16} className="shrink-0" />
+        <label htmlFor="fecha-mov">Fecha del movimiento</label>
+        <input id="fecha-mov" type="date" value={fechaMov} max={new Date().toLocaleDateString('en-CA')}
+          onChange={e => setFechaMov(e.target.value)}
+          className="border border-feisen-borde rounded-lg px-2.5 py-1.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul" />
+        {fechaMov !== HOY_COL && <button type="button" onClick={() => setFechaMov(HOY_COL)} className="text-feisen-azul font-medium text-sm">Hoy</button>}
+      </div>
+
+      {error && <Alerta tipo="error" mensaje={error} />}
       {avisoSinEntrada.length > 0 && (
-        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-amber-800 font-semibold text-sm">Salida registrada. Sin entrada en {avisoSinEntrada[0].d}:</p>
-            <p className="text-amber-700 text-xs mt-0.5">
-              {avisoSinEntrada.map(a => a.n).join(', ')} no existe(n) en el catálogo de {avisoSinEntrada[0].d}, así que su stock allá no se actualizó.
-            </p>
-          </div>
-        </div>
+        <Alerta tipo="alerta" mensaje={`Salida registrada, pero sin entrada en ${avisoSinEntrada[0].d}: ${avisoSinEntrada.map(a => a.n).join(', ')} no existe(n) en su catálogo, así que su stock allá no se actualizó.`} />
       )}
       {exitoPendiente && (
-        <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-          <CheckCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-amber-800 font-semibold text-sm">¡Transferencia enviada a Mecanizados!</p>
-            <p className="text-amber-700 text-xs mt-0.5">El stock se moverá cuando Mecanizados la apruebe. Puedes hacer seguimiento en "Transferencias".</p>
-          </div>
-        </div>
+        <Alerta tipo="info" mensaje='Transferencia enviada a Mecanizados. El stock se mueve cuando Mecanizados la apruebe; puedes seguirla en "Transferencias".' />
       )}
-      {error && <Alerta tipo="error" mensaje={error} />}
 
-      {/* ── FORMULARIO ENTRADA ── */}
+      {/* ── ENTRADA ── */}
       {tipo === 'entrada' && (
-        <form key={formKey} onSubmit={handleEntrada} className="bg-white rounded-xl border border-feisen-borde p-6 space-y-5">
-
-          {/* Tipo de entrada — solo para FUNDICIÓN */}
+        <form key={formKey} onSubmit={handleEntrada} className="space-y-4">
           {esFundicion && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de entrada *</label>
-              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                <button type="button"
-                  onClick={() => { setTipoEntrada('compra'); setError('') }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                    ${tipoEntrada === 'compra' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <ShoppingCart size={15} /> Compra — Materia Prima
-                </button>
-                <button type="button"
-                  onClick={() => { setTipoEntrada('produccion'); setError('') }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                    ${tipoEntrada === 'produccion' ? 'bg-white shadow text-orange-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <Flame size={15} /> Producción — Fundida
-                </button>
-              </div>
-            </div>
+            <Segmentado valor={tipoEntrada} onCambiar={v => { setTipoEntrada(v); setError('') }}
+              opciones={[
+                { valor: 'compra',     texto: 'Compra · materia prima', icono: ShoppingCart },
+                { valor: 'produccion', texto: 'Producción · fundida',   icono: Flame },
+              ]} />
           )}
 
-          {/* Proveedor — solo para compra */}
-          {(!esFundicion || tipoEntrada === 'compra') && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">Proveedor *</label>
-              <InputConSugerencias
-                value={proveedor}
-                onChange={setProveedor}
-                placeholder="Nombre del proveedor"
-                sugerencias={sugsDB['feisen_proveedores'] || []}
-                colorRing="feisen-azul"
-              />
-            </div>
-          )}
+          {listaProductos}
 
-          {/* Pedido asociado — solo para compra */}
-          {(!esFundicion || tipoEntrada === 'compra') && (
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Pedido asociado <span className="font-normal text-gray-400">(opcional)</span>
-              </label>
-
-              {pedidos.length === 0 ? (
-                <p className="text-sm text-gray-400 italic">No hay pedidos pendientes{miArea ? ` de ${miArea}` : ''}.</p>
-              ) : (
-                <select
-                  value={pedidoId}
-                  onChange={e => setPedidoId(e.target.value)}
-                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul">
-                  <option value="">Sin pedido asociado</option>
-                  {pedidos.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.numero} — {p.estado === 'en_transito' ? '🚚 En tránsito' : '⏳ Pendiente'}
-                      {p.area ? ` · ${p.area}` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Panel de referencia del pedido seleccionado */}
-              {pedidoId && (() => {
-                const ped = pedidos.find(p => p.id === pedidoId)
-                const items_ped = ped?.pedido_items || []
-                if (!items_ped.length) return null
-                return (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                    <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
-                      📋 Contenido del pedido {ped.numero}
-                    </p>
-                    <div className="space-y-1">
-                      {items_ped.map((it, i) => (
-                        <div key={i} className="flex justify-between items-center text-sm">
-                          <span className="text-blue-900 font-medium">{it.descripcion}</span>
-                          <span className="text-blue-600 font-semibold ml-2 whitespace-nowrap">
-                            {it.cantidad} {it.unidad}
-                          </span>
-                        </div>
+          <Bloque titulo={esProduccionFundicion ? 'Producción' : 'De dónde viene'}>
+            {!esProduccionFundicion && (
+              <>
+                <Campo etiqueta="Proveedor">
+                  <InputConSugerencias value={proveedor} onChange={setProveedor} placeholder="Nombre del proveedor"
+                    sugerencias={sugsDB['feisen_proveedores'] || []} />
+                </Campo>
+                <Campo etiqueta="Pedido asociado" opcional>
+                  {pedidos.length === 0 ? (
+                    <p className="text-sm text-feisen-texto-2">No hay pedidos pendientes{miArea ? ` de ${miArea}` : ''}.</p>
+                  ) : (
+                    <select value={pedidoId} onChange={e => setPedidoId(e.target.value)} className={claseInput}>
+                      <option value="">Sin pedido asociado</option>
+                      {pedidos.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.numero} · {p.estado === 'en_transito' ? 'En tránsito' : 'Pendiente'}{p.area ? ` · ${p.area}` : ''}
+                        </option>
                       ))}
-                    </div>
-                    <p className="text-xs text-blue-500 mt-2">
-                      Referencia — ingresa las cantidades reales abajo
-                    </p>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
-
-          {/* N° de colada — solo para produccion */}
-          {esFundicion && tipoEntrada === 'produccion' && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                N° de colada <span className="font-normal text-gray-400">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={colada}
-                onChange={e => setColada(e.target.value)}
-                placeholder="Ej: C-2026-001"
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-            </div>
-          )}
-
-          {/* Productos */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Productos *</label>
-            <div className="space-y-3">
-              {productos.map((prod, idx) => (
-                <div key={idx}>
-                  <div className="flex gap-2 items-center">
-                    <SelectorItem
-                      value={prod.item_nombre}
-                      items={items}
-                      onSelect={item => seleccionarProducto(idx, item)}
-                    />
-                    <input
-                      type="number" min="0.001" step="0.001" placeholder="Cant."
-                      value={prod.cantidad}
-                      onChange={e => actualizarProducto(idx, 'cantidad', e.target.value)}
-                      className="w-24 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                    />
-                    {prod.unidad && (
-                      <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
-                    )}
-                    {productos.length > 1 && (
-                      <button type="button"
-                        onClick={() => setProductos(prev => prev.filter((_, i) => i !== idx))}
-                        className="p-1.5 text-gray-300 hover:text-feisen-rojo transition-colors shrink-0">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                  {/* Peso total — solo produccion con peso_unitario */}
-                  {esFundicion && tipoEntrada === 'produccion' && prod.peso_unitario && prod.cantidad && parseFloat(prod.cantidad) > 0 && (
-                    <p className="mt-1 ml-1 text-xs text-orange-500 font-medium">
-                      ⚖️ Peso total: {(parseFloat(prod.cantidad) * parseFloat(prod.peso_unitario)).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg
-                    </p>
+                    </select>
                   )}
-                </div>
-              ))}
-            </div>
+                  {pedidoId && (() => {
+                    const ped = pedidos.find(p => p.id === pedidoId)
+                    const items_ped = ped?.pedido_items || []
+                    if (!items_ped.length) return null
+                    return (
+                      <div className="mt-2 bg-feisen-fondo border border-feisen-borde-suave rounded-lg p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">Lo que se pidió en {ped.numero}</p>
+                        <ul className="space-y-1">
+                          {items_ped.map((it, i) => (
+                            <li key={i} className="flex justify-between gap-3 text-sm">
+                              <span className="text-feisen-texto">{it.descripcion}</span>
+                              <span className="text-feisen-texto-2 tabular-nums whitespace-nowrap">{it.cantidad} {it.unidad}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-gray-400 mt-2">Es solo de referencia: arriba van las cantidades que llegaron.</p>
+                      </div>
+                    )
+                  })()}
+                </Campo>
+              </>
+            )}
+            {esProduccionFundicion && (
+              <Campo etiqueta="N° de colada" opcional>
+                <input type="text" value={colada} onChange={e => setColada(e.target.value)} placeholder="Ej: C-2026-001" className={claseInput} />
+              </Campo>
+            )}
+            {!esAlmacenista && (
+              <FirmaCanvas onFirma={setFirmaEntradaUrl} firmaDataUrl={firmaEntradaUrl} label="Firma del responsable" />
+            )}
+          </Bloque>
 
-            <button type="button"
-              onClick={() => setProductos(prev => [...prev, { ...PROD0 }])}
-              className="mt-3 flex items-center gap-1.5 text-sm text-feisen-azul font-medium hover:underline">
-              <Plus size={15} /> Agregar otro producto
-            </button>
-          </div>
-
-          {/* Firma del responsable - entradas (no aplica para almacenista) */}
-          {!esAlmacenista && (
-            <FirmaCanvas
-              onFirma={setFirmaEntradaUrl}
-              firmaDataUrl={firmaEntradaUrl}
-              label="Firma del responsable"
-            />
-          )}
-
-          <button type="submit" disabled={guardando}
-            className={`w-full text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity
-              ${esFundicion && tipoEntrada === 'produccion' ? 'bg-orange-600' : 'bg-feisen-azul'}`}>
-            {guardando ? 'Registrando...' : (esFundicion && tipoEntrada === 'produccion' ? '🔥 Registrar producción' : '📥 Registrar entrada')}
-          </button>
+          {barraAccion}
         </form>
       )}
 
-      {/* ── FORMULARIO SALIDA ── */}
+      {/* ── SALIDA ── */}
       {tipo === 'salida' && (
-        <form key={formKey} onSubmit={handleSalida} className="bg-white rounded-xl border border-feisen-borde p-6 space-y-5">
+        <form key={formKey} onSubmit={handleSalida} className="space-y-4">
 
-          {/* Tipo de salida — solo para FUNDICIÓN */}
+          {/* Tipo de salida de FUNDICIÓN */}
           {esFundicion && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de salida *</label>
-              <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                <button type="button"
-                  onClick={() => { setTipoSalida('externa'); setError('') }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                    ${tipoSalida === 'externa' ? 'bg-white shadow text-feisen-rojo' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <Factory size={15} /> Venta externa
-                </button>
-                <button type="button"
-                  onClick={() => { setTipoSalida('interna'); setError('') }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                    ${tipoSalida === 'interna' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
-                  <Wrench size={15} /> Transferencia interna
-                </button>
-              </div>
-            </div>
+            <Segmentado valor={tipoSalida} onCambiar={v => { setTipoSalida(v); setError('') }}
+              opciones={[
+                { valor: 'externa', texto: 'Venta externa',         icono: Factory },
+                { valor: 'interna', texto: 'Transferencia interna', icono: Wrench },
+              ]} />
           )}
-
-          {/* ── SALIDA MECANIZADOS ── */}
+          {/* Tipo de salida de MECANIZADOS */}
           {esMecanizados && (
-            <>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de salida *</label>
-                <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
-                  <button type="button"
-                    onClick={() => { setTipoSalidaMec('externa'); setError('') }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                      ${tipoSalidaMec === 'externa' ? 'bg-white shadow text-feisen-rojo' : 'text-gray-500 hover:text-gray-700'}`}>
-                    🏭 Cliente externo
-                  </button>
-                  <button type="button"
-                    onClick={() => { setTipoSalidaMec('produccion'); setError('') }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors
-                      ${tipoSalidaMec === 'produccion' ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
-                    ⚙️ Producción interna
-                  </button>
-                </div>
-              </div>
-
-              {tipoSalidaMec === 'externa' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">N° de orden *</label>
-                  <input
-                    type="text"
-                    value={numeroOrden}
-                    onChange={e => setNumeroOrden(e.target.value)}
-                    placeholder="Ej: ORD-2026-001"
-                    className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
-                  />
-                </div>
-              )}
-
-              {tipoSalidaMec === 'produccion' && (
-                <>
-                  {/* Destino */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">¿A dónde va? *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button type="button"
-                        onClick={() => setDestinoMec('ALMACEN')}
-                        className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
-                          ${destinoMec === 'ALMACEN' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-feisen-borde'}`}>
-                        🏬 Almacén
-                      </button>
-                      <button type="button"
-                        onClick={() => setDestinoMec('SOLDADURA Y ARMADO')}
-                        className={`flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold border-2 transition-colors
-                          ${destinoMec === 'SOLDADURA Y ARMADO' ? 'border-feisen-azul bg-blue-50 text-feisen-azul' : 'border-gray-200 text-gray-600 hover:border-feisen-borde'}`}>
-                        🔧 Soldadura y Armado
-                      </button>
-                    </div>
-                  </div>
-
-                  {selectorPaquete}
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Colaborador que recibe *</label>
-                    <InputConSugerencias
-                      value={colaborador}
-                      onChange={setColaborador}
-                      placeholder="Nombre del colaborador"
-                      sugerencias={sugsDB['feisen_colaboradores'] || []}
-                      colorRing="feisen-azul"
-                    />
-                  </div>
-                  <FirmaCanvas onFirma={setFirmaReceptorUrl} firmaDataUrl={firmaReceptorUrl}
-                    label="Firma del colaborador que recibe *" />
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Notas <span className="font-normal text-gray-400">(opcional)</span>
-                </label>
-                <textarea
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Observaciones adicionales…"
-                  rows={2}
-                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
-                />
-              </div>
-            </>
+            <Segmentado valor={tipoSalidaMec} onCambiar={v => { setTipoSalidaMec(v); setError('') }}
+              opciones={[
+                { valor: 'externa',    texto: 'Cliente externo',     icono: Factory },
+                { valor: 'produccion', texto: 'Producción interna',  icono: Wrench },
+              ]} />
           )}
 
-          {/* ── SALIDA ESTÁNDAR (no FUNDICIÓN, no MECANIZADOS) ── */}
-          {!esFundicion && !esMecanizados && (
-            <>
-              {selectorPaquete}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Recibido por *</label>
-                <InputConSugerencias
-                  value={receptor}
-                  onChange={setReceptor}
-                  placeholder="Nombre de quien recibe"
-                  sugerencias={sugsDB['feisen_receptores'] || []}
-                  colorRing="feisen-rojo"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Notas <span className="font-normal text-gray-400">(referencias de máquina, observaciones…)</span>
-                </label>
-                <textarea
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Ej: Para mezcladora #7, motor serie 1234, pedido urgente…"
-                  rows={3}
-                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── VENTA EXTERNA FUNDICIÓN ── */}
-          {esFundicion && tipoSalida === 'externa' && (
-            <>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">N° OF *</label>
-                <input
-                  type="text"
-                  value={numeroOF}
-                  onChange={e => setNumeroOF(e.target.value)}
-                  placeholder="Ej: OF-2026-042"
-                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Notas <span className="font-normal text-gray-400">(opcional)</span>
-                </label>
-                <textarea
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                  placeholder="Observaciones adicionales…"
-                  rows={2}
-                  className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo resize-none"
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── TRANSFERENCIA INTERNA ── */}
+          {/* Destino: transferencia interna de Fundición */}
           {esFundicion && tipoSalida === 'interna' && (
-            <>
-              {/* Destino interno */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Destino *</label>
-                <div className="flex flex-wrap gap-2">
-                  {todasBodegas.map(b => (
-                    <button key={b.id} type="button"
-                      onClick={() => setDestinoBodegaId(b.id)}
-                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border-2 transition-all
-                        ${destinoBodegaId === b.id
-                          ? 'border-feisen-azul bg-feisen-azul text-white'
-                          : 'border-gray-200 text-gray-500 hover:border-feisen-azul hover:text-feisen-azul'}`}>
-                      <Wrench size={15} />
-                      {b.nombre}
-                    </button>
-                  ))}
-                </div>
-                {destinoBodegaId && destinoBodegaId !== MECANIZADOS_BODEGA_ID && (
-                  <p className="mt-1.5 text-xs text-feisen-azul font-medium">
-                    → Se creará una entrada automática en <strong>{todasBodegas.find(b => b.id === destinoBodegaId)?.nombre}</strong>
-                  </p>
-                )}
-                {destinoBodegaId === MECANIZADOS_BODEGA_ID && (
-                  <p className="mt-1.5 text-xs text-amber-600 font-medium">
-                    ⏳ Quedará pendiente de aprobación — el stock se mueve solo cuando Mecanizados apruebe
-                  </p>
-                )}
+            <Bloque titulo="¿A qué bodega va?">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {todasBodegas.map(b => (
+                  <BotonOpcion key={b.id} activo={destinoBodegaId === b.id} onClick={() => setDestinoBodegaId(b.id)}>{b.nombre}</BotonOpcion>
+                ))}
               </div>
-            </>
+              {destinoBodegaId && destinoBodegaId !== MECANIZADOS_BODEGA_ID && (
+                <p className="text-xs text-feisen-texto-2">Se crea la entrada automática en <b>{todasBodegas.find(b => b.id === destinoBodegaId)?.nombre}</b>.</p>
+              )}
+              {destinoBodegaId === MECANIZADOS_BODEGA_ID && (
+                <p className="text-xs text-amber-700">Queda pendiente de aprobación: el stock se mueve cuando Mecanizados la apruebe.</p>
+              )}
+            </Bloque>
           )}
 
-          {/* Productos — siempre visible */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Productos *</label>
-            <div className="space-y-3">
-              {sProductos.map((prod, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
-                  <SelectorItem
-                    value={prod.item_nombre}
-                    items={items}
-                    onSelect={item => seleccionarSProducto(idx, item)}
-                  />
-                  <input
-                    type="number" min="0.001" step="0.001" placeholder="Cant."
-                    value={prod.cantidad}
-                    onChange={e => actualizarSProducto(idx, 'cantidad', e.target.value)}
-                    className="w-24 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-rojo"
-                  />
-                  {prod.unidad && (
-                    <span className="text-xs text-gray-400 w-8 shrink-0">{prod.unidad}</span>
-                  )}
-                  {sProductos.length > 1 && (
-                    <button type="button"
-                      onClick={() => setSProductos(prev => prev.filter((_, i) => i !== idx))}
-                      className="p-1.5 text-gray-300 hover:text-feisen-rojo transition-colors shrink-0">
-                      <Trash2 size={16} />
+          {/* Destino: producción interna de Mecanizados */}
+          {esMecanizados && tipoSalidaMec === 'produccion' && (
+            <Bloque titulo="¿A dónde va?">
+              <div className="grid grid-cols-2 gap-2">
+                <BotonOpcion activo={destinoMec === 'ALMACEN'} onClick={() => setDestinoMec('ALMACEN')}>Almacén</BotonOpcion>
+                <BotonOpcion activo={destinoMec === 'SOLDADURA Y ARMADO'} onClick={() => setDestinoMec('SOLDADURA Y ARMADO')}>Soldadura y Armado</BotonOpcion>
+              </div>
+            </Bloque>
+          )}
+
+          {/* Paquetes de piezas por máquina */}
+          {usaPaquetes && (
+            <Bloque titulo="Sacar un paquete por máquina" detalle="opcional">
+              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 snap-x [scrollbar-width:none]">
+                {paquetesBodega.map(p => {
+                  const activo = paqueteSelId === p.id
+                  return (
+                    <button key={p.id} type="button" aria-pressed={activo}
+                      onClick={() => { setPaqueteSelId(activo ? '' : p.id); setMultiplicadorPaq(1) }}
+                      className={`snap-start shrink-0 w-48 text-left rounded-lg border px-3 py-2.5 transition-colors active:scale-[.98]
+                        ${activo ? 'border-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde bg-white hover:bg-feisen-fondo'}`}>
+                      <span className="block text-sm font-semibold text-feisen-texto leading-snug line-clamp-2">{p.nombre}</span>
+                      <span className="block text-xs text-feisen-texto-2 mt-0.5">{(p.paquete_items || []).length} productos por máquina</span>
                     </button>
-                  )}
+                  )
+                })}
+              </div>
+              {paqueteSelId && (
+                <div className="flex flex-wrap items-center gap-3 bg-feisen-fondo rounded-lg p-3">
+                  <p className="flex-1 min-w-[10rem] text-sm text-feisen-texto-2">¿Para cuántas máquinas?</p>
+                  <Contador valor={String(multiplicadorPaq)} onCambiar={v => setMultiplicadorPaq(v)} min={1} etiqueta="Máquinas" ancho="w-14" />
+                  <button type="button" onClick={aplicarPaquete}
+                    className="border border-feisen-azul text-feisen-azul bg-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave active:scale-[.98] transition">
+                    Agregar {(paquetesBodega.find(p => p.id === paqueteSelId)?.paquete_items || []).length} productos
+                  </button>
                 </div>
-              ))}
-            </div>
-            <button type="button"
-              onClick={() => setSProductos(prev => [...prev, { ...PROD0 }])}
-              className="mt-3 flex items-center gap-1.5 text-sm text-feisen-rojo font-medium hover:underline">
-              <Plus size={15} /> Agregar otro producto
-            </button>
-          </div>
+              )}
+            </Bloque>
+          )}
+
+          {listaProductos}
+
+          {/* Quién recibe / datos de la salida */}
+          {esMecanizados && tipoSalidaMec === 'externa' && (
+            <Bloque titulo="Datos de la salida">
+              <Campo etiqueta="N° de orden">
+                <input type="text" value={numeroOrden} onChange={e => setNumeroOrden(e.target.value)} placeholder="Ej: ORD-2026-001" className={claseInput} />
+              </Campo>
+              {campoNotas()}
+            </Bloque>
+          )}
+          {esMecanizados && tipoSalidaMec === 'produccion' && (
+            <Bloque titulo="Quién recibe">
+              <Campo etiqueta="Colaborador que recibe">
+                <InputConSugerencias value={colaborador} onChange={setColaborador} placeholder="Nombre del colaborador"
+                  sugerencias={sugsDB['feisen_colaboradores'] || []} />
+              </Campo>
+              <FirmaCanvas onFirma={setFirmaReceptorUrl} firmaDataUrl={firmaReceptorUrl} label="Firma del colaborador que recibe" />
+              {campoNotas()}
+            </Bloque>
+          )}
+          {!esFundicion && !esMecanizados && (
+            <Bloque titulo="Quién recibe">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Campo etiqueta="Recibido por">
+                  <InputConSugerencias value={receptor} onChange={setReceptor} placeholder="Nombre de quien recibe"
+                    sugerencias={sugsDB['feisen_receptores'] || []} />
+                </Campo>
+                <Campo etiqueta="Notas" opcional>
+                  <input type="text" value={notas} onChange={e => setNotas(e.target.value)}
+                    placeholder="Ej: mezcladora #7, pedido urgente" className={claseInput} />
+                </Campo>
+              </div>
+            </Bloque>
+          )}
+          {esFundicion && tipoSalida === 'externa' && (
+            <Bloque titulo="Datos de la venta">
+              <Campo etiqueta="N° OF">
+                <input type="text" value={numeroOF} onChange={e => setNumeroOF(e.target.value)} placeholder="Ej: OF-2026-042" className={claseInput} />
+              </Campo>
+              {campoNotas()}
+            </Bloque>
+          )}
+          {esFundicion && tipoSalida === 'interna' && (
+            <Bloque titulo="Notas">{campoNotas()}</Bloque>
+          )}
 
           {/* Firma del responsable — no aplica para mecanizados producción ni para almacenista */}
           {!esAlmacenista && !(esMecanizados && tipoSalidaMec === 'produccion') && (
-            <FirmaCanvas
-              onFirma={setFirmaDataUrl}
-              firmaDataUrl={firmaDataUrl}
-              label="Firma del responsable *"
-            />
+            <Bloque titulo="Firma">
+              <FirmaCanvas onFirma={setFirmaDataUrl} firmaDataUrl={firmaDataUrl} label="Firma del responsable" />
+            </Bloque>
           )}
 
-          <button type="submit" disabled={guardando}
-            className="w-full bg-feisen-rojo text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {guardando ? 'Registrando...' : '📤 Registrar salida'}
-          </button>
+          {barraAccion}
         </form>
       )}
 
@@ -1250,27 +1090,17 @@ export default function RegistrarMovimientoAlmacenista() {
       {modalListas && (
         <Modal titulo="Mis listas de sugerencias" onCerrar={() => { setModalListas(false); setNuevaSug('') }}>
           <div className="space-y-4">
-            {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-              {[
-                { key: 'feisen_proveedores', label: 'Proveedores' },
-                { key: 'feisen_receptores',  label: 'Receptores'  },
-              ].map(t => (
-                <button key={t.key} type="button"
-                  onClick={() => { setTabLista(t.key); setNuevaSug('') }}
-                  className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors
-                    ${tabLista === t.key ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            <Segmentado valor={tabLista} onCambiar={k => { setTabLista(k); setNuevaSug('') }}
+              opciones={[
+                { valor: 'feisen_proveedores', texto: 'Proveedores' },
+                { valor: 'feisen_receptores',  texto: 'Quienes reciben' },
+              ]} />
 
-            {/* Lista actual */}
-            <div className="max-h-52 overflow-y-auto space-y-1.5">
+            <div className="max-h-52 overflow-y-auto divide-y divide-feisen-borde-suave border border-feisen-borde rounded-lg">
               {(sugsDB[tabLista] || []).length === 0
-                ? <p className="text-sm text-gray-400 text-center py-6">Sin entradas todavía.</p>
+                ? <p className="text-sm text-feisen-texto-2 text-center py-6">Todavía no hay nombres. Se guardan solos al registrar, o agrégalos abajo.</p>
                 : (sugsDB[tabLista] || []).map((s, i) => (
-                    <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                    <div key={i} className="flex items-center gap-2 px-3 py-1.5">
                       {editandoSug?.key === tabLista && editandoSug?.idx === i ? (
                         <input
                           autoFocus
@@ -1281,40 +1111,37 @@ export default function RegistrarMovimientoAlmacenista() {
                             if (e.key === 'Enter') guardarEdicionSug(tabLista, i, editandoSug.valor)
                             if (e.key === 'Escape') setEditandoSug(null)
                           }}
-                          className="flex-1 text-sm border border-feisen-azul rounded-lg px-2 py-0.5 focus:outline-none"
+                          className="flex-1 border border-feisen-azul rounded-md px-2 py-1 focus:outline-none"
                         />
                       ) : (
-                        <span
-                          className="flex-1 text-sm text-gray-700 cursor-pointer hover:text-feisen-azul"
-                          onClick={() => setEditandoSug({ key: tabLista, idx: i, valor: s })}
-                          title="Click para editar">
+                        <button type="button" className="flex-1 text-left text-sm text-feisen-texto py-1.5 hover:text-feisen-azul"
+                          onClick={() => setEditandoSug({ key: tabLista, idx: i, valor: s })} title="Toca para editar">
                           {s}
-                        </span>
+                        </button>
                       )}
-                      <button type="button" onClick={() => eliminarSugerencia(tabLista, s)}
-                        className="p-1 text-gray-300 hover:text-feisen-rojo transition-colors flex-shrink-0">
-                        <Trash2 size={14} />
+                      <button type="button" onClick={() => eliminarSugerencia(tabLista, s)} aria-label={`Quitar ${s}`}
+                        className="p-2 text-gray-400 hover:text-feisen-rojo transition-colors flex-shrink-0">
+                        <Trash2 size={15} />
                       </button>
                     </div>
                   ))
               }
             </div>
 
-            {/* Agregar */}
             <div className="flex gap-2">
               <input
                 value={nuevaSug}
                 onChange={e => setNuevaSug(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); agregarSugerenciaManual(tabLista, nuevaSug) } }}
-                placeholder="Agregar nombre..."
-                className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+                placeholder="Agregar nombre…"
+                className={claseInput + ' flex-1'}
               />
               <button type="button" onClick={() => agregarSugerenciaManual(tabLista, nuevaSug)}
-                className="bg-feisen-azul text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90">
+                className="bg-feisen-azul text-white px-4 rounded-lg text-sm font-semibold hover:opacity-90">
                 Agregar
               </button>
             </div>
-            <p className="text-xs text-gray-400">Los cambios se guardan automáticamente y se sincronizan entre dispositivos.</p>
+            <p className="text-xs text-gray-400">Los cambios se guardan solos y se ven en todos tus dispositivos.</p>
           </div>
         </Modal>
       )}

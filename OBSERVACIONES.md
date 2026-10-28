@@ -1634,3 +1634,17 @@ el avance se registra a diario y la orden se cierra a mano.
   - Registrar: Salida/Entrada como dos botones, paquetes como tarjetas con "¿para cuántas máquinas?", líneas con − / +, alerta roja si se pide más de lo que hay, botón fijo abajo con resumen, aviso corto al guardar y formulario limpio.
   - Historial: un movimiento = una fila ("X y 11 más"), agrupado por día, chips con conteo, panel lateral de detalle, Editar/Eliminar en menú ⋯ y eliminar con confirmación en la misma pantalla.
 - El aviso que se cierra solo se haría propio (sin librería nueva) salvo que Angie apruebe Sonner.
+
+## 2026-10-28 — Registrar movimiento e Historial rediseñados (implementado)
+- Piezas comunes nuevas en `src/components/shared/ui.jsx`: `EncabezadoPagina`, `ChipBodega`, `Segmentado`, `Contador` (− / +), `PanelLateral` (drawer, Esc/X/fuera), `useAviso` (aviso abajo que se cierra solo; hecho en casa, sin librería) y `useAtajoBuscar` (tecla "/"). Usarlas en las próximas pantallas (Inventario físico, Kardex, Corte).
+- `RegistrarMovimientoAlmacenista.jsx`: misma lógica de guardado (validaciones, transferencias, Fundición, Mecanizados, pedidos, firmas). Cambia la forma:
+  - Salida/Entrada como selector grande; los subtipos de Fundición/Mecanizados también.
+  - Productos: buscador con resultados en línea (`coincideBusqueda`) + una tarjeta por producto con − / +. Se carga el `stock` de la bodega para mostrar "Disponible", "Quedan" y pintar en rojo la línea que pide más de lo que hay (la validación del servidor antes de guardar sigue igual).
+  - Paquetes como tarjetas + "¿para cuántas máquinas?". **Ahora SUMAN a la lista** (antes la reemplazaban), para sacar varios paquetes en una salida.
+  - Botón principal fijo abajo (sticky, encima de la barra del celular) con el resumen. Botón azul siempre (antes rojo en salidas / naranja en producción: rojo queda solo para problemas).
+  - Al guardar: aviso "Salida SAL-XX-0143 registrada · Ver" y el formulario queda limpio arriba. Los errores suben la pantalla para verse.
+  - Gotcha: `space-y-*` del contenedor le pone margin-top a los hijos `fixed` (panel, aviso) → se usan con `!mt-0`.
+- `Historial.jsx`: misma lógica (editar, revertir, eliminar, par de transferencia). Lista agrupada por día y por número (una fila por movimiento: "X y 11 más", cantidad con signo), chips con conteo (Todos/Salidas/Entradas/Editados), fechas en un chip, búsqueda por palabras sin tildes, panel lateral con datos, productos y firmas. Las acciones de admin van por línea en el menú ⋯ del panel. Al refrescar ya no se pone toda la pantalla en "Cargando".
+- Se quitó el filtro por producto con lista desplegable (la búsqueda ya encuentra por producto); el `?item=` de la URL sigue funcionando como chip que se quita con la x.
+- Pendiente: `RegistrarMovimiento.jsx` (el de LOGÍSTICA) sigue con el diseño viejo.
+- Revisión local sin base: `vite.mov-demo.config.mjs` (fuera de git) con un Supabase falso en el scratchpad de la sesión; abrir `http://[::1]:5178/movimientos?rol=ADMIN`.

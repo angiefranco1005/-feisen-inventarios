@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
@@ -9,12 +9,8 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { useBodegasConsulta } from '../consultor/useBodegasConsulta'
 import { coincideBusqueda } from '../../utils/busqueda'
-import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
-
-const TIPO_CONFIG = {
-  entrada: { label: 'Entrada', color: 'bg-green-100 text-green-700' },
-  salida:  { label: 'Salida',  color: 'bg-red-100 text-red-700'   },
-}
+import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, Pencil, Plus, CalendarDays, MoreHorizontal, FileText, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 
 // Devuelve los ajustes de stock que corresponden a un movimiento, con el
 // mismo criterio que usa el trigger fn_actualizar_stock en la base de datos
@@ -175,8 +171,7 @@ export default function Historial() {
   const [confirmDelete,      setConfirmDelete]      = useState(null)
   const [eliminando,         setEliminando]         = useState(false)
   const [msg,                setMsg]                = useState(null)
-  const [busquedaProducto,   setBusquedaProducto]   = useState('')
-  const [mostrarListaProd,   setMostrarListaProd]   = useState(false)
+  const [busquedaProducto,   setBusquedaProducto]   = useState('') // nombre del producto filtrado desde ?item=
   const [filtroUsuario,      setFiltroUsuario]      = useState('')
   const [editModal,          setEditModal]          = useState(null)
   const [editForm,           setEditForm]           = useState({})
@@ -185,6 +180,19 @@ export default function Historial() {
   const [editados,           setEditados]           = useState(new Set())
   const [fechaInicio,        setFechaInicio]        = useState('')
   const [fechaFin,           setFechaFin]           = useState('')
+  const [verFechas,          setVerFechas]          = useState(false)
+  const [detalle,            setDetalle]            = useState(null) // número del movimiento abierto en el panel
+  const [menuLinea,          setMenuLinea]          = useState(null) // línea con las acciones a la vista
+  const buscarRef = useRef(null)
+  const [aviso, avisar] = useAviso()
+  useAtajoBuscar(buscarRef)
+
+  // Los mensajes de éxito salen como aviso corto abajo; errores y alertas se quedan a la vista
+  useEffect(() => {
+    if (msg?.tipo === 'exito') { avisar(msg.texto.replace(/^[✅⚠️\s]+/u, '')); setMsg(null) }
+  }, [msg])
+
+  function cerrarDetalle() { setDetalle(null); setMenuLinea(null); setMsg(null) }
 
   useEffect(() => {
     if (esConsultor && bodegasConsulta === undefined) return
@@ -363,6 +371,8 @@ export default function Historial() {
       setMsg(par
         ? { tipo: 'alerta', texto: `Producto corregido. Este movimiento es parte de una transferencia: edita también ${par.numero || 'el movimiento par'} para cambiar el producto en la otra bodega.` }
         : { tipo: 'exito', texto: `Producto corregido: ${cambios.item_id.de} → ${cambios.item_id.a}. El stock se movió al producto correcto.` })
+    } else {
+      setMsg({ tipo: 'exito', texto: `Cambios guardados en ${m.numero || 'el movimiento'}` })
     }
 
     setEditados(prev => new Set([...prev, m.id]))
@@ -435,6 +445,7 @@ export default function Historial() {
       }
     }
 
+    setMsg(prev => prev?.tipo === 'error' ? prev : { tipo: 'exito', texto: `${m.items?.nombre || 'Movimiento'} revertido (${numero})` })
     setRevirtiendo(false)
     setConfirmRevert(null)
     cargar()
@@ -470,6 +481,8 @@ export default function Historial() {
     setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
     if (fallosStock.length > 0) {
       setMsg({ tipo: 'error', texto: `⚠️ El movimiento se eliminó, pero: ${fallosStock.join('; ')}.` })
+    } else {
+      setMsg({ tipo: 'exito', texto: `${m.items?.nombre || 'Producto'} eliminado de ${m.numero || 'el movimiento'}` })
     }
     setConfirmDelete(null)
     setEliminando(false)
@@ -487,360 +500,186 @@ export default function Historial() {
       ).sort((a, b) => a.nombre.localeCompare(b.nombre))
     : []
 
-  const filtrados = movimientos.filter(m => {
-    const matchTipo    = filtroTipo === 'todos' || m.tipo === filtroTipo
-    const matchItem    = !filtroItem || m.item_id === filtroItem
-    const matchUsuario = !filtroUsuario || m.usuario_id === filtroUsuario
-    const matchBusqueda = !busqueda ||
-      m.items?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.referencia?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.serial_motor?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.numero_of?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.numero?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.proveedor?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      m.cliente?.toLowerCase().includes(busqueda.toLowerCase())
-    return matchTipo && matchItem && matchUsuario && matchBusqueda
-  })
+  // Búsqueda por palabras sueltas, sin tildes, en número, producto, proveedor, quién recibe, OF…
+  const textoBusqueda = m => [m.numero, m.items?.nombre, m.referencia, m.serial_motor, m.numero_of, m.proveedor, m.cliente, m.destino].filter(Boolean).join(' ')
+  const filtradosBase = movimientos.filter(m =>
+    (!filtroItem || m.item_id === filtroItem) &&
+    (!filtroUsuario || m.usuario_id === filtroUsuario) &&
+    (!busqueda.trim() || coincideBusqueda(textoBusqueda(m), busqueda))
+  )
 
-  // Agrupar por número de movimiento
-  const grupos = Object.values(
-    filtrados.reduce((acc, m) => {
+  // Agrupar por número de movimiento: un movimiento con 12 productos es una sola fila
+  const gruposBase = Object.values(
+    filtradosBase.reduce((acc, m) => {
       const key = m.numero || m.id
-      if (!acc[key]) acc[key] = { numero: key, lineas: [], tipo: m.tipo, created_at: m.created_at, usuario: m.profiles?.nombre, revertido: m.revertido }
+      if (!acc[key]) acc[key] = { numero: key, lineas: [], tipo: m.tipo, created_at: m.created_at, revertido: m.revertido }
       acc[key].lineas.push(m)
       return acc
     }, {})
   )
+  const esEditado = g => g.lineas.some(l => editados.has(l.id))
+  const conteos = {
+    todos:    gruposBase.length,
+    salida:   gruposBase.filter(g => g.tipo === 'salida').length,
+    entrada:  gruposBase.filter(g => g.tipo === 'entrada').length,
+    editados: gruposBase.filter(esEditado).length,
+  }
+  const grupos = gruposBase.filter(g =>
+    filtroTipo === 'todos' || (filtroTipo === 'editados' ? esEditado(g) : g.tipo === filtroTipo))
 
-  const [abierto,    setAbierto]    = useState(null)
-  const [firmaModal, setFirmaModal] = useState(null) // base64 de la firma a visualizar
-  const toggleGrupo = (key) => setAbierto(prev => prev === key ? null : key)
+  // Secciones por día (Hoy, Ayer, martes 21 de octubre…)
+  const porDia = []
+  for (const g of grupos) {
+    const clave = claveDia(g.lineas[0])
+    let sec = porDia.find(s => s.clave === clave)
+    if (!sec) { sec = { clave, grupos: [] }; porDia.push(sec) }
+    sec.grupos.push(g)
+  }
+  porDia.sort((a, b) => b.clave.localeCompare(a.clave))
 
-  if (cargando) return <Spinner texto="Cargando historial..." />
+  // Detalle abierto: todas las líneas del movimiento (sin filtros)
+  const lineasDetalle = detalle ? movimientos.filter(m => (m.numero || m.id) === detalle) : []
+
+  // Spinner solo en la primera carga: al refrescar (después de editar, revertir…) la lista y el panel se quedan
+  if (cargando && movimientos.length === 0) return <Spinner texto="Cargando historial..." />
+
+  const hayFechas = !!(fechaInicio && fechaFin)
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-feisen-azul">Historial de movimientos</h1>
-        <button onClick={() => cargar(fechaInicio, fechaFin)} title="Refrescar"
-          className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
-          <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
+    <div className="max-w-5xl mx-auto space-y-4">
+      {aviso}
+      <EncabezadoPagina modulo="Inventarios" titulo="Historial de movimientos"
+        subtitulo={esAdmin ? 'Todo lo que entra y sale de las bodegas.' : esAlmacenista ? 'Los movimientos que tú registraste.' : 'Lo que entra y sale de tu bodega.'}>
+        <button onClick={() => cargar(fechaInicio, fechaFin)} title="Actualizar" aria-label="Actualizar"
+          className="p-2.5 rounded-lg border border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo transition-colors">
+          <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
         </button>
-      </div>
-
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por N° mov, producto, proveedor, serial, OF..."
-            className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
-        </div>
-        {/* Selector de producto buscable */}
-        <div className="relative w-64 shrink-0">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={busquedaProducto}
-            onChange={e => { setBusquedaProducto(e.target.value); setMostrarListaProd(true); if (!e.target.value) { setFiltroItem(''); } }}
-            onFocus={() => setMostrarListaProd(true)}
-            onBlur={() => setTimeout(() => setMostrarListaProd(false), 150)}
-            placeholder="Filtrar por producto..."
-            className="w-full border border-gray-200 rounded-xl pl-8 pr-8 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul text-gray-700"
-          />
-          {busquedaProducto && (
-            <button type="button" onClick={() => { setBusquedaProducto(''); setFiltroItem('') }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
-              <X size={14} />
-            </button>
-          )}
-          {mostrarListaProd && (
-            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-              <button type="button" onMouseDown={() => { setFiltroItem(''); setBusquedaProducto(''); setMostrarListaProd(false) }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 border-b">
-                Todos los productos
-              </button>
-              {items
-                .filter(i => !busquedaProducto.trim() || i.nombre.toLowerCase().includes(busquedaProducto.toLowerCase()))
-                .slice(0, 30)
-                .map(i => (
-                  <button key={i.id} type="button"
-                    onMouseDown={() => { setFiltroItem(i.id); setBusquedaProducto(i.nombre + (i.bodegas?.nombre ? ` (${i.bodegas.nombre})` : '')); setMostrarListaProd(false) }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-0 ${filtroItem === i.id ? 'bg-blue-50 text-feisen-azul font-medium' : 'text-gray-700'}`}>
-                    <span className="font-medium">{i.nombre}</span>
-                    {i.bodegas?.nombre && <span className="ml-1 text-xs text-gray-400">· {i.bodegas.nombre}</span>}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        {(esAdmin || esLogistica) && usuariosUnicos.length > 0 && (
-          <select value={filtroUsuario} onChange={e => setFiltroUsuario(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-feisen-azul shrink-0">
-            <option value="">Todos los usuarios</option>
-            {usuariosUnicos.map(u => (
-              <option key={u.id} value={u.id}>{u.nombre.split(' ').slice(0,2).join(' ')}</option>
-            ))}
-          </select>
+        {!esConsultor && (
+          <Link to="/movimientos/nuevo"
+            className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 py-2.5 text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
+            <Plus size={16} /> Nuevo movimiento
+          </Link>
         )}
-        <div className="flex gap-2">
-          {['todos', 'entrada', 'salida'].map(t => (
-            <button key={t} onClick={() => setFiltroTipo(t)}
-              className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors
-                ${filtroTipo === t ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-              {t === 'todos' ? 'Todos' : TIPO_CONFIG[t].label}
+      </EncabezadoPagina>
+
+      {msg && !(detalle && lineasDetalle.length > 0) && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+      {/* Búsqueda y filtros */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input ref={buscarRef} type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por número, producto, proveedor, OF, quién recibe…"
+            className="w-full border border-feisen-borde rounded-lg pl-10 pr-10 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+          <kbd className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 border border-feisen-borde rounded px-1.5">/</kbd>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none]">
+          {[['todos', 'Todos'], ['salida', 'Salidas'], ['entrada', 'Entradas'], ['editados', 'Editados']].map(([k, t]) => (
+            <button key={k} type="button" aria-pressed={filtroTipo === k} onClick={() => setFiltroTipo(k)}
+              className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+                ${filtroTipo === k ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+              {t} <span className={`tabular-nums ${filtroTipo === k ? 'text-white/70' : 'text-gray-400'}`}>{conteos[k].toLocaleString('es-CO')}</span>
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Filtro por rango de fechas */}
-      <div className="flex flex-wrap items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3 border border-gray-100">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide shrink-0">Rango de fechas</span>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 whitespace-nowrap">Desde</label>
-          <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-gray-500 whitespace-nowrap">Hasta</label>
-          <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
-        </div>
-        <button onClick={() => cargar(fechaInicio, fechaFin)}
-          disabled={!fechaInicio || !fechaFin || cargando}
-          className="px-4 py-2 rounded-xl text-sm font-semibold bg-feisen-azul text-white disabled:opacity-40 hover:bg-blue-800 transition-colors">
-          Buscar
-        </button>
-        {(fechaInicio || fechaFin) && (
-          <button onClick={() => { setFechaInicio(''); setFechaFin(''); cargar('', '') }}
-            className="px-3 py-2 rounded-xl text-sm text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 transition-colors">
-            <X size={13} /> Limpiar
+          <button type="button" aria-pressed={verFechas || hayFechas} onClick={() => setVerFechas(v => !v)}
+            className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+              ${hayFechas ? 'bg-feisen-azul-suave text-feisen-azul border-transparent' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+            <CalendarDays size={15} />
+            {hayFechas ? `${fechaCorta(fechaInicio)} – ${fechaCorta(fechaFin)}` : 'Fechas'}
           </button>
-        )}
-        {fechaInicio && fechaFin && (
-          <span className="text-xs text-feisen-azul font-semibold ml-1">
-            ⚡ Sin límite — todos los movimientos del periodo
-          </span>
-        )}
-        {!fechaInicio && !fechaFin && (
-          <span className="text-xs text-gray-400 ml-1">Sin filtro: muestra los últimos 5.000 movimientos</span>
-        )}
-      </div>
+          {(esAdmin || esLogistica) && usuariosUnicos.length > 0 && (
+            <select value={filtroUsuario} onChange={e => setFiltroUsuario(e.target.value)} aria-label="Filtrar por usuario"
+              className={`shrink-0 min-h-[36px] rounded-full border px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave
+                ${filtroUsuario ? 'bg-feisen-azul-suave text-feisen-azul border-transparent' : 'bg-white text-feisen-texto-2 border-feisen-borde'}`}>
+              <option value="">Todos los usuarios</option>
+              {usuariosUnicos.map(u => <option key={u.id} value={u.id}>{u.nombre.split(' ').slice(0, 2).join(' ')}</option>)}
+            </select>
+          )}
+          {filtroItem && (
+            <button type="button" onClick={() => { setFiltroItem(''); setBusquedaProducto('') }}
+              className="shrink-0 inline-flex items-center gap-1 min-h-[36px] bg-feisen-azul-suave text-feisen-azul rounded-full pl-3 pr-2 text-sm font-medium">
+              {busquedaProducto || 'Un producto'} <X size={14} />
+            </button>
+          )}
+        </div>
 
-      <div className="space-y-2">
-        {grupos.length === 0 ? (
-          <div className="bg-white rounded-2xl text-center py-16 text-gray-400 border border-gray-100">
-            <ArrowUpDown size={40} className="mx-auto mb-3 opacity-30" />
-            <p>No hay movimientos{busqueda ? ' que coincidan' : ''}.</p>
-          </div>
-        ) : grupos.map(g => {
-          const tc = TIPO_CONFIG[g.tipo] || { label: g.tipo, color: 'bg-gray-100 text-gray-600' }
-          const estaAbierto = abierto === g.numero
-          const primera = g.lineas[0]
-          const proveedor = primera.proveedor || primera.cliente || primera.referencia || null
-          const valorTotal = esAdmin
-            ? g.lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
-            : 0
-
-          return (
-            <div key={g.numero} className={`bg-white rounded-2xl border transition-all ${estaAbierto ? 'border-feisen-azul shadow-sm' : 'border-gray-100'} ${g.revertido ? 'opacity-50' : ''}`}>
-              {/* FILA RESUMEN — click para abrir */}
-              <button type="button" onClick={() => toggleGrupo(g.numero)}
-                className="w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-gray-50 rounded-2xl transition-colors">
-                {/* Flecha */}
-                <span className={`text-gray-400 transition-transform shrink-0 ${estaAbierto ? 'rotate-90' : ''}`}>▶</span>
-
-                {/* Número */}
-                <span className="font-mono text-xs text-gray-500 w-28 shrink-0">{g.numero}</span>
-
-                {/* Fecha */}
-                <span className="text-xs text-gray-400 w-20 shrink-0">
-                  {primera.fecha_movimiento
-                    ? new Date(primera.fecha_movimiento + 'T12:00:00').toLocaleDateString('es-CO')
-                    : new Date(g.created_at).toLocaleDateString('es-CO')
-                  }
-                </span>
-
-                {/* Tipo badge */}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${tc.color}`}>{tc.label}</span>
-
-                {/* Quién */}
-                {esAdmin && <span className="text-xs text-gray-500 hidden sm:block shrink-0 w-24">{primera.profiles?.nombre?.split(' ')[0]}</span>}
-
-                {/* Resumen productos */}
-                <span className="text-sm text-gray-700 font-medium flex-1 truncate">
-                  {g.lineas.length === 1
-                    ? g.lineas[0].items?.nombre
-                    : `${g.lineas.length} productos`}
-                </span>
-
-                {/* Destino interno / proveedor / receptor */}
-                {primera.destino
-                  ? <span className="text-xs text-feisen-azul font-medium hidden md:block shrink-0 max-w-36 truncate">→ {primera.destino}</span>
-                  : primera.proveedor === 'Producción interna'
-                    ? <span className="text-xs text-orange-500 font-medium hidden md:block shrink-0">🔥 Prod. interna</span>
-                    : proveedor && <span className="text-xs text-gray-400 hidden md:block shrink-0 max-w-32 truncate">{proveedor}</span>
-                }
-
-                {/* Valor total (admin) */}
-                {esAdmin && valorTotal > 0 && (
-                  <span className="text-xs font-semibold text-feisen-azul hidden lg:block shrink-0">
-                    ${valorTotal.toLocaleString('es-CO')}
-                  </span>
-                )}
-
-                {/* Indicador de firma en transferencias internas */}
-                {g.lineas.some(l => l.foto_remision_url?.startsWith('data:image')) && (
-                  <span title="Transferencia con firma" className="text-feisen-azul shrink-0">
-                    <PenLine size={14} />
-                  </span>
-                )}
-                {g.revertido && <span className="text-xs text-gray-400 shrink-0">REVERTIDO</span>}
+        {verFechas && (
+          <div className="flex flex-wrap items-end gap-3 bg-white border border-feisen-borde rounded-xl px-4 py-3">
+            <label className="text-xs font-medium text-feisen-texto-2 space-y-1">
+              <span className="block">Desde</span>
+              <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)}
+                className="border border-feisen-borde rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-feisen-azul" />
+            </label>
+            <label className="text-xs font-medium text-feisen-texto-2 space-y-1">
+              <span className="block">Hasta</span>
+              <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)}
+                className="border border-feisen-borde rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-feisen-azul" />
+            </label>
+            <button onClick={() => { cargar(fechaInicio, fechaFin); setVerFechas(false) }} disabled={!fechaInicio || !fechaFin}
+              className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-feisen-azul text-white disabled:opacity-40 hover:opacity-90">
+              Ver periodo
+            </button>
+            {(fechaInicio || fechaFin) && (
+              <button onClick={() => { setFechaInicio(''); setFechaFin(''); cargar('', ''); setVerFechas(false) }}
+                className="px-3 py-2.5 rounded-lg text-sm text-feisen-texto-2 border border-feisen-borde hover:bg-feisen-fondo">
+                Quitar fechas
               </button>
-
-              {/* DETALLE — visible cuando está abierto */}
-              {estaAbierto && (
-                <div className="border-t border-gray-100 px-4 pb-4 pt-2">
-                  <div className="space-y-2">
-                    {g.lineas.map(m => {
-                      const esReversion = !!m.revertido_en
-                      return (
-                        <div key={m.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5">
-                              {m.items?.nombre}
-                              {editados.has(m.id) && <span className="text-[10px] text-feisen-azul bg-blue-50 px-1.5 py-0.5 rounded-full font-semibold">✏️ editado</span>}
-                            </p>
-                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                              <span className="text-xs text-feisen-azul font-semibold">{m.cantidad} {m.items?.unidad_medida}</span>
-
-                              {/* Destino interno */}
-                              {m.destino && (
-                                <span className="text-xs text-feisen-azul font-medium">→ {m.destino}</span>
-                              )}
-
-                              {/* Producción interna vs proveedor real */}
-                              {m.proveedor === 'Producción interna'
-                                ? <span className="text-xs text-orange-500 font-medium">🔥 Producción interna</span>
-                                : m.proveedor && <span className="text-xs text-gray-400">Proveedor: {m.proveedor}</span>
-                              }
-
-                              {/* Colada (referencia en entradas de producción) */}
-                              {m.referencia && m.proveedor === 'Producción interna' && (
-                                <span className="text-xs text-orange-400">Colada: {m.referencia}</span>
-                              )}
-
-                              {/* Referencia genérica */}
-                              {m.referencia && m.proveedor !== 'Producción interna' && (
-                                <span className="text-xs text-gray-400">{m.referencia}</span>
-                              )}
-
-                              {/* N° OF */}
-                              {m.numero_of && <span className="text-xs text-gray-500 font-medium">OF: {m.numero_of}</span>}
-
-                              {m.serial_motor && <span className="text-xs text-gray-400">Serial: {m.serial_motor}</span>}
-                              {m.pedidos?.numero && <span className="text-xs text-feisen-azul">📋 {m.pedidos.numero}</span>}
-
-                              {/* Firma digital (base64) */}
-                              {m.foto_remision_url?.startsWith('data:image') && (
-                                <button type="button"
-                                  onClick={() => setFirmaModal(m.foto_remision_url)}
-                                  className="text-xs text-feisen-azul hover:underline">✍️ Ver firma</button>
-                              )}
-
-                              {/* Remisión (URL normal) */}
-                              {m.foto_remision_url && !m.foto_remision_url.startsWith('data:image') && (
-                                <a href={m.foto_remision_url} target="_blank" rel="noreferrer"
-                                  className="text-xs text-feisen-azul hover:underline">🖼 Ver remisión</a>
-                              )}
-
-                              {esReversion && <span className="text-xs text-feisen-rojo font-semibold">REVERSIÓN</span>}
-                              {esAdmin && m.precio_costo_snapshot > 0 && (
-                                <span className="text-xs text-gray-400">${Number(m.precio_costo_snapshot * m.cantidad).toLocaleString('es-CO')}</span>
-                              )}
-                            </div>
-                          </div>
-                          {esAdmin && (
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button onClick={() => abrirEdicion(m)}
-                                className="p-1.5 text-gray-300 hover:text-feisen-azul hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Editar">
-                                <Pencil size={14} />
-                              </button>
-                              {!m.revertido && !esReversion && (
-                                <button onClick={() => setConfirmRevert(m)}
-                                  className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Revertir">
-                                  <RotateCcw size={14} />
-                                </button>
-                              )}
-                              <button onClick={() => setConfirmDelete(m)}
-                                className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg transition-colors"
-                                title="Eliminar">
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
+            )}
+            <p className="w-full text-xs text-gray-400">
+              {hayFechas ? 'Se muestran todos los movimientos del periodo.' : 'Sin fechas se muestran los últimos 5.000 movimientos.'}
+            </p>
+          </div>
+        )}
       </div>
-      <p className="text-xs text-gray-400 text-right">
-        {fechaInicio && fechaFin
-          ? `Rango ${new Date(fechaInicio + 'T12:00:00').toLocaleDateString('es-CO')} – ${new Date(fechaFin + 'T12:00:00').toLocaleDateString('es-CO')} · ${grupos.length} registros (sin límite)`
-          : `Últimos 2.000 movimientos · ${grupos.length} registros`
-        }
+
+      {/* Lista agrupada por día */}
+      {porDia.length === 0 ? (
+        <div className="bg-white border border-feisen-borde rounded-xl text-center px-6 py-14">
+          <ArrowUpDown size={32} className="mx-auto mb-3 text-gray-300" />
+          {busqueda.trim()
+            ? <><p className="font-medium text-feisen-texto">Nada coincide con “{busqueda.trim()}”</p>
+                <p className="text-sm text-feisen-texto-2 mt-1">Busca por número (SAL-MG-0141) o por una palabra del producto.</p></>
+            : <><p className="font-medium text-feisen-texto">No hay movimientos con este filtro</p>
+                <p className="text-sm text-feisen-texto-2 mt-1">Prueba con “Todos” o cambia las fechas.</p></>}
+        </div>
+      ) : porDia.map(sec => (
+        <section key={sec.clave} className="space-y-1.5">
+          <h2 className="text-xs font-semibold text-feisen-texto-2 px-0.5">
+            {etiquetaDia(sec.clave)} <span className="font-normal text-gray-400">· {sec.grupos.length} {sec.grupos.length === 1 ? 'movimiento' : 'movimientos'}</span>
+          </h2>
+          <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden divide-y divide-feisen-borde-suave">
+            {sec.grupos.map(g => filaMovimiento(g))}
+          </div>
+        </section>
+      ))}
+      <p className="text-xs text-gray-400 text-right tabular-nums">
+        {grupos.length.toLocaleString('es-CO')} {grupos.length === 1 ? 'movimiento' : 'movimientos'}
+        {hayFechas ? ' en el periodo' : ' · últimos 5.000 registros'}
       </p>
 
-      {/* Modal firma digital */}
-      {firmaModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setFirmaModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-feisen-azul text-lg">✍️ Firma del responsable</h3>
-              <button onClick={() => setFirmaModal(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-gray-50">
-              <img src={firmaModal} alt="Firma del responsable"
-                className="w-full object-contain max-h-48" />
-            </div>
-            <p className="text-xs text-gray-400 mt-3 text-center">Firma registrada en el momento de la entrega</p>
-          </div>
-        </div>
-      )}
+      {/* Panel de detalle */}
+      {detalle && lineasDetalle.length > 0 && panelDetalle(lineasDetalle)}
 
       {/* Modal confirmación eliminación */}
       {confirmDelete && (
-        <Modal titulo="Eliminar movimiento" onCerrar={() => setConfirmDelete(null)}>
+        <Modal titulo="Eliminar del movimiento" onCerrar={() => setConfirmDelete(null)}>
           <div className="space-y-4">
-            <Alerta tipo="alerta" mensaje={
-              `¿Eliminar ${confirmDelete.numero || 'este movimiento'}? El stock se ajustará automáticamente para reflejar la eliminación.`
-            } />
-            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1">
-              <p><span className="text-gray-500">Tipo:</span> <span className="font-medium capitalize">{confirmDelete.tipo}</span></p>
-              <p><span className="text-gray-500">Producto:</span> <span className="font-medium">{confirmDelete.items?.nombre}</span></p>
-              <p><span className="text-gray-500">Cantidad:</span> <span className="font-medium">{confirmDelete.cantidad} {confirmDelete.items?.unidad_medida}</span></p>
-            </div>
+            <p className="text-sm text-feisen-texto">
+              Se elimina <b>{confirmDelete.items?.nombre}</b> ({cant(confirmDelete.cantidad)} {confirmDelete.items?.unidad_medida}) de {confirmDelete.numero || 'este movimiento'}.
+              {' '}{confirmDelete.tipo === 'salida' ? 'Esa cantidad vuelve al stock de la bodega.' : 'Esa cantidad se descuenta del stock de la bodega.'}
+            </p>
+            {confirmDelete.bodega_origen_id && confirmDelete.bodega_destino_id && confirmDelete.bodega_origen_id !== confirmDelete.bodega_destino_id && (
+              <Alerta tipo="alerta" mensaje="Es una transferencia entre bodegas: también se elimina su movimiento en la otra bodega." />
+            )}
+            <p className="text-xs text-feisen-texto-2">Esto no se puede deshacer.</p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDelete(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
               <button onClick={() => eliminarMovimiento(confirmDelete)} disabled={eliminando}
-                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+                className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {eliminando ? 'Eliminando…' : 'Eliminar'}
               </button>
             </div>
           </div>
@@ -851,11 +690,12 @@ export default function Historial() {
       {editModal && (
         <Modal titulo={`Editar ${editModal.numero || 'movimiento'}`} onCerrar={() => setEditModal(null)}>
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-            <div className="bg-blue-50 rounded-xl px-4 py-2.5 text-sm text-feisen-azul font-medium">
-              {editModal.items?.nombre} · {editModal.tipo === 'entrada' ? '↑ Entrada' : '↓ Salida'}
+            <div className="flex items-center gap-2 text-sm">
+              <BadgeTipo tipo={editModal.tipo} />
+              <span className="font-medium text-feisen-texto">{editModal.items?.nombre}</span>
             </div>
             <div>
-              <label className="text-xs text-gray-500 font-medium block mb-1">Producto</label>
+              <label className="text-xs text-feisen-texto-2 font-medium block mb-1">Producto</label>
               <SelectorProductoEdicion
                 items={items.filter(i => i.bodega_id === bodegaDelMovimiento(editModal))}
                 valorId={editForm.item_id}
@@ -880,55 +720,55 @@ export default function Historial() {
                 { key: 'precio_costo_snapshot', label: 'Precio costo ($)', type: 'number' },
                 { key: 'numero_of',        label: 'N° OF', type: 'text' },
                 { key: 'proveedor',        label: 'Proveedor', type: 'text' },
-                { key: 'cliente',          label: 'Cliente', type: 'text' },
+                { key: 'cliente',          label: 'Cliente / recibió', type: 'text' },
               ].map(({ key, label, type }) => (
                 <div key={key}>
-                  <label className="text-xs text-gray-500 font-medium block mb-1">{label}</label>
+                  <label className="text-xs text-feisen-texto-2 font-medium block mb-1">{label}</label>
                   <input type={type} step={type === 'number' ? '0.001' : undefined}
                     value={editForm[key] ?? ''}
                     onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                    className="w-full border border-feisen-borde rounded-lg px-3 py-2 focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
                 </div>
               ))}
             </div>
             {[
-              { key: 'referencia', label: 'Referencia' },
+              { key: 'referencia', label: 'Referencia / notas' },
               { key: 'serial_motor', label: 'Serial motor' },
             ].map(({ key, label }) => (
               <div key={key}>
-                <label className="text-xs text-gray-500 font-medium block mb-1">{label}</label>
+                <label className="text-xs text-feisen-texto-2 font-medium block mb-1">{label}</label>
                 <input type="text" value={editForm[key] ?? ''}
                   onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                  className="w-full border border-feisen-borde rounded-lg px-3 py-2 focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
               </div>
             ))}
             <div className="flex gap-3 pt-1">
               <button onClick={() => setEditModal(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
               <button onClick={guardarEdicion} disabled={editGuardando}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {editGuardando ? 'Guardando...' : 'Guardar cambios'}
+                className="flex-1 bg-feisen-azul text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {editGuardando ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
 
             {/* Historial de cambios */}
             {editHistorial.length > 0 && (
-              <div className="border-t border-gray-100 pt-4 space-y-2">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Historial de cambios</p>
+              <div className="border-t border-feisen-borde-suave pt-4 space-y-2">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Historial de cambios</p>
                 {editHistorial.map(e => (
-                  <div key={e.id} className="bg-gray-50 rounded-xl px-3 py-2.5 text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span className="font-semibold text-gray-700">{e.profiles?.nombre || '—'}</span>
+                  <div key={e.id} className="bg-feisen-fondo rounded-lg px-3 py-2.5 text-xs space-y-1">
+                    <div className="flex justify-between gap-2">
+                      <span className="font-semibold text-feisen-texto">{e.profiles?.nombre || '—'}</span>
                       <span className="text-gray-400">{new Date(e.created_at).toLocaleString('es-CO')}</span>
                     </div>
-                    {Object.entries(e.cambios).map(([campo, val]) => (
-                      <p key={campo} className="text-gray-600">
+                    {Object.entries(e.cambios || {}).map(([campo, val]) => (
+                      <p key={campo} className="text-feisen-texto-2">
                         <span className="font-medium">{val.label || campo}:</span>{' '}
-                        <span className="text-feisen-rojo line-through">{String(val.de ?? '—')}</span>
+                        <span className="line-through">{String(val.de ?? '—')}</span>
                         {' → '}
-                        <span className="text-green-600 font-medium">{String(val.a ?? '—')}</span>
+                        <span className="font-medium text-feisen-texto">{String(val.a ?? '—')}</span>
                       </p>
                     ))}
                   </div>
@@ -941,24 +781,20 @@ export default function Historial() {
 
       {/* Modal confirmación reversión */}
       {confirmRevert && (
-        <Modal titulo="Revertir movimiento" onCerrar={() => setConfirmRevert(null)}>
+        <Modal titulo="Revertir" onCerrar={() => setConfirmRevert(null)}>
           <div className="space-y-4">
-            <Alerta tipo="alerta" mensaje={
-              `¿Revertir ${confirmRevert.numero || 'este movimiento'}? Se creará un movimiento contrario y se ajustará el stock de "${confirmRevert.items?.nombre}".`
-            } />
-            <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-1">
-              <p><span className="text-gray-500">Tipo:</span> <span className="font-medium capitalize">{confirmRevert.tipo}</span></p>
-              <p><span className="text-gray-500">Producto:</span> <span className="font-medium">{confirmRevert.items?.nombre}</span></p>
-              <p><span className="text-gray-500">Cantidad:</span> <span className="font-medium">{confirmRevert.cantidad} {confirmRevert.items?.unidad_medida}</span></p>
-            </div>
+            <p className="text-sm text-feisen-texto">
+              Se crea un movimiento contrario para <b>{confirmRevert.items?.nombre}</b> ({cant(confirmRevert.cantidad)} {confirmRevert.items?.unidad_medida}) y el stock vuelve a como estaba.
+              El movimiento original queda en el historial marcado como revertido.
+            </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmRevert(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
+                className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
               <button onClick={() => revertir(confirmRevert)} disabled={revirtiendo}
-                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {revirtiendo ? 'Revirtiendo...' : 'Sí, revertir'}
+                className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {revirtiendo ? 'Revirtiendo…' : 'Revertir'}
               </button>
             </div>
           </div>
@@ -966,4 +802,203 @@ export default function Historial() {
       )}
     </div>
   )
+
+  // ── Fila de la lista ─────────────────────────────────────────────────────
+  // Se llaman como funciones (no como <Componente/>) para que React no las remonte en cada render
+  function filaMovimiento(g) {
+    const primera = g.lineas[0]
+    const esSalida = g.tipo === 'salida'
+    const unidades = new Set(g.lineas.map(l => l.items?.unidad_medida || ''))
+    const total = g.lineas.reduce((s, l) => s + Number(l.cantidad || 0), 0)
+    const contraparte = contraparteDe(primera)
+    const valorTotal = esAdmin ? g.lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0) : 0
+    return (
+      <button key={g.numero} type="button" onClick={() => setDetalle(g.numero)} aria-current={detalle === g.numero}
+        className={`w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 min-h-[64px] transition-colors
+          ${detalle === g.numero ? 'bg-feisen-azul-suave' : 'hover:bg-feisen-fondo'} ${g.revertido ? 'opacity-60' : ''}`}>
+        <IconoTipo tipo={g.tipo} />
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="font-mono text-xs text-feisen-texto">{g.numero}</span>
+            <BadgeTipo tipo={g.tipo} />
+            {esEditado(g) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
+            {g.revertido && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-gray-100 text-gray-500">Revertido</span>}
+            {g.lineas.some(l => l.revertido_en) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-feisen-rojo-suave text-feisen-rojo">Reversión</span>}
+          </span>
+          <span className="block text-sm text-feisen-texto truncate mt-0.5">{resumenProductos(g.lineas)}</span>
+          {(contraparte || (esAdmin && primera.profiles?.nombre)) && (
+            <span className="block text-xs text-feisen-texto-2 truncate">
+              {[contraparte, esAdmin ? primera.profiles?.nombre?.split(' ')[0] : null].filter(Boolean).join(' · ')}
+            </span>
+          )}
+        </span>
+        <span className="text-right">
+          <span className="block text-sm font-semibold text-feisen-texto tabular-nums whitespace-nowrap">
+            {unidades.size === 1
+              ? `${esSalida ? '−' : '+'}${cant(total)} ${[...unidades][0]}`
+              : `${g.lineas.length} productos`}
+          </span>
+          <span className="block text-xs text-gray-400 tabular-nums whitespace-nowrap">
+            {esAdmin && valorTotal > 0 && <span className="hidden sm:inline">{cop(valorTotal)} · </span>}{hora(g.created_at)}
+          </span>
+        </span>
+      </button>
+    )
+  }
+
+  // ── Panel lateral con el detalle del movimiento ──────────────────────────
+  function panelDetalle(lineas) {
+    const p = lineas[0]
+    const esSalida = p.tipo === 'salida'
+    const valorTotal = lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
+    const bodegas = [p.bodegas_origen?.nombre, p.bodegas_destino?.nombre].filter(Boolean)
+    const dato = (t, v) => v ? <div key={t}><dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t}</dt><dd className="text-sm text-feisen-texto mt-0.5 break-words">{v}</dd></div> : null
+    const firmas = [
+      p.foto_remision_url?.startsWith('data:image') && { t: 'Firma del responsable', src: p.foto_remision_url },
+      p.firma_receptor_url && { t: 'Firma de quien recibe', src: p.firma_receptor_url },
+    ].filter(Boolean)
+    return (
+      <PanelLateral etiqueta={`Detalle de ${detalle}`} onCerrar={cerrarDetalle} encabezado={
+        <div className="space-y-1.5">
+          <h3 className="font-mono text-base font-semibold text-feisen-texto">{detalle}</h3>
+          <div className="flex flex-wrap gap-1.5">
+            <BadgeTipo tipo={p.tipo} />
+            {lineas.some(l => editados.has(l.id)) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
+            {p.revertido && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-gray-100 text-gray-500">Revertido</span>}
+          </div>
+        </div>
+      }>
+        {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {dato('Fecha', `${fechaLarga(claveDia(p))} · ${hora(p.created_at)}`)}
+          {dato('Registró', p.profiles?.nombre)}
+          {dato(bodegas.length > 1 ? 'Bodegas' : 'Bodega', bodegas.join(' → '))}
+          {dato(esSalida ? 'Recibió' : 'Proveedor', esSalida ? p.cliente : p.proveedor)}
+          {dato('Destino', p.destino)}
+          {dato('N° OF / orden', p.numero_of)}
+          {dato('Pedido', p.pedidos?.numero)}
+          {dato(p.proveedor === 'Producción interna' ? 'Colada' : 'Notas', p.referencia)}
+          {dato('Serial motor', p.serial_motor)}
+          {esAdmin && valorTotal > 0 && dato('Valor', cop(valorTotal))}
+        </dl>
+
+        <section>
+          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1 flex justify-between">
+            <span>Productos · {lineas.length}</span><span>Cantidad</span>
+          </h4>
+          <ul className="divide-y divide-feisen-borde-suave">
+            {lineas.map(m => {
+              const esReversion = !!m.revertido_en
+              const abiertoMenu = menuLinea === m.id
+              return (
+                <li key={m.id} className="py-2.5">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-feisen-texto break-words">{m.items?.nombre || 'Producto eliminado'}</p>
+                      <p className="flex flex-wrap gap-1.5 mt-0.5">
+                        {editados.has(m.id) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
+                        {esReversion && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-feisen-rojo-suave text-feisen-rojo">Reversión</span>}
+                        {esAdmin && m.precio_costo_snapshot > 0 && <span className="text-xs text-gray-400 tabular-nums">{cop(m.precio_costo_snapshot * m.cantidad)}</span>}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-feisen-texto tabular-nums whitespace-nowrap pt-px">
+                      {esSalida ? '−' : '+'}{cant(m.cantidad)} {m.items?.unidad_medida}
+                    </span>
+                    {esAdmin && (
+                      <button type="button" onClick={() => setMenuLinea(abiertoMenu ? null : m.id)}
+                        aria-label={`Acciones de ${m.items?.nombre || 'la línea'}`} aria-expanded={abiertoMenu}
+                        className={`-my-1 p-2 rounded-lg text-gray-400 hover:text-feisen-texto hover:bg-feisen-fondo ${abiertoMenu ? 'bg-feisen-fondo text-feisen-texto' : ''}`}>
+                        <MoreHorizontal size={18} />
+                      </button>
+                    )}
+                  </div>
+                  {esAdmin && abiertoMenu && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <button type="button" onClick={() => { setMenuLinea(null); abrirEdicion(m) }}
+                        className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+                        <Pencil size={14} /> Editar
+                      </button>
+                      {!m.revertido && !esReversion && (
+                        <button type="button" onClick={() => { setMenuLinea(null); setConfirmRevert(m) }}
+                          className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+                          <RotateCcw size={14} /> Revertir
+                        </button>
+                      )}
+                      <button type="button" onClick={() => { setMenuLinea(null); setConfirmDelete(m) }}
+                        className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-rojo hover:bg-feisen-rojo-suave">
+                        <Trash2 size={14} /> Eliminar
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+
+        {firmas.map(f => (
+          <section key={f.t}>
+            <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">{f.t}</h4>
+            <div className="border border-feisen-borde-suave rounded-lg bg-feisen-fondo">
+              <img src={f.src} alt={f.t} className="w-full max-h-40 object-contain" />
+            </div>
+          </section>
+        ))}
+        {p.foto_remision_url && !p.foto_remision_url.startsWith('data:image') && (
+          <a href={p.foto_remision_url} target="_blank" rel="noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-feisen-azul font-medium hover:underline">
+            <FileText size={15} /> Ver remisión
+          </a>
+        )}
+      </PanelLateral>
+    )
+  }
+}
+
+// ── Ayudas de formato ───────────────────────────────────────────────────────
+const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
+const cop  = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
+const hora = f => new Date(f).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' })
+const claveDia = m => m.fecha_movimiento || new Date(m.created_at).toLocaleDateString('en-CA')
+const fechaCorta = d => new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+function fechaLarga(clave) {
+  const d = new Date(clave + 'T12:00:00')
+  const conAnio = d.getFullYear() !== new Date().getFullYear()
+  return d.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', ...(conAnio ? { year: 'numeric' } : {}) })
+}
+function etiquetaDia(clave) {
+  const hoy = new Date()
+  const ayer = new Date(); ayer.setDate(hoy.getDate() - 1)
+  if (clave === hoy.toLocaleDateString('en-CA')) return 'Hoy'
+  if (clave === ayer.toLocaleDateString('en-CA')) return 'Ayer'
+  const t = fechaLarga(clave)
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
+function resumenProductos(lineas) {
+  const n = lineas.map(l => l.items?.nombre || 'Producto eliminado')
+  if (n.length === 1) return n[0]
+  if (n.length === 2) return `${n[0]} y ${n[1]}`
+  return `${n[0]} y ${n.length - 1} más`
+}
+// A quién o de dónde: destino interno, quien recibe o proveedor
+function contraparteDe(m) {
+  if (m.destino) return `→ ${m.destino}`
+  if (m.tipo === 'salida') return m.cliente ? `Recibió ${m.cliente}` : (m.bodegas_destino?.nombre ? `→ ${m.bodegas_destino.nombre}` : null)
+  if (m.bodegas_origen?.nombre && m.bodegas_destino?.nombre && m.bodegas_origen.nombre !== m.bodegas_destino.nombre) return `Desde ${m.bodegas_origen.nombre}`
+  return m.proveedor || null
+}
+
+function IconoTipo({ tipo }) {
+  const entrada = tipo !== 'salida'
+  return (
+    <span className={`w-9 h-9 rounded-lg grid place-items-center shrink-0 ${entrada ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-feisen-fondo text-feisen-texto-2'}`}>
+      {entrada ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+    </span>
+  )
+}
+function BadgeTipo({ tipo }) {
+  return tipo === 'salida'
+    ? <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-gray-100 text-feisen-texto-2">Salida</span>
+    : <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-feisen-azul-suave text-feisen-azul">{tipo === 'entrada' ? 'Entrada' : tipo}</span>
 }
