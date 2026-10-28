@@ -21,6 +21,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
   const [npTelefono, setNpTelefono] = useState('')
 
   const [observaciones, setObservaciones] = useState('')
+  // Al generar la OC el pedido pasa solo a "En camino" con esta fecha estimada de llegada
+  const [fechaLlegada,  setFechaLlegada]  = useState(pedido.fecha_estimada_llegada || '')
 
   const [precios,     setPrecios]     = useState({})   // item_id -> precio_costo
   const [seleccion,   setSeleccion]   = useState({})   // pedido_item_id -> { incluir, cantidad, precio }
@@ -146,7 +148,26 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
         perfil?.nombre || ''
       )
 
-      onGuardado()
+      // El pedido pasa solo a "En camino" (antes había que marcarlo a mano y volver a
+      // escribir el número de OC). Si ya iba en camino o llegó una parte, solo se suma la
+      // OC nueva y se actualiza la fecha estimada si se escribió una.
+      const ocsPrevias = (pedido.numero_oc || '').trim()
+      const cambios = {
+        numero_oc: ocsPrevias && !ocsPrevias.includes(numero) ? `${ocsPrevias}, ${numero}` : (ocsPrevias || numero),
+        ...(fechaLlegada ? { fecha_estimada_llegada: fechaLlegada } : {}),
+        ...(pedido.estado === 'pendiente' ? { estado: 'en_transito' } : {}),
+      }
+      const { error: ePed } = await supabase.from('pedidos').update(cambios).eq('id', pedido.id)
+      if (!ePed) {
+        await supabase.from('pedido_historial').insert({
+          pedido_id: pedido.id, usuario_id: perfil.id,
+          accion: pedido.estado === 'pendiente' ? 'en_transito' : 'oc_generada',
+          detalle: `${numero} generada${fechaLlegada ? ` · llega ~${fechaLlegada}` : ''}`,
+        })
+      }
+      onGuardado(ePed
+        ? { tipo: 'alerta', texto: `${numero} generada, pero ${pedido.numero} no pasó a "En camino": ${ePed.message}. Márcalo a mano.` }
+        : { tipo: 'exito', texto: pedido.estado === 'pendiente' ? `${numero} generada · ${pedido.numero} va en camino` : `${numero} generada para ${pedido.numero}` })
     } catch (e) {
       setMsg({ tipo: 'error', texto: 'Error al generar la orden: ' + e.message })
       setGuardando(false)
@@ -235,6 +256,17 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
                   className="text-xs text-gray-500 font-medium">Usar un proveedor ya guardado</button>
               </div>
             )}
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-gray-700 block mb-1">Fecha estimada de llegada</label>
+            <input type="date" value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)}
+              className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 bg-white" />
+            <p className="text-xs text-feisen-azul bg-feisen-azul-suave rounded-lg px-3 py-2 mt-2">
+              {pedido.estado === 'pendiente'
+                ? <>Al generar la orden, <b>{pedido.numero}</b> pasa solo a <b>En camino</b> y quien lo pidió lo ve en el seguimiento.</>
+                : <>La orden queda ligada a <b>{pedido.numero}</b>; si cambias la fecha, se actualiza la llegada estimada.</>}
+            </p>
           </div>
 
           <div>

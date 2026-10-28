@@ -6,7 +6,8 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, AlertTriangle, PackageOpen, FileText, Download, Lock } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck } from 'lucide-react'
+import { useAviso } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
@@ -14,9 +15,9 @@ import { siguienteNumero } from '../../utils/siguienteNumero'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
-  en_transito:             { label: 'En tránsito',          color: 'bg-blue-100 text-blue-700',     icon: Truck        },
+  en_transito:             { label: 'En camino',            color: 'bg-blue-100 text-blue-700',     icon: Truck        },
   recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
-  parcialmente_recibido:   { label: 'Parcial ⚠️',           color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
+  parcialmente_recibido:   { label: 'Llegó una parte',      color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
   cerrado:                 { label: 'Cerrado',              color: 'bg-gray-100 text-gray-500',     icon: CheckCircle  },
 }
 
@@ -31,7 +32,8 @@ const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
 const HISTORIAL_LABELS = {
   creado:                  '✅ Pedido creado',
   editado:                 '✏️ Pedido editado',
-  en_transito:             '🚚 Marcado en tránsito',
+  en_transito:             '🚚 Pasó a En camino',
+  oc_generada:             '🧾 Orden de compra generada',
   recibido:                '📦 Recibido',
   parcialmente_recibido:   '⚠️ Recibido parcialmente',
   cerrado:                 '🔒 Pedido cerrado',
@@ -45,9 +47,111 @@ const MOTIVOS_CIERRE = [
   'Se creó otra orden para cambiar de proveedor',
 ]
 
+// Días de atraso de un pedido en camino: la fecha estimada de llegada ya pasó y no ha llegado todo
+const HOY_ISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+function diasDeAtraso(p) {
+  if (!(p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') || !p.fecha_estimada_llegada) return 0
+  const eta = p.fecha_estimada_llegada.slice(0, 10), hoy = HOY_ISO()
+  if (eta >= hoy) return 0
+  return Math.round((new Date(hoy + 'T12:00:00') - new Date(eta + 'T12:00:00')) / 86400000)
+}
+function etiquetaLlegada(f) {
+  const eta = f.slice(0, 10), hoy = HOY_ISO()
+  const dias = Math.round((new Date(eta + 'T12:00:00') - new Date(hoy + 'T12:00:00')) / 86400000)
+  if (dias === 0) return 'hoy'
+  if (dias === 1) return 'mañana'
+  if (dias < 7) return 'el ' + new Date(eta + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long' })
+  return 'el ' + new Date(eta + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+}
+
 // Ignora mayúsculas/tildes para que "compresor" encuentre "Compresor" o "compresór"
 function normalizar(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+const NOMBRE_FILTRO = { curso: 'Pedidos en curso', todos: 'Todos los pedidos', atrasados: 'Atrasados', cerrado: 'Recibidos y cerrados' }
+
+// Etapas arriba de la lista (seguimiento tipo compra en línea): barra con el reparto de los
+// pedidos y una tarjeta por etapa que sirve de filtro. Los atrasados (ya pasó la fecha
+// estimada de llegada) se cuentan aparte en rojo dentro de "En camino".
+const ETAPAS = [
+  { clave: 'pendiente',             titulo: 'Por comprar',      icono: ClipboardList, caja: 'bg-gray-100 text-feisen-texto-2',        barra: 'bg-gray-300' },
+  { clave: 'en_transito',           titulo: 'En camino',        icono: Truck,         caja: 'bg-feisen-azul-suave text-feisen-azul', barra: 'bg-feisen-azul' },
+  { clave: 'parcialmente_recibido', titulo: 'Llegó una parte',  icono: PackageOpen,   caja: 'bg-amber-50 text-amber-700',            barra: 'bg-amber-400' },
+  { clave: 'cerrado',               titulo: 'Recibidos',        icono: PackageCheck,  caja: 'bg-emerald-50 text-emerald-700',        barra: 'bg-emerald-500' },
+]
+
+function EtapasPedidos({ pedidos, filtro, onFiltro }) {
+  const deEtapa = clave => pedidos.filter(p => clave === 'cerrado' ? (p.estado === 'cerrado' || p.estado === 'recibido') : p.estado === clave)
+  const atrasados = pedidos.filter(p => diasDeAtraso(p) > 0)
+  const enCaminoAtrasados = deEtapa('en_transito').filter(p => diasDeAtraso(p) > 0).length
+  const diasDesde = p => Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400000)
+  const porComprar = deEtapa('pendiente')
+  const masViejo = porComprar.length ? Math.max(...porComprar.map(diasDesde)) : 0
+  // Reparto: a tiempo y atrasados por separado para que el rojo se vea en la barra
+  const tramos = [
+    { n: porComprar.length, color: 'bg-gray-300', t: 'Por comprar' },
+    { n: deEtapa('en_transito').length - enCaminoAtrasados, color: 'bg-feisen-azul', t: 'En camino a tiempo' },
+    { n: atrasados.length, color: 'bg-feisen-rojo', t: 'Atrasados' },
+    { n: deEtapa('parcialmente_recibido').filter(p => !diasDeAtraso(p)).length, color: 'bg-amber-400', t: 'Llegó una parte' },
+    { n: deEtapa('cerrado').length, color: 'bg-emerald-500', t: 'Recibidos y cerrados' },
+  ].filter(x => x.n > 0)
+  const detalle = clave => {
+    if (clave === 'pendiente') return porComprar.length ? `el más viejo: hace ${masViejo} ${masViejo === 1 ? 'día' : 'días'}` : 'nada por comprar'
+    if (clave === 'en_transito') return enCaminoAtrasados ? null : 'todos a tiempo'
+    if (clave === 'parcialmente_recibido') return 'falta que llegue algo'
+    return 'incluye los cerrados'
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <div className="bg-white border border-feisen-borde rounded-xl px-4 py-3">
+        <div className="flex justify-between gap-2 text-xs text-feisen-texto-2 mb-2">
+          <span>Cómo van los {pedidos.length.toLocaleString('es-CO')} pedidos</span>
+          {atrasados.length > 0 && (
+            <button type="button" onClick={() => onFiltro(filtro === 'atrasados' ? 'curso' : 'atrasados')}
+              className={`font-semibold rounded-md px-2 -my-0.5 py-0.5 ${filtro === 'atrasados' ? 'bg-feisen-rojo text-white' : 'text-feisen-rojo hover:bg-feisen-rojo-suave'}`}>
+              {atrasados.length} atrasados
+            </button>
+          )}
+        </div>
+        <div className="flex h-3 rounded-md overflow-hidden gap-0.5" role="img"
+          aria-label={tramos.map(x => `${x.t}: ${x.n}`).join(', ')}>
+          {tramos.map(x => <span key={x.t} className={`${x.color} h-full`} style={{ flex: x.n }} title={`${x.t}: ${x.n}`} />)}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11.5px] text-feisen-texto-2">
+          {tramos.map(x => (
+            <span key={x.t} className="inline-flex items-center gap-1.5 tabular-nums">
+              <span className={`w-2 h-2 rounded-sm ${x.color}`} />{x.t} {x.n.toLocaleString('es-CO')}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5" role="group" aria-label="Filtrar por etapa">
+        {ETAPAS.map(e => {
+          const n = deEtapa(e.clave).length
+          const activa = filtro === e.clave
+          const Ico = e.icono
+          const det = detalle(e.clave)
+          return (
+            <button key={e.clave} type="button" aria-pressed={activa} onClick={() => onFiltro(activa ? 'curso' : e.clave)}
+              className={`text-left bg-white rounded-xl border p-3 flex flex-col gap-1.5 transition-colors active:scale-[.98]
+                ${activa ? 'border-feisen-azul ring-1 ring-feisen-azul' : 'border-feisen-borde hover:border-gray-300'}`}>
+              <span className="flex items-start justify-between">
+                <span className={`w-9 h-9 rounded-lg grid place-items-center ${e.caja}`}><Ico size={19} /></span>
+                <span className="text-2xl font-semibold text-feisen-texto tabular-nums leading-none">{n.toLocaleString('es-CO')}</span>
+              </span>
+              <span className="text-sm font-semibold text-feisen-texto">{e.titulo}</span>
+              {det
+                ? <span className="text-xs text-feisen-texto-2">{det}</span>
+                : <span className="text-xs font-semibold text-feisen-rojo">{enCaminoAtrasados} atrasados</span>}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem, entradasDelPedido }) {
@@ -60,6 +164,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
     (p.pedido_items || []).some(it => (it.cantidad - (it.cantidad_recibida || 0)) > 0)
   const diasTranscurridos = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
   const diasColor = diasTranscurridos >= 6 ? 'bg-red-100 text-red-600' : diasTranscurridos >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'
+  const diasAtraso = diasDeAtraso(p)
 
   return (
     <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
@@ -75,6 +180,16 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
+          {diasAtraso > 0 && (
+            <span className="text-xs px-2 py-1 rounded-full font-semibold bg-feisen-rojo-suave text-feisen-rojo">
+              Atrasado {diasAtraso} {diasAtraso === 1 ? 'día' : 'días'}
+            </span>
+          )}
+          {diasAtraso === 0 && p.fecha_estimada_llegada && (p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && (
+            <span className="text-xs px-2 py-1 rounded-full font-medium bg-feisen-azul-suave text-feisen-azul">
+              Llega {etiquetaLlegada(p.fecha_estimada_llegada)}
+            </span>
+          )}
           {cerradoIncompleto && (
             <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
               ⚠️ Llegó incompleto
@@ -89,9 +204,9 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
             </span>
           )}
           {p.estado === 'pendiente' && puedeTransito && (
-            <button onClick={() => onTransito(p)}
-              className="text-xs bg-feisen-azul text-white px-3 py-1.5 rounded-lg font-medium">
-              En tránsito
+            <button onClick={() => onTransito(p)} title="Se compró sin orden de compra: pasa a En camino"
+              className="text-xs border border-feisen-azul text-feisen-azul px-3 py-1.5 rounded-lg font-medium hover:bg-feisen-azul-suave">
+              Compra directa
             </button>
           )}
           {(p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && puedeRecibir && (
@@ -176,7 +291,7 @@ function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, p
           })}
           {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
           {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">🔒 Cerrado: {p.motivo_cierre}</p>}
-          {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">OC: {p.numero_oc}</p>}
+          {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">{p.numero_oc.startsWith('Compra directa') ? p.numero_oc : `OC: ${p.numero_oc}`}</p>}
           {ordenesDelPedido?.length > 0 && (
             <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Órdenes de compra generadas</p>
@@ -312,7 +427,8 @@ export default function ListaPedidos() {
   const [entradas,       setEntradas]       = useState([]) // movimientos tipo entrada ligados a pedidos
   const [modalGenerarOC, setModalGenerarOC] = useState(null)
   const [cargando,  setCargando]  = useState(true)
-  const [filtro,    setFiltro]    = useState('todos')
+  const [filtro,    setFiltro]    = useState('curso') // 'curso' | etapa | 'atrasados' | 'todos'
+  const [aviso, avisar] = useAviso()
   const [busqueda,   setBusqueda]   = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
@@ -480,12 +596,16 @@ export default function ListaPedidos() {
   async function marcarTransito(e) {
     e.preventDefault()
     if (!formTransito.numero_oc) { return }
-    await supabase.from('pedidos').update({
+    // Compra directa (sin OC de la app): quién compra queda en numero_oc, como se venía escribiendo
+    const quien = formTransito.numero_oc.trim()
+    const { error } = await supabase.from('pedidos').update({
       estado: 'en_transito',
-      numero_oc: formTransito.numero_oc,
+      numero_oc: /^oc/i.test(quien) ? quien : `Compra directa · ${quien}`,
       fecha_estimada_llegada: formTransito.fecha_estimada || null,
     }).eq('id', modalTransito.id)
-    await registrarHistorial(modalTransito.id, 'en_transito', `OC: ${formTransito.numero_oc}`)
+    if (error) { setMsg({ tipo: 'error', texto: 'No se pudo pasar a En camino: ' + error.message }); return }
+    await registrarHistorial(modalTransito.id, 'en_transito', `Compra directa: ${quien}`)
+    avisar(`${modalTransito.numero} va en camino`)
     setModalTransito(null)
     setFormTransito({ numero_oc: '', fecha_estimada: '' })
     cargar()
@@ -816,7 +936,9 @@ export default function ListaPedidos() {
 
   const pedidosFiltrados = pedidos
     .filter(p => {
-      if (filtro === 'cerrado') { if (!(p.estado === 'cerrado' || p.estado === 'recibido')) return false }
+      if (filtro === 'curso') { if (p.estado === 'cerrado' || p.estado === 'recibido') return false }
+      else if (filtro === 'atrasados') { if (!diasDeAtraso(p)) return false }
+      else if (filtro === 'cerrado') { if (!(p.estado === 'cerrado' || p.estado === 'recibido')) return false }
       else if (filtro !== 'todos') { if (p.estado !== filtro) return false }
 
       if (busqueda.trim()) {
@@ -832,12 +954,14 @@ export default function ListaPedidos() {
 
       return true
     })
-    .sort((a, b) => (PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1))
+    // Atrasados primero (el más atrasado arriba), luego por prioridad
+    .sort((a, b) => (diasDeAtraso(b) - diasDeAtraso(a)) || ((PRIORIDAD_ORDEN[a.prioridad] ?? 1) - (PRIORIDAD_ORDEN[b.prioridad] ?? 1)))
 
   if (cargando) return <Spinner texto="Cargando pedidos..." />
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
+      {aviso}
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-feisen-azul">Pedidos</h1>
@@ -855,50 +979,7 @@ export default function ListaPedidos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      {/* Alerta pedidos pendientes > 3 días (solo logística/admin) */}
-      {(esAdmin || esLogistica) && (() => {
-        const viejos = pedidos.filter(p =>
-          p.estado === 'pendiente' &&
-          Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24)) >= 3
-        )
-        if (viejos.length === 0) return null
-        return (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-            <Clock size={18} className="text-amber-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-amber-800">
-                {viejos.length === 1
-                  ? '1 pedido lleva más de 3 días pendiente sin pasar a tránsito'
-                  : `${viejos.length} pedidos llevan más de 3 días pendientes sin pasar a tránsito`}
-              </p>
-              <p className="text-xs text-amber-600 mt-0.5">
-                {viejos.map(p => {
-                  const dias = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
-                  return `${p.numero} (${dias}d)`
-                }).join(', ')}
-              </p>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* Alerta pedidos incompletos (solo logística/admin) */}
-      {(esAdmin || esLogistica) && (() => {
-        const incompletos = pedidos.filter(p => p.estado === 'parcialmente_recibido')
-        return incompletos.length > 0 ? (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-3">
-            <AlertTriangle size={18} className="text-orange-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-orange-800">
-                {incompletos.length === 1 ? '1 pedido llegó incompleto' : `${incompletos.length} pedidos llegaron incompletos`}
-              </p>
-              <p className="text-xs text-orange-600 mt-0.5">
-                {incompletos.map(p => p.numero).join(', ')} — Quedan cantidades pendientes por recibir.
-              </p>
-            </div>
-          </div>
-        ) : null
-      })()}
+      <EtapasPedidos pedidos={pedidos} filtro={filtro} onFiltro={setFiltro} />
 
       {/* Búsqueda: número de pedido, producto o quién lo hizo, y rango de fechas */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
@@ -928,15 +1009,11 @@ export default function ListaPedidos() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex gap-2 flex-wrap">
-        {['todos', 'pendiente', 'en_transito', 'parcialmente_recibido', 'cerrado'].map(f => (
-          <button key={f} onClick={() => setFiltro(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors
-              ${filtro === f ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
-            {f === 'todos' ? 'Todos' : ESTADO_CONFIG[f]?.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-2 text-sm text-feisen-texto-2 px-0.5">
+        <span><b className="text-feisen-texto">{NOMBRE_FILTRO[filtro] || ESTADO_CONFIG[filtro]?.label}</b> · {pedidosFiltrados.length} {pedidosFiltrados.length === 1 ? 'pedido' : 'pedidos'}</span>
+        {filtro === 'curso'
+          ? <button onClick={() => setFiltro('todos')} className="text-feisen-azul font-semibold">Ver todos</button>
+          : <button onClick={() => setFiltro('curso')} className="text-feisen-azul font-semibold">Ver los que están en curso</button>}
       </div>
 
       {/* Lista */}
@@ -983,7 +1060,11 @@ export default function ListaPedidos() {
           pedido={modalGenerarOC}
           coberturaPorItem={coberturaPorItem}
           onCerrar={() => setModalGenerarOC(null)}
-          onGuardado={() => { setModalGenerarOC(null); cargar() }}
+          onGuardado={r => {
+            setModalGenerarOC(null)
+            if (r?.tipo === 'exito') avisar(r.texto); else if (r) setMsg(r)
+            cargar()
+          }}
         />
       )}
 
@@ -1158,12 +1239,15 @@ export default function ListaPedidos() {
 
       {/* MODAL EN TRÁNSITO */}
       {modalTransito && (
-        <Modal titulo="Marcar en tránsito" onCerrar={() => setModalTransito(null)}>
+        <Modal titulo={`Compra directa · ${modalTransito.numero}`} onCerrar={() => setModalTransito(null)}>
           <form onSubmit={marcarTransito} className="space-y-4">
+            <p className="text-sm text-feisen-texto-2">
+              Para lo que se compra <b>sin orden de compra</b>. Si hay OC, genérala con el ícono <FileText size={13} className="inline -mt-0.5" /> del pedido y pasa sola a En camino.
+            </p>
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">N° Orden de Compra *</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">¿Quién compra? *</label>
               <input required value={formTransito.numero_oc} onChange={e => setFormTransito(f => ({ ...f, numero_oc: e.target.value }))}
-                placeholder="Ej: OC-2026-001"
+                placeholder="Ej: Efraín, Samir, don Alfonso"
                 className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
@@ -1175,7 +1259,7 @@ export default function ListaPedidos() {
               <button type="button" onClick={() => setModalTransito(null)}
                 className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit"
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Confirmar</button>
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Pasar a En camino</button>
             </div>
           </form>
         </Modal>
