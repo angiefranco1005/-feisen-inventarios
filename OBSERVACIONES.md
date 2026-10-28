@@ -1682,3 +1682,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - Tocar la ficha abre `DetallePedido` (panel lateral): estado grande, acciones, productos con lo recibido/faltante/sobrante, observación, foto, OCs (proveedor/precio/PDF solo Admin/Logística, igual que antes), entradas al inventario e historial (se recarga al abrir).
 - "Recibido + Entrada" y "Solo recibir" → **un solo "Recibir"** con casilla "Crear entrada al inventario" marcada por defecto (91 de 95 pedidos recibidos en 45 días tuvieron entrada). La lógica de `confirmarRecibido` no cambió; la casilla solo cambia `conEntrada`.
 - El texto libre viejo de `numero_oc` ("NO HAY OC COMPRA EFRAIN") se muestra como "compra efrain"; si hay OC de la app se muestra su número en vez del texto libre.
+
+## 2026-10-28 — Propuesta módulo 2: Inicio de gerencia (Inicio + Analítica unidos)
+- Decisión de Angie: Inicio y Analítica se unen en un solo tablero con lo crítico de cada módulo (Inventarios, Logística, Mecanizados, Fundición, RR. HH., Calidad). Maqueta: https://claude.ai/artifact/1Ewvc5BSpbGutCVth7u6FV
+- Estructura: "Requiere tu atención" (pendientes de todos los módulos, por gravedad) → una tarjeta por módulo → "Análisis detallado" (las pestañas actuales de Analítica).
+- Hallazgos de datos (2026-10-28): tabla `fundidas` vacía; órdenes de moldeo canceladas o sin avances; 13 pedidos en tránsito con fecha estimada vencida (el peor, PED-0007, 47 días); nómina 2.ª quincena de octubre en borrador; los movimientos MEC no guardan `precio_costo_snapshot` (valor de mecanizado = 0).
