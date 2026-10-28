@@ -39,39 +39,13 @@ function ajustesStockPorTipo(tipo, bodega_origen_id, bodega_destino_id, cantidad
   return []
 }
 
-// Aplica una lista de ajustes de ajustesStockPorTipo contra la tabla stock.
-// Devuelve un array de mensajes de error (vacío si todo salió bien) — nunca
-// falla en silencio como hacía el código anterior.
-async function aplicarAjustesStock(item_id, ajustes) {
-  const fallos = []
-  if (ajustes.length === 0) {
-    fallos.push('no se pudo determinar la bodega del movimiento para ajustar el stock')
-    return fallos
-  }
-  for (const aj of ajustes) {
-    const { data: stockRow, error: errBuscar } = await supabase.from('stock')
-      .select('id, cantidad_actual').eq('item_id', item_id).eq('bodega_id', aj.bodega_id).maybeSingle()
-    if (errBuscar || !stockRow) {
-      fallos.push(`no se encontró el stock del producto en la bodega afectada (bodega_id: ${aj.bodega_id})`)
-      continue
-    }
-    const { error: errUpd } = await supabase.from('stock')
-      .update({ cantidad_actual: Math.max(0, stockRow.cantidad_actual + aj.delta) })
-      .eq('id', stockRow.id)
-    if (errUpd) fallos.push(`error al actualizar stock: ${errUpd.message}`)
-  }
-  return fallos
-}
-
-// Ajusta el stock de un producto en una bodega (para EDITAR movimientos). La tabla
-// `stock` no tiene columna `id` — su llave es (item_id, bodega_id) —, por eso se busca
-// y actualiza por esas dos columnas. Si el producto nunca tuvo stock en esa bodega
-// (pasa al cambiar el producto de un movimiento por otro), se crea el renglón.
-// Devuelve un mensaje de error o null.
-// Nota: aplicarAjustesStock (arriba) sigue usando `id` y por eso falla; lo usa
-// eliminarMovimiento, donde además actúa el trigger fn_revertir_stock_on_delete —
-// corregirlo ahí revertiría el stock dos veces (ver OBSERVACIONES 2026-10-28).
-async function ajustarStockEdicion(item_id, bodega_id, delta) {
+// Ajusta el stock de un producto en una bodega al EDITAR un movimiento (al eliminar,
+// lo revierte el trigger fn_revertir_stock_on_delete en la base — no hacerlo también
+// aquí o se revierte dos veces). La tabla `stock` no tiene columna `id` — su llave es
+// (item_id, bodega_id) —, por eso se busca y actualiza por esas dos columnas. Si el
+// producto nunca tuvo stock en esa bodega (pasa al cambiar el producto de un
+// movimiento por otro), se crea el renglón. Devuelve un mensaje de error o null.
+async function ajustarStock(item_id, bodega_id, delta) {
   const { data: fila, error: errBuscar } = await supabase.from('stock')
     .select('cantidad_actual').eq('item_id', item_id).eq('bodega_id', bodega_id).maybeSingle()
   if (errBuscar) return `no se pudo leer el stock: ${errBuscar.message}`
@@ -86,11 +60,13 @@ async function ajustarStockEdicion(item_id, bodega_id, delta) {
   return error ? `error al actualizar stock: ${error.message}` : null
 }
 
-async function aplicarAjustesEdicion(item_id, ajustes) {
+// Aplica una lista de ajustes de ajustesStockPorTipo. Devuelve los errores (nunca
+// falla en silencio).
+async function aplicarAjustesStock(item_id, ajustes) {
   if (ajustes.length === 0) return ['no se pudo determinar la bodega del movimiento para ajustar el stock']
   const fallos = []
   for (const aj of ajustes) {
-    const f = await ajustarStockEdicion(item_id, aj.bodega_id, aj.delta)
+    const f = await ajustarStock(item_id, aj.bodega_id, aj.delta)
     if (f) fallos.push(f)
   }
   return fallos
@@ -356,10 +332,10 @@ export default function Historial() {
     const cantNueva = cambios.cantidad ? cambios.cantidad.a : cantVieja
     const ajustesDe = (cant) => ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, cant)
     if (cambiaProducto) {
-      if (m.item_id) fallosStock = await aplicarAjustesEdicion(m.item_id, ajustesDe(-cantVieja))
-      fallosStock = [...fallosStock, ...await aplicarAjustesEdicion(editForm.item_id, ajustesDe(cantNueva))]
+      if (m.item_id) fallosStock = await aplicarAjustesStock(m.item_id, ajustesDe(-cantVieja))
+      fallosStock = [...fallosStock, ...await aplicarAjustesStock(editForm.item_id, ajustesDe(cantNueva))]
     } else if (cantNueva !== cantVieja && m.item_id) {
-      fallosStock = await aplicarAjustesEdicion(m.item_id, ajustesDe(cantNueva - cantVieja))
+      fallosStock = await aplicarAjustesStock(m.item_id, ajustesDe(cantNueva - cantVieja))
     }
 
     await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
@@ -454,15 +430,9 @@ export default function Historial() {
     setEliminando(true)
     setMsg(null)
 
-    // 1-2. Revertir stock usando las FKs reales del movimiento (nunca
-    // centro_costo — ver ajustesStockPorTipo).
+    // Eliminar. El stock lo revierte el trigger fn_revertir_stock_on_delete con las
+    // bodegas reales del movimiento — la pantalla no lo ajusta (sería doble).
     let fallosStock = []
-    if (m.item_id) {
-      const ajustes = ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, -m.cantidad)
-      fallosStock = await aplicarAjustesStock(m.item_id, ajustes)
-    }
-
-    // 3. Eliminar
     const { error } = await supabase.from('movimientos').delete().eq('id', m.id)
     if (error) {
       setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message })
@@ -474,12 +444,6 @@ export default function Historial() {
     if (m.bodega_destino_id && m.bodega_origen_id) {
       const parMov = await buscarMovimientoPar(m, {})
       if (parMov) {
-        const ajustesPar = ajustesStockPorTipo(parMov.tipo, parMov.bodega_origen_id, parMov.bodega_destino_id, -parMov.cantidad)
-        const fallosPar = await aplicarAjustesStock(parMov.item_id, ajustesPar)
-        if (fallosPar.length > 0) {
-          fallosStock = [...fallosStock, ...fallosPar.map(f => `par (${parMov.numero || parMov.id}): ${f}`)]
-        }
-
         const { error: errPar } = await supabase.from('movimientos').delete().eq('id', parMov.id)
         if (errPar) {
           fallosStock = [...fallosStock, `no se pudo eliminar el movimiento par (${parMov.numero || parMov.id}): ${errPar.message}`]
@@ -491,7 +455,7 @@ export default function Historial() {
 
     setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
     if (fallosStock.length > 0) {
-      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se eliminó, pero el stock no se pudo revertir automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
+      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se eliminó, pero: ${fallosStock.join('; ')}.` })
     }
     setConfirmDelete(null)
     setEliminando(false)
