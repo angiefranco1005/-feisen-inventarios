@@ -6,19 +6,13 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
-import {
-  ClipboardList, Plus, Search, AlertTriangle, CheckCircle,
-  ChevronLeft, RefreshCw, Package, FileText, Pencil, Eye, Check, X
-} from 'lucide-react'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
+import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X } from 'lucide-react'
 
 const HOY = () => new Date().toLocaleDateString('en-CA')
 
-// ── helpers ────────────────────────────────────────────────────────────────
-function badge(estado) {
-  return estado === 'confirmado'
-    ? 'bg-green-100 text-green-700'
-    : 'bg-amber-100 text-amber-700'
-}
+const PAGINA = 150 // productos que se pintan a la vez en el conteo (rápido en celular)
 
 // Título editable en línea, desde la lista — funciona tanto para borradores
 // como para inventarios ya confirmados (antes no había forma de corregir el
@@ -37,11 +31,11 @@ function TituloEditable({ valor, onGuardar }) {
   }
 
   if (!editando) return (
-    <button onClick={activar} className="flex items-center gap-2 group text-left">
+    <button onClick={activar} className="flex items-center gap-2 group text-left max-w-full" title="Cambiar título">
       {valor
-        ? <span className="text-gray-700">{valor}</span>
-        : <span className="text-gray-300 italic">Sin título</span>}
-      <Pencil size={12} className="text-gray-300 group-hover:text-feisen-azul transition-colors shrink-0" />
+        ? <span className="text-feisen-texto truncate">{valor}</span>
+        : <span className="text-gray-400">Agregar título</span>}
+      <Pencil size={13} className="text-gray-300 group-hover:text-feisen-azul transition-colors shrink-0" />
     </button>
   )
 
@@ -50,9 +44,9 @@ function TituloEditable({ valor, onGuardar }) {
       <input ref={ref} value={draft} onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') cancelar() }}
         placeholder="Ej: Bodega Mecanizados — cierre de mes"
-        className="border-b-2 border-feisen-azul bg-transparent text-sm text-gray-800 focus:outline-none px-1 py-0.5 min-w-0 w-56" />
-      <button onClick={guardar}  className="text-green-500 hover:text-green-600"><Check size={15} /></button>
-      <button onClick={cancelar} className="text-gray-400 hover:text-gray-600"><X size={15} /></button>
+        className="border-b-2 border-feisen-azul bg-transparent text-feisen-texto focus:outline-none px-1 py-0.5 min-w-0 flex-1" />
+      <button onClick={guardar} aria-label="Guardar título" className="p-1.5 text-feisen-azul hover:bg-feisen-azul-suave rounded-md"><Check size={16} /></button>
+      <button onClick={cancelar} aria-label="Cancelar" className="p-1.5 text-gray-400 hover:bg-feisen-fondo rounded-md"><X size={16} /></button>
     </div>
   )
 }
@@ -80,7 +74,11 @@ export default function InventarioFisico() {
   const [fecha,        setFecha]       = useState(HOY())
   const [invId,        setInvId]       = useState(null)
   const [numero,       setNumero]      = useState('')
-  const [soloConDif,   setSoloConDif]  = useState(false)
+  const [filtroEstado, setFiltroEstado] = useState('todos') // 'todos' | 'faltan' | 'dif'
+  const [limite,       setLimite]      = useState(PAGINA)
+  const buscarRef = useRef(null)
+  const [aviso, avisar] = useAviso()
+  useAtajoBuscar(buscarRef)
   // Conteo con fecha ANTERIOR a hoy: efecto neto (por producto+bodega) de los movimientos
   // posteriores a esa fecha, para calcular el "Sistema" al cierre del día contado.
   // null = conteo de hoy (el Sistema es el stock actual).
@@ -204,7 +202,8 @@ export default function InventarioFisico() {
     setFecha(fecha_)
     setInvId(id)
     setNumero(num)
-    setSoloConDif(false)
+    setFiltroEstado('todos')
+    setLimite(PAGINA)
     setVista('editor')
     setCargando(false)
   }
@@ -284,8 +283,6 @@ export default function InventarioFisico() {
   const esConteoPasado = deltasPost !== null
   const negativosCorte = esConteoPasado ? itemsConCalculo.filter(i => i.cantidad_sistema_bruto < 0).length : 0
 
-  const cop = n => `$${Math.round(n).toLocaleString('es-CO')}`
-
   const totalSobrante = itemsConCalculo
     .filter(i => i.valor_diferencia !== null && i.valor_diferencia > 0)
     .reduce((s, i) => s + i.valor_diferencia, 0)
@@ -302,11 +299,13 @@ export default function InventarioFisico() {
     return itemsConCalculo.filter(i => {
       const matchB = !filtroBodega    || i.bodega_id === filtroBodega
       const matchC = !filtroCategoria || i.categoria_nombre === filtroCategoria
-      const matchQ = !busqueda        || i.item_nombre.toLowerCase().includes(busqueda.toLowerCase())
-      const matchD = !soloConDif      || (i.diferencia !== null && i.diferencia !== 0)
-      return matchB && matchC && matchQ && matchD
+      const matchQ = !busqueda.trim() || coincideBusqueda(i.item_nombre, busqueda)
+      const matchE = filtroEstado === 'todos'
+        || (filtroEstado === 'faltan' && i.cantidad_fisica === null)
+        || (filtroEstado === 'dif' && i.diferencia !== null && i.diferencia !== 0)
+      return matchB && matchC && matchQ && matchE
     })
-  }, [itemsConCalculo, filtroBodega, filtroCategoria, busqueda, soloConDif])
+  }, [itemsConCalculo, filtroBodega, filtroCategoria, busqueda, filtroEstado])
 
   const contados      = itemsConCalculo.filter(i => i.cantidad_fisica !== null).length
   const conDiferencia = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).length
@@ -343,7 +342,7 @@ export default function InventarioFisico() {
       await supabase.from('inventario_fisico_items').insert(rows)
     }
 
-    setMsg({ tipo: 'exito', texto: 'Borrador guardado.' })
+    avisar(`Borrador guardado · ${rows.length} productos contados`)
     setGuardando(false)
   }
 
@@ -450,10 +449,11 @@ export default function InventarioFisico() {
         tipo: 'error',
         texto: `⚠️ Inventario confirmado, pero ${fallos.length} producto(s) NO se pudieron ajustar — corrígelos manualmente: ${detalle}.`,
       })
+      setTimeout(() => { setVista('lista'); cargarLista() }, 5000)
     } else {
-      setMsg({ tipo: 'exito', texto: `✅ ${conDif.length} productos ajustados en el sistema.` })
+      avisar(`${numero} confirmado · ${conDif.length} productos ajustados`)
+      setMsg(null); setVista('lista'); cargarLista()
     }
-    setTimeout(() => { setVista('lista'); cargarLista() }, fallos.length > 0 ? 5000 : 2200)
   }
 
   // ── guard ────────────────────────────────────────────────────────────────
@@ -467,432 +467,406 @@ export default function InventarioFisico() {
 
   // ── VISTA LISTA ──────────────────────────────────────────────────────────
   if (vista === 'lista') {
-    return (
-      <div className="space-y-6 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <ClipboardList size={24} className="text-feisen-azul" /> Inventario Físico
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">Solo visible para administradores</p>
-          </div>
-          <button onClick={iniciarNuevo}
-            className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity">
-            <Plus size={18} /> Nuevo inventario
-          </button>
+    const borradores   = inventarios.filter(i => i.estado !== 'confirmado')
+    const confirmados  = inventarios.filter(i => i.estado === 'confirmado')
+    const fila = inv => (
+      <div key={inv.id} className="flex items-center gap-3 px-4 py-3 min-h-[60px] hover:bg-feisen-fondo transition-colors">
+        <button type="button" onClick={() => abrirDetalle(inv)} className="flex-1 min-w-0 text-left" aria-label={`Ver ${inv.numero}`}>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="font-mono text-xs text-feisen-texto">{inv.numero}</span>
+            <EstadoBadge estado={inv.estado} />
+          </span>
+          {inv.notas && <span className="sm:hidden block text-sm text-feisen-texto truncate mt-0.5">{inv.notas}</span>}
+          <span className="block text-xs text-feisen-texto-2 mt-0.5">
+            {fechaLarga(inv.fecha)}{inv.profiles?.nombre ? ` · ${inv.profiles.nombre}` : ''}
+          </span>
+        </button>
+        <div className="hidden sm:block w-64 min-w-0 text-sm">
+          <TituloEditable valor={inv.notas} onGuardar={val => renombrarTitulo(inv, val)} />
         </div>
+        {inv.estado !== 'confirmado' && (
+          <button onClick={() => continuarBorrador(inv)}
+            className="shrink-0 border border-feisen-azul text-feisen-azul bg-white rounded-lg px-3 min-h-[40px] text-sm font-semibold hover:bg-feisen-azul-suave active:scale-[.98] transition">
+            Continuar
+          </button>
+        )}
+      </div>
+    )
+    return (
+      <div className="space-y-5 max-w-5xl mx-auto">
+        {aviso}
+        <EncabezadoPagina modulo="Inventarios" titulo="Inventario físico"
+          subtitulo="Cuenta lo que hay en las bodegas y corrige el sistema con las diferencias.">
+          <button onClick={iniciarNuevo} disabled={cargando}
+            className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 py-2.5 text-sm font-semibold hover:opacity-90 active:scale-[.98] transition disabled:opacity-60">
+            <Plus size={16} /> Nuevo conteo
+          </button>
+        </EncabezadoPagina>
 
         {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-        {cargando ? <Spinner /> : (
-          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-            {inventarios.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
-                <Package size={40} className="text-gray-200" />
-                <p className="font-medium">No hay inventarios físicos registrados</p>
-                <button onClick={iniciarNuevo}
-                  className="text-sm text-feisen-azul hover:underline">Crear el primero</button>
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500">Número</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500">Título</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500">Fecha</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500">Estado</th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden sm:table-cell">Creado por</th>
-                    <th className="text-center px-4 py-3 font-semibold text-gray-500">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {inventarios.map(inv => (
-                    <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-feisen-azul">{inv.numero}</td>
-                      <td className="px-4 py-3 text-gray-700">
-                        <TituloEditable valor={inv.notas} onGuardar={val => renombrarTitulo(inv, val)} />
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {new Date(inv.fecha + 'T12:00:00').toLocaleDateString('es-CO')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${badge(inv.estado)}`}>
-                          {inv.estado === 'confirmado' ? '✓ Confirmado' : '⏳ Borrador'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden sm:table-cell">
-                        {inv.profiles?.nombre || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {inv.estado === 'borrador' && (
-                            <button onClick={() => continuarBorrador(inv)}
-                              className="px-2.5 py-1 text-xs font-medium text-feisen-azul border border-feisen-azul rounded-lg hover:bg-blue-50 active:bg-blue-100" title="Continuar editando">
-                              ✏️ Continuar
-                            </button>
-                          )}
-                          <button onClick={() => abrirDetalle(inv)}
-                            className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg" title="Ver detalle">
-                            <Eye size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+        {cargando ? <Spinner /> : inventarios.length === 0 ? (
+          <div className="bg-white border border-feisen-borde rounded-xl text-center px-6 py-14">
+            <ClipboardList size={32} className="mx-auto mb-3 text-gray-300" />
+            <p className="font-medium text-feisen-texto">Todavía no hay conteos</p>
+            <p className="text-sm text-feisen-texto-2 mt-1">Empieza uno con “Nuevo conteo”: puedes guardarlo como borrador y seguir después.</p>
           </div>
+        ) : (
+          <>
+            {borradores.length > 0 && (
+              <section className="space-y-1.5">
+                <h2 className="text-xs font-semibold text-feisen-texto-2 px-0.5">En curso <span className="font-normal text-gray-400">· {borradores.length}</span></h2>
+                <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden divide-y divide-feisen-borde-suave">{borradores.map(fila)}</div>
+              </section>
+            )}
+            {confirmados.length > 0 && (
+              <section className="space-y-1.5">
+                <h2 className="text-xs font-semibold text-feisen-texto-2 px-0.5">Confirmados <span className="font-normal text-gray-400">· {confirmados.length}</span></h2>
+                <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden divide-y divide-feisen-borde-suave">{confirmados.map(fila)}</div>
+              </section>
+            )}
+          </>
         )}
 
-        {/* Modal detalle inventario anterior */}
-        {verDetalle && (
-          <Modal titulo={`${verDetalle.numero}${verDetalle.notas ? ' — ' + verDetalle.notas : ''}`} onCerrar={() => setVerDetalle(null)}>
-            {cargandoDetalle ? <Spinner /> : (
-              <div className="space-y-3 max-h-[65vh] overflow-y-auto">
-                <div className="flex gap-4 text-sm text-gray-600 pb-2 border-b border-gray-100">
-                  <span>Fecha: <strong>{new Date(verDetalle.fecha + 'T12:00:00').toLocaleDateString('es-CO')}</strong></span>
-                  <span>Items contados: <strong>{detalleItems.length}</strong></span>
-                  <span>Con diferencia: <strong>{detalleItems.filter(i => (i.cantidad_fisica - i.cantidad_sistema) !== 0).length}</strong></span>
-                </div>
-                {verDetalle.notas && (
-                  <p className="text-sm text-gray-500 italic">{verDetalle.notas}</p>
-                )}
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-semibold text-gray-500">Producto</th>
-                      <th className="text-left px-3 py-2 font-semibold text-gray-500">Bodega</th>
-                      <th className="text-right px-3 py-2 font-semibold text-gray-500">Sistema</th>
-                      <th className="text-right px-3 py-2 font-semibold text-gray-500">Físico</th>
-                      <th className="text-right px-3 py-2 font-semibold text-gray-500">Diferencia</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {detalleItems.map(i => {
-                      const dif = (i.cantidad_fisica ?? 0) - i.cantidad_sistema
-                      return (
-                        <tr key={i.id} className={dif !== 0 ? (dif > 0 ? 'bg-blue-50' : 'bg-red-50') : ''}>
-                          <td className="px-3 py-2 font-medium text-gray-700">{i.item_nombre}</td>
-                          <td className="px-3 py-2 text-gray-500 text-xs">{i.bodega_nombre}</td>
-                          <td className="px-3 py-2 text-right text-gray-600">{i.cantidad_sistema}</td>
-                          <td className="px-3 py-2 text-right font-semibold">{i.cantidad_fisica ?? '—'}</td>
-                          <td className={`px-3 py-2 text-right font-bold ${dif > 0 ? 'text-feisen-azul' : dif < 0 ? 'text-feisen-rojo' : 'text-gray-400'}`}>
-                            {dif !== 0 ? (dif > 0 ? `+${dif}` : dif) : '—'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+        {/* Panel con el detalle de un conteo */}
+        {verDetalle && (() => {
+          const conDifDet = detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema !== 0)
+          const ordenados = [...conDifDet, ...detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema === 0)]
+          return (
+            <PanelLateral etiqueta={`Detalle de ${verDetalle.numero}`} onCerrar={() => setVerDetalle(null)} encabezado={
+              <div className="space-y-1.5">
+                <h3 className="font-mono text-base font-semibold text-feisen-texto">{verDetalle.numero}</h3>
+                <div className="flex flex-wrap items-center gap-1.5"><EstadoBadge estado={verDetalle.estado} />
+                  <span className="text-xs text-feisen-texto-2">{fechaLarga(verDetalle.fecha)}</span></div>
               </div>
-            )}
-          </Modal>
-        )}
+            }>
+              <div className="sm:hidden">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Título</p>
+                <TituloEditable valor={verDetalle.notas} onGuardar={val => { renombrarTitulo(verDetalle, val); setVerDetalle(v => ({ ...v, notas: val || null })) }} />
+              </div>
+              {verDetalle.notas && <p className="hidden sm:block text-sm text-feisen-texto">{verDetalle.notas}</p>}
+              {cargandoDetalle ? <Spinner /> : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="border border-feisen-borde rounded-lg px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Contados</p>
+                      <p className="text-2xl font-semibold text-feisen-texto tabular-nums">{detalleItems.length.toLocaleString('es-CO')}</p>
+                    </div>
+                    <div className="border border-feisen-borde rounded-lg px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Con diferencia</p>
+                      <p className={`text-2xl font-semibold tabular-nums ${conDifDet.length ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{conDifDet.length.toLocaleString('es-CO')}</p>
+                    </div>
+                  </div>
+                  <section>
+                    <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1 grid grid-cols-[1fr_auto] gap-3">
+                      <span>Producto</span><span>Sistema → Físico</span>
+                    </h4>
+                    {ordenados.length === 0 && <p className="text-sm text-feisen-texto-2 py-4">Este conteo no tiene productos contados.</p>}
+                    <ul className="divide-y divide-feisen-borde-suave">
+                      {ordenados.map(i => {
+                        const dif = Number(((i.cantidad_fisica ?? 0) - i.cantidad_sistema).toFixed(3))
+                        return (
+                          <li key={i.id} className="grid grid-cols-[1fr_auto] gap-3 py-2.5">
+                            <span className="min-w-0">
+                              <span className="block text-sm text-feisen-texto break-words">{i.item_nombre}</span>
+                              <span className="block text-xs text-gray-400">{i.bodega_nombre}</span>
+                            </span>
+                            <span className="text-right tabular-nums">
+                              <span className="block text-sm text-feisen-texto-2 whitespace-nowrap">{cant(i.cantidad_sistema)} → <b className="text-feisen-texto">{i.cantidad_fisica == null ? '—' : cant(i.cantidad_fisica)}</b></span>
+                              <Diferencia dif={dif} />
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
+                </>
+              )}
+            </PanelLateral>
+          )
+        })()}
       </div>
     )
   }
 
-  // ── VISTA EDITOR ─────────────────────────────────────────────────────────
+  // ── VISTA EDITOR (conteo) ────────────────────────────────────────────────
+  const visibles = itemsFiltrados.slice(0, limite)
+  const pct = items.length ? Math.round((contados / items.length) * 100) : 0
+  const neto = totalSobrante + totalFaltante
+  const chipsEstado = [
+    ['todos', 'Todos', items.length],
+    ['faltan', 'Sin contar', items.length - contados],
+    ['dif', 'Con diferencia', conDiferencia],
+  ]
+  // Enter en un campo pasa al siguiente producto (contar rápido con el teclado numérico)
+  function siguienteCampo(e) {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const campos = [...document.querySelectorAll('input[data-conteo]')]
+    campos[campos.indexOf(e.target) + 1]?.focus()
+  }
+
   return (
-    <div className="space-y-4 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => setVista('lista')}
-          className="p-2 text-gray-400 hover:text-feisen-azul hover:bg-blue-50 rounded-xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
+      {aviso}
+      <div className="flex items-start gap-2">
+        <button onClick={() => { setVista('lista'); setMsg(null) }} aria-label="Volver a la lista"
+          className="p-2 -ml-2 mt-3 text-feisen-texto-2 hover:text-feisen-texto hover:bg-white rounded-lg">
           <ChevronLeft size={20} />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-800">
-            Inventario Físico — <span className="text-feisen-azul">{numero}</span>
-          </h1>
-          <p className="text-xs text-gray-400">{notas || 'Ingresa las cantidades físicas contadas'}</p>
+        <div className="flex-1 min-w-0">
+          <EncabezadoPagina modulo="Inventario físico" titulo={<>Conteo <span className="font-mono text-lg">{numero}</span></>}
+            subtitulo={esConteoPasado ? `Contado el ${fechaLarga(fecha)}` : 'Escribe lo que contaste; la diferencia se calcula sola.'} />
         </div>
-        <div className="flex gap-2">
-          <button onClick={guardarBorrador} disabled={guardando}
-            className="flex items-center gap-2 border border-feisen-azul text-feisen-azul px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-50 transition-colors disabled:opacity-50">
-            {guardando ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
-            Guardar borrador
-          </button>
-          <button
-            onClick={() => conDiferencia > 0 ? setModalConfirm(true) : setMsg({ tipo: 'alerta', texto: 'No hay diferencias para corregir.' })}
-            disabled={cargandoCorte}
-            className="flex items-center gap-2 bg-feisen-rojo text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
-            <CheckCircle size={14} /> {cargandoCorte ? 'Calculando…' : 'Aplicar correcciones'}
-          </button>
-        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-[1fr_auto] gap-3">
+        <label className="block text-sm font-medium text-feisen-texto space-y-1.5">
+          <span>Título <span className="font-normal text-gray-400">(opcional)</span></span>
+          <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: Bodega Mecanizados — cierre de mes"
+            className="w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+        </label>
+        <label className="block text-sm font-medium text-feisen-texto space-y-1.5">
+          <span>Fecha del conteo</span>
+          <input type="date" value={fecha} max={HOY()} onChange={e => setFecha(e.target.value)}
+            className="w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul" />
+        </label>
       </div>
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+      {cargandoCorte && <Alerta tipo="info" mensaje="Calculando el stock del sistema a primera hora de la fecha del conteo…" />}
+      {esConteoPasado && !cargandoCorte && (
+        <details className="bg-feisen-azul-suave rounded-lg px-4 py-3 text-sm text-feisen-azul">
+          <summary className="cursor-pointer font-medium">
+            Conteo con fecha anterior a hoy: “Sistema” es el stock a primera hora del {fechaLarga(fecha)}
+          </summary>
+          <div className="mt-2 space-y-1 text-xs leading-relaxed">
+            <p>Se deshacen {movsPosteriores} movimiento{movsPosteriores === 1 ? '' : 's'} registrados desde esa fecha (incluido ese día). Al aplicar, el ajuste
+              queda con esa fecha y el stock de hoy queda = <b>conteo + movimientos de ese día y posteriores</b>. Si la fecha no es la del conteo, cámbiala arriba.</p>
+            {negativosCorte > 0 && (
+              <p className="text-amber-700">{negativosCorte} producto{negativosCorte === 1 ? '' : 's'} tenían salidas por encima del stock a esa hora: su Sistema se tomó como 0.</p>
+            )}
+          </div>
+        </details>
+      )}
 
-      {/* Metadata */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <div>
-          <label className="text-xs font-medium text-gray-500 block mb-1">Fecha del conteo</label>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+      {/* Avance del conteo */}
+      <div className="bg-white border border-feisen-borde rounded-xl p-4 grid grid-cols-2 sm:grid-cols-[1fr_auto_auto] gap-4 items-center">
+        <div className="col-span-2 sm:col-span-1">
+          <div className="flex justify-between text-sm mb-1.5">
+            <span className="text-feisen-texto-2">Contados</span>
+            <span className="font-semibold text-feisen-texto tabular-nums">{contados.toLocaleString('es-CO')} de {items.length.toLocaleString('es-CO')} · {pct}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-feisen-borde-suave overflow-hidden">
+            <div className="h-full rounded-full bg-feisen-azul transition-[width] duration-300" style={{ width: `${pct}%` }} />
+          </div>
         </div>
-        <div className="col-span-2 sm:col-span-2">
-          <label className="text-xs font-medium text-gray-500 block mb-1">Título (opcional)</label>
-          <input value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: Bodega Mecanizados — cierre de mes"
-            className="w-full border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-          <p className="text-[11px] text-gray-400 mt-1">Para reconocer este inventario más fácil en la lista.</p>
+        <button type="button" onClick={() => { setFiltroEstado('dif'); setLimite(PAGINA) }}
+          className="text-left sm:text-right sm:pl-4 sm:border-l border-feisen-borde-suave">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Con diferencia</p>
+          <p className={`text-2xl font-semibold tabular-nums ${conDiferencia ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{conDiferencia.toLocaleString('es-CO')}</p>
+        </button>
+        <div className="text-right sm:pl-4 sm:border-l border-feisen-borde-suave">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Valor neto</p>
+          <p className={`text-2xl font-semibold tabular-nums ${neto < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{neto > 0 ? '+' : ''}{copCorto(neto)}</p>
         </div>
       </div>
 
-      {cargandoCorte && (
-        <Alerta tipo="alerta" mensaje="Calculando el stock del sistema al cierre de la fecha del conteo…" />
-      )}
-      {esConteoPasado && !cargandoCorte && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-800 space-y-1">
-          <p className="font-semibold">
-            Conteo con fecha anterior a hoy ({new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')})
-          </p>
-          <p>
-            Se asume que contaste a <strong>primera hora</strong> de ese día. La columna <strong>Sistema</strong> es el stock a esa hora
-            (se deshacen {movsPosteriores} movimiento{movsPosteriores === 1 ? '' : 's'} desde esa fecha en adelante, incluidos los de ese mismo día).
-            Al aplicar, el ajuste queda fechado el {new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')} y el stock actual
-            quedará = <strong>conteo + movimientos de ese día y posteriores</strong>. Si la fecha no es la del conteo, cámbiala arriba.
-          </p>
-          {negativosCorte > 0 && (
-            <p className="text-amber-700">
-              ⚠ {negativosCorte} producto{negativosCorte === 1 ? '' : 's'} tenían salidas registradas por encima del stock a esa hora: el Sistema se tomó como 0 en esos casos.
+      {/* Búsqueda y filtros */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input ref={buscarRef} type="search" value={busqueda} onChange={e => { setBusqueda(e.target.value); setLimite(PAGINA) }}
+            placeholder="Buscar producto por palabras del nombre…"
+            className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none]">
+          {chipsEstado.map(([k, t, n]) => (
+            <button key={k} type="button" aria-pressed={filtroEstado === k} onClick={() => { setFiltroEstado(k); setLimite(PAGINA) }}
+              className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+                ${filtroEstado === k ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+              {t} <span className={`tabular-nums ${filtroEstado === k ? 'text-white/70' : 'text-gray-400'}`}>{n.toLocaleString('es-CO')}</span>
+            </button>
+          ))}
+          <select value={filtroBodega} onChange={e => { setFiltroBodega(e.target.value); setLimite(PAGINA) }} aria-label="Bodega"
+            className={`shrink-0 min-h-[36px] rounded-full border px-3 text-sm font-medium focus:outline-none
+              ${filtroBodega ? 'bg-feisen-azul-suave text-feisen-azul border-transparent' : 'bg-white text-feisen-texto-2 border-feisen-borde'}`}>
+            <option value="">Todas las bodegas</option>
+            {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+          <select value={filtroCategoria} onChange={e => { setFiltroCategoria(e.target.value); setLimite(PAGINA) }} aria-label="Categoría"
+            className={`shrink-0 min-h-[36px] rounded-full border px-3 text-sm font-medium focus:outline-none
+              ${filtroCategoria ? 'bg-feisen-azul-suave text-feisen-azul border-transparent' : 'bg-white text-feisen-texto-2 border-feisen-borde'}`}>
+            <option value="">Todas las categorías</option>
+            {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Productos a contar */}
+      {cargando ? <Spinner /> : (
+        <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+          <div className="hidden sm:grid grid-cols-[1fr_6rem_8rem_6rem] gap-3 px-4 py-2 border-b border-feisen-borde text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <span>Producto</span><span className="text-right">Sistema</span><span className="text-center">Contado</span><span className="text-right">Diferencia</span>
+          </div>
+          {visibles.length === 0 ? (
+            <p className="text-center text-sm text-feisen-texto-2 px-6 py-10">
+              {filtroEstado === 'dif' ? 'Ningún producto contado tiene diferencia.' : filtroEstado === 'faltan' ? 'Ya contaste todos los productos de este filtro.' : 'Ningún producto coincide con la búsqueda.'}
             </p>
+          ) : (
+            <ul className="divide-y divide-feisen-borde-suave">
+              {visibles.map(item => {
+                const d = item.diferencia
+                const fondo = d === null || d === 0 ? '' : d < 0 ? 'bg-feisen-rojo-suave' : 'bg-amber-50'
+                return (
+                  <li key={item.key} className={`grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_6rem_8rem_6rem] gap-x-3 gap-y-2 items-center px-4 py-2.5 ${fondo}`}>
+                    <div className="min-w-0 col-span-2 sm:col-span-1">
+                      <p className="text-sm font-medium text-feisen-texto break-words">{item.item_nombre}</p>
+                      <p className="text-xs text-gray-400">{[filtroBodega ? null : item.bodega_nombre, item.categoria_nombre, item.item_unidad].filter(Boolean).join(' · ')}</p>
+                    </div>
+                    <p className="text-sm text-feisen-texto-2 tabular-nums sm:text-right">
+                      <span className="sm:hidden">Sistema </span><b className="font-semibold text-feisen-texto">{cant(item.cantidad_sistema)}</b>
+                    </p>
+                    <div className="flex items-center justify-end gap-3 sm:contents">
+                      <input data-conteo inputMode="decimal" enterKeyHint="next" aria-label={`Contado de ${item.item_nombre}`}
+                        value={conteos[item.key] ?? ''} placeholder="—"
+                        onChange={e => setConteos(prev => ({ ...prev, [item.key]: e.target.value.replace(',', '.') }))}
+                        onKeyDown={siguienteCampo}
+                        className="w-28 sm:w-full h-11 text-center font-semibold tabular-nums border border-feisen-borde rounded-lg bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+                      <span className="w-16 sm:w-auto text-right"><Diferencia dif={d} /></span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {itemsFiltrados.length > visibles.length && (
+            <button type="button" onClick={() => setLimite(l => l + PAGINA)}
+              className="w-full border-t border-feisen-borde py-3 text-sm font-medium text-feisen-azul hover:bg-feisen-fondo">
+              Mostrar {Math.min(PAGINA, itemsFiltrados.length - visibles.length)} más · van {visibles.length.toLocaleString('es-CO')} de {itemsFiltrados.length.toLocaleString('es-CO')}
+            </button>
           )}
         </div>
       )}
 
-      {/* Barra de progreso */}
-      <div className="bg-white rounded-xl border border-feisen-borde p-4 flex items-center gap-6">
-        <div className="flex-1">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>Progreso del conteo</span>
-            <span className="font-semibold">{contados} / {items.length} productos</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
-            <div
-              className="bg-feisen-azul h-2.5 rounded-full transition-all"
-              style={{ width: items.length ? `${(contados / items.length) * 100}%` : '0%' }}
-            />
-          </div>
-        </div>
-        <div className={`text-center px-4 py-2 rounded-xl ${conDiferencia > 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
-          <p className={`text-xl font-bold ${conDiferencia > 0 ? 'text-feisen-rojo' : 'text-gray-400'}`}>
-            {conDiferencia}
-          </p>
-          <p className="text-xs text-gray-500">Con diferencia</p>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar producto..."
-            className="w-full pl-9 pr-3 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-        </div>
-        <select value={filtroBodega} onChange={e => setFiltroBodega(e.target.value)}
-          className="border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-          <option value="">Todas las bodegas</option>
-          {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-        </select>
-        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
-          className="border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-          <option value="">Todas las categorías</option>
-          {categoriasDisp.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button onClick={() => setSoloConDif(v => !v)}
-          className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-xl border font-medium transition-colors
-            ${soloConDif ? 'bg-feisen-rojo text-white border-feisen-rojo' : 'bg-white text-gray-600 border-feisen-borde hover:bg-gray-50'}`}>
-          <AlertTriangle size={13} /> Solo diferencias ({conDiferencia})
-        </button>
-      </div>
-
-      {/* Tabla */}
-      {cargando ? <Spinner /> : (
-        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500">Producto</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500">Sistema</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-500">Físico (contado)</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500">Diferencia</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {itemsFiltrados.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-10 text-gray-400">Sin resultados</td></tr>
-              ) : itemsFiltrados.map(item => {
-                const tieneDif = item.diferencia !== null && item.diferencia !== 0
-                const rowBg = tieneDif
-                  ? item.diferencia > 0 ? 'bg-blue-50' : 'bg-red-50'
-                  : item.cantidad_fisica !== null ? 'bg-green-50' : ''
-                return (
-                  <tr key={item.key} className={`transition-colors ${rowBg}`}>
-                    <td className="px-4 py-2.5">
-                      <p className="font-medium text-gray-800">{item.item_nombre}</p>
-                      <p className="text-xs text-gray-400">{item.categoria_nombre} · {item.item_unidad}</p>
-                    </td>
-                    <td className="px-4 py-2.5 hidden md:table-cell">
-                      <span className="text-xs bg-blue-50 text-feisen-azul px-2 py-0.5 rounded-full">
-                        {item.bodega_nombre}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className="font-semibold text-gray-700">{item.cantidad_sistema}</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={conteos[item.key] ?? ''}
-                        onChange={e => setConteos(prev => ({ ...prev, [item.key]: e.target.value }))}
-                        placeholder="—"
-                        className="w-24 text-center border border-feisen-borde rounded-xl px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-medium"
-                      />
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {item.diferencia === null ? (
-                        <span className="text-gray-300">—</span>
-                      ) : item.diferencia === 0 ? (
-                        <span className="text-green-500 font-semibold">✓ 0</span>
-                      ) : (
-                        <span className={`font-bold text-base ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                          {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Reporte de diferencias */}
+      {/* Resumen de diferencias (valor) */}
       {conDiferencia > 0 && (
-        <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-          <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-feisen-rojo" />
-            <h2 className="font-semibold text-gray-700">Reporte de diferencias ({conDiferencia} productos)</h2>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-semibold text-gray-500">Producto</th>
-                <th className="text-left px-4 py-2.5 font-semibold text-gray-500 hidden sm:table-cell">Bodega</th>
-                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Sistema</th>
-                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Físico</th>
-                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Dif. und.</th>
-                <th className="text-right px-4 py-2.5 font-semibold text-gray-500">Valor COP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {itemsConCalculo
-                .filter(i => i.diferencia !== null && i.diferencia !== 0)
-                .sort((a, b) => Math.abs(b.valor_diferencia ?? 0) - Math.abs(a.valor_diferencia ?? 0))
-                .map(item => (
-                  <tr key={item.key} className={item.diferencia > 0 ? 'bg-blue-50' : 'bg-red-50'}>
-                    <td className="px-4 py-2.5 font-medium text-gray-800">{item.item_nombre}</td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs hidden sm:table-cell">{item.bodega_nombre}</td>
-                    <td className="px-4 py-2.5 text-right text-gray-600">{item.cantidad_sistema}</td>
-                    <td className="px-4 py-2.5 text-right font-semibold">{item.cantidad_fisica}</td>
-                    <td className={`px-4 py-2.5 text-right font-bold ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                      {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
-                    </td>
-                    <td className={`px-4 py-2.5 text-right font-semibold ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                      {item.valor_diferencia === null
-                        ? 'Sin precio'
-                        : item.valor_diferencia > 0
-                          ? `+${cop(item.valor_diferencia)}`
-                          : cop(item.valor_diferencia)}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-              <tr>
-                <td colSpan={4} className="px-4 py-3 text-sm font-semibold text-gray-600">Totales</td>
-                <td className="px-4 py-3 text-right text-sm font-bold text-gray-500">—</td>
-                <td className="px-4 py-3 text-right text-sm">
-                  <div className="flex flex-col items-end gap-0.5">
-                    {totalSobrante > 0 && <span className="text-feisen-azul font-semibold">+{cop(totalSobrante)}</span>}
-                    {totalFaltante < 0 && <span className="text-feisen-rojo font-semibold">{cop(totalFaltante)}</span>}
-                    <span className={`font-bold text-base ${(totalSobrante + totalFaltante) >= 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                      Neto: {(totalSobrante + totalFaltante) >= 0 ? '+' : ''}{cop(totalSobrante + totalFaltante)}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <details className="bg-white border border-feisen-borde rounded-xl">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-feisen-texto flex flex-wrap justify-between gap-2">
+            <span>Resumen de diferencias · {conDiferencia} productos</span>
+            <span className="tabular-nums text-feisen-texto-2">
+              Faltante <b className="text-feisen-rojo">{cop(totalFaltante)}</b> · Sobrante <b className="text-feisen-texto">+{cop(totalSobrante)}</b>
+            </span>
+          </summary>
+          <ul className="divide-y divide-feisen-borde-suave border-t border-feisen-borde-suave">
+            {itemsConCalculo
+              .filter(i => i.diferencia !== null && i.diferencia !== 0)
+              .sort((a, b) => Math.abs(b.valor_diferencia ?? 0) - Math.abs(a.valor_diferencia ?? 0))
+              .map(item => (
+                <li key={item.key} className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-2 text-sm items-center">
+                  <span className="min-w-0">
+                    <span className="block text-feisen-texto break-words">{item.item_nombre}</span>
+                    <span className="block text-xs text-gray-400 tabular-nums">{item.bodega_nombre} · {cant(item.cantidad_sistema)} → {cant(item.cantidad_fisica)}</span>
+                  </span>
+                  <Diferencia dif={item.diferencia} />
+                  <span className={`w-24 text-right tabular-nums text-xs ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia < 0 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>
+                    {item.valor_diferencia === null ? 'Sin precio' : (item.valor_diferencia > 0 ? '+' : '') + cop(item.valor_diferencia)}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </details>
       )}
+
+      {/* Acciones fijas abajo */}
+      <div className="sticky bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-4 z-10">
+        <div className="flex items-center gap-2 bg-white border border-feisen-borde rounded-xl shadow-sm pl-3 sm:pl-4 pr-2 py-2">
+          <p className="flex-1 min-w-0 text-sm leading-tight">
+            <b className="block text-feisen-texto tabular-nums">{contados.toLocaleString('es-CO')} contados</b>
+            <span className={`text-xs tabular-nums ${conDiferencia ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
+              {conDiferencia ? `${conDiferencia} con diferencia` : 'Sin diferencias'}
+            </span>
+          </p>
+          <button onClick={guardarBorrador} disabled={guardando}
+            className="border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-semibold text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60">
+            {guardando ? 'Guardando…' : <><span className="sm:hidden">Guardar</span><span className="hidden sm:inline">Guardar borrador</span></>}
+          </button>
+          <button
+            onClick={() => conDiferencia > 0 ? setModalConfirm(true) : setMsg({ tipo: 'alerta', texto: 'No hay diferencias para corregir: el sistema ya coincide con lo contado.' })}
+            disabled={cargandoCorte}
+            className="bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition disabled:opacity-60">
+            {cargandoCorte ? 'Calculando…' : <><span className="sm:hidden">Aplicar</span><span className="hidden sm:inline">Aplicar correcciones</span></>}
+          </button>
+        </div>
+      </div>
 
       {/* Modal confirmación */}
       {modalConfirm && (
-        <Modal titulo="¿Aplicar correcciones al sistema?" onCerrar={() => !aplicando && setModalConfirm(false)}>
+        <Modal titulo="¿Corregir el stock con el conteo?" onCerrar={() => !aplicando && setModalConfirm(false)}>
           <div className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-sm text-amber-800 font-medium flex items-center gap-2">
-                <AlertTriangle size={16} /> Esta acción actualizará el stock de {conDiferencia} producto{conDiferencia > 1 ? 's' : ''} en el sistema.
-              </p>
-              <p className="text-xs text-amber-600 mt-1">
-                El cambio quedará registrado en el historial de movimientos como "Ajuste inventario físico".
-              </p>
-            </div>
-            <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-100">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th className="text-left px-3 py-2 text-gray-500">Producto</th>
-                    <th className="text-right px-3 py-2 text-gray-500">Sistema → Físico</th>
-                    <th className="text-right px-3 py-2 text-gray-500">Dif.</th>
-                    {esConteoPasado && <th className="text-right px-3 py-2 text-gray-500">Hoy: antes → quedará</th>}
-                    <th className="text-right px-3 py-2 text-gray-500">Valor COP</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).map(item => (
-                    <tr key={item.key}>
-                      <td className="px-3 py-1.5 font-medium text-gray-700">{item.item_nombre}</td>
-                      <td className="px-3 py-1.5 text-right text-gray-500">
-                        {item.cantidad_sistema} → {item.cantidad_fisica}
-                      </td>
-                      <td className={`px-3 py-1.5 text-right font-bold ${item.diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                        {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
-                      </td>
-                      {esConteoPasado && (
-                        <td className="px-3 py-1.5 text-right text-gray-600">
-                          {item.stock_hoy} → <strong>{item.quedara}</strong>
-                        </td>
-                      )}
-                      <td className={`px-3 py-1.5 text-right text-xs ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia > 0 ? 'text-feisen-azul' : 'text-feisen-rojo'}`}>
-                        {item.valor_diferencia === null ? '—' : item.valor_diferencia > 0 ? `+${cop(item.valor_diferencia)}` : cop(item.valor_diferencia)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex gap-3 justify-end">
+            <p className="text-sm text-feisen-texto">
+              Se ajusta el stock de <b>{conDiferencia} producto{conDiferencia > 1 ? 's' : ''}</b>. Cada ajuste queda en el Historial como movimiento
+              con referencia {numero}. Valor neto: <b className={neto < 0 ? 'text-feisen-rojo' : ''}>{neto > 0 ? '+' : ''}{cop(neto)}</b>.
+            </p>
+            <ul className="max-h-60 overflow-y-auto border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+              {itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).map(item => (
+                <li key={item.key} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="block text-feisen-texto break-words">{item.item_nombre}</span>
+                    <span className="block text-xs text-gray-400 tabular-nums">
+                      Sistema {cant(item.cantidad_sistema)} → contado {cant(item.cantidad_fisica)}
+                      {esConteoPasado && ` · hoy ${cant(item.stock_hoy)} → ${cant(item.quedara)}`}
+                    </span>
+                  </span>
+                  <Diferencia dif={item.diferencia} />
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-3">
               <button onClick={() => setModalConfirm(false)} disabled={aplicando}
-                className="px-4 py-2 border border-feisen-borde rounded-xl text-sm text-gray-600 hover:bg-gray-50">
+                className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
               <button onClick={aplicarCorrecciones} disabled={aplicando}
-                className="flex items-center gap-2 px-4 py-2 bg-feisen-azul text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                {aplicando ? <><RefreshCw size={14} className="animate-spin" /> Aplicando...</> : <><CheckCircle size={14} /> Sí, corregir inventario</>}
+                className="flex-1 bg-feisen-azul text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {aplicando ? 'Aplicando…' : 'Sí, corregir'}
               </button>
             </div>
           </div>
         </Modal>
       )}
     </div>
+  )
+}
+
+// ── Ayudas de formato ───────────────────────────────────────────────────────
+const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
+const cop  = n => `$${Math.round(n).toLocaleString('es-CO')}`
+function copCorto(n) {
+  const a = Math.abs(n), s = n < 0 ? '−' : ''
+  if (a >= 1e6) return `${s}$${(a / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M`
+  return `${s}$${Math.round(a).toLocaleString('es-CO')}`
+}
+function fechaLarga(f) {
+  if (!f) return '—'
+  const d = new Date(f + 'T12:00:00')
+  const conAnio = d.getFullYear() !== new Date().getFullYear()
+  return d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', ...(conAnio ? { year: 'numeric' } : {}) })
+}
+
+function EstadoBadge({ estado }) {
+  return estado === 'confirmado'
+    ? <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-gray-100 text-feisen-texto-2">Confirmado</span>
+    : <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Borrador</span>
+}
+
+// Diferencia contado − sistema: rojo si falta, ámbar si sobra, check si coincide
+function Diferencia({ dif }) {
+  if (dif === null || dif === undefined) return <span className="text-sm text-gray-300">—</span>
+  if (dif === 0) return <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700"><Check size={13} /> Igual</span>
+  return (
+    <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${dif < 0 ? 'text-feisen-rojo' : 'text-amber-700'}`}>
+      {dif > 0 ? '+' : '−'}{cant(Math.abs(dif))}
+    </span>
   )
 }

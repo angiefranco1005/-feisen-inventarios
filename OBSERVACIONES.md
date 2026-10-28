@@ -1648,3 +1648,12 @@ el avance se registra a diario y la orden se cierra a mano.
 - Se quitó el filtro por producto con lista desplegable (la búsqueda ya encuentra por producto); el `?item=` de la URL sigue funcionando como chip que se quita con la x.
 - Pendiente: `RegistrarMovimiento.jsx` (el de LOGÍSTICA) sigue con el diseño viejo.
 - Revisión local sin base: `vite.mov-demo.config.mjs` (fuera de git) con un Supabase falso en el scratchpad de la sesión; abrir `http://[::1]:5178/movimientos?rol=ADMIN`.
+
+## 2026-10-28 — Inventario físico rediseñado (implementado)
+- `reportes/InventarioFisico.jsx` (ruta `/reportes/inventario-fisico`, solo ADMIN). Misma lógica de guardado, corte por fecha pasada y aplicación de ajustes; cambia la forma:
+  - Lista: "En curso" (borradores, con botón Continuar) arriba y "Confirmados" abajo; tocar uno abre el panel lateral con contados, con diferencia y la lista (diferencias primero). El título se sigue editando en línea.
+  - Conteo: barra de avance "Contados X de Y · %", "Con diferencia" (toca y filtra) y valor neto; chips Todos / Sin contar / Con diferencia; bodega y categoría como chips-select; búsqueda por palabras sin tildes.
+  - Cada producto: Sistema, campo Contado grande (teclado numérico) y diferencia: **rojo si falta, ámbar si sobra, "Igual" si coincide** (antes azul/rojo/verde). **Enter pasa al siguiente producto** para contar rápido.
+  - Se pintan 150 productos a la vez con "Mostrar 150 más" (antes ~1.400 inputs de golpe, lento en celular).
+  - Barra fija abajo: contados/diferencias + Guardar borrador + Aplicar correcciones (azul; antes rojo). Al confirmar sin fallos vuelve a la lista con aviso; si hay fallos se queda el error a la vista 5 s como antes.
+  - El resumen con valores (faltante/sobrante por producto) quedó plegable debajo de la lista.
