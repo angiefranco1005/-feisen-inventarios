@@ -1674,3 +1674,11 @@ el avance se registra a diario y la orden se cierra a mano.
 - Etiquetas: "En tránsito" → "En camino", "Parcial ⚠️" → "Llegó una parte" (el valor en la base no cambia).
 - Corrección de datos (OK de Angie, 2026-10-28): PED-0215 (OC-0085) y PED-0216 (OC-0083), que tenían OC y seguían `pendiente`, pasaron a `en_transito` con su número de OC y nota en el historial (sin usuario ni fecha estimada). Script: `supabase/migraciones/2026-10-28_pedidos_con_oc_a_en_camino.sql`.
 - El cuerpo de la tarjeta de cada pedido sigue con el diseño viejo; solo se agregaron las etiquetas de llegada/atraso.
+
+## 2026-10-28 — Fichas de pedido más limpias + un solo "Recibir" (implementado)
+- Pedido de Angie: las fichas se veían amontonadas. Maqueta aprobada: https://claude.ai/artifact/UDogswpyh9gYmaU5Ysv9qQ
+- `ListaPedidos.jsx` → `TarjetaPedido` nueva: ícono de etapa, **qué se pidió** (producto, no el número), quién · área · cómo se compró, y **en qué va** en palabras (`estadoPedido`: "Por comprar · hace 6 días", "Atrasado 47 días", "Llegó 3 de 6", "Recibido · 22 oct"). Solo la etiqueta **Urgente** (se quitaron "Normal", "6d", "Pendiente" repetido, foto, observación y el texto de OC de la ficha).
+- **Un solo botón** con el paso que sigue (`accionPrincipal`): Generar OC (Admin/Logística, pedido por comprar) o Recibir. Lo demás en el menú ⋯ (`MenuAcciones`, se abre hacia arriba si no cabe): ver detalle, editar, compra directa, otra OC, cerrar, eliminar. Permisos iguales a antes (`permisosDe`).
+- Tocar la ficha abre `DetallePedido` (panel lateral): estado grande, acciones, productos con lo recibido/faltante/sobrante, observación, foto, OCs (proveedor/precio/PDF solo Admin/Logística, igual que antes), entradas al inventario e historial (se recarga al abrir).
+- "Recibido + Entrada" y "Solo recibir" → **un solo "Recibir"** con casilla "Crear entrada al inventario" marcada por defecto (91 de 95 pedidos recibidos en 45 días tuvieron entrada). La lógica de `confirmarRecibido` no cambió; la casilla solo cambia `conEntrada`.
+- El texto libre viejo de `numero_oc` ("NO HAY OC COMPRA EFRAIN") se muestra como "compra efrain"; si hay OC de la app se muestra su número en vez del texto libre.

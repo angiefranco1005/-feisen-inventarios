@@ -6,8 +6,8 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck } from 'lucide-react'
-import { useAviso } from '../shared/ui'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from 'lucide-react'
+import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
@@ -154,226 +154,296 @@ function EtapasPedidos({ pedidos, filtro, onFiltro }) {
   )
 }
 
-function TarjetaPedido({ p, esAdmin, puedeTransito, puedeRecibir, puedeEditar, puedeEliminar, puedeCerrar, puedeGenerarOC, puedeVerDetalleOC, onTransito, onEliminar, onRecibido, onEditar, onCerrar, onGenerarOC, onToggleHistorial, historialAbierto, historial, ordenesDelPedido, coberturaPorItem, entradasDelPedido }) {
-  const ec  = ESTADO_CONFIG[p.estado] || { label: p.estado, color: 'bg-gray-100 text-gray-600', icon: ShoppingCart }
-  const Ico = ec.icon
-  // Un pedido "cerrado" puede haberse cerrado con todo recibido, con nada
-  // recibido (motivo puramente administrativo), o con parte del pedido sin llegar — esto
-  // último se marca aparte para distinguirlo de un vistazo dentro del embudo "Cerrado".
-  const cerradoIncompleto = p.estado === 'cerrado' &&
-    (p.pedido_items || []).some(it => (it.cantidad - (it.cantidad_recibida || 0)) > 0)
-  const diasTranscurridos = Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24))
-  const diasColor = diasTranscurridos >= 6 ? 'bg-red-100 text-red-600' : diasTranscurridos >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'
-  const diasAtraso = diasDeAtraso(p)
+// ── Ficha de pedido ─────────────────────────────────────────────────────────
+// Responde 3 cosas de un vistazo: qué se pidió, quién lo pidió y en qué va. Un solo botón
+// con el paso que sigue (Generar OC / Recibir); el resto de acciones en el menú ⋯ y todo el
+// detalle (productos, observación, foto, OC, entradas, historial) en el panel lateral.
+const ICONO_ETAPA = { pendiente: ClipboardList, en_transito: Truck, parcialmente_recibido: PackageOpen, recibido: PackageCheck, cerrado: Lock }
+const CAJA_ETAPA  = {
+  pendiente: 'bg-gray-100 text-feisen-texto-2', en_transito: 'bg-feisen-azul-suave text-feisen-azul',
+  parcialmente_recibido: 'bg-amber-50 text-amber-700', recibido: 'bg-emerald-50 text-emerald-700', cerrado: 'bg-gray-100 text-gray-400',
+}
+const fechaCorta = f => new Date(f.length === 10 ? f + 'T12:00:00' : f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }).replace('.', '')
+const dias = n => `${n} ${n === 1 ? 'día' : 'días'}`
 
+// Cómo va el pedido, en palabras (lo que se lee a la derecha de la ficha y arriba del panel)
+function estadoPedido(p) {
+  const atraso = diasDeAtraso(p)
+  const its = p.pedido_items || []
+  const completos = its.filter(it => (it.cantidad_recibida || 0) >= it.cantidad).length
+  if (p.estado === 'recibido') return { tono: 'verde', titulo: 'Recibido', detalle: p.fecha_recibido ? fechaCorta(p.fecha_recibido) : 'completo' }
+  if (p.estado === 'cerrado') return { tono: '', titulo: 'Cerrado', detalle: p.motivo_cierre || 'sin motivo' }
+  if (atraso) return { tono: 'rojo', titulo: `Atrasado ${dias(atraso)}`, detalle: p.estado === 'parcialmente_recibido' ? `llegó ${completos} de ${its.length}` : `debía llegar el ${fechaCorta(p.fecha_estimada_llegada)}` }
+  if (p.estado === 'parcialmente_recibido') return { tono: '', titulo: `Llegó ${completos} de ${its.length}`, detalle: p.fecha_estimada_llegada ? `el resto llega ${etiquetaLlegada(p.fecha_estimada_llegada)}` : 'falta que llegue algo' }
+  if (p.estado === 'en_transito') return { tono: '', titulo: 'En camino', detalle: p.fecha_estimada_llegada ? `llega ${etiquetaLlegada(p.fecha_estimada_llegada)}` : 'sin fecha de llegada' }
+  const d = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400000)
+  return { tono: d >= 6 ? 'rojo' : '', titulo: 'Por comprar', detalle: d === 0 ? 'pedido hoy' : `hace ${dias(d)}` }
+}
+const TONO_TEXTO = { rojo: 'text-feisen-rojo', verde: 'text-emerald-700', '': 'text-feisen-texto' }
+
+// Cómo se compró: OC de la app, compra directa o el texto libre de antes ("NO HAY OC COMPRA EFRAIN")
+function textoCompra(p, ordenes) {
+  if (ordenes?.length) return ordenes.map(o => o.numero).join(', ')
+  const t = (p.numero_oc || '').trim()
+  if (!t) return null
+  if (/^compra directa/i.test(t)) return t.replace(/^compra directa · /i, 'compra ')
+  // Texto libre de antes: "NO HAY OC COMPRA EFRAIN" → "compra efrain"; "OC 46 CYRGO" queda igual
+  if (/^no hay oc/i.test(t)) return t.replace(/^no hay oc\s*(compra\s*)?/i, 'compra ').toLowerCase()
+  return t
+}
+const AREA_NOMBRE = { FUNDICION: 'Fundición', PRODUCCION: 'Producción', ALMACEN: 'Almacén', MECANIZADOS: 'Mecanizados', LOGISTICA: 'Logística', INNOVACION: 'Innovación', ADMINISTRACION: 'Administración' }
+const nombreArea = a => a ? (AREA_NOMBRE[a] || a.charAt(0) + a.slice(1).toLowerCase()) : ''
+
+function TarjetaPedido({ p, permisos, ordenesDelPedido, onAbrir, onAccion }) {
+  const Ico = ICONO_ETAPA[p.estado] || ShoppingCart
+  const est = estadoPedido(p)
+  const its = p.pedido_items || []
+  const que = its.length === 0 ? 'Pedido sin productos' : its.length === 1 ? its[0].descripcion : `${its[0].descripcion} y ${its.length - 1} más`
+  const compra = textoCompra(p, ordenesDelPedido)
+  const principal = accionPrincipal(p, permisos)
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-      <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Ico size={20} className={p.estado === 'pendiente' ? 'text-amber-500' : p.estado === 'en_transito' ? 'text-blue-500' : 'text-green-500'} />
-          <div>
-            <p className="font-bold text-gray-800">{p.numero}</p>
-            <p className="text-xs text-gray-400">
-              {new Date(p.created_at).toLocaleDateString('es-CO')} · {p.profiles?.nombre}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${ec.color}`}>{ec.label}</span>
-          {diasAtraso > 0 && (
-            <span className="text-xs px-2 py-1 rounded-full font-semibold bg-feisen-rojo-suave text-feisen-rojo">
-              Atrasado {diasAtraso} {diasAtraso === 1 ? 'día' : 'días'}
-            </span>
+    <div className="bg-white rounded-xl border border-feisen-borde hover:border-gray-300 transition-colors grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-3 gap-y-2.5 items-center p-3 pl-3.5">
+      <button type="button" onClick={onAbrir} aria-label={`Ver ${p.numero}`}
+        className={`w-10 h-10 rounded-lg grid place-items-center ${est.tono === 'rojo' && p.estado !== 'pendiente' ? 'bg-feisen-rojo-suave text-feisen-rojo' : CAJA_ETAPA[p.estado]}`}>
+        <Ico size={19} />
+      </button>
+      <button type="button" onClick={onAbrir} className="min-w-0 text-left">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="font-semibold text-[15px] text-feisen-texto truncate">{que}</span>
+          {p.prioridad === 'urgente' && <span className="shrink-0 text-[11px] font-semibold px-1.5 py-px rounded bg-feisen-rojo-suave text-feisen-rojo">Urgente</span>}
+        </span>
+        <span className="block text-[12.5px] text-feisen-texto-2 truncate">
+          <span className="font-mono text-feisen-texto">{p.numero}</span>
+          {' · '}{p.profiles?.nombre || p.solicitante_nombre || '—'}{p.area ? ` · ${nombreArea(p.area)}` : ''}
+          {compra ? ` · ${compra}` : ''}
+        </span>
+      </button>
+      <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-3 border-t sm:border-0 border-feisen-borde-suave pt-2.5 sm:pt-0">
+        <button type="button" onClick={onAbrir} className="text-left sm:text-right min-w-0">
+          <span className={`block text-[13.5px] font-semibold whitespace-nowrap ${TONO_TEXTO[est.tono]}`}>{est.titulo}</span>
+          <span className="block text-xs text-feisen-texto-2 truncate max-w-[14rem]">{est.detalle}</span>
+        </button>
+        <span className="flex items-center gap-1 shrink-0">
+          {principal && (
+            <button type="button" onClick={() => onAccion(principal.clave, p)}
+              className="bg-feisen-azul text-white rounded-lg px-3.5 min-h-[38px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
+              {principal.texto}
+            </button>
           )}
-          {diasAtraso === 0 && p.fecha_estimada_llegada && (p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && (
-            <span className="text-xs px-2 py-1 rounded-full font-medium bg-feisen-azul-suave text-feisen-azul">
-              Llega {etiquetaLlegada(p.fecha_estimada_llegada)}
+          <MenuAcciones opciones={opcionesMenu(p, permisos)} onElegir={clave => clave === 'ver' ? onAbrir() : onAccion(clave, p)} etiqueta={`Más acciones de ${p.numero}`} />
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// El paso que sigue para este pedido, según el rol
+function accionPrincipal(p, permisos) {
+  if (p.estado === 'pendiente' && permisos.generarOC && (p.pedido_items?.length > 0)) return { clave: 'oc', texto: 'Generar OC' }
+  if ((p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && permisos.recibir) return { clave: 'recibir', texto: 'Recibir' }
+  return null
+}
+function opcionesMenu(p, permisos) {
+  const abierto = p.estado !== 'cerrado' && p.estado !== 'recibido'
+  return [
+    { clave: 'ver', texto: 'Ver detalle e historial' },
+    permisos.editar && p.estado === 'pendiente' && { clave: 'editar', texto: 'Editar pedido' },
+    permisos.transito && p.estado === 'pendiente' && { clave: 'directa', texto: 'Compra directa (sin OC)' },
+    permisos.generarOC && p.estado !== 'pendiente' && abierto && (p.pedido_items?.length > 0) && { clave: 'oc', texto: 'Generar otra orden de compra' },
+    permisos.cerrar && p.estado !== 'cerrado' && { clave: 'cerrar', texto: 'Cerrar pedido…', separado: true },
+    permisos.eliminar && { clave: 'eliminar', texto: 'Eliminar…', peligro: true, separado: !(permisos.cerrar && p.estado !== 'cerrado') },
+  ].filter(Boolean)
+}
+
+function MenuAcciones({ opciones, onElegir, etiqueta }) {
+  const [abierto, setAbierto] = useState(false)
+  const [arriba, setArriba] = useState(false) // si no cabe abajo (barra del celular), se abre hacia arriba
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!abierto) return
+    const fuera = e => { if (!ref.current?.contains(e.target)) setAbierto(false) }
+    const esc = e => { if (e.key === 'Escape') setAbierto(false) }
+    document.addEventListener('mousedown', fuera); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fuera); document.removeEventListener('keydown', esc) }
+  }, [abierto])
+  return (
+    <span ref={ref} className="relative">
+      <button type="button" aria-label={etiqueta} aria-expanded={abierto}
+        onClick={e => { setArriba(e.currentTarget.getBoundingClientRect().bottom + 300 > window.innerHeight); setAbierto(a => !a) }}
+        className={`w-9 h-[38px] grid place-items-center rounded-lg text-feisen-texto-2 hover:bg-feisen-fondo ${abierto ? 'bg-feisen-fondo' : ''}`}>
+        <MoreHorizontal size={18} />
+      </button>
+      {abierto && (
+        <span role="menu" className={`absolute right-0 ${arriba ? 'bottom-full mb-1' : 'top-full mt-1'} z-30 w-60 bg-white border border-feisen-borde rounded-lg shadow-lg p-1 flex flex-col`}>
+          {opciones.map(o => (
+            <span key={o.clave} className="contents">
+              {o.separado && <span className="my-1 border-t border-feisen-borde-suave" />}
+              <button type="button" role="menuitem" onClick={() => { setAbierto(false); onElegir(o.clave) }}
+                className={`text-left px-3 py-2.5 rounded-md text-sm hover:bg-feisen-fondo ${o.peligro ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
+                {o.texto}
+              </button>
             </span>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
+
+// ── Panel de detalle del pedido ─────────────────────────────────────────────
+function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entradasDelPedido, historial, onCerrar, onAccion }) {
+  const est = estadoPedido(p)
+  const principal = accionPrincipal(p, permisos)
+  const compra = textoCompra(p, ordenesDelPedido)
+  const fondo = est.tono === 'rojo' ? 'bg-feisen-rojo-suave' : est.tono === 'verde' ? 'bg-emerald-50' : 'bg-feisen-fondo'
+  const titulo = h => <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">{h}</h4>
+  return (
+    <PanelLateral etiqueta={`Detalle de ${p.numero}`} onCerrar={onCerrar} encabezado={
+      <div>
+        <h3 className="font-mono text-base font-semibold text-feisen-texto">{p.numero}</h3>
+        <p className="text-sm text-feisen-texto-2">
+          {p.profiles?.nombre || p.solicitante_nombre || '—'}{p.area ? ` · ${nombreArea(p.area)}` : ''} · pedido el {fechaCorta(p.created_at)}
+          {p.prioridad === 'urgente' && <span className="ml-1.5 text-[11px] font-semibold px-1.5 py-px rounded bg-feisen-rojo-suave text-feisen-rojo">Urgente</span>}
+        </p>
+      </div>
+    }>
+      <div className={`rounded-xl px-4 py-3 ${fondo}`}>
+        <p className={`text-base font-semibold ${TONO_TEXTO[est.tono]}`}>{est.titulo}</p>
+        <p className="text-sm text-feisen-texto-2">{est.detalle}{compra ? ` · ${compra}` : ''}</p>
+      </div>
+
+      {(principal || (permisos.transito && p.estado === 'pendiente')) && (
+        <div className="flex flex-wrap gap-2">
+          {principal && (
+            <button type="button" onClick={() => onAccion(principal.clave, p)}
+              className="bg-feisen-azul text-white rounded-lg px-4 min-h-[42px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
+              {principal.texto}
+            </button>
           )}
-          {cerradoIncompleto && (
-            <span className="text-xs px-2 py-1 rounded-full font-medium bg-orange-100 text-orange-700">
-              ⚠️ Llegó incompleto
-            </span>
-          )}
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${diasColor}`}>
-            {diasTranscurridos === 0 ? 'Hoy' : `${diasTranscurridos}d`}
-          </span>
-          {p.prioridad && PRIORIDAD_CONFIG[p.prioridad] && (
-            <span className={`text-xs px-2 py-1 rounded-full font-medium ${PRIORIDAD_CONFIG[p.prioridad].color}`}>
-              {PRIORIDAD_CONFIG[p.prioridad].label}
-            </span>
-          )}
-          {p.estado === 'pendiente' && puedeTransito && (
-            <button onClick={() => onTransito(p)} title="Se compró sin orden de compra: pasa a En camino"
-              className="text-xs border border-feisen-azul text-feisen-azul px-3 py-1.5 rounded-lg font-medium hover:bg-feisen-azul-suave">
+          {permisos.transito && p.estado === 'pendiente' && (
+            <button type="button" onClick={() => onAccion('directa', p)}
+              className="border border-feisen-borde rounded-lg px-4 min-h-[42px] text-sm font-semibold text-feisen-texto hover:bg-feisen-fondo">
               Compra directa
             </button>
           )}
-          {(p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && puedeRecibir && (
-            <>
-              <button onClick={() => onRecibido(p, true)}
-                className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium">
-                {p.estado === 'parcialmente_recibido' ? '📦 Llegó más + Entrada' : '✅ Recibido + Entrada'}
-              </button>
-              <button onClick={() => onRecibido(p, false)}
-                className="text-xs bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg font-medium">
-                {p.estado === 'parcialmente_recibido' ? '📦 Llegó más' : 'Solo recibir'}
-              </button>
-            </>
-          )}
-          {puedeEditar && p.estado === 'pendiente' && (
-            <button onClick={() => onEditar(p)} title="Editar pedido"
-              className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg">
-              <Edit2 size={15} />
-            </button>
-          )}
-          {puedeGenerarOC && (p.pedido_items?.length > 0) && (
-            <button onClick={() => onGenerarOC(p)} title="Generar orden de compra"
-              className="p-1.5 text-gray-300 hover:text-feisen-azul hover:bg-blue-50 rounded-lg">
-              <FileText size={15} />
-            </button>
-          )}
-          <button onClick={() => onToggleHistorial(p.id)} title="Ver historial"
-            className={`p-1.5 rounded-lg transition-colors ${historialAbierto ? 'text-feisen-azul bg-blue-50' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
-            <Clock size={15} />
-          </button>
-          {puedeCerrar && p.estado !== 'cerrado' && (
-            <button onClick={() => onCerrar(p)} title="Cerrar pedido"
-              className="flex items-center gap-1 text-xs border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 px-2.5 py-1.5 rounded-lg font-medium">
-              <Lock size={12} /> Cerrar pedido
-            </button>
-          )}
-          {puedeEliminar && (
-            <button onClick={() => onEliminar(p)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg">
-              <Trash2 size={15} />
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
-      {p.pedido_items?.length > 0 && (
-        <div className="border-t border-gray-50 px-5 py-3 space-y-1">
-          {p.pedido_items.map((it, i) => {
-            const recibido    = it.cantidad_recibida || 0
-            const pendiente   = it.cantidad - recibido
-            const esParcial   = p.estado === 'parcialmente_recibido'
-            const esRecibido  = p.estado === 'recibido'
-            const esCerrado   = p.estado === 'cerrado'
-            const hayExcedente = recibido > it.cantidad
-            const mostrarRecepcion = (esParcial || esRecibido || esCerrado) && recibido > 0
-            const cubiertoOC   = coberturaPorItem?.[it.id] || 0
-            const pendienteOC  = Math.max(0, it.cantidad - cubiertoOC)
+      <section>
+        {titulo('Productos')}
+        <ul className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+          {(p.pedido_items || []).map(it => {
+            const rec = it.cantidad_recibida || 0
+            const falta = it.cantidad - rec
+            const cubiertoOC = coberturaPorItem?.[it.id] || 0
+            const llego = p.estado === 'parcialmente_recibido' || p.estado === 'recibido' || p.estado === 'cerrado'
             return (
-              <div key={i} className="text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">{it.descripcion}</span>
-                  <span className="font-medium text-gray-800">{it.cantidad} {it.unidad}</span>
-                </div>
-                {mostrarRecepcion && (
-                  <div className="flex flex-wrap gap-x-3 text-xs mt-0.5">
-                    <span className="text-green-600">✓ Recibido: {recibido} {it.unidad}</span>
-                    {hayExcedente && (
-                      <span className="text-orange-600 font-semibold">⚠️ Excedente: +{recibido - it.cantidad} {it.unidad}</span>
-                    )}
-                    {(esParcial || esCerrado) && pendiente > 0 && (
-                      <span className="text-orange-600 font-semibold">⏳ {esCerrado ? 'No llegó' : 'Pendiente'}: {pendiente} {it.unidad}</span>
-                    )}
-                  </div>
-                )}
-                {cubiertoOC > 0 && (
-                  <div className="text-xs mt-0.5 text-feisen-azul">
-                    🧾 En orden de compra: {cubiertoOC} {it.unidad}
-                    {pendienteOC > 0 && ` · Falta pedir: ${pendienteOC} ${it.unidad}`}
-                  </div>
-                )}
-              </div>
+              <li key={it.id} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2.5 text-sm">
+                <span className="min-w-0">
+                  <span className="block text-feisen-texto break-words">{it.descripcion}</span>
+                  {cubiertoOC > 0 && p.estado === 'pendiente' && (
+                    <span className="block text-xs text-feisen-texto-2">En OC: {cubiertoOC}{cubiertoOC < it.cantidad ? ` · falta pedir ${it.cantidad - cubiertoOC}` : ''}</span>
+                  )}
+                </span>
+                <span className="text-right whitespace-nowrap tabular-nums">
+                  <span className="block text-feisen-texto">{it.cantidad} {it.unidad}</span>
+                  {llego && rec > 0 && (
+                    <span className={`block text-xs ${falta > 0 ? 'text-amber-700' : rec > it.cantidad ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {rec > it.cantidad ? `llegaron ${rec} · sobran ${rec - it.cantidad}` : falta > 0 ? `llegaron ${rec} · ${p.estado === 'cerrado' ? 'no llegaron' : 'faltan'} ${falta}` : 'completo'}
+                    </span>
+                  )}
+                </span>
+              </li>
             )
           })}
-          {p.observaciones && <p className="text-xs text-gray-400 mt-2 italic">"{p.observaciones}"</p>}
-          {p.motivo_cierre && <p className="text-xs text-gray-500 mt-1.5 font-medium">🔒 Cerrado: {p.motivo_cierre}</p>}
-          {p.numero_oc && <p className="text-xs text-blue-600 font-medium mt-1">{p.numero_oc.startsWith('Compra directa') ? p.numero_oc : `OC: ${p.numero_oc}`}</p>}
-          {ordenesDelPedido?.length > 0 && (
-            <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Órdenes de compra generadas</p>
-              {ordenesDelPedido.map(oc => {
-                // Otras áreas: solo el número de la OC (sin proveedor, precio ni PDF)
-                if (!puedeVerDetalleOC) {
-                  return (
-                    <div key={oc.id} className="text-xs bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="font-semibold text-gray-700">{oc.numero}</span>
-                    </div>
-                  )
-                }
-                const totalOC = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)).total
-                return (
-                  <div key={oc.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
-                    <div>
-                      <span className="font-semibold text-gray-700">{oc.numero}</span>
-                      <span className="text-gray-400"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${totalOC.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (IVA incl.)</span>
-                    </div>
-                    <button
-                      onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: p.numero }, oc.profiles?.nombre || '')}
-                      title="Descargar PDF" className="p-1 text-feisen-azul hover:bg-blue-100 rounded">
-                      <Download size={13} />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {entradasDelPedido?.length > 0 && (
-            <div className="mt-2.5 pt-2.5 border-t border-gray-50 space-y-1.5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Entradas de inventario</p>
-              {entradasDelPedido.map(en => (
-                <div key={en.numero} className="flex items-center justify-between text-xs bg-green-50 rounded-lg px-3 py-2">
-                  <span className="font-mono font-semibold text-green-800">{en.numero}</span>
-                  <span className="text-green-700">
-                    {en.lineas} {en.lineas === 1 ? 'ítem' : 'ítems'} · {en.fecha ? new Date(en.fecha + 'T12:00:00').toLocaleDateString('es-CO') : '—'}
-                  </span>
-                </div>
-              ))}
-              <p className="text-[11px] text-gray-400">Búscalo en Movimientos por este número si hay que corregir algo.</p>
-            </div>
-          )}
-          {p.foto_muestra_url && (
-            <div className="mt-3">
-              <p className="text-xs text-gray-400 mb-1.5 flex items-center gap-1"><ImageIcon size={11} /> Foto de muestra</p>
-              <a href={p.foto_muestra_url} target="_blank" rel="noopener noreferrer">
-                <img src={p.foto_muestra_url} alt="Muestra"
-                  className="max-h-40 rounded-xl border border-gray-200 object-contain bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in" />
-              </a>
-            </div>
-          )}
-        </div>
+        </ul>
+      </section>
+
+      {p.observaciones && <section>{titulo('Observación')}<p className="text-sm text-feisen-texto bg-feisen-fondo rounded-lg px-3 py-2.5 break-words">{p.observaciones}</p></section>}
+      {p.motivo_cierre && <section>{titulo('Motivo de cierre')}<p className="text-sm text-feisen-texto">{p.motivo_cierre}</p></section>}
+
+      {p.foto_muestra_url && (
+        <section>
+          {titulo('Foto de muestra')}
+          <a href={p.foto_muestra_url} target="_blank" rel="noopener noreferrer">
+            <img src={p.foto_muestra_url} alt="Muestra" className="max-h-48 rounded-lg border border-feisen-borde object-contain bg-feisen-fondo hover:opacity-90 cursor-zoom-in" />
+          </a>
+        </section>
       )}
 
-      {historialAbierto && (
-        <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Historial de cambios</p>
-          {!historial ? (
-            <p className="text-xs text-gray-400">Cargando...</p>
-          ) : historial.length === 0 ? (
-            <p className="text-xs text-gray-400">Sin registros aún.</p>
-          ) : (
-            <div className="space-y-3">
-              {historial.map(h => (
-                <div key={h.id} className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-feisen-azul mt-1.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700">{HISTORIAL_LABELS[h.accion] || h.accion}</p>
-                    {h.detalle && <p className="text-xs text-gray-500 mt-0.5">{h.detalle}</p>}
-                    <p className="text-xs text-gray-300 mt-0.5">
-                      {new Date(h.created_at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
-                      {h.profiles?.nombre ? ` · ${h.profiles.nombre}` : ''}
-                    </p>
-                  </div>
+      {ordenesDelPedido?.length > 0 && (
+        <section>
+          {titulo('Órdenes de compra')}
+          <div className="space-y-1.5">
+            {ordenesDelPedido.map(oc => {
+              if (!permisos.verDetalleOC) {
+                return <div key={oc.id} className="text-sm border border-feisen-borde rounded-lg px-3 py-2 font-mono">{oc.numero}</div>
+              }
+              const totalOC = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)).total
+              return (
+                <div key={oc.id} className="flex items-center justify-between gap-2 text-sm border border-feisen-borde rounded-lg pl-3 pr-1.5 py-1.5">
+                  <span className="min-w-0">
+                    <span className="font-mono font-semibold text-feisen-texto">{oc.numero}</span>
+                    <span className="text-feisen-texto-2"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${Math.round(totalOC).toLocaleString('es-CO')} IVA incl.</span>
+                  </span>
+                  <button type="button" title="Descargar PDF"
+                    onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: p.numero }, oc.profiles?.nombre || '')}
+                    className="shrink-0 inline-flex items-center gap-1 text-feisen-azul font-semibold text-xs px-2.5 py-2 rounded-md hover:bg-feisen-azul-suave">
+                    <Download size={14} /> PDF
+                  </button>
                 </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {entradasDelPedido?.length > 0 && (
+        <section>
+          {titulo('Entradas al inventario')}
+          <div className="space-y-1.5">
+            {entradasDelPedido.map(en => (
+              <div key={en.numero} className="flex justify-between gap-2 text-sm border border-feisen-borde rounded-lg px-3 py-2">
+                <span className="font-mono text-feisen-texto">{en.numero}</span>
+                <span className="text-feisen-texto-2">{en.lineas} {en.lineas === 1 ? 'producto' : 'productos'} · {en.fecha ? fechaCorta(en.fecha) : '—'}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Búscalas en Historial por este número si hay que corregir algo.</p>
+        </section>
+      )}
+
+      <section>
+        {titulo('Historial')}
+        {!historial ? <p className="text-sm text-gray-400">Cargando…</p>
+          : historial.length === 0 ? <p className="text-sm text-gray-400">Sin registros.</p>
+          : (
+            <ol className="space-y-3">
+              {historial.map(h => (
+                <li key={h.id} className="relative pl-5 text-sm before:absolute before:left-1 before:top-1.5 before:w-2 before:h-2 before:rounded-full before:bg-feisen-azul">
+                  <p className="text-feisen-texto">{(HISTORIAL_LABELS[h.accion] || h.accion).replace(/^[^\p{L}]+/u, '')}</p>
+                  {h.detalle && <p className="text-xs text-feisen-texto-2 break-words">{h.detalle}</p>}
+                  <p className="text-xs text-gray-400">
+                    {new Date(h.created_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                    {h.profiles?.nombre ? ` · ${h.profiles.nombre}` : ''}
+                  </p>
+                </li>
               ))}
-            </div>
+            </ol>
           )}
+      </section>
+
+      {opcionesMenu(p, permisos).some(o => ['editar', 'cerrar', 'eliminar'].includes(o.clave)) && (
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-feisen-borde-suave">
+          {opcionesMenu(p, permisos).filter(o => ['editar', 'cerrar', 'eliminar'].includes(o.clave)).map(o => (
+            <button key={o.clave} type="button" onClick={() => onAccion(o.clave, p)}
+              className={`border border-feisen-borde rounded-lg px-3 min-h-[38px] text-sm font-medium hover:bg-feisen-fondo ${o.peligro ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
+              {o.texto.replace('…', '')}
+            </button>
+          ))}
         </div>
       )}
-    </div>
+    </PanelLateral>
   )
 }
 
@@ -429,6 +499,7 @@ export default function ListaPedidos() {
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('curso') // 'curso' | etapa | 'atrasados' | 'todos'
   const [aviso, avisar] = useAviso()
+  const [detalleId, setDetalleId] = useState(null) // pedido abierto en el panel lateral
   const [busqueda,   setBusqueda]   = useState('')
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
@@ -776,6 +847,42 @@ export default function ListaPedidos() {
     })
   }
 
+  async function abrirDetalle(pedidoId) {
+    setDetalleId(pedidoId)
+    // Siempre fresco: el historial cambia al generar OC, recibir, etc.
+    setHistorialData(h => ({ ...h, [pedidoId]: null }))
+    const { data } = await supabase
+      .from('pedido_historial')
+      .select('*, profiles(nombre)')
+      .eq('pedido_id', pedidoId)
+      .order('created_at', { ascending: false })
+    setHistorialData(h => ({ ...h, [pedidoId]: data || [] }))
+  }
+
+  // Permisos por pedido (algunos dependen de si el usuario es quien lo pidió)
+  function permisosDe(p) {
+    const esSuyo = p.solicitante_id === perfil?.id
+    return {
+      transito:     esAdmin || esLogistica,
+      recibir:      esAdmin || esAlmacenista || esSuyo,
+      editar:       esAdmin || esSuyo,
+      eliminar:     esAdmin || (esSuyo && p.estado === 'pendiente'),
+      cerrar:       esAdmin || esLogistica || esAlmacenista || esSuyo,
+      generarOC:    esAdmin || esLogistica,
+      verDetalleOC: esAdmin || esLogistica,
+    }
+  }
+
+  // Acciones de la ficha, del menú ⋯ y del panel
+  function ejecutarAccion(clave, p) {
+    if (clave === 'oc')       return setModalGenerarOC(p)
+    if (clave === 'recibir')  return iniciarRecibido(p, true)
+    if (clave === 'directa')  { setFormTransito({ numero_oc: '', fecha_estimada: '' }); return setModalTransito(p) }
+    if (clave === 'editar')   return abrirEditar(p)
+    if (clave === 'cerrar')   { setMotivoCierre(''); return setConfirmCerrar(p) }
+    if (clave === 'eliminar') return setConfirmElim(p)
+  }
+
   async function toggleHistorial(pedidoId) {
     const abierto = historialOpen[pedidoId]
     setHistorialOpen(h => ({ ...h, [pedidoId]: !abierto }))
@@ -1017,7 +1124,7 @@ export default function ListaPedidos() {
       </div>
 
       {/* Lista */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {pedidosFiltrados.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 border border-gray-100">
             <ShoppingCart size={40} className="mx-auto mb-3 opacity-30" />
@@ -1031,29 +1138,23 @@ export default function ListaPedidos() {
           <TarjetaPedido
             key={p.id}
             p={p}
-            esAdmin={esAdmin}
-            puedeTransito={esAdmin || esLogistica}
-            puedeRecibir={esAdmin || esAlmacenista || p.solicitante_id === perfil?.id}
-            puedeEditar={esAdmin || p.solicitante_id === perfil?.id}
-            puedeEliminar={esAdmin || (p.solicitante_id === perfil?.id && p.estado === 'pendiente')}
-            puedeCerrar={esAdmin || esLogistica || esAlmacenista || p.solicitante_id === perfil?.id}
-            puedeGenerarOC={esAdmin || esLogistica}
-            puedeVerDetalleOC={esAdmin || esLogistica}
-            onTransito={ped => { setFormTransito({ numero_oc: '', fecha_estimada: '' }); setModalTransito(ped) }}
-            onEliminar={ped => setConfirmElim(ped)}
-            onCerrar={ped => { setMotivoCierre(''); setConfirmCerrar(ped) }}
-            onRecibido={iniciarRecibido}
-            onEditar={abrirEditar}
-            onGenerarOC={ped => setModalGenerarOC(ped)}
-            onToggleHistorial={toggleHistorial}
-            historialAbierto={!!historialOpen[p.id]}
-            historial={historialData[p.id]}
+            permisos={permisosDe(p)}
             ordenesDelPedido={ocPorPedido[p.id] || []}
-            coberturaPorItem={coberturaPorItem}
-            entradasDelPedido={entradasPorPedido[p.id] || []}
+            onAbrir={() => abrirDetalle(p.id)}
+            onAccion={ejecutarAccion}
           />
         ))}
       </div>
+
+      {detalleId && pedidos.some(x => x.id === detalleId) && (() => {
+        const p = pedidos.find(x => x.id === detalleId)
+        return (
+          <DetallePedido p={p} permisos={permisosDe(p)}
+            ordenesDelPedido={ocPorPedido[p.id] || []} coberturaPorItem={coberturaPorItem}
+            entradasDelPedido={entradasPorPedido[p.id] || []} historial={historialData[p.id]}
+            onCerrar={() => setDetalleId(null)} onAccion={ejecutarAccion} />
+        )
+      })()}
 
       {modalGenerarOC && (
         <ModalGenerarOC
@@ -1178,7 +1279,7 @@ export default function ListaPedidos() {
 {/* MODAL CONFIRMAR RECEPCIÓN */}
       {modalRecibido && (
         <Modal
-          titulo={`Recepción — ${modalRecibido.pedido.numero}`}
+          titulo={`Recibir ${modalRecibido.pedido.numero}`}
           onCerrar={() => setModalRecibido(null)}
         >
           <div className="space-y-4">
@@ -1188,6 +1289,15 @@ export default function ListaPedidos() {
               </div>
             )}
             <p className="text-sm text-gray-500">Ingresa la cantidad que llegó realmente de cada ítem.</p>
+            <label className="flex items-start gap-3 bg-feisen-fondo rounded-xl px-3 py-3 cursor-pointer">
+              <input type="checkbox" checked={modalRecibido.conEntrada}
+                onChange={e => setModalRecibido(m => ({ ...m, conEntrada: e.target.checked }))}
+                className="mt-0.5 w-5 h-5 accent-feisen-azul shrink-0" />
+              <span className="text-sm">
+                <span className="block font-semibold text-feisen-texto">Crear entrada al inventario</span>
+                <span className="block text-xs text-feisen-texto-2">Suma lo que llegó al stock. Desmárcala solo si no se maneja en inventario o ya registraste la entrada a mano.</span>
+              </span>
+            </label>
             {modalRecibido.conEntrada && (
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Fecha de la entrada</label>
@@ -1229,8 +1339,8 @@ export default function ListaPedidos() {
                 Cancelar
               </button>
               <button type="button" onClick={confirmarRecibido} disabled={guardandoRecibido}
-                className="flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
-                {guardandoRecibido ? 'Guardando…' : (modalRecibido.conEntrada ? '✅ Recibido + Entrada' : '✅ Confirmar recibido')}
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                {guardandoRecibido ? 'Guardando…' : (modalRecibido.conEntrada ? 'Recibir y crear entrada' : 'Recibir sin entrada')}
               </button>
             </div>
           </div>
