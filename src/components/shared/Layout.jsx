@@ -22,7 +22,6 @@ const MODULOS = {
 
 const NAV_ADMIN = [
   { to: '/dashboard',                         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/analitica',                         icon: Activity,        label: 'Analítica' },
   { to: '/productos',                         icon: Package,         label: 'Productos',          modulo: 'Inventarios' },
   { to: '/movimientos/nuevo',                 icon: ArrowUpDown,     label: 'Movimiento',         modulo: 'Inventarios' },
   { to: '/mecanizados/paquetes',              icon: Boxes,           label: 'Paquetes',           modulo: 'Inventarios' },

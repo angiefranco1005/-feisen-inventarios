@@ -1691,3 +1691,10 @@ el avance se registra a diario y la orden se cierra a mano.
 - Valor del inventario: contar solo productos **activos** ($462,2 M el 2026-10-28). La cifra anterior ($493,8 M) incluía inactivos.
 - Mecanizados: el operario se guarda como texto libre en `movimientos.motivo` ("Mecanizado por: Wilmer y miguel", "Sanches", "Hernendes"…). Para medir piezas por persona hay que normalizar; al implementar, cambiar a un selector de colaboradores del área (empleados) y guardar el id.
 - RR. HH.: tabla `novedades` vacía a la fecha; la tarjeta de ausencias muestra un estado vacío que explica qué se verá.
+
+## 2026-10-28 — Inicio de gerencia implementado (Inicio + Analítica unidos)
+- Nuevo `src/components/admin/inicio/`: `InicioGerencia.jsx` (pantalla), `datosInicio.js` (cargas y cálculos), `operarios.js` (normaliza el operario escrito a mano en mecanizado).
+- Rutas ADMIN: `/` y `/dashboard` → InicioGerencia; `/analitica` redirige a `/dashboard`; se quitó "Analítica" del menú (se mantiene `/analitica/fundicion`). `admin/Dashboard.jsx` y `admin/DashboardEjecutivo.jsx` quedaron sin uso: se pueden borrar cuando se confirme que no hace falta nada de ellos (DashboardEjecutivo tenía provisión NIIF por inventario >180 días).
+- Periodo (7/15 días, último mes, mes puntual, año) guardado por navegador en `localStorage` (`inicio-periodo`). Pendientes ocultados con × en `inicio-ocultas`; la clave de cada pendiente incluye su cifra, así que vuelve si la situación cambia.
+- Rotación: último movimiento (no revertido) de cada producto en cada bodega; se trae todo `movimientos` (pocas columnas, paginado). Si la tabla crece mucho, pasar este cálculo a una vista/RPC en Supabase.
+- Operarios de mecanizado: cada palabra del texto se asocia al colaborador más parecido (nombre o apellido, tolera "Sanches", "Hernendes", "Hern", "miguelpiñ"); se priorizan los del área Mecanizados. Lo que no coincide (p. ej. "Nelson") se muestra tal cual. Sigue pendiente cambiar el registro a un selector de colaboradores.

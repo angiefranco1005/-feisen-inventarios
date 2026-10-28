@@ -5,8 +5,7 @@ import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Layout from './components/shared/Layout'
 import Spinner from './components/shared/Spinner'
 
-import DashboardAdmin      from './components/admin/Dashboard'
-import DashboardEjecutivo from './components/admin/DashboardEjecutivo'
+import InicioGerencia     from './components/admin/inicio/InicioGerencia'
 import DashboardLogistica from './components/logistica/Dashboard'
 import DashboardConsultor from './components/consultor/Dashboard'
 import GestionProductos   from './components/productos/GestionProductos'
@@ -226,8 +225,8 @@ function AppRoutes() {
   // ADMIN (y cualquier otro)
   return (
     <Routes>
-      <Route path="/"                  element={<Layout><DashboardAdmin /></Layout>} />
-      <Route path="/dashboard"         element={<Layout><DashboardAdmin /></Layout>} />
+      <Route path="/"                  element={<Layout><InicioGerencia /></Layout>} />
+      <Route path="/dashboard"         element={<Layout><InicioGerencia /></Layout>} />
       <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
       <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
       <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
@@ -235,7 +234,8 @@ function AppRoutes() {
       <Route path="/ordenes-compra"    element={<Layout><OrdenesCompra /></Layout>} />
       <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
       <Route path="/mecanizados/paquetes" element={<Layout><GestionPaquetes /></Layout>} />
-      <Route path="/analitica"              element={<Layout><DashboardEjecutivo /></Layout>} />
+      {/* Analítica quedó dentro del Inicio de gerencia (2026-10-28) */}
+      <Route path="/analitica"              element={<Navigate to="/dashboard" replace />} />
       <Route path="/reportes"               element={<Layout><HubReportes /></Layout>} />
       <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />
       <Route path="/reportes/inventario-fisico" element={<Layout><InventarioFisico /></Layout>} />
