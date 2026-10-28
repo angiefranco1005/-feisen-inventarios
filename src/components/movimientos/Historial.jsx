@@ -8,6 +8,7 @@ import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { useBodegasConsulta } from '../consultor/useBodegasConsulta'
+import { coincideBusqueda } from '../../utils/busqueda'
 import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, PenLine, Pencil } from 'lucide-react'
 
 const TIPO_CONFIG = {
@@ -60,6 +61,73 @@ async function aplicarAjustesStock(item_id, ajustes) {
     if (errUpd) fallos.push(`error al actualizar stock: ${errUpd.message}`)
   }
   return fallos
+}
+
+// Ajusta el stock de un producto en una bodega (para EDITAR movimientos). La tabla
+// `stock` no tiene columna `id` — su llave es (item_id, bodega_id) —, por eso se busca
+// y actualiza por esas dos columnas. Si el producto nunca tuvo stock en esa bodega
+// (pasa al cambiar el producto de un movimiento por otro), se crea el renglón.
+// Devuelve un mensaje de error o null.
+// Nota: aplicarAjustesStock (arriba) sigue usando `id` y por eso falla; lo usa
+// eliminarMovimiento, donde además actúa el trigger fn_revertir_stock_on_delete —
+// corregirlo ahí revertiría el stock dos veces (ver OBSERVACIONES 2026-10-28).
+async function ajustarStockEdicion(item_id, bodega_id, delta) {
+  const { data: fila, error: errBuscar } = await supabase.from('stock')
+    .select('cantidad_actual').eq('item_id', item_id).eq('bodega_id', bodega_id).maybeSingle()
+  if (errBuscar) return `no se pudo leer el stock: ${errBuscar.message}`
+  if (!fila) {
+    const { error } = await supabase.from('stock')
+      .insert({ item_id, bodega_id, cantidad_actual: Math.max(0, delta) })
+    return error ? `no se pudo crear el stock del producto: ${error.message}` : null
+  }
+  const { error } = await supabase.from('stock')
+    .update({ cantidad_actual: Math.max(0, Number(fila.cantidad_actual) + delta), updated_at: new Date().toISOString() })
+    .eq('item_id', item_id).eq('bodega_id', bodega_id)
+  return error ? `error al actualizar stock: ${error.message}` : null
+}
+
+async function aplicarAjustesEdicion(item_id, ajustes) {
+  if (ajustes.length === 0) return ['no se pudo determinar la bodega del movimiento para ajustar el stock']
+  const fallos = []
+  for (const aj of ajustes) {
+    const f = await ajustarStockEdicion(item_id, aj.bodega_id, aj.delta)
+    if (f) fallos.push(f)
+  }
+  return fallos
+}
+
+// Bodega cuyo catálogo aplica al movimiento: la que recibe en una entrada, la que
+// entrega en una salida (cada bodega tiene su propio renglón de `items`).
+const bodegaDelMovimiento = (m) => m.tipo === 'salida' ? m.bodega_origen_id : (m.bodega_destino_id || m.bodega_origen_id)
+
+// Buscador de producto para el modal de edición (palabras sueltas, sin tildes)
+function SelectorProductoEdicion({ items, valorId, onElegir }) {
+  const [texto,   setTexto]   = useState('')
+  const [abierto, setAbierto] = useState(false)
+  const actual = items.find(i => i.id === valorId)
+  const filtrados = texto.trim() ? items.filter(i => coincideBusqueda(i.nombre, texto)) : items
+  return (
+    <div className="relative">
+      <input value={abierto ? texto : (actual?.nombre || '')}
+        onChange={e => { setTexto(e.target.value); setAbierto(true) }}
+        onFocus={() => { setTexto(''); setAbierto(true) }}
+        onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        placeholder="Buscar producto por nombre…"
+        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+      {abierto && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
+          {filtrados.slice(0, 40).map(i => (
+            <button key={i.id} type="button" onMouseDown={() => { onElegir(i); setAbierto(false) }}
+              className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 hover:bg-blue-50
+                ${i.id === valorId ? 'font-semibold text-feisen-azul' : 'text-gray-800'}`}>
+              {i.nombre}
+            </button>
+          ))}
+          {filtrados.length === 0 && <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados en esta bodega.</p>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Busca el movimiento "par" de una transferencia entre bodegas (el otro lado
@@ -229,6 +297,7 @@ export default function Historial() {
   // ── editar movimiento (solo admin) ───────────────────────────────────────
   function abrirEdicion(m) {
     setEditForm({
+      item_id:               m.item_id || '',
       fecha_movimiento:      m.fecha_movimiento || new Date(m.created_at).toISOString().split('T')[0],
       cantidad:              String(m.cantidad ?? ''),
       precio_costo_snapshot: String(m.precio_costo_snapshot ?? ''),
@@ -265,28 +334,45 @@ export default function Historial() {
         cambios[campo] = { de: esNum ? parseFloat(viejoRaw ?? 0) : (viejoRaw ?? ''), a: esNum ? parseFloat(nuevoStr) : nuevoStr, label: LABEL[campo] }
       }
     }
+    const cambiaProducto = !!editForm.item_id && editForm.item_id !== m.item_id
+    if (cambiaProducto) {
+      const nuevo = items.find(i => i.id === editForm.item_id)
+      cambios.item_id = { de: m.items?.nombre || '', a: nuevo?.nombre || '', label: 'Producto' }
+    }
     if (Object.keys(cambios).length === 0) { setEditGuardando(false); setEditModal(null); return }
 
     const updates = Object.fromEntries(Object.entries(cambios).map(([k, v]) => [k, v.a]))
-
-    // Ajustar stock si cambió la cantidad — usa las FKs reales del
-    // movimiento (bodega_origen_id/bodega_destino_id), nunca centro_costo.
-    let fallosStock = []
-    if (cambios.cantidad) {
-      const diff = cambios.cantidad.a - cambios.cantidad.de
-      if (diff !== 0 && m.item_id) {
-        const ajustes = ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, diff)
-        fallosStock = await aplicarAjustesStock(m.item_id, ajustes)
-      }
-    }
+    if (cambiaProducto) updates.item_id = editForm.item_id
 
     const { error } = await supabase.from('movimientos').update(updates).eq('id', m.id)
     if (error) { setMsg({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); setEditGuardando(false); return }
+
+    // Ajustar stock si cambió la cantidad o el producto — usa las FKs reales del
+    // movimiento (bodega_origen_id/bodega_destino_id), nunca centro_costo.
+    // Cambio de producto: se deshace el efecto sobre el producto anterior y se
+    // aplica completo (con la cantidad nueva) sobre el producto correcto.
+    let fallosStock = []
+    const cantVieja = Number(m.cantidad ?? 0)
+    const cantNueva = cambios.cantidad ? cambios.cantidad.a : cantVieja
+    const ajustesDe = (cant) => ajustesStockPorTipo(m.tipo, m.bodega_origen_id, m.bodega_destino_id, cant)
+    if (cambiaProducto) {
+      if (m.item_id) fallosStock = await aplicarAjustesEdicion(m.item_id, ajustesDe(-cantVieja))
+      fallosStock = [...fallosStock, ...await aplicarAjustesEdicion(editForm.item_id, ajustesDe(cantNueva))]
+    } else if (cantNueva !== cantVieja && m.item_id) {
+      fallosStock = await aplicarAjustesEdicion(m.item_id, ajustesDe(cantNueva - cantVieja))
+    }
 
     await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
 
     if (fallosStock.length > 0) {
       setMsg({ tipo: 'error', texto: `⚠️ El movimiento se editó, pero el stock no se pudo ajustar automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
+    } else if (cambiaProducto) {
+      // Una transferencia tiene su otro lado en la bodega destino/origen, con su propio
+      // renglón de catálogo: ese no se cambia solo, hay que editarlo también.
+      const par = await buscarMovimientoPar(m)
+      setMsg(par
+        ? { tipo: 'alerta', texto: `Producto corregido. Este movimiento es parte de una transferencia: edita también ${par.numero || 'el movimiento par'} para cambiar el producto en la otra bodega.` }
+        : { tipo: 'exito', texto: `Producto corregido: ${cambios.item_id.de} → ${cambios.item_id.a}. El stock se movió al producto correcto.` })
     }
 
     setEditados(prev => new Set([...prev, m.id]))
@@ -789,6 +875,25 @@ export default function Historial() {
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             <div className="bg-blue-50 rounded-xl px-4 py-2.5 text-sm text-feisen-azul font-medium">
               {editModal.items?.nombre} · {editModal.tipo === 'entrada' ? '↑ Entrada' : '↓ Salida'}
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Producto</label>
+              <SelectorProductoEdicion
+                items={items.filter(i => i.bodega_id === bodegaDelMovimiento(editModal))}
+                valorId={editForm.item_id}
+                onElegir={async (it) => {
+                  setEditForm(p => ({ ...p, item_id: it.id }))
+                  // El costo del movimiento pasa a ser el del producto correcto
+                  if (it.id !== editModal.item_id) {
+                    const { data } = await supabase.from('items').select('precio_costo').eq('id', it.id).maybeSingle()
+                    if (data?.precio_costo != null) setEditForm(p => ({ ...p, precio_costo_snapshot: String(data.precio_costo) }))
+                  }
+                }} />
+              {editForm.item_id && editForm.item_id !== editModal.item_id && (
+                <p className="text-xs text-amber-700 mt-1">
+                  Al guardar, el stock se devuelve a "{editModal.items?.nombre}" y se descuenta/suma del producto nuevo.
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
