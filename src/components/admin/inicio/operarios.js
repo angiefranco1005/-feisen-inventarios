@@ -38,21 +38,28 @@ export function crearIdentificador(empleados) {
     const n0 = (e.nombres || '').split(/\s+/), a0 = (e.apellidos || '').split(/\s+/)
     return { id: e.id, nombres, apellidos, n0, a0 }
   })
-  // Se muestra con el nombre por el que lo llaman: "Miguel Piraneque" (no "Jose Piraneque")
-  const nombreVisible = (e, token) => {
-    const i = e.nombres.findIndex(p => parecida(token, p))
-    return capitalizar(`${e.n0[i >= 0 ? i : 0] || ''} ${e.a0[0] || ''}`.trim())
-  }
+  // Se muestra igual que en el selector de operarios: nombres + primer apellido
+  const nombreVisible = e => capitalizar(`${e.n0.join(' ')} ${e.a0[0] || ''}`.trim())
+
+  // Nombre completo tal como lo escribe el selector de operarios ("Wilmer Yesid Triana")
+  const completo = e => [...e.nombres, e.apellidos[0] || ''].join(' ').trim()
 
   // Devuelve las personas (únicas) mencionadas en un motivo
   return function personasDe(motivo) {
     const texto = sinTildes(motivo).replace(/^.*?por\s*:?/, ' ')
-    const tokens = texto.split(/[^a-z]+/).filter(t => t && !IGNORAR.has(t) && t.length >= 3)
     const encontradas = new Map()
-    for (const t of tokens) {
-      const emp = lista.find(e => [...e.nombres, ...e.apellidos].some(p => parecida(t, p)))
-      const clave = emp ? emp.id : `txt:${t}`
-      if (!encontradas.has(clave)) encontradas.set(clave, emp ? nombreVisible(emp, t) : capitalizar(t))
+    const agregar = (clave, nombre) => { if (!encontradas.has(clave)) encontradas.set(clave, nombre) }
+    // Cada persona va separada por " y " o comas. Primero se busca el nombre exacto
+    // (registros nuevos, hechos con el selector); si no, palabra por palabra (texto libre).
+    for (const segmento of texto.split(/\s+y\s+|,/)) {
+      const limpio = segmento.replace(/[^a-z]+/g, ' ').trim()
+      if (!limpio) continue
+      const exacto = lista.find(e => completo(e) === limpio)
+      if (exacto) { agregar(exacto.id, nombreVisible(exacto)); continue }
+      for (const t of limpio.split(' ').filter(t => !IGNORAR.has(t) && t.length >= 3)) {
+        const emp = lista.find(e => [...e.nombres, ...e.apellidos].some(p => parecida(t, p)))
+        agregar(emp ? emp.id : `txt:${t}`, emp ? nombreVisible(emp) : capitalizar(t))
+      }
     }
     return [...encontradas.entries()].map(([clave, nombre]) => ({ clave, nombre }))
   }

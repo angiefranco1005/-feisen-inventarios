@@ -50,7 +50,7 @@ function Tarjeta({ icono: Icono, titulo, estado, enlace, onIr, children }) {
   )
 }
 const BarraPersona = ({ nombre, valor, max, sufijo = '' }) => (
-  <div className="grid grid-cols-[128px,1fr,52px] gap-2 items-center text-[13px] py-0.5">
+  <div className="grid grid-cols-[150px,1fr,52px] gap-2 items-center text-[13px] py-0.5">
     <span className="text-feisen-texto-2 truncate" title={nombre}>{nombre}</span>
     <span className="h-2.5 rounded bg-feisen-borde-suave overflow-hidden"><span className="block h-full rounded bg-feisen-azul" style={{ width: `${max ? (valor / max) * 100 : 0}%` }} /></span>
     <span className="text-right font-semibold tabular-nums">{fmt(valor)}{sufijo}</span>

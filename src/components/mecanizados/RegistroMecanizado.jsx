@@ -6,6 +6,7 @@ import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
+import SelectorOperarios, { unirOperarios } from './SelectorOperarios'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
@@ -27,7 +28,8 @@ export default function RegistroMecanizado() {
   const [busqueda, setBusqueda] = useState('')
 
   const [fecha, setFecha]       = useState(hoyISO())
-  const [operario, setOperario] = useState('')
+  const [operarios, setOperarios] = useState([]) // [{ clave, nombre }] — varios si trabajaron en pareja
+  const operario = unirOperarios(operarios)
 
   // Producto seleccionado para agregar
   const [selItem, setSelItem]   = useState(null)  // objeto item completo
@@ -119,7 +121,7 @@ export default function RegistroMecanizado() {
     setAlerta(null)
     const usuarioId = perfil?.id || session?.user?.id
     if (!usuarioId)        { setAlerta({ tipo: 'error', msg: 'Sesión no cargada. Recarga la página.' }); return }
-    if (!operario.trim())  { setAlerta({ tipo: 'error', msg: 'Escribe el nombre del operario.' }); return }
+    if (!operario.trim())  { setAlerta({ tipo: 'error', msg: 'Elige quién mecanizó.' }); return }
     if (!fecha)            { setAlerta({ tipo: 'error', msg: 'Selecciona la fecha.' }); return }
     if (!lineas.length)    { setAlerta({ tipo: 'error', msg: 'Agrega al menos un producto.' }); return }
 
@@ -174,7 +176,7 @@ export default function RegistroMecanizado() {
 
       setAlerta({ tipo: 'ok', msg: `✓ Guardado. ${lineas.length} producto(s) mecanizados por ${operario.trim()}.` })
       setLineas([])
-      setOperario('')
+      setOperarios([])
       setFecha(hoyISO())
       setSelItem(null)
       await cargarCatalogo()
@@ -214,15 +216,9 @@ export default function RegistroMecanizado() {
               className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-medium focus:outline-none focus:border-blue-500"
             />
           </div>
-          <div>
+          <div className="sm:col-span-2">
             <label className="block text-base font-semibold text-gray-700 mb-2">Operario</label>
-            <input
-              type="text"
-              value={operario}
-              onChange={e => setOperario(e.target.value)}
-              placeholder="Nombre del operario"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-blue-500"
-            />
+            <SelectorOperarios value={operarios} onChange={setOperarios} />
           </div>
         </div>
       </div>
