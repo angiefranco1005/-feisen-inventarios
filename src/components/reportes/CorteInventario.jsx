@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import Alerta from '../shared/Alerta'
-import { CalendarDays, RefreshCw, Package, ChevronDown, ChevronRight, Download } from 'lucide-react'
+import { CalendarDays, RefreshCw, ChevronRight, Download, Search } from 'lucide-react'
+import { EncabezadoPagina } from '../shared/ui'
+import { coincideBusqueda } from '../../utils/busqueda'
 import { exportarCorteInventario } from '../../utils/exportExcel'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 
 // Fecha de hoy en hora Colombia (UTC-5); toISOString() solo da UTC y después de las 7 p.m. ya marcaría mañana
 const HOY = new Date(Date.now() - 5 * 3600 * 1000).toISOString().split('T')[0]
-
-function fmt(n) {
-  return `$${Math.round(n).toLocaleString('es-CO')}`
-}
 
 export default function CorteInventario() {
   const [fecha,          setFecha]          = useState(HOY)
@@ -21,6 +19,7 @@ export default function CorteInventario() {
   const [soloConStock,   setSoloConStock]   = useState(true)
   const [bodegaId,       setBodegaId]       = useState('')   // '' = TODO (todas las bodegas)
   const [bodegasDisp,    setBodegasDisp]    = useState([])
+  const [busqueda,       setBusqueda]       = useState('')
 
   // Cargar bodegas activas una sola vez, para el selector
   useEffect(() => {
@@ -176,221 +175,159 @@ export default function CorteInventario() {
   const fechaLabel = resultado
     ? new Date(`${resultado.fecha}T12:00:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
     : ''
+  const filtrar = items => items.filter(i =>
+    (!soloConStock || i.stock_en_fecha > 0) &&
+    (!busqueda.trim() || coincideBusqueda(`${i.nombre} ${i.categoria}`, busqueda)))
+  const esHoy = resultado?.fecha === HOY
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold text-feisen-azul">Inventario en fecha</h1>
+    <div className="max-w-5xl mx-auto space-y-4">
+      <EncabezadoPagina modulo="Inventarios" titulo="Inventario a una fecha"
+        subtitulo="El stock y su valor tal como estaban un día puntual, para cierres y auditorías.">
+        {resultado && (
+          <button onClick={() => exportarCorteInventario(resultado, resultado.bodegaNombre)}
+            className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 py-2.5 text-sm font-semibold text-feisen-texto hover:bg-feisen-fondo">
+            <Download size={16} /> Excel
+          </button>
+        )}
+      </EncabezadoPagina>
 
       {/* ── Selector ── */}
-      <div className="bg-white rounded-xl border border-feisen-borde p-6">
-        <p className="text-sm text-gray-500 mb-4">
-          Selecciona una fecha de corte para ver el stock tal como estaba ese día — de una bodega puntual
-          o de <strong>todas</strong> ("Todas las bodegas"). El cálculo parte del inventario actual y
-          deshace todos los movimientos posteriores a la fecha.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 items-end">
-          <div className="flex-1">
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha de corte</label>
-            <input
-              type="date"
-              value={fecha}
-              onChange={e => setFecha(e.target.value)}
-              max={HOY}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Bodega</label>
-            <select
-              value={bodegaId}
-              onChange={e => setBodegaId(e.target.value)}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
-            >
+      <div className="bg-white border border-feisen-borde rounded-xl p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.4fr_auto] gap-3 items-end">
+          <label className="block space-y-1.5 min-w-0">
+            <span className="block text-xs font-medium text-feisen-texto-2">Fecha de corte</span>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} max={HOY} className={claseInput} />
+          </label>
+          <label className="block space-y-1.5 min-w-0">
+            <span className="block text-xs font-medium text-feisen-texto-2">Bodega</span>
+            <select value={bodegaId} onChange={e => setBodegaId(e.target.value)} className={claseInput}>
               <option value="">Todas las bodegas</option>
               {bodegasDisp.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
-          </div>
-          <button
-            onClick={calcular}
-            disabled={cargando || !fecha}
-            className="flex items-center gap-2 bg-feisen-azul text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-60 transition-opacity whitespace-nowrap"
-          >
-            {cargando
-              ? <RefreshCw size={16} className="animate-spin" />
-              : <CalendarDays size={16} />
-            }
-            {cargando ? 'Calculando...' : 'Ver inventario'}
+          </label>
+          <button onClick={calcular} disabled={cargando || !fecha}
+            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition disabled:opacity-60">
+            {cargando && <RefreshCw size={16} className="animate-spin" />}
+            {cargando ? 'Calculando…' : 'Ver inventario'}
           </button>
         </div>
+        <p className="text-xs text-gray-400 mt-2.5">Parte del stock de hoy y deshace los movimientos registrados después de la fecha.</p>
       </div>
 
       {error && <Alerta tipo="error" mensaje={error} />}
 
+      {!resultado && !cargando && !error && (
+        <div className="bg-white border border-dashed border-feisen-borde rounded-xl text-center px-6 py-12">
+          <CalendarDays size={30} className="mx-auto mb-3 text-gray-300" />
+          <p className="font-medium text-feisen-texto">Elige la fecha y toca “Ver inventario”</p>
+          <p className="text-sm text-feisen-texto-2 mt-1">Por ejemplo, el último día del mes para el cierre contable.</p>
+        </div>
+      )}
+
       {/* ── Resultados ── */}
       {resultado && (
         <>
-          {/* Banner resumen */}
-          <div className="bg-feisen-azul text-white rounded-2xl px-6 py-5 flex items-center justify-between">
+          <div className="bg-white border border-feisen-borde rounded-xl px-5 py-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
             <div>
-              <p className="text-sm text-blue-200 mb-0.5">
-                Inventario al {fechaLabel}{resultado.bodegaNombre ? ` · ${resultado.bodegaNombre}` : ' · Todas las bodegas'}
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Valor al {fechaLabel} · {resultado.bodegaNombre || 'Todas las bodegas'}
               </p>
-              <p className="text-3xl font-bold">{fmt(resultado.total_general)}</p>
-              <p className="text-xs text-blue-300 mt-1">
-                {resultado.total_productos} productos · {resultado.bodegas.length} bodegas · {resultado.movsDeshechos} movimientos posteriores deshechos
-              </p>
+              <p className="text-3xl font-semibold text-feisen-texto tabular-nums mt-0.5">{cop(resultado.total_general)}</p>
             </div>
-            <Package size={40} className="text-blue-300 opacity-60 hidden sm:block" />
+            <p className="text-sm text-feisen-texto-2 tabular-nums">
+              {resultado.total_productos.toLocaleString('es-CO')} productos · {resultado.bodegas.length} {resultado.bodegas.length === 1 ? 'bodega' : 'bodegas'}
+              {!esHoy && ` · ${resultado.movsDeshechos.toLocaleString('es-CO')} movimientos posteriores deshechos`}
+            </p>
           </div>
 
           {resultado.negativos > 0 && (
-            <Alerta
-              tipo="alerta"
-              mensaje={`${resultado.negativos} producto(s) salen negativos en esa fecha y se muestran en 0: se registraron salidas antes que su entrada. Revisa esos movimientos (o haz un conteo físico).`}
-            />
+            <Alerta tipo="alerta"
+              mensaje={`${resultado.negativos} producto(s) salen negativos en esa fecha y se muestran en 0: se registraron salidas antes que su entrada. Revisa esos movimientos (o haz un conteo físico).`} />
           )}
 
-          {/* Botón descargar */}
-          <div className="flex justify-end">
-            <button
-              onClick={() => exportarCorteInventario(resultado, resultado.bodegaNombre)}
-              className="flex items-center gap-2 border border-gray-200 text-gray-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
-              <Download size={16} /> Descargar Excel
-            </button>
-          </div>
-
-          {/* Filtro */}
-          <div className="flex justify-end">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={soloConStock}
-                onChange={e => setSoloConStock(e.target.checked)}
-                className="w-4 h-4 accent-feisen-azul rounded"
-              />
-              Ocultar productos con stock 0 en esa fecha
-            </label>
+          <div className="space-y-2.5">
+            <div className="relative">
+              <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+                placeholder="Buscar producto o categoría…"
+                className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+            </div>
+            <div className="flex gap-1.5">
+              {[[true, 'Con stock'], [false, 'Todos, también en 0']].map(([v, t]) => (
+                <button key={t} type="button" aria-pressed={soloConStock === v} onClick={() => setSoloConStock(v)}
+                  className={`min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+                    ${soloConStock === v ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Por bodega */}
           {resultado.bodegas.map(bodega => {
-            const filas = soloConStock
-              ? bodega.items.filter(i => i.stock_en_fecha > 0)
-              : bodega.items
+            const filas = filtrar(bodega.items)
             const abierta = bodegasAbiertas[bodega.nombre]
-
+            if (busqueda.trim() && filas.length === 0) return null
             return (
-              <div key={bodega.nombre} className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-                {/* Header bodega */}
-                <button
-                  type="button"
-                  onClick={() => toggleBodega(bodega.nombre)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {abierta
-                      ? <ChevronDown  size={18} className="text-feisen-azul" />
-                      : <ChevronRight size={18} className="text-gray-400" />
-                    }
-                    <span className="font-semibold text-gray-800">{bodega.nombre}</span>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                      {filas.length} producto{filas.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <span className="font-bold text-feisen-azul">{fmt(bodega.total_valor)}</span>
+              <section key={bodega.nombre} className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+                <button type="button" onClick={() => toggleBodega(bodega.nombre)} aria-expanded={!!abierta}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-feisen-fondo transition-colors text-left">
+                  <ChevronRight size={18} className={`text-gray-400 transition-transform ${abierta ? 'rotate-90' : ''}`} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-feisen-texto">{bodega.nombre}</span>
+                    <span className="block text-xs text-feisen-texto-2 tabular-nums">{filas.length.toLocaleString('es-CO')} producto{filas.length !== 1 ? 's' : ''}</span>
+                  </span>
+                  <span className="font-semibold text-feisen-texto tabular-nums">{cop(bodega.total_valor)}</span>
                 </button>
 
-                {/* Tabla */}
                 {abierta && (
-                  <div className="border-t border-gray-100 overflow-x-auto">
+                  <div className="border-t border-feisen-borde-suave">
                     {filas.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-8">
-                        {soloConStock
-                          ? 'Todos los productos tenían stock 0 en esta fecha.'
-                          : 'Esta bodega no tiene productos activos.'
-                        }
+                      <p className="text-sm text-feisen-texto-2 text-center py-8">
+                        {soloConStock ? 'Ningún producto de esta bodega tenía stock en esa fecha.' : 'Esta bodega no tiene productos activos.'}
                       </p>
                     ) : (
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="text-left px-4 py-2.5 font-semibold text-gray-500 text-xs">Producto</th>
-                            <th className="text-left px-4 py-2.5 font-semibold text-gray-500 text-xs hidden md:table-cell">Categoría</th>
-                            <th className="text-center px-4 py-2.5 font-semibold text-gray-500 text-xs">Stock en fecha</th>
-                            <th className="text-center px-4 py-2.5 font-semibold text-gray-500 text-xs hidden sm:table-cell">Stock actual</th>
-                            <th className="text-right px-4 py-2.5 font-semibold text-gray-500 text-xs">Precio costo</th>
-                            <th className="text-right px-4 py-2.5 font-semibold text-gray-500 text-xs">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
+                      <>
+                        <div className="hidden sm:grid grid-cols-[1fr_7rem_7rem_8rem] gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 text-right border-b border-feisen-borde-suave">
+                          <span className="text-left">Producto</span><span>Stock</span><span>Costo</span><span>Valor</span>
+                        </div>
+                        <ul className="divide-y divide-feisen-borde-suave">
                           {filas.map(item => (
-                            <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-2.5">
-                                <p className="font-medium text-gray-800">{item.nombre}</p>
-                                <p className="text-xs text-gray-400">{item.unidad}</p>
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 hidden md:table-cell">
-                                {item.categoria}
-                              </td>
-                              <td className="px-4 py-2.5 text-center">
-                                <span className={`font-bold px-3 py-1 rounded-xl inline-block text-sm
-                                  ${item.stock_en_fecha === 0
-                                    ? 'bg-red-100 text-red-600'
-                                    : 'bg-green-100 text-green-700'}`}>
-                                  {item.stock_en_fecha}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-center hidden sm:table-cell">
-                                <span className={`text-xs px-2 py-0.5 rounded-full
-                                  ${item.stock_actual !== item.stock_en_fecha
-                                    ? 'bg-blue-50 text-feisen-azul font-medium'
-                                    : 'text-gray-400'}`}>
-                                  {item.stock_actual}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-right text-xs text-gray-500">
-                                {item.precio > 0
-                                  ? fmt(item.precio)
-                                  : <span className="text-gray-300">—</span>
-                                }
-                              </td>
-                              <td className="px-4 py-2.5 text-right font-semibold text-feisen-azul">
-                                {item.valor > 0
-                                  ? fmt(item.valor)
-                                  : <span className="text-gray-300 font-normal">—</span>
-                                }
-                              </td>
-                            </tr>
+                            <li key={item.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_7rem_7rem_8rem] gap-x-3 gap-y-0.5 px-4 py-2.5 items-center">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-feisen-texto break-words">{item.nombre}</p>
+                                <p className="text-xs text-gray-400">{item.categoria}</p>
+                              </div>
+                              <p className="text-sm tabular-nums sm:text-right text-feisen-texto-2 col-start-1 sm:col-start-auto">
+                                <b className={`font-semibold ${item.stock_en_fecha === 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{cant(item.stock_en_fecha)}</b> {item.unidad}
+                                {!esHoy && item.stock_actual !== item.stock_en_fecha && <span className="block text-xs text-gray-400">hoy {cant(item.stock_actual)}</span>}
+                              </p>
+                              <p className="hidden sm:block text-sm tabular-nums text-right text-feisen-texto-2">{item.precio > 0 ? cop(item.precio) : <span className="text-gray-300">—</span>}</p>
+                              <p className="text-sm font-semibold tabular-nums text-right text-feisen-texto col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto">
+                                {item.valor > 0 ? cop(item.valor) : <span className="text-gray-300 font-normal">—</span>}
+                              </p>
+                            </li>
                           ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50 border-t border-gray-200">
-                          <tr>
-                            <td colSpan={5} className="px-4 py-2.5 text-right text-xs font-semibold text-gray-600">
-                              Subtotal {bodega.nombre}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-feisen-azul">
-                              {fmt(bodega.total_valor)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                        </ul>
+                      </>
                     )}
                   </div>
                 )}
-              </div>
+              </section>
             )
           })}
 
-          {/* Total general */}
-          <div className="rounded-2xl px-5 py-4 flex items-center justify-between"
-            style={{ background: 'linear-gradient(135deg, #064794 0%, #B4271D 100%)' }}>
-            <span className="text-white font-semibold text-sm">
-              Total general · {fechaLabel}
-            </span>
-            <span className="text-white text-xl font-bold">{fmt(resultado.total_general)}</span>
+          <div className="flex items-center justify-between gap-3 px-1 text-sm">
+            <span className="text-feisen-texto-2">Total al {fechaLabel}</span>
+            <span className="text-lg font-semibold text-feisen-texto tabular-nums">{cop(resultado.total_general)}</span>
           </div>
         </>
       )}
     </div>
   )
 }
+
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
+const cop = n => `$${Math.round(n).toLocaleString('es-CO')}`

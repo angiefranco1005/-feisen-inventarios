@@ -1647,7 +1647,7 @@ el avance se registra a diario y la orden se cierra a mano.
 - `Historial.jsx`: misma lógica (editar, revertir, eliminar, par de transferencia). Lista agrupada por día y por número (una fila por movimiento: "X y 11 más", cantidad con signo), chips con conteo (Todos/Salidas/Entradas/Editados), fechas en un chip, búsqueda por palabras sin tildes, panel lateral con datos, productos y firmas. Las acciones de admin van por línea en el menú ⋯ del panel. Al refrescar ya no se pone toda la pantalla en "Cargando".
 - Se quitó el filtro por producto con lista desplegable (la búsqueda ya encuentra por producto); el `?item=` de la URL sigue funcionando como chip que se quita con la x.
 - Pendiente: `RegistrarMovimiento.jsx` (el de LOGÍSTICA) sigue con el diseño viejo.
-- Revisión local sin base: `vite.mov-demo.config.mjs` (fuera de git) con un Supabase falso en el scratchpad de la sesión; abrir `http://[::1]:5178/movimientos?rol=ADMIN`.
+- Revisión local sin base: `vite.mov-demo.config.mjs` (fuera de git) con un Supabase falso en `.claude/demo-mov/supabase-mock.js` (también fuera de git; el scratchpad de la sesión se borra solo); abrir `http://[::1]:5178/movimientos?rol=ADMIN`, `/reportes/inventario-fisico`, `/reportes/kardex`, `/reportes/corte`.
 
 ## 2026-10-28 — Inventario físico rediseñado (implementado)
 - `reportes/InventarioFisico.jsx` (ruta `/reportes/inventario-fisico`, solo ADMIN). Misma lógica de guardado, corte por fecha pasada y aplicación de ajustes; cambia la forma:
@@ -1657,3 +1657,8 @@ el avance se registra a diario y la orden se cierra a mano.
   - Se pintan 150 productos a la vez con "Mostrar 150 más" (antes ~1.400 inputs de golpe, lento en celular).
   - Barra fija abajo: contados/diferencias + Guardar borrador + Aplicar correcciones (azul; antes rojo). Al confirmar sin fallos vuelve a la lista con aviso; si hay fallos se queda el error a la vista 5 s como antes.
   - El resumen con valores (faltante/sobrante por producto) quedó plegable debajo de la lista.
+
+## 2026-10-28 — Kardex e Inventario a una fecha rediseñados (implementado)
+- `reportes/InformeKardex.jsx` (`/reportes/kardex`): mismo cálculo y mismo Excel. Periodos rápidos (Este mes, Mes pasado, Últimos 30 días, Este año) además de las fechas; filtros en una sola franja; 4 indicadores neutros (Valor al inicio, Entradas, Salidas, Valor al final; en "$29,9 M" con el valor exacto al pasar el mouse); búsqueda; chips **Con movimiento** (por defecto: oculta los productos quietos) / Todos; tabla en escritorio y tarjetas con Inicio · Entradas · Salidas · Traslados · Final en celular; 200 filas a la vez. Ya no usa verde/rojo para entradas/salidas (no son problemas).
+- `reportes/CorteInventario.jsx` (`/reportes/corte`, título "Inventario a una fecha"): mismo cálculo y Excel. Resumen en tarjeta blanca (se quitaron la franja azul y el total con degradado azul→rojo), búsqueda por producto/categoría, chips Con stock / Todos, bodegas plegables con subtotal, stock en rojo solo cuando es 0 y "hoy X" debajo cuando cambió.
+- Con esto el módulo Inventarios queda completo en el diseño nuevo, salvo `RegistrarMovimiento.jsx` (perfil Logística).

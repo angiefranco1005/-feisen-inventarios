@@ -3,7 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { exportarKardex } from '../../utils/exportExcel'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
-import { TrendingUp, Download, RefreshCw } from 'lucide-react'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { EncabezadoPagina } from '../shared/ui'
+import { TrendingUp, Download, RefreshCw, Search } from 'lucide-react'
 
 function primerDiaMes() {
   const d = new Date()
@@ -16,10 +18,6 @@ function ultimoDiaMes() {
   return ultimo.toISOString().split('T')[0]
 }
 
-function fmt(n) {
-  return `$${Math.round(n).toLocaleString('es-CO')}`
-}
-
 export default function InformeKardex() {
   const [fechaInicio,  setFechaInicio]  = useState(primerDiaMes())
   const [fechaFin,     setFechaFin]     = useState(ultimoDiaMes())
@@ -30,6 +28,9 @@ export default function InformeKardex() {
   const [cargando,     setCargando]     = useState(false)
   const [error,        setError]        = useState('')
   const [resultado,    setResultado]    = useState(null)
+  const [busqueda,     setBusqueda]     = useState('')
+  const [soloMov,      setSoloMov]      = useState(true)   // ocultar productos sin movimientos en el periodo
+  const [limite,       setLimite]       = useState(PAGINA)
 
   // Cargar bodegas una sola vez
   useEffect(() => {
@@ -304,167 +305,195 @@ export default function InformeKardex() {
     exportarKardex(resultado.filas, fechaInicio, fechaFin, bodegaNombre, categoriaNombre)
   }
 
-  const periodoLabel = fechaInicio && fechaFin
-    ? `${new Date(`${fechaInicio}T12:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })} — ${new Date(`${fechaFin}T12:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}`
-    : ''
+  const periodoLabel = fechaInicio && fechaFin ? `${fechaCorta(fechaInicio)} – ${fechaCorta(fechaFin)}` : ''
+
+  // Periodos rápidos (además de elegir fechas a mano)
+  const hoy = new Date()
+  const iso = d => d.toLocaleDateString('en-CA')
+  const PERIODOS = [
+    ['Este mes',      primerDiaMes(), ultimoDiaMes()],
+    ['Mes pasado',    iso(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), iso(new Date(hoy.getFullYear(), hoy.getMonth(), 0))],
+    ['Últimos 30 días', iso(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 29)), iso(hoy)],
+    ['Este año',      `${hoy.getFullYear()}-01-01`, iso(hoy)],
+  ]
+
+  const conMovimiento = f => f.entradas || f.salidasExt || f.transfEnt || f.transfSal
+  const filasVista = resultado
+    ? resultado.filas.filter(f => (!soloMov || conMovimiento(f)) && (!busqueda.trim() || coincideBusqueda(`${f.nombreProducto} ${f.nombreBodega}`, busqueda)))
+    : []
+  const visibles = filasVista.slice(0, limite)
+  const nConMov = resultado ? resultado.filas.filter(conMovimiento).length : 0
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold text-feisen-azul flex items-center gap-2">
-        <TrendingUp size={24} /> Kardex de movimientos
-      </h1>
+    <div className="max-w-5xl mx-auto space-y-4">
+      <EncabezadoPagina modulo="Inventarios" titulo="Kardex"
+        subtitulo="Cuánto había al inicio de un periodo, qué entró, qué salió y cuánto quedó.">
+        {resultado && (
+          <button onClick={descargar}
+            className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 py-2.5 text-sm font-semibold text-feisen-texto hover:bg-feisen-fondo">
+            <Download size={16} /> Excel
+          </button>
+        )}
+      </EncabezadoPagina>
 
       {/* ── Filtros ── */}
-      <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
-        <p className="text-sm text-gray-500">
-          Muestra el stock al inicio y al fin del período, más todas las entradas, salidas y transferencias intermedias,
-          con su valor en COP.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha inicio</label>
-            <input
-              type="date"
-              value={fechaInicio}
-              onChange={e => setFechaInicio(e.target.value)}
-              max={fechaFin || undefined}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Fecha fin</label>
-            <input
-              type="date"
-              value={fechaFin}
-              onChange={e => setFechaFin(e.target.value)}
-              min={fechaInicio || undefined}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Bodega</label>
-            <select
-              value={bodegaId}
-              onChange={e => setBodegaId(e.target.value)}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
-            >
+      <div className="bg-white border border-feisen-borde rounded-xl p-4 space-y-3">
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 [scrollbar-width:none]">
+          {PERIODOS.map(([t, a, b]) => {
+            const activo = fechaInicio === a && fechaFin === b
+            return (
+              <button key={t} type="button" aria-pressed={activo} onClick={() => { setFechaInicio(a); setFechaFin(b) }}
+                className={`shrink-0 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+                  ${activo ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                {t}
+              </button>
+            )
+          })}
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-[1fr_1fr_1.3fr_1.3fr_auto] gap-3 items-end">
+          <Campo etiqueta="Desde">
+            <input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} max={fechaFin || undefined} className={claseInput} />
+          </Campo>
+          <Campo etiqueta="Hasta">
+            <input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} min={fechaInicio || undefined} className={claseInput} />
+          </Campo>
+          <Campo etiqueta="Bodega">
+            <select value={bodegaId} onChange={e => setBodegaId(e.target.value)} className={claseInput}>
               <option value="">Todas las bodegas</option>
               {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">Categoría de producto</label>
-            <select
-              value={categoriaId}
-              onChange={e => setCategoriaId(e.target.value)}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
-            >
+          </Campo>
+          <Campo etiqueta="Categoría">
+            <select value={categoriaId} onChange={e => setCategoriaId(e.target.value)} className={claseInput}>
               <option value="">Todas las categorías</option>
               {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-1">
-          <button
-            onClick={generar}
-            disabled={cargando || !fechaInicio || !fechaFin}
-            className="flex items-center gap-2 bg-feisen-azul text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
-          >
-            {cargando ? <RefreshCw size={16} className="animate-spin" /> : <TrendingUp size={16} />}
-            {cargando ? 'Calculando...' : 'Calcular'}
+          </Campo>
+          <button onClick={() => { setLimite(PAGINA); generar() }} disabled={cargando || !fechaInicio || !fechaFin}
+            className="col-span-2 lg:col-span-1 inline-flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition disabled:opacity-60">
+            {cargando && <RefreshCw size={16} className="animate-spin" />}
+            {cargando ? 'Calculando…' : 'Calcular'}
           </button>
-
-          {resultado && (
-            <button
-              onClick={descargar}
-              className="flex items-center gap-2 border border-feisen-azul text-feisen-azul px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-blue-50 transition-colors"
-            >
-              <Download size={16} /> Descargar Excel
-            </button>
-          )}
         </div>
       </div>
 
       {error && <Alerta tipo="error" mensaje={error} />}
 
+      {!resultado && !cargando && !error && (
+        <div className="bg-white border border-dashed border-feisen-borde rounded-xl text-center px-6 py-12">
+          <TrendingUp size={30} className="mx-auto mb-3 text-gray-300" />
+          <p className="font-medium text-feisen-texto">Elige el periodo y toca “Calcular”</p>
+          <p className="text-sm text-feisen-texto-2 mt-1">Puedes filtrar por bodega o categoría. El Excel trae también los traslados y los valores por producto.</p>
+        </div>
+      )}
+
       {/* ── Resumen ── */}
       {resultado && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: 'Valor inicio período', valor: resultado.totalValorInicio, color: 'text-gray-700' },
-              { label: 'Entradas (valor)',      valor: resultado.totalEntradas,   color: 'text-green-700' },
-              { label: 'Salidas (valor)',        valor: resultado.totalSalidas,    color: 'text-feisen-rojo' },
-              { label: 'Valor fin período',      valor: resultado.totalValorFinal, color: 'text-feisen-azul' },
-            ].map(({ label, valor, color }) => (
-              <div key={label} className="bg-white rounded-xl border border-feisen-borde p-4">
-                <p className="text-xs text-gray-400 mb-1">{label}</p>
-                <p className={`font-bold text-lg ${color}`}>{fmt(valor)}</p>
+              ['Valor al inicio', resultado.totalValorInicio, `al ${fechaCorta(fechaInicio)}`],
+              ['Entradas',        resultado.totalEntradas,    'compras y producción'],
+              ['Salidas',         resultado.totalSalidas,     'consumos y ventas'],
+              ['Valor al final',  resultado.totalValorFinal,  `al ${fechaCorta(fechaFin)}`],
+            ].map(([t, v, ctx]) => (
+              <div key={t} className="bg-white border border-feisen-borde rounded-xl px-4 py-3" title={cop(v)}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t}</p>
+                <p className="text-2xl font-semibold text-feisen-texto tabular-nums mt-0.5">{copCorto(v)}</p>
+                <p className="text-xs text-feisen-texto-2">{ctx}</p>
               </div>
             ))}
           </div>
 
-          <p className="text-xs text-gray-400 text-right">{periodoLabel} · {resultado.filas.length} ítems</p>
-
-          {/* Tabla preview */}
-          <div className="bg-white rounded-xl border border-feisen-borde overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Producto</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">Bodega</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">Inicio</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Entradas</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Salidas</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500">Final</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Valor final</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {resultado.filas.map((f, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium text-gray-800 leading-tight">{f.nombreProducto}</p>
-                        <p className="text-xs text-gray-400">{f.unidad}</p>
-                      </td>
-                      <td className="px-4 py-2.5 text-gray-500 text-xs hidden md:table-cell">{f.nombreBodega}</td>
-                      <td className="px-3 py-2.5 text-center text-gray-600">{f.stockInicio}</td>
-                      <td className="px-3 py-2.5 text-center hidden sm:table-cell">
-                        {f.entradas > 0
-                          ? <span className="text-green-700 font-medium">+{f.entradas}</span>
-                          : <span className="text-gray-300">—</span>
-                        }
-                      </td>
-                      <td className="px-3 py-2.5 text-center hidden sm:table-cell">
-                        {f.salidasExt > 0
-                          ? <span className="text-feisen-rojo font-medium">-{f.salidasExt}</span>
-                          : <span className="text-gray-300">—</span>
-                        }
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-bold text-feisen-azul">{f.stockFinal}</td>
-                      <td className="px-4 py-2.5 text-right text-feisen-azul font-semibold text-xs">
-                        {f.valorFinalEst > 0 ? fmt(f.valorFinalEst) : <span className="text-gray-300 font-normal">—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="space-y-2.5">
+            <div className="relative">
+              <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="search" value={busqueda} onChange={e => { setBusqueda(e.target.value); setLimite(PAGINA) }}
+                placeholder="Buscar producto o bodega…"
+                className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+            </div>
+            <div className="flex gap-1.5">
+              {[[true, 'Con movimiento', nConMov], [false, 'Todos', resultado.filas.length]].map(([v, t, n]) => (
+                <button key={t} type="button" aria-pressed={soloMov === v} onClick={() => { setSoloMov(v); setLimite(PAGINA) }}
+                  className={`inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+                    ${soloMov === v ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                  {t} <span className={`tabular-nums ${soloMov === v ? 'text-white/70' : 'text-gray-400'}`}>{n.toLocaleString('es-CO')}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              onClick={descargar}
-              className="flex items-center gap-2 bg-feisen-azul text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
-            >
-              <Download size={16} /> Descargar Excel completo
-            </button>
+          <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+            <div className="hidden md:grid grid-cols-[1fr_5.5rem_5.5rem_5.5rem_5.5rem_5.5rem_7rem] gap-3 px-4 py-2 border-b border-feisen-borde text-[11px] font-semibold uppercase tracking-wide text-gray-400 text-right">
+              <span className="text-left">Producto</span><span>Inicio</span><span>Entradas</span><span>Salidas</span><span>Traslados</span><span>Final</span><span>Valor final</span>
+            </div>
+            {visibles.length === 0 ? (
+              <p className="text-center text-sm text-feisen-texto-2 px-6 py-10">
+                {busqueda.trim() ? `Ningún producto coincide con “${busqueda.trim()}”.` : 'Ningún producto tuvo movimientos en este periodo. Toca “Todos” para ver el stock completo.'}
+              </p>
+            ) : (
+              <ul className="divide-y divide-feisen-borde-suave">
+                {visibles.map((f, i) => {
+                  const traslado = f.transfEnt - f.transfSal
+                  const celdas = [
+                    ['Inicio', cant(f.stockInicio), 'text-feisen-texto-2'],
+                    ['Entradas', f.entradas ? `+${cant(f.entradas)}` : '—', f.entradas ? 'text-feisen-texto' : 'text-gray-300'],
+                    ['Salidas', f.salidasExt ? `−${cant(f.salidasExt)}` : '—', f.salidasExt ? 'text-feisen-texto' : 'text-gray-300'],
+                    ['Traslados', traslado ? `${traslado > 0 ? '+' : '−'}${cant(Math.abs(traslado))}` : '—', traslado ? 'text-feisen-texto-2' : 'text-gray-300'],
+                    ['Final', cant(f.stockFinal), 'font-semibold text-feisen-texto'],
+                  ]
+                  return (
+                    <li key={i} className="px-4 py-2.5 md:grid md:grid-cols-[1fr_5.5rem_5.5rem_5.5rem_5.5rem_5.5rem_7rem] md:gap-3 md:items-center">
+                      <div className="min-w-0 flex justify-between gap-3 md:block">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-feisen-texto break-words">{f.nombreProducto}</p>
+                          <p className="text-xs text-gray-400">{[bodegaId ? null : f.nombreBodega, f.unidad].filter(Boolean).join(' · ')}</p>
+                        </div>
+                        <p className="md:hidden text-sm font-semibold text-feisen-texto tabular-nums whitespace-nowrap">{f.valorFinalEst > 0 ? cop(f.valorFinalEst) : '—'}</p>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1 mt-2 md:contents">
+                        {celdas.map(([t, v, c]) => (
+                          <p key={t} className={`text-sm tabular-nums md:text-right ${c}`}>
+                            <span className="md:hidden block text-[11px] text-gray-400">{t}</span>{v}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="hidden md:block text-sm text-right tabular-nums text-feisen-texto">{f.valorFinalEst > 0 ? cop(f.valorFinalEst) : <span className="text-gray-300">—</span>}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            {filasVista.length > visibles.length && (
+              <button type="button" onClick={() => setLimite(l => l + PAGINA)}
+                className="w-full border-t border-feisen-borde py-3 text-sm font-medium text-feisen-azul hover:bg-feisen-fondo">
+                Mostrar {Math.min(PAGINA, filasVista.length - visibles.length)} más · van {visibles.length.toLocaleString('es-CO')} de {filasVista.length.toLocaleString('es-CO')}
+              </button>
+            )}
           </div>
+          <p className="text-xs text-gray-400 text-right">{periodoLabel} · valores a precio de costo actual del producto</p>
         </>
       )}
     </div>
+  )
+}
+
+const PAGINA = 200
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
+const cop = n => `$${Math.round(n).toLocaleString('es-CO')}`
+function copCorto(n) {
+  const a = Math.abs(n), s = n < 0 ? '−' : ''
+  if (a >= 1e6) return `${s}$${(a / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M`
+  return `${s}$${Math.round(a).toLocaleString('es-CO')}`
+}
+const fechaCorta = f => new Date(`${f}T12:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+
+function Campo({ etiqueta, children }) {
+  return (
+    <label className="block space-y-1.5 min-w-0">
+      <span className="block text-xs font-medium text-feisen-texto-2">{etiqueta}</span>
+      {children}
+    </label>
   )
 }
