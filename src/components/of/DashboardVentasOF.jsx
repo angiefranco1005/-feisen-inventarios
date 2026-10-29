@@ -20,7 +20,7 @@ export default function DashboardVentasOF() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-5xl mx-auto space-y-5">
       <div className="inline-flex bg-white border border-feisen-borde rounded-lg p-1">
         {VISTAS.map(v => (
           <button key={v.id} onClick={() => elegir(v.id)}
