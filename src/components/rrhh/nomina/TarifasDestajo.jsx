@@ -28,6 +28,20 @@ function ValorEditable({ valor, onGuardar }) {
   )
 }
 
+// Nombre de una tarifa sin ítem: se edita en el sitio, como el valor
+function NombreEditable({ valor, onGuardar }) {
+  const [txt, setTxt] = useState(valor || '')
+  const [edit, setEdit] = useState(false)
+  useEffect(() => { setTxt(valor || '') }, [valor])
+  return (
+    <input value={txt} onFocus={() => setEdit(true)} onChange={e => setTxt(e.target.value)}
+      onBlur={() => { setEdit(false); const v = txt.trim(); if (!v) setTxt(valor || ''); else if (v !== valor) onGuardar(v) }}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setTxt(valor || ''); e.currentTarget.blur() } }}
+      title="Clic para cambiar el nombre"
+      className={`${E.input} -ml-3 py-1 text-sm text-feisen-texto ${edit ? '' : 'border-transparent bg-transparent hover:border-feisen-borde'}`} />
+  )
+}
+
 // Tarifas de destajo (valor por pieza) y nombres del huellero vinculados a su ficha
 export default function TarifasDestajo() {
   const navigate = useNavigate()
@@ -69,6 +83,14 @@ export default function TarifasDestajo() {
     const { error } = await supabase.from('nomina_tarifas').update({ valor }).eq('id', t.id)
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
     setTarifas(ts => ts.map(x => (x.id === t.id ? { ...x, valor } : x)))
+  }
+
+  // Solo se renombran las tarifas sin ítem; las del catálogo toman el nombre del producto.
+  // Las quincenas ya liquidadas guardan su propia copia del nombre, así que no cambian.
+  async function guardarNombre(t, descripcion) {
+    const { error } = await supabase.from('nomina_tarifas').update({ descripcion }).eq('id', t.id)
+    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
+    setTarifas(ts => ts.map(x => (x.id === t.id ? { ...x, descripcion } : x)))
   }
 
   async function crear(itemId, descripcion, valor) {
@@ -145,7 +167,9 @@ export default function TarifasDestajo() {
                   {filtradas.map(t => (
                     <div key={t.id} className="flex items-center gap-3 px-5 py-1.5">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-feisen-texto truncate">{nombreT(t)}</p>
+                        {t.items
+                          ? <p className="text-sm text-feisen-texto truncate" title="El nombre sale del catálogo de productos">{nombreT(t)}</p>
+                          : <NombreEditable valor={t.descripcion} onGuardar={(v) => guardarNombre(t, v)} />}
                         <p className="text-xs text-feisen-gris-medio">{t.items ? BODEGA_LABEL[t.items.bodega_id] || 'Ítem' : 'Trabajo sin ítem'}</p>
                       </div>
                       <ValorEditable valor={t.valor} onGuardar={(v) => guardarValor(t, v)} />
