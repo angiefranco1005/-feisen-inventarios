@@ -629,8 +629,8 @@ export function montarDashboardVentas(root, opts){
       showPreview(res,file.name);
     }catch(e){upMsg(e instanceof Fail?e.message:(e&&e.message==='lib'?'No se pudo cargar el lector de Excel. Revisa la conexión e inténtalo de nuevo.':'No pude leer el archivo. Asegúrate de que sea el Excel descargado de la tabla dinámica de Odoo.'),'err')}
   }
-  function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')});$('up-odoo-row').hidden=!(opts.traerDeOdoo&&upCo===1)}
-  // Traer de Odoo (solo FC por ahora): la función devuelve las filas del mes, ya netas de notas crédito, y se muestra el mismo resumen que con el Excel
+  function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')});$('up-odoo-row').hidden=!opts.traerDeOdoo}
+  // Traer de Odoo (Feisen y FC): la función devuelve las filas del mes, ya netas de notas crédito, y se muestra el mismo resumen que con el Excel
   (function(){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('up-odoo-mes').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')})();
   $('up-odoo').onclick=async function(){
     var ym=$('up-odoo-mes').value,co=upCo,btn=$('up-odoo');

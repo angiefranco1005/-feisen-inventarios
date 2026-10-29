@@ -1899,6 +1899,7 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
 - FC está en Odoo Online `https://fc-sas.odoo.com`, base `fc-sas`, **Odoo 19 Enterprise**. Feisen está en Odoo.sh (pendiente).
 - Función `supabase/functions/ventas-odoo`: con la API JSON-2 de Odoo 19 lee `account.invoice.report` (publicadas, `out_invoice`, fecha de factura en el mes), agrupa por cliente + producto (quita el código `[..]` del producto) y devuelve las filas. No guarda: el tablero muestra el mismo resumen que con el Excel y guarda con `ventas_cargar_mes`. Solo quien pasa `ventas_puede_ver()`.
 - Clave: secreto de Supabase `ODOO_FC_APIKEY` (clave API de un usuario de Odoo con acceso a Contabilidad). Odoo Online solo permite la API en el plan Personalizado (Custom).
-- Botón "Traer de Odoo" en Cargar informe, visible solo con FC elegida.
-- Función desplegada en Supabase. Pendiente: Feisen (Odoo.sh) y la actualización diaria automática.
+- Botón "Traer de Odoo" en Cargar informe.
+- Función desplegada en Supabase. Pendiente: la actualización diaria automática.
+- Feisen conectado (2026-10-29): `https://construequiposfranco.odoo.com`, base `snva-proyectos-master-construequipos-main-28681200` (Odoo 19 Enterprise, nombre de base de Odoo.sh), secreto `ODOO_FEISEN_APIKEY`. El botón se ve para las dos empresas.
 - Primera prueba (FC, sep 2026): solo facturas dio $260.020.055; el tablero (datos de origen) tenía $258.670.055 = Total Ingresos del estado de resultados, que resta notas crédito (~$1.350.000). Decisión de Angie: **"Traer de Odoo" resta las notas crédito** (`out_refund`, que en `account.invoice.report` ya viene con valor y cantidad negativos) y el resumen dice cuánto restó. El Excel del tutorial sigue trayendo solo facturas: para FC usar el botón.
