@@ -141,7 +141,7 @@ export function montarDashboardVentas(root, opts){
   function creditNote(){
     var n=0,s=0;R.forEach(function(r){if(inCo(r)&&r[4]<0&&r[6]==='b'){n++;s+=r[4]}});
     var ups=Object.keys(UP).map(function(k){return UP[k]}).filter(function(u){return CO==='all'||(CO==='fe'?u.co===0:u.co===1)}).sort(function(a,b){return a.m-b.m||a.co-b.co});
-    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses cargados desde Odoo traen solo facturas. ':'')+(ups.length?'Meses cargados desde Odoo: '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(BASE_M)+' llega hasta el '+BASE_DAYS+'/'+String(moOf(BASE_M)+1).padStart(2,'0')+'/'+yOf(BASE_M)+'.':'');
+    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses cargados con el Excel de Odoo traen solo facturas; los traídos directo de Odoo restan las notas crédito. ':'')+(ups.length?'Meses cargados desde Odoo: '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(BASE_M)+' llega hasta el '+BASE_DAYS+'/'+String(moOf(BASE_M)+1).padStart(2,'0')+'/'+yOf(BASE_M)+'.':'');
   }
 
   // ===== Gráfica mes a mes (compartida) =====
@@ -630,17 +630,18 @@ export function montarDashboardVentas(root, opts){
     }catch(e){upMsg(e instanceof Fail?e.message:(e&&e.message==='lib'?'No se pudo cargar el lector de Excel. Revisa la conexión e inténtalo de nuevo.':'No pude leer el archivo. Asegúrate de que sea el Excel descargado de la tabla dinámica de Odoo.'),'err')}
   }
   function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')});$('up-odoo-row').hidden=!(opts.traerDeOdoo&&upCo===1)}
-  // Traer de Odoo (solo FC por ahora): la función devuelve las filas del mes y se muestra el mismo resumen que con el Excel
+  // Traer de Odoo (solo FC por ahora): la función devuelve las filas del mes, ya netas de notas crédito, y se muestra el mismo resumen que con el Excel
   (function(){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('up-odoo-mes').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')})();
   $('up-odoo').onclick=async function(){
     var ym=$('up-odoo-mes').value,co=upCo,btn=$('up-odoo');
     if(!ym){upMsg('Elige el mes que quieres traer.','err');return}
     resetUp();lastFile=null;btn.disabled=true;upMsg('Consultando Odoo de '+coName(co)+'…');
     try{
-      var filas=await opts.traerDeOdoo(co?'fc':'feisen',ym);
+      var r=await opts.traerDeOdoo(co?'fc':'feisen',ym),filas=r.filas;
       if(!filas.length){upMsg('Odoo no tiene facturas publicadas de '+coName(co)+' en ese mes.','err');return}
       var v=0,q=0,cs={},ps={};filas.forEach(function(f){v+=f.v;q+=f.q;cs[f.c]=1;if(f.p!==SD)ps[f.p]=1});
       upCo=co;showPreview({months:[{ym:ym,filas:filas,v:v,q:q,nc:Object.keys(cs).length,np:Object.keys(ps).length,check:v,diff:false}]},'Odoo '+coName(co)+' '+ym);
+      if(r.notas)upMsg('Revisa el resumen de '+coName(co)+'. La venta ya resta '+cop(-r.notas)+' de notas crédito; debe coincidir con Ingresos del estado de resultados de Odoo. Si coincide, guarda.','');
     }catch(e){upMsg((e&&e.message)||'No se pudo consultar Odoo.','err')}
     finally{btn.disabled=false}
   };

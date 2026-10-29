@@ -79,7 +79,7 @@ export default function DashboardVentas() {
           const cuerpo = await error.context?.json?.().catch(() => null)
           throw new Error(cuerpo?.error || 'No se pudo consultar Odoo.')
         }
-        return data.filas
+        return data
       },
       alGuardar: async () => {
         try { api.current?.actualizar(armarSnapshot(await traerFilas('odoo'))) } catch { /* el mensaje de guardado ya salió */ }
