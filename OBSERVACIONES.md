@@ -1818,3 +1818,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - `lucide-react` sigue en package.json pero ningún archivo la usa; se puede desinstalar.
 - Se quitaron ~60 emojis de 20 pantallas (Pedidos, Recogida, Calidad, inicio del operario, Calendario OF, dashboards…). Donde el emoji daba información se cambió por el ícono equivalente; en etiquetas, opciones de lista y mensajes solo se quitó (el color o el aviso ya dicen el significado). Se dejaron ✓ ✗ ✕, que son signos de texto. **Regla: no usar emojis en la interfaz.**
 - Visto en la vista local (menú admin, Pedidos, inicio, Calidad, Recogida, Calendario OF, celular). Aviso viejo sin relación: NoConformidades tiene un `<button>` dentro de otro (React lo advierte en consola).
+
+## 2026-10-29 · Planilla de inventario físico para imprimir
+- Botón "Planilla para imprimir" en Inventarios → Inventario físico. Se elige bodega (y opcionalmente una categoría) y sale una hoja carta vertical para contar en papel: N°, producto, unidad, casilla en blanco "Cantidad contada" y Observaciones, agrupada por categoría, con 8 filas en blanco al final para lo que no esté en la lista y firmas de quien contó y quien revisó.
+- **Conteo a ciegas** (decisión de Angie): la hoja NO muestra la cantidad del sistema. Lo contado se digita después en un conteo normal de la app, que es la que muestra las diferencias.
+- Se imprime con `window.print()` (o "Guardar como PDF"), igual que la planilla de tiempos de Costeo: `PlanillaInventario.jsx` se monta fuera de #root con `.planilla-impresion`. Usa una página con nombre (`@page vertical` + clase `planilla-vertical` en index.css) porque la regla general de impresión es carta horizontal.

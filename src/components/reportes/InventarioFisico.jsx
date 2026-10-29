@@ -8,7 +8,8 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
-import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X } from '../shared/iconos'
+import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X, Printer } from '../shared/iconos'
+import PlanillaInventario from './PlanillaInventario'
 
 const HOY = () => new Date().toLocaleDateString('en-CA')
 
@@ -93,7 +94,57 @@ export default function InventarioFisico() {
   const [detalleItems, setDetalleItems] = useState([])
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
 
+  // Planilla imprimible para contar en papel (por bodega, sin la cantidad del sistema)
+  const [modalPlanilla, setModalPlanilla] = useState(false)
+  const [opcPlanilla,   setOpcPlanilla]   = useState({ bodegas: [], categorias: [] })
+  const [bodegaPl,      setBodegaPl]      = useState('')
+  const [categoriaPl,   setCategoriaPl]   = useState('')
+  const [preparandoPl,  setPreparandoPl]  = useState(false)
+  const [planilla,      setPlanilla]      = useState(null) // { bodega, categoria, items } mientras se imprime
+
   useEffect(() => { cargarLista() }, [])
+
+  async function abrirPlanilla() {
+    setModalPlanilla(true)
+    if (opcPlanilla.bodegas.length) return
+    const [{ data: bods }, { data: cats }] = await Promise.all([
+      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('categorias').select('id, nombre, bodega_id').order('nombre'),
+    ])
+    setOpcPlanilla({ bodegas: bods || [], categorias: cats || [] })
+    if (bods?.length === 1) setBodegaPl(bods[0].id)
+  }
+
+  async function imprimirPlanilla() {
+    if (!bodegaPl) return
+    setPreparandoPl(true)
+    const { data, error } = await fetchAllPages((d, h) => {
+      let q = supabase.from('items').select('id, nombre, unidad_medida, categorias(nombre)')
+        .eq('activo', true).eq('bodega_id', bodegaPl).order('nombre').order('id').range(d, h)
+      if (categoriaPl) q = q.eq('categoria_id', categoriaPl)
+      return q
+    })
+    setPreparandoPl(false)
+    if (error) { avisar('No se pudo cargar los productos: ' + error.message); return }
+    const lista = (data || []).sort((a, b) =>
+      (a.categorias?.nombre || '~').trim().localeCompare((b.categorias?.nombre || '~').trim()) || a.nombre.localeCompare(b.nombre))
+    if (!lista.length) { avisar('Esa bodega no tiene productos activos.'); return }
+    setModalPlanilla(false)
+    setPlanilla({
+      bodega:    opcPlanilla.bodegas.find(b => b.id === bodegaPl)?.nombre || '',
+      categoria: opcPlanilla.categorias.find(c => c.id === categoriaPl)?.nombre?.trim() || '',
+      items:     lista,
+    })
+  }
+
+  // La planilla se monta, se imprime y se desmonta al cerrar el diálogo de impresión
+  useEffect(() => {
+    if (!planilla) return
+    const terminar = () => setPlanilla(null)
+    window.addEventListener('afterprint', terminar)
+    const t = setTimeout(() => window.print(), 50)
+    return () => { clearTimeout(t); window.removeEventListener('afterprint', terminar) }
+  }, [planilla])
 
   // ── carga lista ─────────────────────────────────────────────────────────
   async function cargarLista() {
@@ -497,6 +548,10 @@ export default function InventarioFisico() {
         {aviso}
         <EncabezadoPagina modulo="Inventarios" titulo="Inventario físico"
           subtitulo="Cuenta lo que hay en las bodegas y corrige el sistema con las diferencias.">
+          <button onClick={abrirPlanilla}
+            className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white text-feisen-texto rounded-lg px-4 py-2.5 text-sm font-semibold hover:bg-feisen-fondo active:scale-[.98] transition">
+            <Printer size={16} /> Planilla para imprimir
+          </button>
           <button onClick={iniciarNuevo} disabled={cargando}
             className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 py-2.5 text-sm font-semibold hover:opacity-90 active:scale-[.98] transition disabled:opacity-60">
             <Plus size={16} /> Nuevo conteo
@@ -504,6 +559,45 @@ export default function InventarioFisico() {
         </EncabezadoPagina>
 
         {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
+
+        {modalPlanilla && (
+          <Modal titulo="Planilla para contar en papel" onCerrar={() => setModalPlanilla(false)}>
+            <div className="px-6 py-5 space-y-4 overflow-y-auto">
+              <p className="text-sm text-feisen-texto-2">
+                Sale la lista de productos de la bodega con una casilla en blanco para escribir lo que se contó.
+                No muestra la cantidad del sistema, para que se cuente de verdad.
+              </p>
+              <div className="space-y-1.5">
+                <label htmlFor="pl-bodega" className="block text-sm font-medium text-feisen-texto">Bodega</label>
+                <select id="pl-bodega" value={bodegaPl} onChange={e => { setBodegaPl(e.target.value); setCategoriaPl('') }}
+                  className="w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul">
+                  <option value="">{opcPlanilla.bodegas.length ? 'Selecciona bodega' : 'Cargando…'}</option>
+                  {opcPlanilla.bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                </select>
+              </div>
+              {bodegaPl && opcPlanilla.categorias.some(c => c.bodega_id === bodegaPl) && (
+                <div className="space-y-1.5">
+                  <label htmlFor="pl-cat" className="block text-sm font-medium text-feisen-texto">Categoría <span className="font-normal text-gray-400">(opcional)</span></label>
+                  <select id="pl-cat" value={categoriaPl} onChange={e => setCategoriaPl(e.target.value)}
+                    className="w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul">
+                    <option value="">Toda la bodega</option>
+                    {opcPlanilla.categorias.filter(c => c.bodega_id === bodegaPl).map(c => <option key={c.id} value={c.id}>{c.nombre.trim()}</option>)}
+                  </select>
+                </div>
+              )}
+              <p className="text-xs text-feisen-texto-2">En la ventana de impresión puedes elegir la impresora o “Guardar como PDF”.</p>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setModalPlanilla(false)}
+                  className="px-4 min-h-[44px] rounded-lg text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">Cancelar</button>
+                <button type="button" onClick={imprimirPlanilla} disabled={!bodegaPl || preparandoPl}
+                  className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                  <Printer size={16} /> {preparandoPl ? 'Preparando…' : 'Imprimir'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {planilla && <PlanillaInventario {...planilla} />}
 
         {cargando ? <Spinner /> : inventarios.length === 0 ? (
           <div className="bg-white border border-feisen-borde rounded-xl text-center px-6 py-14">

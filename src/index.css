@@ -72,6 +72,14 @@
   body:has(.planilla-impresion) #root {
     display: none;
   }
+  /* Planillas verticales (inventario físico): página carta parada */
+  @page vertical {
+    size: letter portrait;
+    margin: 10mm;
+  }
+  .planilla-vertical {
+    page: vertical;
+  }
   .planilla-impresion {
     display: block;
     print-color-adjust: exact;
