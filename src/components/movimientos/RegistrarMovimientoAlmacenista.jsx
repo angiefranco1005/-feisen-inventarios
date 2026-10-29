@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, nombreBodega } from '../../utils/bodegasCatalogo'
-import { Plus, Trash2, Search, Flame, ShoppingCart, Wrench, Factory, Settings, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { Plus, Trash2, Search, Check, Flame, ShoppingCart, Wrench, Factory, Settings, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -269,6 +269,8 @@ export default function RegistrarMovimientoAlmacenista() {
   const [destinoMec,     setDestinoMec]     = useState('')  // 'ALMACEN' | 'SOLDADURA'
   const [paqueteSelId,   setPaqueteSelId]   = useState('')
   const [multiplicadorPaq, setMultiplicadorPaq] = useState(1)
+  // Paquetes ya sumados a esta salida (se pueden mezclar máquinas): { [paquete_id]: máquinas }
+  const [paquetesAgregados, setPaquetesAgregados] = useState({})
   // Paquetes activos (con sus piezas) de la bodega del usuario: Mecanizados y Almacén
   const [paquetesBodega, setPaquetesBodega] = useState([])
   // Existencia de cada producto en la bodega: para mostrar "Disponible" y avisar antes de guardar
@@ -512,9 +514,12 @@ export default function RegistrarMovimientoAlmacenista() {
       ? `Se agregaron ${nuevasLineas.length} de ${piezas.length} piezas del paquete — ${faltantes} ya no están en el catálogo activo.`
       : '')
     if (!faltantes) avisar(`${paq.nombre}: ${nuevasLineas.length} productos × ${mult} ${mult === 1 ? 'máquina' : 'máquinas'}`)
+    setPaquetesAgregados(prev => ({ ...prev, [paq.id]: (prev[paq.id] || 0) + mult }))
     setPaqueteSelId('')
     setMultiplicadorPaq(1)
   }
+  // Si la lista de productos queda vacía (se guardó o se quitó todo), el resumen de paquetes también
+  useEffect(() => { if (!sProductos.length) setPaquetesAgregados({}) }, [sProductos.length])
 
   // ── Generador de número ──
   async function generarNumero(prefixBase) {
@@ -1007,7 +1012,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
           {/* Paquetes de piezas por máquina */}
           {usaPaquetes && (
-            <Bloque titulo="Sacar un paquete por máquina" detalle="opcional">
+            <Bloque titulo="Sacar paquetes por máquina" detalle="opcional · puedes mezclar máquinas">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {paquetesBodega.map(p => {
                   const activo = paqueteSelId === p.id
@@ -1018,19 +1023,34 @@ export default function RegistrarMovimientoAlmacenista() {
                         ${activo ? 'border-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde bg-white hover:bg-feisen-fondo'}`}>
                       <span className="block text-sm font-semibold text-feisen-texto leading-snug">{p.nombre}</span>
                       <span className="block text-xs text-feisen-texto-2 mt-0.5">{(p.paquete_items || []).length} productos por máquina</span>
+                      {paquetesAgregados[p.id] > 0 && (
+                        <span className="inline-flex items-center gap-1 mt-1.5 rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-azul text-white">
+                          <Check size={12} /> Agregado × {paquetesAgregados[p.id]}
+                        </span>
+                      )}
                     </button>
                   )
                 })}
               </div>
               {paqueteSelId && (
                 <div className="flex flex-wrap items-center gap-3 bg-feisen-fondo rounded-lg p-3">
-                  <p className="flex-1 min-w-[10rem] text-sm text-feisen-texto-2">¿Para cuántas máquinas?</p>
+                  <p className="flex-1 min-w-[10rem] text-sm text-feisen-texto-2">
+                    <span className="block font-medium text-feisen-texto">{paquetesBodega.find(p => p.id === paqueteSelId)?.nombre}</span>
+                    ¿Para cuántas máquinas?
+                  </p>
                   <Contador valor={String(multiplicadorPaq)} onCambiar={v => setMultiplicadorPaq(v)} min={1} etiqueta="Máquinas" ancho="w-14" />
                   <button type="button" onClick={aplicarPaquete}
                     className="border border-feisen-azul text-feisen-azul bg-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave active:scale-[.98] transition">
                     Agregar {(paquetesBodega.find(p => p.id === paqueteSelId)?.paquete_items || []).length} productos
                   </button>
                 </div>
+              )}
+              {Object.keys(paquetesAgregados).length > 0 && (
+                <p className="text-sm text-feisen-texto-2">
+                  <span className="font-medium text-feisen-texto">En esta salida:</span>{' '}
+                  {Object.entries(paquetesAgregados).map(([id, n]) => `${paquetesBodega.find(p => p.id === id)?.nombre || 'Paquete'} × ${n}`).join(' · ')}.
+                  {' '}Toca otro paquete para sumarlo.
+                </p>
               )}
             </Bloque>
           )}
