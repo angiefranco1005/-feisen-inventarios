@@ -281,8 +281,8 @@ export default function RegistrarMovimientoAlmacenista() {
   const [colaborador,    setColaborador]    = useState('')
   const [firmaReceptorUrl, setFirmaReceptorUrl] = useState(null)
   const [destinoMec,     setDestinoMec]     = useState('')  // 'ALMACEN' | 'SOLDADURA'
-  const [paqueteSelId,   setPaqueteSelId]   = useState('')
-  const [multiplicadorPaq, setMultiplicadorPaq] = useState(1)
+  // Paquetes con buscador: sin escribir ocupa una línea; cada + suma el paquete de una máquina
+  const [buscaPaquete, setBuscaPaquete] = useState('')
   // Paquetes ya sumados a esta salida (se pueden mezclar máquinas): { [paquete_id]: máquinas }
   const [paquetesAgregados, setPaquetesAgregados] = useState({})
   // Paquetes activos (con sus piezas) de la bodega del usuario: Mecanizados y Almacén
@@ -485,11 +485,9 @@ export default function RegistrarMovimientoAlmacenista() {
   // de PostgREST u otros casos borde) — resolvemos cada pieza contra el catálogo
   // `items` ya cargado para esta bodega, que es la misma fuente que usa el buscador
   // de "Productos" de abajo y sabemos que funciona.
-  function aplicarPaquete() {
-    const paq = paquetesBodega.find(p => p.id === paqueteSelId)
+  function aplicarPaquete(paq) {
     if (!paq) return
-    const mult = Number(multiplicadorPaq)
-    if (!mult || mult <= 0) { setError('La cantidad de paquetes debe ser mayor a 0.'); return }
+    const mult = 1
 
     const piezas = paq.paquete_items || []
     if (piezas.length === 0) { setError('Este paquete no tiene piezas configuradas.'); return }
@@ -529,8 +527,17 @@ export default function RegistrarMovimientoAlmacenista() {
       : '')
     if (!faltantes) avisar(`${paq.nombre}: ${nuevasLineas.length} productos × ${mult} ${mult === 1 ? 'máquina' : 'máquinas'}`)
     setPaquetesAgregados(prev => ({ ...prev, [paq.id]: (prev[paq.id] || 0) + mult }))
-    setPaqueteSelId('')
-    setMultiplicadorPaq(1)
+  }
+
+  // Quita de la lista todo lo que sumó un paquete (sus piezas × las máquinas agregadas)
+  function quitarPaquete(paq) {
+    const n = paquetesAgregados[paq.id] || 0
+    if (!n) return
+    const resta = Object.fromEntries((paq.paquete_items || []).map(pi => [pi.item_id, Number(pi.cantidad) * n]))
+    setSProductos(prev => prev
+      .map(l => resta[l.item_id] ? { ...l, cantidad: String((parseFloat(l.cantidad) || 0) - resta[l.item_id]) } : l)
+      .filter(l => !resta[l.item_id] || parseFloat(l.cantidad) > 0))
+    setPaquetesAgregados(prev => { const c = { ...prev }; delete c[paq.id]; return c })
   }
   // Si la lista de productos queda vacía (se guardó o se quitó todo), el resumen de paquetes también
   useEffect(() => { if (!sProductos.length) setPaquetesAgregados({}) }, [sProductos.length])
@@ -1026,45 +1033,54 @@ export default function RegistrarMovimientoAlmacenista() {
 
           {/* Paquetes de piezas por máquina */}
           {usaPaquetes && (
-            <Bloque titulo="Sacar paquetes por máquina" detalle="opcional · puedes mezclar máquinas">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {paquetesBodega.map(p => {
-                  const activo = paqueteSelId === p.id
-                  return (
-                    <button key={p.id} type="button" aria-pressed={activo}
-                      onClick={() => { setPaqueteSelId(activo ? '' : p.id); setMultiplicadorPaq(1) }}
-                      className={`min-h-[44px] text-left rounded-lg border px-3 py-2.5 transition-colors active:scale-[.98]
-                        ${activo ? 'border-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde bg-white hover:bg-feisen-fondo'}`}>
-                      <span className="block text-sm font-semibold text-feisen-texto leading-snug">{p.nombre}</span>
-                      <span className="block text-xs text-feisen-texto-2 mt-0.5">{(p.paquete_items || []).length} productos por máquina</span>
-                      {paquetesAgregados[p.id] > 0 && (
-                        <span className="inline-flex items-center gap-1 mt-1.5 rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-azul text-white">
-                          <Check size={12} /> Agregado × {paquetesAgregados[p.id]}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
+            <Bloque titulo="Paquete por máquina" detalle="opcional">
+              <div className="relative">
+                <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input type="search" value={buscaPaquete} autoComplete="off" aria-label="Buscar paquete"
+                  onChange={e => setBuscaPaquete(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') setBuscaPaquete('') }}
+                  placeholder={`Buscar paquete: “pluma”, “rana”… (${paquetesBodega.length})`}
+                  className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
               </div>
-              {paqueteSelId && (
-                <div className="flex flex-wrap items-center gap-3 bg-feisen-fondo rounded-lg p-3">
-                  <p className="flex-1 min-w-[10rem] text-sm text-feisen-texto-2">
-                    <span className="block font-medium text-feisen-texto">{paquetesBodega.find(p => p.id === paqueteSelId)?.nombre}</span>
-                    ¿Para cuántas máquinas?
-                  </p>
-                  <Contador valor={String(multiplicadorPaq)} onCambiar={v => setMultiplicadorPaq(v)} min={1} etiqueta="Máquinas" ancho="w-14" />
-                  <button type="button" onClick={aplicarPaquete}
-                    className="border border-feisen-azul text-feisen-azul bg-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave active:scale-[.98] transition">
-                    Agregar {(paquetesBodega.find(p => p.id === paqueteSelId)?.paquete_items || []).length} productos
-                  </button>
-                </div>
-              )}
+              {buscaPaquete.trim() && (() => {
+                const res = paquetesBodega.filter(p => coincideBusqueda(p.nombre, buscaPaquete))
+                return (
+                  <ul className="border border-feisen-borde rounded-lg overflow-y-auto overscroll-contain max-h-[20rem] divide-y divide-feisen-borde-suave">
+                    {res.length === 0 && <li className="px-3 py-3 text-sm text-feisen-texto-2">Ningún paquete tiene “{buscaPaquete.trim()}” en el nombre.</li>}
+                    {res.map(p => {
+                      const n = paquetesAgregados[p.id] || 0
+                      return (
+                        <li key={p.id}>
+                          <button type="button" onClick={() => aplicarPaquete(p)}
+                            className="w-full flex items-center gap-3 px-3 py-2 min-h-[52px] text-left bg-white hover:bg-feisen-fondo">
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-medium text-feisen-texto break-words">{p.nombre}</span>
+                              <span className="block text-xs text-feisen-texto-2">{(p.paquete_items || []).length} productos por máquina</span>
+                            </span>
+                            <span className={`min-w-8 h-8 px-1.5 rounded-lg grid place-items-center shrink-0 text-sm font-semibold ${n ? 'bg-feisen-azul text-white' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+                              {n ? `×${n}` : <Plus size={16} />}
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )
+              })()}
               {Object.keys(paquetesAgregados).length > 0 && (
-                <p className="text-sm text-feisen-texto-2">
-                  <span className="font-medium text-feisen-texto">En esta salida:</span>{' '}
-                  {Object.entries(paquetesAgregados).map(([id, n]) => `${paquetesBodega.find(p => p.id === id)?.nombre || 'Paquete'} × ${n}`).join(' · ')}.
-                  {' '}Toca otro paquete para sumarlo.
-                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(paquetesAgregados).map(([id, n]) => {
+                    const p = paquetesBodega.find(x => x.id === id)
+                    if (!p) return null
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 bg-feisen-azul-suave text-feisen-azul text-sm font-semibold rounded-full pl-3 pr-1 py-0.5">
+                        {p.nombre} × {n}
+                        <button type="button" onClick={() => quitarPaquete(p)} aria-label={`Quitar ${p.nombre}`}
+                          className="p-1.5 rounded-full hover:bg-white"><X size={14} /></button>
+                      </span>
+                    )
+                  })}
+                </div>
               )}
             </Bloque>
           )}

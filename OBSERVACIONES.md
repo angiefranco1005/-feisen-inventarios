@@ -1750,3 +1750,8 @@ el avance se registra a diario y la orden se cierra a mano.
 
 ## 2026-10-29 · Salida de Almacén: lo último agregado queda de primero
 - En `ListaProductos` (RegistrarMovimientoAlmacenista) el producto que se agrega, o al que se le suma +1, pasa al primer lugar de la lista y se resalta 1,6 s. Las piezas de un paquete también quedan de primeras. Así se ajusta la cantidad sin bajar por toda la lista.
+
+## 2026-10-29 · Paquetes de la salida con buscador (opción A)
+- El bloque de paquetes (Almacén y Mecanizados) ya no muestra una tarjeta por paquete (Almacén tiene 25): es un buscador. Al escribir aparecen solo los paquetes que coinciden; cada toque en el + suma el paquete de una máquina (el botón muestra ×N). Los agregados quedan como etiquetas con una × que quita sus piezas de la lista (cantidad × máquinas).
+- Ya no hay contador de "¿para cuántas máquinas?": se toca el + tantas veces como máquinas.
+- Maqueta con las opciones: https://claude.ai/artifact/X4shvJwJp9ZPJkJykctuQE
