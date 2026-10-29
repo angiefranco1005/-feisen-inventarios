@@ -178,6 +178,30 @@ export default function PeriodoNomina() {
     }
   }
 
+  // Trae de una vez a todos los activos que no están (p. ej. fichas creadas después de abrir la quincena)
+  async function agregarTodos() {
+    if (!window.confirm(`¿Agregar a la quincena a ${fuera.length} persona${fuera.length === 1 ? '' : 's'} que falta${fuera.length === 1 ? '' : 'n'}? Se crean con los valores sugeridos de su ficha.`)) return
+    setTrabajando(true); setMsg(null)
+    try {
+      const ctx = await contextoQuincena(periodo.fecha_inicio, periodo.fecha_fin)
+      const ids = new Set(fuera.map(e => e.id))
+      const sugeridas = ctx.empleados.filter(e => ids.has(e.id))
+        .map(e => liquidacionSugerida(e, periodo.fecha_inicio, periodo.fecha_fin, ctx))
+      const { data: creadas, error } = await supabase.from('nomina_liquidaciones')
+        .insert(sugeridas.map(({ liq, piezas: pz }) => ({ ...liq, periodo_id: periodoId, ...calcularTotales(liq, pz) })))
+        .select('id, empleado_id')
+      if (error) throw error
+      const idPorEmpleado = new Map((creadas || []).map(c => [c.empleado_id, c.id]))
+      const pzs = sugeridas.flatMap(({ liq, piezas: pz }) => pz.map(p => ({ ...p, liquidacion_id: idPorEmpleado.get(liq.empleado_id) })))
+      if (pzs.length) { const { error: e2 } = await supabase.from('nomina_piezas').insert(pzs); if (e2) throw e2 }
+      await cargar()
+      setMsg({ tipo: 'exito', texto: `Se agregaron ${creadas?.length || 0} personas a la quincena.` })
+    } catch (err) {
+      setMsg({ tipo: 'error', texto: err.message })
+    }
+    setTrabajando(false)
+  }
+
   const paraDocumentos = () => filas.map(l => ({
     ...l, nombre: nombreCompleto(l.emp), documento: l.emp ? `${l.emp.tipo_documento || ''} ${l.emp.numero_documento || ''}`.trim() : '',
     cargo: l.emp?.cargo, area: l.emp?.area, tipo_contrato: l.emp?.tipo_contrato, piezas: piezas.filter(p => p.liquidacion_id === l.id),
@@ -406,6 +430,14 @@ export default function PeriodoNomina() {
             </select>
             <button onClick={agregarPersona} disabled={!agregar || trabajando} className={E.btnPrimario}>Agregar</button>
           </div>
+          {fuera.length > 1 && (
+            <div className="px-5 pb-4 -mt-1 flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-feisen-gris-medio">Faltan {fuera.length} colaboradores activos en esta quincena.</p>
+              <button onClick={agregarTodos} disabled={trabajando} className={E.btnSecundario}>
+                <UserPlus {...E.ICONO} /> {trabajando ? 'Agregando…' : `Agregar a todos (${fuera.length})`}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
