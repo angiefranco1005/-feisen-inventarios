@@ -25,9 +25,10 @@ const CATEGORIAS_MECANIZABLES = new Set([
 
 export default function GestionProductos() {
   const navigate = useNavigate()
-  const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, bodegasPermitidas, bodegasOperacion, nivel } = useAuth()
   // Solo ADMIN ve todas las bodegas y el valor del inventario; el resto (Logística incluida) solo su bodega asignada
-  const puedeEditar = esAdmin || perfil?.rol === 'LOGISTICA' || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'OPERARIO' || perfil?.rol === 'JEFE_FUNDICION' || perfil?.rol === 'JEFE_MECANIZADOS' || perfil?.rol === 'JEFE_ENSAMBLE' || perfil?.rol === 'RRHH'
+  // Ve = solo consulta; Registra/Todo = edita (Configuración › Permisos)
+  const puedeEditar = esAdmin || ['registra', 'todo'].includes(nivel('productos'))
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])

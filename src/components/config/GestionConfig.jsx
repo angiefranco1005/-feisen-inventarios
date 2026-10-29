@@ -7,6 +7,7 @@ import { EncabezadoPagina, PanelLateral, useAviso } from '../shared/ui'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { Plus, Search, AlertTriangle, Check } from '../shared/iconos'
+import SeccionPermisos from './SeccionPermisos'
 
 // Configuración (solo ADMIN): usuarios, bodegas, categorías y roles.
 // Diseño de la skill ux-feisen: pestañas con conteo, lista → panel lateral de detalle,
@@ -590,7 +591,7 @@ function SeccionRoles({ datos, recargar, avisar }) {
                   <span className="block text-[11px] font-mono text-gray-400">{r.nombre}</span>
                 </span>
                 <span className="text-sm text-feisen-texto-2 tabular-nums text-right md:order-3">{plural(n, 'persona', 'personas')}</span>
-                <span className="col-span-2 md:col-span-1 md:order-2 text-sm text-feisen-texto-2">{QUE_VE[r.nombre] || 'Sin pantallas programadas todavía.'}</span>
+                <span className="col-span-2 md:col-span-1 md:order-2 text-sm text-feisen-texto-2">{QUE_VE[r.nombre] || 'Asígnale módulos en la pestaña Permisos.'}</span>
                 <span className="hidden md:block md:order-4 text-right text-xs text-gray-400">
                   {sistema ? 'sistema' : n === 0 && <button type="button" onClick={() => eliminar(r)} className="text-sm font-medium text-feisen-rojo">Borrar</button>}
                 </span>
@@ -609,6 +610,7 @@ const TABS = [
   { id: 'bodegas',    label: 'Bodegas',    nuevo: 'Nueva bodega',    cuantos: d => d.bodegas.length },
   { id: 'categorias', label: 'Categorías', nuevo: 'Nueva categoría', cuantos: d => d.categorias.length },
   { id: 'roles',      label: 'Roles',      nuevo: 'Nuevo rol',       cuantos: d => d.roles.length },
+  { id: 'permisos',   label: 'Permisos',   nuevo: null,              cuantos: () => null },
 ]
 
 export default function GestionConfig() {
@@ -650,14 +652,16 @@ export default function GestionConfig() {
   const guardado = texto => { setPanel(null); avisar(texto); cargar() }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className={`${tab === 'permisos' ? 'max-w-7xl' : 'max-w-4xl'} mx-auto space-y-4`}>
       {aviso}
       <EncabezadoPagina modulo="Administración" titulo="Configuración"
-        subtitulo="Quién entra a la app, qué bodega ve cada persona y cómo se ordena el inventario.">
-        <button type="button" onClick={() => setPanel({ tipo: tab, registro: null })}
-          className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90">
-          <Plus size={16} /> {tabActual.nuevo}
-        </button>
+        subtitulo="Quién entra a la app, qué ve cada rol, qué bodega tiene cada persona y cómo se ordena el inventario.">
+        {tabActual.nuevo && (
+          <button type="button" onClick={() => setPanel({ tipo: tab, registro: null })}
+            className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90">
+            <Plus size={16} /> {tabActual.nuevo}
+          </button>
+        )}
       </EncabezadoPagina>
 
       <div role="tablist" className="flex gap-1 border-b border-feisen-borde overflow-x-auto [scrollbar-width:none]">
@@ -665,7 +669,7 @@ export default function GestionConfig() {
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
             className={`shrink-0 px-3 py-2.5 -mb-px border-b-2 text-sm transition-colors
               ${tab === t.id ? 'border-feisen-azul text-feisen-azul font-semibold' : 'border-transparent text-feisen-texto-2 font-medium hover:text-feisen-texto'}`}>
-            {t.label}{datos && <span className="ml-1.5 text-gray-400 tabular-nums font-normal">{fmt(t.cuantos(datos))}</span>}
+            {t.label}{datos && t.cuantos(datos) != null && <span className="ml-1.5 text-gray-400 tabular-nums font-normal">{fmt(t.cuantos(datos))}</span>}
           </button>
         ))}
       </div>
@@ -677,6 +681,7 @@ export default function GestionConfig() {
       {datos && tab === 'bodegas'    && <SeccionBodegas datos={datos} abrir={abrir('bodegas')} />}
       {datos && tab === 'categorias' && <SeccionCategorias datos={datos} abrir={abrir('categorias')} />}
       {datos && tab === 'roles'      && <SeccionRoles datos={datos} recargar={cargar} avisar={avisar} />}
+      {datos && tab === 'permisos'   && <SeccionPermisos datos={datos} avisar={avisar} />}
 
       {panel?.tipo === 'usuarios'   && <PanelUsuario usuario={panel.registro} datos={datos} onCerrar={cerrar} onGuardado={guardado} />}
       {panel?.tipo === 'bodegas'    && <PanelBodega bodega={panel.registro} productos={panel.registro ? (datos.productosBodega[panel.registro.id] || 0) : 0} onCerrar={cerrar} onGuardado={guardado} />}

@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { EncabezadoPagina, Segmentado } from '../shared/ui'
 import {
   BarChart2, Users, Package, Flame, AlertTriangle,
-  RefreshCw, TrendingDown, Scale, Recycle,
+  RefreshCw, Scale, ChevronRight,
 } from '../shared/iconos'
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
@@ -28,24 +29,62 @@ function fmtPct(n) {
   return `${Number(n).toFixed(1)}%`
 }
 
+// Un color = un significado: rojo problema, ámbar atención, lo normal en neutro.
 function colorConf(pct) {
-  if (pct >= 85) return 'text-green-600'
-  if (pct >= 70) return 'text-yellow-600'
+  if (pct >= 85) return 'text-feisen-texto'
+  if (pct >= 70) return 'text-amber-700'
   return 'text-feisen-rojo'
 }
 
 function colorMerma(pct) {
-  if (pct < 10) return 'text-green-600'
-  if (pct < 20) return 'text-yellow-600'
+  if (pct < 10) return 'text-feisen-texto'
+  if (pct < 20) return 'text-amber-700'
   return 'text-feisen-rojo'
+}
+
+function barraMerma(pct) {
+  if (pct > 20) return 'bg-feisen-rojo'
+  if (pct > 10) return 'bg-amber-500'
+  return 'bg-feisen-gris-medio'
 }
 
 function MiniBar({ value, max, color = 'bg-feisen-azul' }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
   return (
-    <div className="w-full bg-gray-100 rounded-full h-2">
-      <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+    <div className="w-full bg-feisen-borde-suave rounded h-2 overflow-hidden">
+      <div className={`h-2 rounded transition-all motion-reduce:transition-none ${color}`} style={{ width: `${pct}%` }} />
     </div>
+  )
+}
+
+function Indicador({ etiqueta, valor, contexto, tono, onClick }) {
+  const color = tono === 'rojo' ? 'text-feisen-rojo' : tono === 'ambar' ? 'text-amber-700' : 'text-feisen-texto'
+  const cuerpo = (
+    <>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 leading-tight flex items-center gap-1">
+        {tono && <AlertTriangle size={12} className={color} />}{etiqueta}
+      </p>
+      <p className={`text-2xl font-semibold tabular-nums mt-1 ${color}`}>{valor}</p>
+      <p className="text-xs text-feisen-texto-2 mt-0.5">{contexto}</p>
+    </>
+  )
+  const borde = tono === 'rojo' ? 'border-feisen-rojo/40' : tono === 'ambar' ? 'border-amber-300' : 'border-feisen-borde'
+  const base = `bg-white border ${borde} rounded-xl p-3.5 sm:p-4 text-left min-w-0`
+  if (!onClick) return <div className={base}>{cuerpo}</div>
+  return <button type="button" onClick={onClick} className={`${base} hover:bg-feisen-fondo transition-colors`}>{cuerpo}</button>
+}
+
+function Seccion({ icono: Icono, titulo, nota, refSec, children }) {
+  return (
+    <section ref={refSec} className="bg-white border border-feisen-borde rounded-xl scroll-mt-4">
+      <div className="px-4 pt-3.5 pb-3 border-b border-feisen-borde-suave">
+        <h2 className="text-sm font-semibold text-feisen-texto flex items-center gap-2">
+          <Icono size={18} weight="duotone" className="text-feisen-texto-2" /> {titulo}
+        </h2>
+        {nota && <p className="text-xs text-feisen-texto-2 mt-0.5">{nota}</p>}
+      </div>
+      <div className="px-4 py-3.5">{children}</div>
+    </section>
   )
 }
 
@@ -55,6 +94,7 @@ const PERIODOS = [
   { label: '90 días', dias: 90 },
   { label: 'Todo',    dias: null },
 ]
+const OPCIONES_PERIODO = PERIODOS.map(p => ({ valor: p.dias, texto: p.label }))
 
 export default function AnaliticaFundicion() {
   const [periodo,      setPeriodo]      = useState(30)
@@ -249,241 +289,231 @@ export default function AnaliticaFundicion() {
     }
   }, [ordenes, fundidas, movsHierro, movsVaceadero])
 
-  return (
-    <div className="p-4 max-w-2xl mx-auto space-y-5 pb-20">
+  // Solo visual: las tarjetas de excepción llevan a su sección
+  const refMerma  = useRef(null)
+  const refPiezas = useRef(null)
+  const irA = ref => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            <BarChart2 className="text-feisen-azul" size={22} />
-            Analítica Fundición
-          </h1>
-          <p className="text-xs text-gray-400 mt-0.5">Métricas de producción · órdenes completadas</p>
-        </div>
+  const etiquetaPeriodo = periodo ? `los últimos ${periodo} días` : 'todo el historial'
+  const tonoMerma = stats.mermasPorOrden.length === 0 ? undefined
+    : stats.pctMermaPromedio >= 20 ? 'rojo' : stats.pctMermaPromedio >= 10 ? 'ambar' : undefined
+  const tonoConf = stats.totalPlaneadas === 0 ? undefined
+    : stats.pctConformidad < 70 ? 'rojo' : stats.pctConformidad < 85 ? 'ambar' : undefined
+  const ordenesAltas = stats.mermasPorOrden.filter(m => m.pctMerma > 20).length
+
+  return (
+    <div className="p-4 max-w-3xl mx-auto space-y-5 pb-20">
+
+      <EncabezadoPagina modulo="Fundición" titulo="Analítica de fundición"
+        subtitulo="Merma, producción por moldeador, piezas y materiales de las órdenes de moldeo completadas">
         <button
+          type="button"
           onClick={cargar}
           disabled={cargando}
-          className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
+          aria-label="Actualizar datos"
+          className="inline-flex items-center gap-2 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60 transition-colors"
         >
-          <RefreshCw size={16} className={`text-gray-500 ${cargando ? 'animate-spin' : ''}`} />
+          <RefreshCw size={17} className={`text-feisen-texto-2 ${cargando ? 'animate-spin motion-reduce:animate-none' : ''}`} />
+          <span className="hidden sm:inline">{cargando ? 'Actualizando…' : 'Actualizar'}</span>
         </button>
-      </div>
+      </EncabezadoPagina>
 
       {/* Filtro período */}
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {PERIODOS.map(p => (
-          <button
-            key={String(p.dias)}
-            onClick={() => setPeriodo(p.dias)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
-              periodo === p.dias
-                ? 'bg-feisen-azul text-white shadow-sm'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="max-w-md">
+        <Segmentado opciones={OPCIONES_PERIODO} valor={periodo} onCambiar={setPeriodo} />
       </div>
 
       {cargando ? (
-        <div className="text-center py-20 text-gray-400">
-          <RefreshCw size={28} className="animate-spin mx-auto mb-3" />
-          <p className="text-sm">Calculando analítica…</p>
+        <div className="space-y-4" aria-busy="true">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map(i => <div key={i} className="h-[104px] rounded-xl bg-feisen-borde-suave animate-pulse" />)}
+          </div>
+          {[0, 1].map(i => <div key={i} className="h-48 rounded-xl bg-feisen-borde-suave animate-pulse" />)}
+          <p className="sr-only">Calculando analítica…</p>
         </div>
       ) : stats.totalOrdenes === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <BarChart2 size={36} className="mx-auto mb-3 opacity-25" />
-          <p className="text-sm font-bold">Sin datos para este período</p>
-          <p className="text-xs mt-1">Completa algunas órdenes de moldeo primero</p>
+        <div className="bg-white border border-dashed border-feisen-borde rounded-xl px-6 py-14 text-center">
+          <BarChart2 size={32} className="mx-auto text-gray-300" />
+          <p className="mt-3 font-semibold text-feisen-texto">No hay órdenes de moldeo completadas en {etiquetaPeriodo}</p>
+          <p className="mt-1 text-sm text-feisen-texto-2 max-w-md mx-auto">
+            La analítica se calcula solo con órdenes de moldeo completadas.
+            {periodo ? ' Prueba con un período más largo, o completa' : ' Completa'} las órdenes en curso para ver aquí la merma, los kilos y la conformidad.
+          </p>
+          {periodo !== null && (
+            <button type="button" onClick={() => setPeriodo(null)}
+              className="mt-4 border border-feisen-borde rounded-lg px-4 min-h-[44px] text-sm font-medium text-feisen-azul hover:bg-feisen-azul-suave">
+              Ver todo el historial
+            </button>
+          )}
         </div>
       ) : (
         <>
-          {/* ── KPI cards 2×2 ── */}
-          <div className="grid grid-cols-2 gap-3">
-
-            <div className="bg-blue-50 rounded-2xl p-4">
-              <p className="text-xs text-gray-500">Órdenes completadas</p>
-              <p className="text-2xl font-bold text-feisen-azul mt-1">{stats.totalOrdenes}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{stats.totalFundidas} fundidas</p>
-            </div>
-
-            <div className="bg-green-50 rounded-2xl p-4">
-              <p className="text-xs text-gray-500">% Conformidad</p>
-              <p className={`text-2xl font-bold mt-1 ${colorConf(stats.pctConformidad)}`}>
-                {fmtPct(stats.pctConformidad)}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {stats.totalConformes.toLocaleString('es-CO')} buenas / {stats.totalNC} NC
-              </p>
-            </div>
-
-            <div className="bg-orange-50 rounded-2xl p-4">
-              <p className="text-xs text-gray-500">Kg producidos</p>
-              <p className="text-2xl font-bold text-orange-600 mt-1">{fmtKg(stats.totalKgConformes)}</p>
-              <p className="text-xs text-gray-400 mt-0.5">piezas conformes</p>
-            </div>
-
-            <div className={`rounded-2xl p-4 ${stats.pctMermaPromedio > 20 ? 'bg-red-50' : 'bg-yellow-50'}`}>
-              <p className="text-xs text-gray-500">Merma promedio</p>
-              <p className={`text-2xl font-bold mt-1 ${colorMerma(stats.pctMermaPromedio)}`}>
-                {stats.mermasPorOrden.length > 0 ? fmtPct(stats.pctMermaPromedio) : '—'}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5">de hierro colado</p>
-            </div>
+          {/* ── Indicadores: excepciones primero ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Indicador
+              etiqueta="Merma promedio"
+              valor={stats.mermasPorOrden.length > 0 ? fmtPct(stats.pctMermaPromedio) : '—'}
+              tono={tonoMerma}
+              contexto={stats.mermasPorOrden.length > 0
+                ? (ordenesAltas > 0 ? `${ordenesAltas} ${ordenesAltas === 1 ? 'orden' : 'órdenes'} sobre 20%` : 'del hierro colado')
+                : 'sin salidas de hierro registradas'}
+              onClick={stats.mermasPorOrden.length > 0 ? () => irA(refMerma) : undefined}
+            />
+            <Indicador
+              etiqueta="Conformidad"
+              valor={fmtPct(stats.pctConformidad)}
+              tono={tonoConf}
+              contexto={`${stats.totalConformes.toLocaleString('es-CO')} buenas · ${stats.totalNC.toLocaleString('es-CO')} NC`}
+              onClick={stats.topPiezas.length > 0 ? () => irA(refPiezas) : undefined}
+            />
+            <Indicador
+              etiqueta="Kg producidos"
+              valor={fmtKg(stats.totalKgConformes)}
+              contexto="en piezas conformes"
+            />
+            <Indicador
+              etiqueta="Órdenes completadas"
+              valor={stats.totalOrdenes.toLocaleString('es-CO')}
+              contexto={`${stats.totalFundidas.toLocaleString('es-CO')} fundidas`}
+            />
           </div>
+
+          {/* ── Merma por orden (top peores) ── */}
+          {stats.mermasPorOrden.length > 0 && (
+            <Seccion refSec={refMerma} icono={AlertTriangle}
+              titulo={`Merma por orden · ${Math.min(8, stats.mermasPorOrden.length)} más altas`}
+              nota="Merma = hierro colado − kg de piezas buenas − vaceadero recuperado. Sobre 20% en rojo, sobre 10% en ámbar.">
+              <div className="space-y-2.5">
+                {stats.mermasPorOrden.slice(0, 8).map(m => (
+                  <div key={m.ref} className="grid grid-cols-[88px,1fr,52px] sm:grid-cols-[112px,1fr,56px,76px] gap-2 sm:gap-3 items-center">
+                    <span className="text-xs font-mono text-feisen-texto-2 truncate">{m.ref.replace('ORD-MOL-', 'MOL-')}</span>
+                    <MiniBar value={m.pctMerma} max={40} color={barraMerma(m.pctMerma)} />
+                    <span className={`text-sm font-semibold text-right tabular-nums ${colorMerma(m.pctMerma)}`}>
+                      {fmtPct(m.pctMerma)}
+                    </span>
+                    <span className="hidden sm:block text-xs text-feisen-texto-2 text-right tabular-nums">
+                      {fmtKg(m.kgMerma)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stats.mermasPorOrden.length > 8 && (
+                <p className="text-xs text-gray-400 pt-3 mt-3 border-t border-feisen-borde-suave">
+                  + {(stats.mermasPorOrden.length - 8).toLocaleString('es-CO')} órdenes más con merma menor
+                </p>
+              )}
+            </Seccion>
+          )}
 
           {/* ── Balance de hierro ── */}
           {stats.totalHierro > 0 && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                Balance de hierro · período
-              </p>
-              {[
-                { label: 'Hierro fundido total', kg: stats.totalHierro,      color: 'bg-orange-400', ref: stats.totalHierro },
-                { label: 'Piezas buenas',        kg: stats.totalKgConformes,  color: 'bg-green-500',  ref: stats.totalHierro },
-                { label: 'Vaceadero recuperado', kg: stats.totalVaceadero,    color: 'bg-yellow-400', ref: stats.totalHierro },
-                { label: 'Merma neta',           kg: stats.totalMerma,        color: 'bg-red-400',    ref: stats.totalHierro },
-              ].map(row => (
-                <div key={row.label} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 w-36 shrink-0">{row.label}</span>
-                  <div className="flex-1">
-                    <MiniBar value={row.kg} max={row.ref} color={row.color} />
+            <Seccion icono={Scale} titulo="Balance de hierro" nota={`A dónde fue el hierro colado en ${etiquetaPeriodo}`}>
+              <div className="space-y-2.5">
+                {[
+                  { label: 'Hierro colado total',  kg: stats.totalHierro,      color: 'bg-feisen-gris-oscuro' },
+                  { label: 'Piezas buenas',        kg: stats.totalKgConformes,  color: 'bg-feisen-azul' },
+                  { label: 'Vaceadero recuperado', kg: stats.totalVaceadero,    color: 'bg-feisen-gris-medio' },
+                  { label: 'Merma neta',           kg: stats.totalMerma,        color: tonoMerma === 'rojo' ? 'bg-feisen-rojo' : tonoMerma === 'ambar' ? 'bg-amber-500' : 'bg-feisen-gris-medio' },
+                ].map(row => (
+                  <div key={row.label} className="grid grid-cols-[1fr,auto] sm:grid-cols-[160px,1fr,96px] gap-x-3 gap-y-1 items-center">
+                    <span className="text-sm text-feisen-texto-2">{row.label}</span>
+                    <span className="text-sm font-semibold text-feisen-texto text-right tabular-nums sm:order-last">
+                      {fmtKg(row.kg)}
+                    </span>
+                    <div className="col-span-2 sm:col-span-1">
+                      <MiniBar value={row.kg} max={stats.totalHierro} color={row.color} />
+                    </div>
                   </div>
-                  <span className="text-xs font-bold text-gray-700 w-20 text-right shrink-0">
-                    {fmtKg(row.kg)}
-                  </span>
-                </div>
-              ))}
-              <p className="text-xs text-gray-400 pt-1 border-t border-gray-50">
-                Vaceadero recuperado: <span className="font-bold text-yellow-600">
+                ))}
+              </div>
+              <p className="text-xs text-feisen-texto-2 pt-3 mt-3 border-t border-feisen-borde-suave">
+                Se recuperó como vaceadero el <span className="font-semibold text-feisen-texto tabular-nums">
                   {stats.totalHierro > 0 ? fmtPct((stats.totalVaceadero / stats.totalHierro) * 100) : '—'}
-                </span> del hierro total
+                </span> del hierro colado.
               </p>
-            </div>
+            </Seccion>
           )}
 
           {/* ── Producción por moldeador ── */}
           {stats.moldeadores.length > 0 && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                <Users size={12} /> Producción por moldeador
-              </p>
-              {stats.moldeadores.map(m => {
-                const maxKg = stats.moldeadores[0]?.kgConformes || 1
-                return (
-                  <div key={m.nombre}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-gray-800">{m.nombre}</span>
-                      <span className="text-xs text-gray-500 font-bold">{fmtKg(m.kgConformes)}</span>
-                    </div>
-                    <MiniBar value={m.kgConformes} max={maxKg} color="bg-feisen-azul" />
-                    <div className="flex gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs text-gray-400">
-                        {m.conformes.toLocaleString('es-CO')} conformes
-                      </span>
-                      {m.nc > 0 && (
-                        <span className="text-xs text-feisen-rojo font-bold">
-                          {m.nc} NC · {fmtPct(m.pctNC)}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-300">{m.ordenes} órdenes</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <Seccion icono={Users} titulo="Producción por moldeador" nota="Kg de piezas buenas; en rojo las no conformes (NC)">
+              <ul className="divide-y divide-feisen-borde-suave -my-1">
+                {stats.moldeadores.map(m => {
+                  const maxKg = stats.moldeadores[0]?.kgConformes || 1
+                  return (
+                    <li key={m.nombre} className="py-2.5">
+                      <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                        <span className="text-sm font-medium text-feisen-texto truncate">{m.nombre}</span>
+                        <span className="text-sm font-semibold text-feisen-texto tabular-nums shrink-0">{fmtKg(m.kgConformes)}</span>
+                      </div>
+                      <MiniBar value={m.kgConformes} max={maxKg} color="bg-feisen-azul" />
+                      <div className="flex gap-x-3 gap-y-0.5 mt-1.5 flex-wrap text-xs tabular-nums">
+                        <span className="text-feisen-texto-2">{m.conformes.toLocaleString('es-CO')} conformes</span>
+                        {m.nc > 0 && (
+                          <span className="text-feisen-rojo font-medium">
+                            {m.nc.toLocaleString('es-CO')} NC · {fmtPct(m.pctNC)}
+                          </span>
+                        )}
+                        <span className="text-gray-400">{m.ordenes.toLocaleString('es-CO')} {m.ordenes === 1 ? 'orden' : 'órdenes'}</span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Seccion>
           )}
 
           {/* ── Top piezas producidas ── */}
           {stats.topPiezas.length > 0 && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-4">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                <Package size={12} /> Top piezas · kg producidos
-              </p>
-              {stats.topPiezas.map(p => {
-                const maxKg  = stats.topPiezas[0]?.kgConformes || 1
-                return (
-                  <div key={p.nombre}>
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <span className="text-sm font-bold text-gray-800 leading-tight flex-1">{p.nombre}</span>
-                      <span className={`text-xs font-bold shrink-0 ${colorConf(p.pctConformidad)}`}>
-                        {fmtPct(p.pctConformidad)} conf.
-                      </span>
-                    </div>
-                    <MiniBar value={p.kgConformes} max={maxKg} color="bg-feisen-rojo" />
-                    <div className="flex gap-3 mt-1 flex-wrap">
-                      <span className="text-xs text-gray-400">{fmtKg(p.kgConformes)}</span>
-                      <span className="text-xs text-gray-400">{p.conformes.toLocaleString('es-CO')} uds</span>
-                      {p.nc > 0 && <span className="text-xs text-feisen-rojo">{p.nc} NC</span>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* ── Merma por orden (top peores) ── */}
-          {stats.mermasPorOrden.length > 0 && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-2">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5 mb-3">
-                <AlertTriangle size={12} /> Merma por orden · top {Math.min(8, stats.mermasPorOrden.length)} peores
-              </p>
-              {stats.mermasPorOrden.slice(0, 8).map(m => (
-                <div key={m.ref} className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-gray-400 w-28 shrink-0">{m.ref}</span>
-                  <div className="flex-1">
-                    <MiniBar
-                      value={m.pctMerma}
-                      max={40}
-                      color={m.pctMerma > 20 ? 'bg-feisen-rojo' : m.pctMerma > 10 ? 'bg-yellow-400' : 'bg-green-400'}
-                    />
-                  </div>
-                  <span className={`text-xs font-bold w-12 text-right shrink-0 ${colorMerma(m.pctMerma)}`}>
-                    {fmtPct(m.pctMerma)}
-                  </span>
-                  <span className="text-xs text-gray-400 w-16 text-right shrink-0">
-                    {fmtKg(m.kgMerma)}
-                  </span>
-                </div>
-              ))}
-              {stats.mermasPorOrden.length > 8 && (
-                <p className="text-xs text-gray-400 text-center pt-1">
-                  + {stats.mermasPorOrden.length - 8} órdenes más
-                </p>
-              )}
-            </div>
+            <Seccion refSec={refPiezas} icono={Package} titulo="Piezas más producidas"
+              nota="Las 10 con más kg buenos. Conformidad bajo 85% en ámbar, bajo 70% en rojo.">
+              <ul className="divide-y divide-feisen-borde-suave -my-1">
+                {stats.topPiezas.map(p => {
+                  const maxKg = stats.topPiezas[0]?.kgConformes || 1
+                  return (
+                    <li key={p.nombre} className="py-2.5">
+                      <div className="flex items-start justify-between gap-3 mb-1.5">
+                        <span className="text-sm font-medium text-feisen-texto leading-snug flex-1 min-w-0 break-words">{p.nombre}</span>
+                        <span className="text-sm font-semibold text-feisen-texto tabular-nums shrink-0">{fmtKg(p.kgConformes)}</span>
+                      </div>
+                      <MiniBar value={p.kgConformes} max={maxKg} color="bg-feisen-azul" />
+                      <div className="flex gap-x-3 gap-y-0.5 mt-1.5 flex-wrap text-xs tabular-nums">
+                        <span className={`font-medium ${colorConf(p.pctConformidad) === 'text-feisen-texto' ? 'text-feisen-texto-2' : colorConf(p.pctConformidad)}`}>
+                          {fmtPct(p.pctConformidad)} conformidad
+                        </span>
+                        <span className="text-feisen-texto-2">{p.conformes.toLocaleString('es-CO')} uds</span>
+                        {p.nc > 0 && <span className="text-feisen-rojo font-medium">{p.nc.toLocaleString('es-CO')} NC</span>}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Seccion>
           )}
 
           {/* ── Consumo de materiales ── */}
           {stats.consumos.some(c => c.kg > 0) && (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <Flame size={12} /> Consumo de materiales
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">Ratio por kg de hierro fundido</p>
-              </div>
-              {stats.consumos.map(c => (
-                <div key={c.label} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 w-24 shrink-0">{c.label}</span>
-                  <div className="flex-1">
-                    <MiniBar value={c.ratio} max={stats.maxRatio} color={c.color} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-700 w-16 text-right shrink-0">
-                    {c.ratio.toFixed(3)} kg/kg
-                  </span>
-                </div>
-              ))}
-              <div className="pt-2 border-t border-gray-50 grid grid-cols-2 gap-1">
+            <Seccion icono={Flame} titulo="Consumo de materiales" nota="Kg de cada material por kg de hierro colado en las fundidas del período">
+              <div className="space-y-2.5">
                 {stats.consumos.map(c => (
-                  <p key={c.label} className="text-xs text-gray-400">
-                    <span className="font-bold text-gray-600">{fmtKg(c.kg)}</span> {c.label.toLowerCase()}
+                  <div key={c.label} className="grid grid-cols-[96px,1fr,auto] sm:grid-cols-[120px,1fr,96px,96px] gap-x-3 items-center">
+                    <span className="text-sm text-feisen-texto-2">{c.label}</span>
+                    <MiniBar value={c.ratio} max={stats.maxRatio} color="bg-feisen-azul" />
+                    <span className="text-sm font-semibold text-feisen-texto text-right tabular-nums">
+                      {c.ratio.toFixed(3)} <span className="font-normal text-gray-400 text-xs">kg/kg</span>
+                    </span>
+                    <span className="hidden sm:block text-xs text-feisen-texto-2 text-right tabular-nums">{fmtKg(c.kg)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="sm:hidden pt-3 mt-3 border-t border-feisen-borde-suave grid grid-cols-2 gap-x-3 gap-y-1">
+                {stats.consumos.map(c => (
+                  <p key={c.label} className="text-xs text-feisen-texto-2 tabular-nums">
+                    <span className="font-semibold text-feisen-texto">{fmtKg(c.kg)}</span> {c.label.toLowerCase()}
                   </p>
                 ))}
               </div>
-            </div>
+            </Seccion>
           )}
         </>
       )}

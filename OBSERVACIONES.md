@@ -1845,3 +1845,51 @@ el avance se registra a diario y la orden se cierra a mano.
 - Menú: módulo «Mantenimiento › Equipos de planta» para ADMIN; ítem «Mantenimiento» para los jefes de Fundición, Mecanizados y Ensamble (no está en su barra inferior del celular, sí en el menú ☰).
 - Decisiones por defecto (Angie no las definió, se pueden cambiar): cierra órdenes solo ADMIN (no hay rol Mantenimiento); los repuestos salen por defecto de ALMACEN pero se puede elegir otra bodega; los equipos se crean a mano (no había Excel).
 - Pendiente / después: preventivos por horas de uso (horómetro), indicador de cada cuánto falla un equipo, foto en la ficha del equipo (la columna `foto_url` ya existe).
+
+## Rediseño de pantallas de Fundición (29-oct-2026)
+
+Las 7 pantallas de `src/components/fundicion/` (Fundidas, Registrar fundida, Órdenes de moldeo, Nueva orden,
+Recogida, BOM, Analítica) se pasaron a la guía `ux-feisen`: `EncabezadoPagina`, un solo botón azul, chips de
+filtro con conteos, búsqueda por palabras sin tildes (`coincideBusqueda`), detalle en `PanelLateral`,
+`Contador` − / + para cantidades, barra de guardar fija abajo en celular y avisos con `useAviso`. Solo tokens
+`feisen-*` (ámbar = atención, rojo = problema). **Las llamadas a Supabase quedaron idénticas** (comparadas
+línea por línea contra el commit anterior). Cambios menores de comportamiento:
+- Moldeo: órdenes en curso con más de 7 días van arriba en "Requieren atención". "Ver canceladas" pasó a
+  ser un chip. Ya no se puede registrar avance en una orden cancelada.
+- BOM: quitar una pieza pide confirmación.
+- Registrar fundida: tras guardar, el formulario se limpia y muestra aviso (antes, pantalla de éxito).
+- Recogida: los contadores solo aceptan números (antes se podía guardar NaN escribiendo "3,5" o letras).
+- Demo local para revisar diseño sin tocar la base: `npx vite --config vite.fundicion-demo.config.mjs`
+  (puerto 5182, datos inventados en `.claude/demo-fundicion/supabase-mock.js`, `?rol=ADMIN` cambia el rol).
+
+**Errores de lógica encontrados en la revisión (1 y 2 corregidos; el resto pendiente de decisión):**
+1. ~~Guardados no atómicos~~ **Corregido (29-oct):** siguen siendo varios pasos (sin transacción en la base),
+   pero reintentar ya no duplica. Registrar fundida guarda la fundida pendiente y el botón pasa a "Reintentar
+   descuento" (solo inserta los materiales); Nueva orden reutiliza la orden ya creada y solo inserta máquinas/
+   piezas si no existen; Recogida revisa antes de cada movimiento si ya existe uno vigente con la misma
+   referencia (entrada de piezas `ORD-MOL-xxxx`, salida de hierro `ORD-MOL-xxxx · FUN-xxxx`, entrada de
+   vaceadero). Si se abandona tras el fallo, queda lo guardado (p. ej. una orden sin piezas), como antes.
+   La solución de fondo sería una función RPC en Postgres con transacción (requiere migración).
+2. ~~Hierro descontado dos veces~~ **Corregido (29-oct):** en Recogida, una fundida cuyo hierro ya se descontó
+   en otra orden aparece deshabilitada ("hierro ya descontado en ORD-MOL-xxxx") y al guardar se vuelve a
+   revisar en la base. Decisión: el hierro de una fundida se carga completo a UNA sola orden; si una colada
+   alimentó varias órdenes, las demás se registran "Sin vincular".
+3. Números consecutivos (`generarNumero`/`generarNumSalida`: último + 1) pueden repetirse si dos personas
+   guardan al mismo tiempo.
+4. BOM y Cancelar orden ignoran el error de Supabase: si la base rechaza el cambio, la pantalla igual lo muestra.
+5. Nueva orden y Editar orden permiten piezas con cantidad 0 o vacía.
+6. Analítica: la paginación de movimientos de hierro/vaceadero no tiene `.order()` (con más de 1000 filas puede
+   saltar o repetir), y los movimientos se filtran por `fecha_movimiento` mientras las órdenes por `fecha`.
+7. Fundidas: `hierro_colado_contaminado` se muestra pero el formulario nunca lo llena; no se valida
+   hora fin > hora inicio.
+
+## 2026-10-29 · Permisos por rol editables (Configuración › Permisos) — etapa 1
+- Pedido de Angie: ver y editar desde la app qué ve cada rol, pensando en sumar operarios y más gente.
+- Tabla `rol_permisos` (rol × módulo → `no`/`ve`/`registra`/`todo`), migración `2026-10-29_rol_permisos.sql` (**aplicada** con OK). Se cargó con lo que cada rol veía ese día, así que nada cambió al activarla. Todos la leen; solo ADMIN la edita; ADMIN no se guarda (siempre todo) y Configuración es solo ADMIN.
+- Catálogo de módulos en `src/permisos/modulos.js` (clave, rutas, niveles que la pantalla soporta). **Para un módulo o ruta nueva: agregarla ahí y en `PANTALLAS` de App.jsx**; si no, nadie fuera de ADMIN la ve.
+- `App.jsx` ya no tiene un bloque de rutas por rol: genera las rutas desde los permisos (`puede(modulo)` del AuthContext). Inicio según rol: ADMIN gerencia, CONSULTOR su tablero, RRHH va a Colaboradores, quien registra movimientos ve el tablero de bodega, el resto va a su primera pantalla; sin módulos ve un aviso.
+- **Efecto colateral bueno:** antes cualquier rol sin bloque propio (p. ej. el rol `RECURSOS_HUMANOS` de la tabla roles, o uno creado nuevo) caía en las rutas de ADMIN. Ahora no ve nada hasta que se le den módulos.
+- `Layout.jsx`: se conserva el menú curado de cada rol, filtrado por sus permisos, y se le agregan agrupados los módulos que se le den y no estaban en su lista.
+- Niveles que de verdad cambian algo dentro de la pantalla: Productos (Ve = solo consulta; `puedeEditar`) y Pedidos (Todo = gestiona los de todas las áreas, lo que antes era «ser Logística»). En el resto el módulo es sí/no y lo de adentro sigue dependiendo del rol.
+- **Etapa 2 pendiente:** las políticas RLS (118 en 64 tablas) siguen por rol fijo. Si se le da a un rol algo que no tenía, la matriz lo marca con ⚠ porque la pantalla puede salir vacía. Pasar las RLS a `rol_permisos`, módulo por módulo, cada lote con OK de Angie.
+- Roles de la tabla `roles` que hoy no usa nadie: `RECURSOS_HUMANOS` (duplicado de RRHH). `JEFE_ENSAMBLE` lo usa el código pero no está en la tabla roles.

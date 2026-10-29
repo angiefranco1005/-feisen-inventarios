@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { PERMISOS_INICIALES, nivelDe } from '../permisos/modulos'
 
 const AuthContext = createContext(null)
 
@@ -10,6 +11,17 @@ export function AuthProvider({ children }) {
   const [bodegasOperacion,  setBodegasOperacion]  = useState(null) // null = opera en todo (solo ADMIN)
   const [cargando,          setCargando]          = useState(true)
   const [rolPreview,        setRolPreview]        = useState(null) // null = sin modo vista
+  const [permisos,          setPermisos]          = useState(PERMISOS_INICIALES) // { rol: { modulo: nivel } }
+
+  // Permisos editables (Configuración › Permisos). Si la tabla no responde o está vacía,
+  // queda lo que cada rol tenía cuando se creó, para no dejar a nadie sin menú.
+  const recargarPermisos = useCallback(async () => {
+    const { data, error } = await supabase.from('rol_permisos').select('rol, modulo, nivel')
+    if (error || !Array.isArray(data) || data.length === 0) return
+    const m = {}
+    for (const r of data) (m[r.rol] ||= {})[r.modulo] = r.nivel
+    setPermisos(m)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -38,6 +50,7 @@ export function AuthProvider({ children }) {
       return
     }
     setPerfil(p)
+    await recargarPermisos()
     const bids = (pb || []).map(r => r.bodega_id)
     // Ver stock: solo ADMIN ve todo; el resto solo sus bodegas asignadas
     const puedeVerTodo = p?.rol === 'ADMIN'
@@ -76,6 +89,9 @@ export function AuthProvider({ children }) {
   const esComercial        = false
   const esJefeArea         = false
   const centroCosto        = perfil?.centro_costo_of || null
+  // Nivel del rol efectivo en un módulo: 'no' | 've' | 'registra' | 'todo'
+  const nivel              = modulo => nivelDe(permisos, rolEfectivo, modulo)
+  const puede              = modulo => nivel(modulo) !== 'no'
 
   return (
     <AuthContext.Provider value={{
@@ -86,6 +102,7 @@ export function AuthProvider({ children }) {
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
+      permisos, nivel, puede, recargarPermisos,
     }}>
       {children}
     </AuthContext.Provider>

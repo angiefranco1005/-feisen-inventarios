@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
+import { moduloDeRuta } from '../../permisos/modulos'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
@@ -219,7 +220,7 @@ const BADGE = {
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview, puede } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -228,7 +229,9 @@ export default function Layout({ children }) {
   const [msgPwd,        setMsgPwd]        = useState(null)
   const [guardandoPwd,  setGuardandoPwd]  = useState(false)
 
-  const navItems = esAdmin          ? NAV_ADMIN
+  // Menú: el orden curado de cada rol, filtrado por sus permisos (Configuración › Permisos),
+  // más los módulos que se le hayan dado y no estaban en su lista, agrupados por módulo.
+  const navBase = esAdmin          ? NAV_ADMIN
     : esLogistica        ? NAV_LOGISTICA
     : esAlmacenista      ? NAV_ALMACENISTA
     : esOperario         ? NAV_OPERARIO
@@ -238,16 +241,24 @@ export default function Layout({ children }) {
     : esConsultor        ? NAV_CONSULTOR
     : esRRHH             ? NAV_RRHH
     : []
+  const permitido = item => item.to === '/dashboard' || puede(moduloDeRuta(item.to))
+  const propios = navBase.filter(permitido)
+  const extras = esAdmin ? [] : NAV_ADMIN
+    .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))
+    .map(i => ({ to: i.to, icon: i.icon, label: i.label, grupo: i.modulo }))
+  const conInicio = !esAdmin && !esRRHH && !propios.some(i => i.to === '/dashboard')
+  const navItems = [...(conInicio ? [{ to: '/dashboard', icon: LayoutDashboard, label: 'Inicio' }] : []), ...propios, ...extras]
 
   // Barra inferior móvil — curada para que las acciones clave siempre sean visibles
-  const mobileItems = esOperario        ? MOBILE_OPERARIO
+  const mobileCurada = (esOperario        ? MOBILE_OPERARIO
     : esAlmacenista      ? MOBILE_ALMACENISTA
     : esJefeFundicion    ? MOBILE_JEFE_FUNDICION
     : esJefeMecanizados  ? MOBILE_JEFE_MECANIZADOS
     : esJefeEnsamble     ? MOBILE_JEFE_ENSAMBLE
     : esConsultor        ? MOBILE_CONSULTOR
     : esRRHH             ? MOBILE_RRHH
-    : navItems.slice(0, 5)
+    : []).filter(permitido)
+  const mobileItems = mobileCurada.length >= 3 ? mobileCurada : navItems.filter(i => !i.abajo).slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
 

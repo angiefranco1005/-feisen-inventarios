@@ -487,7 +487,9 @@ function SelectorProducto({ value, onSelect, productos }) {
 }
 
 export default function ListaPedidos() {
-  const { perfil, esAdmin, esLogistica, esAlmacenista, esConsultor, bodegasOperacion, rolEfectivo } = useAuth()
+  const { perfil, esAdmin, esAlmacenista, esConsultor, bodegasOperacion, rolEfectivo, nivel } = useAuth()
+  // Pedidos «Todo» (Configuración › Permisos; hoy Logística): ve y gestiona los pedidos de todas las áreas
+  const esLogistica = !esAdmin && nivel('pedidos') === 'todo'
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', JEFE_ENSAMBLE: 'PRODUCCION', CONSULTOR: 'INNOVACION', RRHH: 'ADMINISTRACION' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null

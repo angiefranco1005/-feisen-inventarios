@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
-import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft, ChevronDown, ChevronUp } from '../shared/iconos'
+import { coincideBusqueda } from '../../utils/busqueda'
+import {
+  CheckCircle2, Plus, Trash2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Check,
+  Search, AlertTriangle, RefreshCw, Factory, Package,
+} from '../shared/iconos'
+import { EncabezadoPagina, Contador } from '../shared/ui'
 
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -10,56 +16,70 @@ function hoyCol() {
 function numOrden(n) {
   return `ORD-MOL-${String(n).padStart(4, '0')}`
 }
+const num = n => Number(n || 0).toLocaleString('es-CO')
+const kg  = n => Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })
+
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+
+function Tarjeta({ titulo, detalle, accion, children, sinPadding = false }) {
+  return (
+    <section className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+      {titulo && (
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-feisen-texto">{titulo}</h2>
+            {detalle && <p className="text-xs text-feisen-texto-2 mt-0.5">{detalle}</p>}
+          </div>
+          {accion}
+        </div>
+      )}
+      <div className={sinPadding ? '' : 'px-4 sm:px-5 pb-4'}>{children}</div>
+    </section>
+  )
+}
 
 // ── Stepper ───────────────────────────────────────────────────────────────────
 function Stepper({ paso, onBack }) {
   const pasos = [
-    { n: 1, label: 'Configurar',       sub: 'Fecha y máquinas' },
+    { n: 1, label: 'Configurar',        sub: 'Fecha y máquinas' },
     { n: 2, label: 'Revisar y asignar', sub: 'Piezas y moldeadores' },
   ]
   return (
-    <div className="flex items-center gap-0 mb-6">
+    <ol className="flex items-center gap-3">
       {pasos.map((p, i) => {
-        const activo    = paso === p.n
-        const completado = paso > p.n
+        const actual = paso === p.n
+        const hecho  = paso > p.n
         return (
-          <div key={p.n} className="flex items-center flex-1">
+          <li key={p.n} className="contents">
+            {i > 0 && <div aria-hidden="true" className={`flex-1 h-px min-w-[16px] ${hecho || actual ? 'bg-feisen-azul' : 'bg-feisen-borde'}`} />}
             <button type="button" disabled={p.n >= paso} onClick={() => p.n < paso && onBack()}
-              className={`flex items-center gap-3 flex-1 px-4 py-3 rounded-2xl transition-all
-                ${activo     ? 'bg-feisen-azul text-white shadow-md' : ''}
-                ${completado ? 'bg-blue-50 text-feisen-azul cursor-pointer hover:bg-blue-100' : ''}
-                ${!activo && !completado ? 'bg-gray-100 text-gray-400 cursor-default' : ''}
-              `}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0
-                ${activo     ? 'bg-white text-feisen-azul' : ''}
-                ${completado ? 'bg-feisen-azul text-white' : ''}
-                ${!activo && !completado ? 'bg-gray-300 text-white' : ''}
-              `}>
-                {completado ? '✓' : p.n}
-              </div>
-              <div className="text-left min-w-0">
-                <p className={`text-sm font-semibold leading-tight ${activo ? 'text-white' : ''}`}>{p.label}</p>
-                <p className={`text-xs leading-tight mt-0.5 ${activo ? 'text-blue-100' : 'opacity-60'}`}>{p.sub}</p>
-              </div>
+              aria-current={actual ? 'step' : undefined}
+              className={`flex items-center gap-2.5 text-left min-h-[44px] rounded-lg ${hecho ? 'hover:bg-white px-1 -mx-1' : 'cursor-default'}`}>
+              <span className={`w-7 h-7 rounded-full grid place-items-center text-xs font-semibold shrink-0 border
+                ${actual ? 'bg-feisen-azul border-feisen-azul text-white' : hecho ? 'bg-feisen-azul-suave border-feisen-azul-suave text-feisen-azul' : 'bg-white border-feisen-borde text-gray-400'}`}>
+                {hecho ? <Check size={14} weight="bold" /> : p.n}
+              </span>
+              <span className={actual ? '' : 'hidden sm:block'}>
+                <span className={`block text-sm leading-tight ${actual ? 'font-semibold text-feisen-azul' : 'font-medium text-feisen-texto-2'}`}>{p.label}</span>
+                <span className="block text-xs text-gray-400 leading-tight mt-0.5">{p.sub}</span>
+              </span>
             </button>
-            {i < pasos.length - 1 && (
-              <div className={`h-0.5 w-4 shrink-0 ${paso > p.n ? 'bg-feisen-azul' : 'bg-gray-200'}`} />
-            )}
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ol>
   )
 }
 
 // ── Selector de pieza desde inventario ───────────────────────────────────────
+// Busca por palabras sueltas sin importar tildes ("polea 8" encuentra "POLEA 8 X 2B")
 function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] }) {
   const [busqueda, setBusqueda] = useState(value || '')
   const [abierto,  setAbierto]  = useState(false)
 
   const disponibles = items.filter(i => !excluirIds.includes(i.id))
   const filtrados   = busqueda.trim()
-    ? disponibles.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    ? disponibles.filter(i => coincideBusqueda(i.nombre, busqueda))
     : disponibles
 
   function elegir(item) { setBusqueda(item.nombre); onChange(item); setAbierto(false) }
@@ -77,26 +97,28 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] })
 
   return (
     <div className="relative">
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
       <input type="text" value={busqueda}
         onChange={e => { setBusqueda(e.target.value); onChange(null); setAbierto(true) }}
         onFocus={() => setAbierto(true)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        aria-label="Buscar pieza del inventario de fundición"
+        className={`${claseInput} pl-9`}
       />
       {abierto && filtrados.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 max-h-60 overflow-y-auto overscroll-contain">
           {filtrados.slice(0, 200).map(i => (
             <button key={i.id} type="button" onMouseDown={() => elegir(i)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-50 last:border-0">
+              className="w-full text-left px-3 min-h-[44px] text-sm text-feisen-texto hover:bg-feisen-azul-suave border-b border-feisen-borde-suave last:border-0">
               {i.nombre}
             </button>
           ))}
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border border-feisen-borde rounded-xl mt-1 px-3 py-2 text-sm text-gray-400">
-          Sin resultados
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 px-3 py-3 text-sm text-feisen-texto-2">
+          Ninguna pieza de fundición coincide. Prueba con otra palabra del nombre.
         </div>
       )}
     </div>
@@ -104,7 +126,7 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] })
 }
 
 // ── Input con sugerencias localStorage ───────────────────────────────────────
-function InputSug({ value, onChange, placeholder, storageKey }) {
+function InputSug({ value, onChange, placeholder, storageKey, etiqueta }) {
   const [mostrar, setMostrar] = useState(false)
   const [sugs,    setSugs]    = useState([])
 
@@ -125,13 +147,14 @@ function InputSug({ value, onChange, placeholder, storageKey }) {
         onFocus={abrir}
         onBlur={() => { setTimeout(() => setMostrar(false), 150); guardar(value) }}
         placeholder={placeholder}
-        className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+        aria-label={etiqueta}
+        className={claseInput}
       />
       {mostrar && sugs.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-32 overflow-y-auto">
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 max-h-44 overflow-y-auto overscroll-contain">
           {sugs.map(s => (
             <button key={s} type="button" onMouseDown={() => { onChange(s); setMostrar(false) }}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50">{s}</button>
+              className="w-full text-left px-3 min-h-[40px] text-sm text-feisen-texto hover:bg-feisen-azul-suave">{s}</button>
           ))}
         </div>
       )}
@@ -164,6 +187,8 @@ export default function CrearOrdenMoldeo() {
   const [guardando,      setGuardando]      = useState(false)
   const [error,          setError]          = useState('')
   const [exito,          setExito]          = useState(null)
+  // Orden ya insertada en un intento que falló después (máquinas o piezas): { id, numero }
+  const [ordenCreada,    setOrdenCreada]    = useState(null)
   const [proximoNumero,  setProximoNumero]  = useState(null)
 
   useEffect(() => { cargar() }, [])
@@ -293,31 +318,47 @@ export default function CrearOrdenMoldeo() {
     if (piezas.length === 0) { setError('Sin piezas en la orden.'); return }
     setGuardando(true)
     try {
-      const tipo = hayMaquinas ? 'maquinas' : 'libre'
-      const { data: orden, error: err1 } = await supabase.from('ordenes_moldeo')
-        .insert({ fecha, tipo, usuario_id: perfil.id })
-        .select('id, numero').single()
-      if (err1) throw err1
+      // Si un intento anterior ya creó la orden pero falló después, se reutiliza (no se duplica)
+      let orden = ordenCreada
+      if (!orden) {
+        const tipo = hayMaquinas ? 'maquinas' : 'libre'
+        const { data, error: err1 } = await supabase.from('ordenes_moldeo')
+          .insert({ fecha, tipo, usuario_id: perfil.id })
+          .select('id, numero').single()
+        if (err1) throw err1
+        orden = data
+        setOrdenCreada(data)
+      }
 
       if (hayMaquinas) {
         const maqRows = Object.entries(cantidades)
           .filter(([_, c]) => Number(c) > 0)
           .map(([maquina_id, cantidad_maquinas]) => ({ orden_id: orden.id, maquina_id, cantidad_maquinas }))
-        if (maqRows.length > 0) await supabase.from('ordenes_moldeo_maquinas').insert(maqRows)
+        const { data: maqPrev, error: errMp } = await supabase.from('ordenes_moldeo_maquinas').select('orden_id').eq('orden_id', orden.id)
+        if (errMp) throw errMp
+        if (maqRows.length > 0 && (maqPrev || []).length === 0) {
+          const { error: errMaq } = await supabase.from('ordenes_moldeo_maquinas').insert(maqRows)
+          if (errMaq) throw errMaq
+        }
       }
 
-      const { error: err2 } = await supabase.from('ordenes_moldeo_piezas').insert(
-        piezas.map(p => ({
-          orden_id:          orden.id,
-          item_id:           p.item_id,
-          cantidad_planeada: Number(p.cantidad_planeada),
-          asignado_a:        p.asignado_a?.trim() || null,
-        }))
-      )
-      if (err2) throw err2
+      const { data: pzPrev, error: errPp } = await supabase.from('ordenes_moldeo_piezas').select('id').eq('orden_id', orden.id)
+      if (errPp) throw errPp
+      if ((pzPrev || []).length === 0) {
+        const { error: err2 } = await supabase.from('ordenes_moldeo_piezas').insert(
+          piezas.map(p => ({
+            orden_id:          orden.id,
+            item_id:           p.item_id,
+            cantidad_planeada: Number(p.cantidad_planeada),
+            asignado_a:        p.asignado_a?.trim() || null,
+          }))
+        )
+        if (err2) throw err2
+      }
+      setOrdenCreada(null)
       setExito({ numero: orden.numero })
     } catch (e) {
-      setError('Error al guardar: ' + e.message)
+      setError('Error al guardar: ' + e.message + '. Puedes volver a intentar: la orden no se duplica.')
     } finally {
       setGuardando(false)
     }
@@ -326,21 +367,32 @@ export default function CrearOrdenMoldeo() {
   function limpiar() {
     setFecha(hoyCol()); setPaso(1); setCantidades({})
     setPiezas([]); setLibreItem(null); setLibreCant('')
-    setError(''); setExito(null)
+    setError(''); setExito(null); setOrdenCreada(null)
   }
 
   if (exito) {
     return (
-      <div className="max-w-xl mx-auto p-4 flex flex-col items-center justify-center gap-5 py-20">
-        <CheckCircle2 size={60} className="text-green-500" />
-        <div className="text-center">
-          <p className="text-xl font-bold text-gray-800">¡Orden de moldeo creada!</p>
-          <p className="text-feisen-azul font-bold text-2xl mt-2">{numOrden(exito.numero)}</p>
+      <div className="max-w-xl mx-auto py-16 px-4">
+        <div className="bg-white border border-feisen-borde rounded-xl px-6 py-10 flex flex-col items-center text-center gap-4">
+          <span className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 grid place-items-center">
+            <CheckCircle2 size={32} />
+          </span>
+          <div>
+            <p className="text-lg font-semibold text-feisen-texto">Orden de moldeo creada</p>
+            <p className="font-mono text-2xl font-semibold text-feisen-azul mt-1">{numOrden(exito.numero)}</p>
+            <p className="text-sm text-feisen-texto-2 mt-2">Ya aparece en Órdenes de moldeo, donde se registra el avance de cada día.</p>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row gap-2 w-full sm:w-auto pt-2">
+            <Link to="/moldeo"
+              className="inline-flex items-center justify-center gap-1.5 border border-feisen-borde rounded-lg px-4 min-h-[44px] text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+              Ver órdenes
+            </Link>
+            <button type="button" onClick={limpiar}
+              className="inline-flex items-center justify-center gap-1.5 bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
+              <Plus size={16} /> Crear otra orden
+            </button>
+          </div>
         </div>
-        <button onClick={limpiar}
-          className="bg-feisen-rojo text-white rounded-xl px-8 py-3 text-sm font-semibold hover:opacity-90">
-          Crear otra orden
-        </button>
       </div>
     )
   }
@@ -358,28 +410,53 @@ export default function CrearOrdenMoldeo() {
 
   const itemsEnOrden = piezas.map(p => p.item_id)
 
-  return (
-    <div className="max-w-3xl mx-auto p-4 pb-28">
+  // Solo para mostrar (resúmenes de la barra inferior y encabezados)
+  const maqSeleccionadas = maquinas.filter(m => Number(cantidades[m.id]) > 0)
+  const totalMaquinas    = Object.values(cantidades).filter(c => Number(c) > 0).reduce((s, c) => s + Number(c), 0)
+  const totalPiezas      = piezas.reduce((s, p) => s + (Number(p.cantidad_planeada) || 0), 0)
+  const totalKg          = piezas.reduce((s, p) => s + (Number(p.cantidad_planeada) || 0) * (p.peso_unitario || 0), 0)
+  const nBom             = piezas.filter(p => p.origen === 'bom').length
+  const nLibres          = piezas.filter(p => p.origen === 'libre').length
 
-      <div className="flex items-center gap-3 mb-5">
-        <div className="bg-blue-100 p-2.5 rounded-xl">
-          <ClipboardList size={22} className="text-feisen-azul" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">Nueva Orden de Moldeo</h1>
-          {proximoNumero && (
-            <p className="text-xs text-feisen-azul font-bold mt-0.5">
-              Próximo N°: <span className="font-mono bg-blue-50 px-2 py-0.5 rounded-lg">{numOrden(proximoNumero)}</span>
-            </p>
-          )}
-        </div>
+  const chipsMaquinas = (
+    <div className="flex flex-wrap gap-1.5">
+      {maqSeleccionadas.map(m => (
+        <span key={m.id} className="bg-feisen-azul-suave text-feisen-azul text-xs font-medium px-2 py-0.5 rounded-md tabular-nums">
+          {Number(cantidades[m.id])} × {m.nombre}
+        </span>
+      ))}
+    </div>
+  )
+
+  const barraAccion = (contenido, boton, atras = null) => (
+    <div className="sticky bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-4 z-10">
+      <div className="flex items-center gap-2 sm:gap-3 bg-white border border-feisen-borde rounded-xl shadow-sm pl-2 sm:pl-4 pr-2 py-2">
+        {atras}
+        <div className="flex-1 min-w-0 text-sm leading-tight">{contenido}</div>
+        {boton}
       </div>
+    </div>
+  )
+  const clasePrincipal = 'inline-flex items-center justify-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 sm:px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition shrink-0'
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-5">
+
+      <EncabezadoPagina modulo="Fundición" titulo="Nueva orden de moldeo"
+        subtitulo={proximoNumero
+          ? <>Será la <span className="font-mono font-medium text-feisen-texto">{numOrden(proximoNumero)}</span> · elige las máquinas y el sistema calcula las piezas.</>
+          : 'Elige las máquinas a producir y el sistema calcula las piezas a moldear.'}>
+        <Link to="/moldeo"
+          className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
+          Ver órdenes
+        </Link>
+      </EncabezadoPagina>
 
       <Stepper paso={paso} onBack={irAtras} />
 
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
-          {error}
+        <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-4 py-3 text-sm font-medium">
+          <AlertTriangle size={16} className="shrink-0 mt-px" /> {error}
         </div>
       )}
 
@@ -387,240 +464,195 @@ export default function CrearOrdenMoldeo() {
       {paso === 1 && (
         <div className="space-y-5">
 
-          {/* Fecha */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Fecha</h2>
+          <Tarjeta titulo="Fecha de la orden">
             <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-              className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-          </div>
+              aria-label="Fecha de la orden" className={`${claseInput} sm:max-w-xs`} />
+          </Tarjeta>
 
           {/* Máquinas — accordion */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <button type="button" onClick={() => setMaqExpandida(v => !v)}
-              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-bold text-gray-700 text-left">Máquinas a producir</p>
-                  <p className="text-xs text-gray-400 text-left mt-0.5">
-                    {hayMaquinas
-                      ? `${Object.values(cantidades).filter(c=>Number(c)>0).length} máquinas seleccionadas · el BOM se calcula automático`
-                      : 'Opcional — déjalo vacío si la orden es solo de piezas libres'}
+          <Tarjeta sinPadding titulo="Máquinas a producir"
+            detalle={hayMaquinas
+              ? `${maqSeleccionadas.length} ${maqSeleccionadas.length === 1 ? 'máquina' : 'máquinas'} · las piezas salen del BOM automáticamente`
+              : 'Opcional: déjalo vacío si la orden es solo de piezas sueltas.'}
+            accion={
+              <button type="button" onClick={() => setMaqExpandida(v => !v)} aria-expanded={maqExpandida}
+                aria-label={maqExpandida ? 'Ocultar máquinas' : 'Mostrar máquinas'}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2 min-h-[44px] min-w-[44px] justify-center text-feisen-texto-2 hover:bg-feisen-fondo">
+                {hayMaquinas && <span className="bg-feisen-azul-suave text-feisen-azul text-xs font-semibold px-2 py-0.5 rounded-md tabular-nums">{num(totalMaquinas)} uds</span>}
+                {maqExpandida ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+            }>
+            {maqExpandida && (
+              maquinas.length === 0 ? (
+                <div className="border-t border-feisen-borde-suave px-4 sm:px-5 py-8 text-center">
+                  <Factory size={28} className="mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm font-medium text-feisen-texto">No hay máquinas activas</p>
+                  <p className="text-xs text-feisen-texto-2 mt-1 max-w-sm mx-auto">
+                    Créalas con su BOM en <Link to="/moldeo/catalogo" className="text-feisen-azul font-medium hover:underline">Catálogo BOM</Link>, o continúa y agrega piezas sueltas.
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {hayMaquinas && (
-                  <span className="bg-feisen-azul text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                    {Object.values(cantidades).filter(c=>Number(c)>0).reduce((s,c)=>s+Number(c),0)} uds
-                  </span>
-                )}
-                {maqExpandida ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
-              </div>
-            </button>
-
-            {maqExpandida && (
-              <div className="px-5 pb-5 border-t border-gray-100">
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {maquinas.map(m => (
-                    <div key={m.id} className="flex items-center gap-3">
-                      <label className="text-sm text-gray-700 flex-1 leading-tight">{m.nombre}</label>
-                      <input type="number" min="0" step="1"
-                        value={cantidades[m.id] ?? ''}
-                        onChange={e => setCant(m.id, e.target.value)}
-                        placeholder="0"
-                        className="w-20 border border-feisen-borde rounded-lg px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {hayMaquinas && (
-                  <div className="mt-4 pt-3 border-t border-gray-100">
-                    <div className="flex flex-wrap gap-2">
-                      {maquinas.filter(m => Number(cantidades[m.id]) > 0).map(m => (
-                        <span key={m.id} className="bg-blue-100 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
-                          {Number(cantidades[m.id])} × {m.nombre}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              ) : (
+                <ul className="border-t border-feisen-borde-suave grid sm:grid-cols-2 sm:gap-x-6 px-4 sm:px-5 divide-y divide-feisen-borde-suave sm:divide-y-0">
+                  {maquinas.map(m => {
+                    const activa = Number(cantidades[m.id]) > 0
+                    return (
+                      <li key={m.id} className="flex items-center gap-3 py-2.5 sm:border-b sm:border-feisen-borde-suave">
+                        <span className={`flex-1 min-w-0 text-sm leading-tight break-words ${activa ? 'font-semibold text-feisen-texto' : 'text-feisen-texto-2'}`}>{m.nombre}</span>
+                        <Contador valor={cantidades[m.id] ?? ''} onCambiar={v => setCant(m.id, v)}
+                          etiqueta={`Cantidad de ${m.nombre}`} ancho="w-14" />
+                      </li>
+                    )
+                  })}
+                </ul>
+              )
             )}
-          </div>
+            {maqExpandida && hayMaquinas && (
+              <div className="px-4 sm:px-5 py-3 border-t border-feisen-borde-suave bg-feisen-fondo/60">{chipsMaquinas}</div>
+            )}
+          </Tarjeta>
 
-          {/* Continuar */}
-          <button onClick={calcularYAvanzar} disabled={calculando}
-            className="w-full bg-feisen-azul text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {calculando
-              ? 'Calculando…'
-              : hayMaquinas
-                ? 'Calcular piezas del BOM →'
-                : 'Continuar → Agregar piezas manualmente'}
-          </button>
+          {barraAccion(
+            hayMaquinas
+              ? <><p className="font-semibold text-feisen-texto tabular-nums">{num(totalMaquinas)} {totalMaquinas === 1 ? 'máquina' : 'máquinas'}</p>
+                  <p className="text-xs text-feisen-texto-2 truncate">{maqSeleccionadas.map(m => m.nombre).join(', ')}</p></>
+              : <><p className="font-semibold text-feisen-texto">Sin máquinas</p>
+                  <p className="text-xs text-feisen-texto-2">Agregarás las piezas a mano</p></>,
+            <button type="button" onClick={calcularYAvanzar} disabled={calculando} className={clasePrincipal}>
+              {calculando ? 'Calculando…' : hayMaquinas ? 'Calcular piezas' : 'Continuar'}
+              {!calculando && <ArrowRight size={16} />}
+            </button>
+          )}
         </div>
       )}
 
       {/* ══ PASO 2 ══ */}
       {paso === 2 && (
         <div className="space-y-5">
+          <div className="grid lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] gap-5 items-start">
 
-          <button onClick={irAtras}
-            className="flex items-center gap-2 text-sm font-semibold text-feisen-azul hover:opacity-70 transition-opacity">
-            <ArrowLeft size={16} /> Volver a configuración
-          </button>
-
-          {/* Chips de máquinas seleccionadas (si aplica) */}
-          {hayMaquinas && (
-            <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
-              <p className="text-xs font-bold text-feisen-azul uppercase mb-2">Máquinas en esta orden</p>
-              <div className="flex flex-wrap gap-2">
-                {maquinas.filter(m => Number(cantidades[m.id]) > 0).map(m => (
-                  <span key={m.id} className="bg-white border border-blue-200 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
-                    {Number(cantidades[m.id])} × {m.nombre}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Panel agregar pieza libre ──────────────────────────────── */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-5">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-              Agregar pieza adicional
-            </h2>
-            <div className="flex gap-3 items-end">
-              <div className="flex-1">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Pieza (inventario fundición)</label>
-                <SelectorPieza
-                  value={libreItem?.nombre || ''}
-                  onChange={setLibreItem}
-                  items={allItems}
-                  excluirIds={itemsEnOrden}
-                  placeholder="Buscar pieza…"
-                />
-              </div>
-              <div className="w-28">
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Cantidad</label>
-                <input type="number" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
-                  placeholder="0"
-                  onKeyDown={e => e.key === 'Enter' && agregarLibre()}
-                  className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-              </div>
-              <button onClick={agregarLibre}
-                className="bg-feisen-azul text-white rounded-lg p-2 hover:opacity-80 transition-opacity">
-                <Plus size={18} />
-              </button>
-            </div>
-          </div>
-
-          {/* ── Tabla de piezas ───────────────────────────────────────── */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <div>
-                <p className="text-base font-bold text-gray-700">Piezas a moldear</p>
-                <p className="text-sm text-gray-400 mt-0.5">
-                  {piezas.length} ítems
-                  {piezas.some(p=>p.origen==='bom')  && ` · ${piezas.filter(p=>p.origen==='bom').length} del BOM`}
-                  {piezas.some(p=>p.origen==='libre') && ` · ${piezas.filter(p=>p.origen==='libre').length} libres`}
-                </p>
-              </div>
-              {hayMaquinas && (
-                <button onClick={calcularYAvanzar} disabled={calculando}
-                  className="text-sm font-semibold text-feisen-azul bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 disabled:opacity-60 transition-colors">
-                  {calculando ? '…' : '↻ Recalcular BOM'}
+            {/* ── Piezas a moldear ───────────────────────────────────────── */}
+            <Tarjeta sinPadding titulo="Piezas a moldear"
+              detalle={piezas.length === 0 ? 'Ninguna todavía'
+                : `${piezas.length} ${piezas.length === 1 ? 'pieza' : 'piezas'}${nBom ? ` · ${nBom} del BOM` : ''}${nLibres ? ` · ${nLibres} ${nLibres === 1 ? 'adicional' : 'adicionales'}` : ''}`}
+              accion={hayMaquinas && (
+                <button type="button" onClick={calcularYAvanzar} disabled={calculando}
+                  className="shrink-0 inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 min-h-[40px] text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60">
+                  <RefreshCw size={14} className={calculando ? 'animate-spin' : ''} /> Recalcular BOM
                 </button>
-              )}
-            </div>
-
-            {piezas.length === 0 ? (
-              <p className="text-center text-gray-400 py-14 text-sm">
-                Sin piezas. Agrega máquinas o piezas libres arriba.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs text-gray-500 font-bold uppercase border-b border-gray-200 tracking-wide">
-                      <th className="text-left px-6 py-4">Pieza</th>
-                      <th className="text-center px-3 py-4 w-12">Origen</th>
-                      <th className="text-center px-4 py-4 w-36">Cantidad</th>
-                      <th className="text-center px-4 py-4 w-28">Stock</th>
-                      <th className="text-left px-4 py-4">Moldeador</th>
-                      <th className="w-10 px-3" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {piezas.map(p => (
-                      <tr key={p.item_id} className="hover:bg-blue-50/30 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-gray-800 text-sm leading-snug">{p.nombre}</td>
-                        <td className="px-3 py-4 text-center">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            p.origen === 'bom'
-                              ? 'bg-blue-100 text-feisen-azul'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {p.origen === 'bom' ? 'BOM' : 'Libre'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <input type="number" min="0" step="1"
-                            value={p.cantidad_planeada}
-                            onChange={e => actualizarPieza(p.item_id, 'cantidad_planeada', e.target.value)}
-                            className="w-24 border-2 border-gray-200 rounded-xl px-2 py-2 text-center text-base font-semibold focus:outline-none focus:border-feisen-azul"
-                          />
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          {p.stock_actual != null
-                            ? <span className={`text-sm font-bold px-3 py-1 rounded-full ${
-                                Number(p.stock_actual) < Number(p.cantidad_planeada)
-                                  ? 'bg-orange-100 text-orange-600'
-                                  : 'bg-green-100 text-green-600'
-                              }`}>{p.stock_actual}</span>
-                            : <span className="text-gray-300 text-sm">—</span>
-                          }
-                        </td>
-                        <td className="px-4 py-4">
+              )}>
+              {piezas.length === 0 ? (
+                <div className="border-t border-feisen-borde-suave text-center px-6 py-12">
+                  <Package size={30} className="mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm font-medium text-feisen-texto">Todavía no hay piezas</p>
+                  <p className="text-xs text-feisen-texto-2 mt-1 max-w-xs mx-auto">
+                    {hayMaquinas
+                      ? 'Las máquinas elegidas no tienen BOM. Agrega las piezas con el buscador de “Agregar pieza”.'
+                      : 'Busca las piezas en “Agregar pieza” o vuelve atrás y elige máquinas.'}
+                  </p>
+                </div>
+              ) : (
+                <ul className="border-t border-feisen-borde-suave divide-y divide-feisen-borde-suave">
+                  {piezas.map(p => {
+                    const cant   = Number(p.cantidad_planeada) || 0
+                    const falta  = p.stock_actual != null && Number(p.stock_actual) < Number(p.cantidad_planeada)
+                    return (
+                      <li key={p.item_id} className="px-4 sm:px-5 py-3">
+                        <div className="flex items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-feisen-texto break-words">{p.nombre}</p>
+                            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1 text-xs">
+                              <span className={`rounded-md px-1.5 py-px font-medium ${p.origen === 'bom' ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-gray-100 text-feisen-texto-2'}`}>
+                                {p.origen === 'bom' ? 'BOM' : 'Adicional'}
+                              </span>
+                              {p.stock_actual != null && (
+                                <span className={`tabular-nums ${falta ? 'text-amber-700 font-medium' : 'text-feisen-texto-2'}`}>
+                                  {falta && <AlertTriangle size={12} className="inline -mt-0.5 mr-0.5" />}
+                                  Stock {num(p.stock_actual)}
+                                </span>
+                              )}
+                              {cant > 0 && p.peso_unitario > 0 && <span className="text-feisen-texto-2 tabular-nums">{kg(cant * p.peso_unitario)} kg</span>}
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => quitarPieza(p.item_id)} aria-label={`Quitar ${p.nombre}`}
+                            className="-mr-2 -mt-1 w-11 h-11 grid place-items-center rounded-lg text-gray-400 hover:text-feisen-rojo hover:bg-feisen-rojo-suave transition-colors shrink-0">
+                            <Trash2 size={17} />
+                          </button>
+                        </div>
+                        <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-2 items-center">
+                          <Contador valor={p.cantidad_planeada} onCambiar={v => actualizarPieza(p.item_id, 'cantidad_planeada', v)}
+                            etiqueta={`Cantidad de ${p.nombre}`} ancho="w-14" />
                           <InputSug value={p.asignado_a}
                             onChange={v => actualizarPieza(p.item_id, 'asignado_a', v)}
-                            placeholder="Moldeador" storageKey="feisen_moldeadores" />
-                        </td>
-                        <td className="px-3 py-4">
-                          <button onClick={() => quitarPieza(p.item_id)}
-                            className="text-gray-300 hover:text-red-400 transition-colors p-1.5">
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
+                            placeholder="Moldeador" etiqueta={`Moldeador de ${p.nombre}`} storageKey="feisen_moldeadores" />
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </Tarjeta>
+
+            <div className="space-y-5 lg:sticky lg:top-6">
+              {/* ── Agregar pieza adicional ─────────────────────────────── */}
+              <Tarjeta titulo="Agregar pieza" detalle="Del inventario de fundición, por fuera del BOM.">
+                <div className="space-y-2">
+                  <SelectorPieza
+                    value={libreItem?.nombre || ''}
+                    onChange={setLibreItem}
+                    items={allItems}
+                    excluirIds={itemsEnOrden}
+                    placeholder="Buscar pieza…"
+                  />
+                  <div className="flex gap-2">
+                    <input type="number" inputMode="numeric" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
+                      placeholder="Cantidad" aria-label="Cantidad de la pieza a agregar"
+                      onKeyDown={e => e.key === 'Enter' && agregarLibre()}
+                      className={`${claseInput} tabular-nums`} />
+                    <button type="button" onClick={agregarLibre}
+                      className="shrink-0 inline-flex items-center gap-1.5 border border-feisen-azul text-feisen-azul rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave transition-colors">
+                      <Plus size={16} /> Agregar
+                    </button>
+                  </div>
+                </div>
+              </Tarjeta>
+
+              {/* Balance moldeadores */}
+              {balanceMoldeadores && (
+                <Tarjeta titulo="Carga por moldeador" detalle="Piezas planeadas y kilos de cada uno.">
+                  <ul className="divide-y divide-feisen-borde-suave -mt-1">
+                    {Object.entries(balanceMoldeadores).map(([mol, d]) => (
+                      <li key={mol} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span className={`min-w-0 truncate ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-feisen-texto font-medium'}`}>{mol}</span>
+                        <span className="text-right shrink-0 tabular-nums">
+                          <span className="font-semibold text-feisen-texto">{num(d.piezas)}</span>
+                          <span className="text-xs text-feisen-texto-2"> pzas</span>
+                          {d.kg > 0 && <span className="block text-xs text-feisen-texto-2">{kg(d.kg)} kg</span>}
+                        </span>
+                      </li>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  </ul>
+                </Tarjeta>
+              )}
+
+              {hayMaquinas && (
+                <Tarjeta titulo="Máquinas en esta orden">{chipsMaquinas}</Tarjeta>
+              )}
+            </div>
           </div>
 
-          {/* Balance moldeadores */}
-          {balanceMoldeadores && (
-            <div className="bg-blue-50 rounded-2xl border border-blue-100 p-4">
-              <p className="text-xs font-bold text-feisen-azul uppercase tracking-wider mb-3">Carga por moldeador</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(balanceMoldeadores).map(([mol, d]) => (
-                  <div key={mol} className="flex justify-between items-center bg-white rounded-xl px-3 py-2.5 text-sm border border-blue-100">
-                    <span className={`font-medium ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-gray-700'}`}>{mol}</span>
-                    <div className="text-right">
-                      <span className="text-feisen-azul font-bold text-sm">{d.piezas}</span>
-                      <span className="text-gray-400 text-xs ml-1">pzas</span>
-                      {d.kg > 0 && <p className="text-xs text-gray-400">{d.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {barraAccion(
+            piezas.length === 0
+              ? <><p className="font-semibold text-feisen-texto">Sin piezas</p><p className="text-xs text-feisen-texto-2">Agrega al menos una</p></>
+              : <><p className="font-semibold text-feisen-texto tabular-nums">{num(totalPiezas)} piezas</p>
+                  <p className="text-xs text-feisen-texto-2 tabular-nums truncate">{piezas.length} {piezas.length === 1 ? 'referencia' : 'referencias'}{totalKg > 0 ? ` · ${kg(totalKg)} kg` : ''}</p></>,
+            <button type="button" onClick={handleGuardar} disabled={guardando || piezas.length === 0} className={clasePrincipal}>
+              {guardando ? 'Guardando…' : 'Guardar orden'}
+            </button>,
+            <button type="button" onClick={irAtras} aria-label="Volver a configuración"
+              className="shrink-0 w-11 h-11 grid place-items-center rounded-lg text-feisen-texto-2 hover:bg-feisen-fondo">
+              <ArrowLeft size={18} />
+            </button>
           )}
-
-          <button onClick={handleGuardar} disabled={guardando || piezas.length === 0}
-            className="w-full bg-feisen-rojo text-white rounded-xl py-3.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {guardando ? 'Guardando…' : 'Guardar orden de moldeo'}
-          </button>
         </div>
       )}
     </div>

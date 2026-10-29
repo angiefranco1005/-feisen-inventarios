@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
+import { coincideBusqueda } from '../../utils/busqueda'
 import {
-  ClipboardList, ChevronDown, ChevronUp, Search, PlusCircle,
-  AlertTriangle, TrendingUp, Plus, Calendar, Pencil, XCircle, X,
+  ClipboardList, ChevronRight, Search, Plus, AlertTriangle, TrendingUp, Calendar,
+  Pencil, XCircle, X, Check, Clock,
 } from '../shared/iconos'
 import Modal from '../shared/Modal'
+import { EncabezadoPagina, Segmentado, Contador, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 function fmtFecha(f) {
@@ -18,20 +20,118 @@ function fmtFecha(f) {
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
+const kg = n => Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })
+const num = n => Number(n || 0).toLocaleString('es-CO')
 
-// Barra de progreso
+// Días que lleva abierta una orden (desde su fecha hasta hoy en Colombia)
+function diasDesde(fecha) {
+  if (!fecha) return 0
+  const ms = new Date(`${hoyCol()}T00:00:00`) - new Date(`${fecha}T00:00:00`)
+  return Math.max(0, Math.round(ms / 86400000))
+}
+// Una orden en curso con más de estos días se resalta arriba
+const DIAS_ALERTA = 7
+
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+const claseSecundario = 'inline-flex items-center justify-center gap-1.5 border border-feisen-borde rounded-lg px-3 min-h-[40px] text-sm font-medium text-feisen-texto bg-white hover:bg-feisen-fondo transition-colors'
+const claseEtiqueta = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
+
+// Barra de progreso fina (un solo color: azul = avance)
 function BarraProgreso({ pct }) {
-  const color = pct >= 80 ? 'bg-green-500' : pct >= 40 ? 'bg-yellow-400' : 'bg-feisen-azul'
   return (
-    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-      <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+    <div className="w-full bg-feisen-borde-suave rounded-full h-1.5 overflow-hidden">
+      <div className="h-full rounded-full bg-feisen-azul transition-all motion-reduce:transition-none" style={{ width: `${Math.min(pct, 100)}%` }} />
     </div>
   )
+}
+
+function BadgeEstado({ estado }) {
+  const [clase, texto] =
+    estado === 'cancelado'  ? ['bg-gray-100 text-gray-500', 'Cancelada']
+    : estado === 'completado' ? ['bg-feisen-borde-suave text-feisen-texto-2', 'Completada']
+    : ['bg-feisen-azul-suave text-feisen-azul', 'En curso']
+  return <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap ${clase}`}>{texto}</span>
+}
+
+function BadgeAtencion({ children, icono: Icono = AlertTriangle }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap bg-amber-50 text-amber-700">
+      <Icono size={12} /> {children}
+    </span>
+  )
+}
+
+function Avatar({ nombre, chico = false }) {
+  const sin = nombre === 'Sin asignar'
+  return (
+    <span className={`rounded-full grid place-items-center shrink-0 font-semibold
+      ${chico ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'}
+      ${sin ? 'bg-gray-100 text-gray-400' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+      {sin ? '?' : nombre.charAt(0).toUpperCase()}
+    </span>
+  )
+}
+
+function Cifra({ etiqueta, valor, detalle }) {
+  return (
+    <div className="min-w-0">
+      <p className={claseEtiqueta}>{etiqueta}</p>
+      <p className="text-xl font-semibold text-feisen-texto tabular-nums mt-0.5 truncate">{valor}</p>
+      {detalle && <p className="text-xs text-feisen-texto-2 tabular-nums truncate">{detalle}</p>}
+    </div>
+  )
+}
+
+// Cálculos de una orden a partir de sus piezas y los avances cargados (mismas fórmulas de siempre)
+function resumenOrden(orden, avOrden, stOrden) {
+  const completada = orden.estado === 'completado'
+  const piezas     = orden.ordenes_moldeo_piezas || []
+
+  const totalPlaneado  = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
+  const totalMoldeado  = piezas.reduce((s, p) => s + (avOrden[p.id]?.total || 0), 0)
+  const pctAvance      = totalPlaneado > 0 ? Math.round((totalMoldeado / totalPlaneado) * 100) : 0
+  const hayStockAlerta = !completada && piezas.some(p => {
+    const stock     = stOrden[p.item_id] ?? null
+    const pendiente = Number(p.cantidad_planeada || 0) - (avOrden[p.id]?.total || 0)
+    return stock !== null && stock < pendiente && pendiente > 0
+  })
+
+  // Datos por moldeador
+  const porMoldeador = {}
+  piezas.forEach(p => {
+    const k    = p.asignado_a?.trim() || 'Sin asignar'
+    const peso = Number(p.items?.peso_unitario || 0)
+    if (!porMoldeador[k]) porMoldeador[k] = { piezas: [], plan: 0, moldeado: 0, kg: 0 }
+    const av = avOrden[p.id]?.total || 0
+    porMoldeador[k].piezas.push({ ...p, avance: av, peso })
+    porMoldeador[k].plan     += Number(p.cantidad_planeada || 0)
+    porMoldeador[k].moldeado += av
+    porMoldeador[k].kg       += av * peso
+  })
+
+  // Historial diario global (todas las piezas, agrupado por fecha)
+  const historialPorFecha = {}
+  piezas.forEach(p => {
+    const nombre = p.items?.nombre || '—'
+    const mol    = p.asignado_a?.trim() || 'Sin asignar'
+    const peso   = Number(p.items?.peso_unitario || 0)
+    ;(avOrden[p.id]?.dias || []).forEach(d => {
+      if (!historialPorFecha[d.fecha]) historialPorFecha[d.fecha] = []
+      historialPorFecha[d.fecha].push({ pieza: nombre, moldeador: mol, cantidad: d.cantidad, kg: d.cantidad * peso })
+    })
+  })
+  const fechasDesc = Object.keys(historialPorFecha).sort((a, b) => b.localeCompare(a))
+  const kgMoldeados = Object.values(porMoldeador).reduce((s, d) => s + d.kg, 0)
+
+  return { totalPlaneado, totalMoldeado, pctAvance, hayStockAlerta, porMoldeador, historialPorFecha, fechasDesc, kgMoldeados }
 }
 
 export default function ListaOrdenesMoldeo() {
   const navigate  = useNavigate()
   const { perfil } = useAuth()
+  const buscarRef = useRef(null)
+  useAtajoBuscar(buscarRef)
+  const [aviso, avisar] = useAviso()
 
   const [ordenes,      setOrdenes]      = useState([])
   const [cargando,     setCargando]     = useState(true)
@@ -51,7 +151,7 @@ export default function ListaOrdenesMoldeo() {
   const [guardandoAv,  setGuardandoAv]  = useState(null)
   const [errorAv,      setErrorAv]      = useState({})
 
-  // Vista dentro de la orden abierta: 'pieza' | 'moldeador'
+  // Vista dentro de la orden abierta: 'pieza' | 'moldeador' | 'historial'
   const [vistaAbierta, setVistaAbierta] = useState({})
   // Vista de orden completada: 'pieza' | 'moldeador'
   const [vistaOrden,   setVistaOrden]   = useState({})
@@ -64,8 +164,8 @@ export default function ListaOrdenesMoldeo() {
   const [editForm,          setEditForm]          = useState({ fecha: '', piezas: [] })
   const [editGuardando,     setEditGuardando]     = useState(false)
   const [msgEdit,           setMsgEdit]           = useState('')
-  // Mostrar canceladas
-  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
+  // Filtro por estado (chips): 'todas' (sin canceladas, como antes) | 'pendiente' | 'completado' | 'cancelado'
+  const [filtroEstado,      setFiltroEstado]      = useState('todas')
 
   useEffect(() => { cargar() }, [])
 
@@ -167,6 +267,7 @@ export default function ListaOrdenesMoldeo() {
       setAvanceHoy(prev => ({ ...prev, [orden.id]: {} }))
       setPanelAvance(prev => ({ ...prev, [orden.id]: false }))
       await cargarAvancesYStock(orden, fundBodegaId)
+      avisar(`Avance registrado en ${numOrden(orden.numero)}`)
     } catch (e) {
       setErrorAv(prev => ({ ...prev, [orden.id]: 'Error: ' + e.message }))
     } finally {
@@ -182,6 +283,7 @@ export default function ListaOrdenesMoldeo() {
     setCancelando(false)
     setConfirmCancelar(null)
     setExpandido(null)
+    avisar(`${numOrden(orden.numero)} quedó cancelada`)
   }
 
   // ── Editar orden ──────────────────────────────────────────────────────────────
@@ -215,6 +317,7 @@ export default function ListaOrdenesMoldeo() {
     }
 
     setEditGuardando(false)
+    avisar(`Cambios guardados en ${numOrden(editModal.numero)}`)
     setEditModal(null)
     cargar()
   }
@@ -226,574 +329,202 @@ export default function ListaOrdenesMoldeo() {
     }))
   }
 
-  const filtradas = ordenes.filter(o => {
-    if (!mostrarCanceladas && o.estado === 'cancelado') return false
-    const q = busqueda.toLowerCase().trim()
-    if (!q) return true
+  // ── Búsqueda y filtros ────────────────────────────────────────────────────────
+  // Palabras sueltas, sin importar tildes ni orden: N°, fecha, pieza, máquina o moldeador
+  const coincide = o => {
+    if (!busqueda.trim()) return true
+    const texto = [
+      numOrden(o.numero), String(o.numero), fmtFecha(o.fecha),
+      ...(o.ordenes_moldeo_piezas || []).map(p => `${p.items?.nombre || ''} ${p.asignado_a || ''}`),
+      ...(o.ordenes_moldeo_maquinas || []).map(m => m.maquinas_fundicion?.nombre || ''),
+    ].join(' ')
+    return coincideBusqueda(texto, busqueda)
+  }
+  const buscadas = ordenes.filter(coincide)
+  const conteos = {
+    todas:      buscadas.filter(o => o.estado !== 'cancelado').length,
+    pendiente:  buscadas.filter(o => o.estado === 'pendiente').length,
+    completado: buscadas.filter(o => o.estado === 'completado').length,
+    cancelado:  buscadas.filter(o => o.estado === 'cancelado').length,
+  }
+  const filtradas = buscadas.filter(o =>
+    filtroEstado === 'todas' ? o.estado !== 'cancelado' : o.estado === filtroEstado)
+
+  // Excepciones arriba: órdenes en curso que llevan muchos días abiertas (las más viejas primero)
+  const esVieja   = o => o.estado === 'pendiente' && diasDesde(o.fecha) > DIAS_ALERTA
+  const atencion  = filtradas.filter(esVieja).sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+  const enCurso   = filtradas.filter(o => o.estado !== 'completado' && o.estado !== 'cancelado' && !esVieja(o))
+  const completas = filtradas.filter(o => o.estado === 'completado')
+  const canceladas = filtradas.filter(o => o.estado === 'cancelado')
+  const secciones = [
+    { clave: 'atencion', titulo: 'Requieren atención', nota: `en curso hace más de ${DIAS_ALERTA} días`, lista: atencion },
+    { clave: 'curso', titulo: 'En curso', lista: enCurso },
+    { clave: 'completas', titulo: 'Completadas', lista: completas },
+    { clave: 'canceladas', titulo: 'Canceladas', lista: canceladas },
+  ].filter(s => s.lista.length > 0)
+
+  const abierta = expandido ? ordenes.find(o => o.id === expandido) : null
+  const totalPendientes = ordenes.filter(o => o.estado === 'pendiente').length
+
+  const chips = [
+    ['todas', 'Todas'], ['pendiente', 'En curso'], ['completado', 'Completadas'], ['cancelado', 'Canceladas'],
+  ]
+
+  // ── Fila de la lista (tarjeta en celular) ─────────────────────────────────────
+  function filaOrden(orden) {
+    const cancelada  = orden.estado === 'cancelado'
+    const piezas     = orden.ordenes_moldeo_piezas || []
+    const maquinas   = orden.ordenes_moldeo_maquinas || []
+    const cargada    = !!avancesData[orden.id]
+    const r          = resumenOrden(orden, avancesData[orden.id] || {}, stockData[orden.id] || {})
+    const dias       = diasDesde(orden.fecha)
+    const textoMaq   = maquinas.length > 0
+      ? maquinas.map(m => `${m.cantidad_maquinas} × ${m.maquinas_fundicion?.nombre || '—'}`).join(', ')
+      : 'Piezas sueltas'
+    const activa = expandido === orden.id
     return (
-      numOrden(o.numero).toLowerCase().includes(q) ||
-      fmtFecha(o.fecha).includes(q) ||
-      (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q)) ||
-      (o.ordenes_moldeo_maquinas || []).some(m => m.maquinas_fundicion?.nombre?.toLowerCase().includes(q))
+      <li key={orden.id}>
+        <button type="button" onClick={() => toggle(orden)} aria-current={activa ? 'true' : undefined}
+          className={`w-full text-left flex items-center gap-3 px-4 py-3 min-h-[64px] transition-colors
+            ${activa ? 'bg-feisen-azul-suave/60' : 'hover:bg-feisen-fondo'}`}>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={`font-mono text-sm font-semibold ${cancelada ? 'text-gray-400 line-through' : 'text-feisen-texto'}`}>
+                {numOrden(orden.numero)}
+              </span>
+              <BadgeEstado estado={orden.estado} />
+              {esVieja(orden) && <BadgeAtencion icono={Clock}>Abierta hace {dias} días</BadgeAtencion>}
+              {r.hayStockAlerta && !cancelada && <BadgeAtencion>Stock bajo</BadgeAtencion>}
+            </div>
+            <p className="text-xs text-feisen-texto-2 mt-1 truncate">
+              {fmtFecha(orden.fecha)} · {piezas.length} {piezas.length === 1 ? 'pieza' : 'piezas'} · {textoMaq}
+            </p>
+            {orden.estado === 'pendiente' && cargada && r.totalMoldeado > 0 && (
+              <div className="flex items-center gap-2 mt-2 max-w-[260px]">
+                <BarraProgreso pct={r.pctAvance} />
+                <span className="text-xs text-feisen-texto-2 tabular-nums w-9 text-right shrink-0">{r.pctAvance}%</span>
+              </div>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <p className={`text-sm font-semibold tabular-nums ${cancelada ? 'text-gray-400' : 'text-feisen-texto'}`}>{num(r.totalPlaneado)}</p>
+            <p className="text-[11px] text-gray-400">planeadas</p>
+          </div>
+          <ChevronRight size={16} className="text-gray-400 shrink-0" />
+        </button>
+      </li>
     )
-  })
+  }
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
-
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-2.5 rounded-xl">
-            <ClipboardList size={22} className="text-feisen-azul" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">Órdenes de Moldeo</h1>
-            <p className="text-xs text-gray-500">
-              {ordenes.filter(o => o.estado === 'pendiente').length} en curso · {ordenes.filter(o => o.estado === 'completado').length} completadas
-              {ordenes.filter(o => o.estado === 'cancelado').length > 0 && (
-                <> · {ordenes.filter(o => o.estado === 'cancelado').length} canceladas</>
-              )}
-            </p>
-          </div>
-        </div>
-        <button onClick={() => navigate('/moldeo/nueva')}
-          className="flex items-center gap-2 bg-feisen-rojo text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90">
-          <PlusCircle size={16} /> Nueva orden
+    <div className="max-w-4xl mx-auto space-y-4">
+      {aviso}
+      <EncabezadoPagina modulo="Fundición" titulo="Órdenes de moldeo"
+        subtitulo={totalPendientes > 0
+          ? `${totalPendientes} en curso · registra aquí el avance diario de cada moldeador.`
+          : 'Lo que se va a moldear, quién lo moldea y cuánto lleva.'}>
+        <button type="button" onClick={() => navigate('/moldeo/nueva')}
+          className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
+          <Plus size={16} /> Nueva orden
         </button>
-      </div>
+      </EncabezadoPagina>
 
-      <div className="flex gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-          <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por N°, fecha, pieza, máquina…"
-            className="w-full pl-10 pr-4 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-          />
+      {/* Búsqueda y filtros */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input ref={buscarRef} type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por N°, fecha, pieza, máquina o moldeador…" aria-label="Buscar órdenes"
+            className="w-full border border-feisen-borde rounded-lg pl-10 pr-10 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+          {busqueda
+            ? <button type="button" onClick={() => setBusqueda('')} aria-label="Borrar búsqueda"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-gray-400 hover:text-feisen-texto"><X size={16} /></button>
+            : <kbd className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 border border-feisen-borde rounded px-1.5">/</kbd>}
         </div>
-        {ordenes.some(o => o.estado === 'cancelado') && (
-          <button onClick={() => setMostrarCanceladas(v => !v)}
-            className={`shrink-0 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors
-              ${mostrarCanceladas ? 'bg-gray-200 text-gray-700 border-feisen-borde' : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'}`}>
-            {mostrarCanceladas ? 'Ocultar canceladas' : 'Ver canceladas'}
-          </button>
-        )}
-      </div>
-
-      {cargando ? (
-        <p className="text-center text-gray-400 py-16">Cargando…</p>
-      ) : filtradas.length === 0 ? (
-        <p className="text-center text-gray-400 py-16">
-          {busqueda ? 'Sin resultados.' : 'Aún no hay órdenes de moldeo.'}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {filtradas.map(orden => {
-            const completada = orden.estado === 'completado'
-            const cancelada  = orden.estado === 'cancelado'
-            const piezas     = orden.ordenes_moldeo_piezas || []
-            const maquinas   = orden.ordenes_moldeo_maquinas || []
-            const avOrden    = avancesData[orden.id] || {}
-            const stOrden    = stockData[orden.id]   || {}
-
-            const totalPlaneado  = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
-            const totalMoldeado  = piezas.reduce((s, p) => s + (avOrden[p.id]?.total || 0), 0)
-            const pctAvance      = totalPlaneado > 0 ? Math.round((totalMoldeado / totalPlaneado) * 100) : 0
-            const hayStockAlerta = !completada && piezas.some(p => {
-              const stock     = stOrden[p.item_id] ?? null
-              const pendiente = Number(p.cantidad_planeada || 0) - (avOrden[p.id]?.total || 0)
-              return stock !== null && stock < pendiente && pendiente > 0
-            })
-
-            // ── Datos por moldeador (para vista moldeador) ────────────────
-            const porMoldeador = {}
-            piezas.forEach(p => {
-              const k    = p.asignado_a?.trim() || 'Sin asignar'
-              const peso = Number(p.items?.peso_unitario || 0)
-              if (!porMoldeador[k]) porMoldeador[k] = { piezas: [], plan: 0, moldeado: 0, kg: 0 }
-              const av = avOrden[p.id]?.total || 0
-              porMoldeador[k].piezas.push({ ...p, avance: av, peso })
-              porMoldeador[k].plan     += Number(p.cantidad_planeada || 0)
-              porMoldeador[k].moldeado += av
-              porMoldeador[k].kg       += av * peso
-            })
-
-            // Historial diario global (todas las piezas, agrupado por fecha)
-            const historialPorFecha = {}
-            piezas.forEach(p => {
-              const nombre = p.items?.nombre || '—'
-              const mol    = p.asignado_a?.trim() || 'Sin asignar'
-              const peso   = Number(p.items?.peso_unitario || 0)
-              ;(avOrden[p.id]?.dias || []).forEach(d => {
-                if (!historialPorFecha[d.fecha]) historialPorFecha[d.fecha] = []
-                historialPorFecha[d.fecha].push({ pieza: nombre, moldeador: mol, cantidad: d.cantidad, kg: d.cantidad * peso })
-              })
-            })
-            const fechasDesc = Object.keys(historialPorFecha).sort((a, b) => b.localeCompare(a))
-
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
+          {chips.map(([k, t]) => {
+            const activo = filtroEstado === k
+            if (k === 'cancelado' && conteos.cancelado === 0 && !activo) return null
             return (
-              <div key={orden.id} className={`bg-white rounded-2xl border overflow-hidden transition-opacity ${cancelada ? 'border-gray-200 opacity-60' : 'border-gray-200'}`}>
-
-                {/* Fila resumen */}
-                <button type="button" onClick={() => toggle(orden)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className={`font-bold text-sm px-3 py-1 rounded-lg font-mono shrink-0 ${cancelada ? 'bg-gray-100 text-gray-400 line-through' : 'bg-blue-100 text-feisen-azul'}`}>
-                      {numOrden(orden.numero)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">{fmtFecha(orden.fecha)}</p>
-                      <p className="text-xs text-gray-500">{piezas.length} piezas</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    {hayStockAlerta && !cancelada && <AlertTriangle size={15} className="text-orange-400" />}
-                    {!completada && !cancelada && avancesData[orden.id] && totalMoldeado > 0 && (
-                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                        pctAvance >= 80 ? 'bg-green-100 text-green-700'
-                        : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-blue-100 text-feisen-azul'
-                      }`}>
-                        {pctAvance}%
-                      </span>
-                    )}
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                      cancelada  ? 'bg-gray-100 text-gray-500'
-                      : completada ? 'bg-green-100 text-green-700'
-                      : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {cancelada ? '✗ Cancelada' : completada ? '✓ Completada' : '⏳ En curso'}
-                    </span>
-                    {/* Botones editar/cancelar — solo en órdenes no terminadas */}
-                    {!completada && !cancelada && (
-                      <>
-                        <button type="button"
-                          onClick={e => { e.stopPropagation(); abrirEdicion(orden) }}
-                          title="Editar orden"
-                          className="p-1.5 rounded-lg text-gray-300 hover:text-feisen-azul hover:bg-blue-50 transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button type="button"
-                          onClick={e => { e.stopPropagation(); setConfirmCancelar(orden) }}
-                          title="Cancelar orden"
-                          className="p-1.5 rounded-lg text-gray-300 hover:text-feisen-rojo hover:bg-red-50 transition-colors">
-                          <XCircle size={14} />
-                        </button>
-                      </>
-                    )}
-                    {expandido === orden.id
-                      ? <ChevronUp size={16} className="text-gray-400" />
-                      : <ChevronDown size={16} className="text-gray-400" />}
-                  </div>
-                </button>
-
-                {/* Detalle expandido */}
-                {expandido === orden.id && (
-                  <div className="border-t border-gray-100 bg-gray-50 px-5 py-5 space-y-5">
-
-                    {/* Máquinas */}
-                    {maquinas.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {maquinas.map((m, i) => (
-                          <span key={i} className="bg-white border border-blue-200 text-feisen-azul text-xs font-semibold px-2.5 py-1 rounded-full">
-                            {m.cantidad_maquinas} × {m.maquinas_fundicion?.nombre}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* ══ ORDEN EN CURSO ══ */}
-                    {!completada && (
-                      <>
-                        {/* Toggle vista */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs font-semibold">
-                            {[['pieza','Por pieza'],['moldeador','Por moldeador'],['historial','Historial']].map(([val, lab]) => (
-                              <button key={val} type="button"
-                                onClick={() => setVistaAbierta(prev => ({ ...prev, [orden.id]: val }))}
-                                className={`px-3 py-1.5 transition-colors ${
-                                  (vistaAbierta[orden.id] || 'pieza') === val
-                                    ? 'bg-feisen-azul text-white'
-                                    : 'bg-white text-gray-500 hover:bg-gray-50'
-                                }`}>
-                                {lab}
-                              </button>
-                            ))}
-                          </div>
-                          {totalMoldeado > 0 && (
-                            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                              pctAvance >= 80 ? 'bg-green-100 text-green-700'
-                              : pctAvance >= 40 ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-blue-50 text-feisen-azul'
-                            }`}>
-                              {pctAvance}% avance general
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Vista: Por pieza */}
-                        {(vistaAbierta[orden.id] || 'pieza') === 'pieza' && (
-                          <div className="overflow-x-auto rounded-xl border border-gray-200">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-gray-100 text-xs text-gray-500 font-bold uppercase">
-                                  <th className="text-left px-3 py-2.5">Pieza</th>
-                                  <th className="text-left px-3 py-2.5">Moldeador</th>
-                                  <th className="text-center px-2 py-2.5">Plan.</th>
-                                  <th className="text-center px-2 py-2.5">Moldeadas</th>
-                                  <th className="text-center px-2 py-2.5">Kg</th>
-                                  <th className="text-center px-2 py-2.5">Pendiente</th>
-                                  <th className="text-center px-2 py-2.5">Stock</th>
-                                  <th className="px-2 py-2.5 w-24">%</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-gray-100">
-                                {piezas.map(p => {
-                                  const av        = avOrden[p.id]?.total || 0
-                                  const plan      = Number(p.cantidad_planeada || 0)
-                                  const pendiente = Math.max(0, plan - av)
-                                  const pct       = plan > 0 ? Math.round((av / plan) * 100) : 0
-                                  const stock     = stOrden[p.item_id] ?? null
-                                  const alerta    = stock !== null && stock < pendiente && pendiente > 0
-                                  const peso      = Number(p.items?.peso_unitario || 0)
-                                  const kgAv      = av * peso
-                                  return (
-                                    <tr key={p.id} className={alerta ? 'bg-orange-50' : 'bg-white hover:bg-gray-50/40'}>
-                                      <td className="px-3 py-3 font-medium text-gray-800 text-sm">{p.items?.nombre}</td>
-                                      <td className="px-3 py-3 text-xs text-gray-500">{p.asignado_a || '—'}</td>
-                                      <td className="px-2 py-3 text-center text-gray-500">{plan}</td>
-                                      <td className="px-2 py-3 text-center font-bold text-feisen-azul">{av || '—'}</td>
-                                      <td className="px-2 py-3 text-center text-xs font-semibold text-gray-500">
-                                        {av > 0 && peso > 0 ? `${kgAv.toLocaleString('es-CO',{maximumFractionDigits:1})}` : '—'}
-                                      </td>
-                                      <td className="px-2 py-3 text-center">
-                                        <span className={`font-bold text-sm ${pendiente === 0 ? 'text-green-600' : 'text-gray-700'}`}>
-                                          {pendiente === 0 ? '✓' : pendiente}
-                                        </span>
-                                      </td>
-                                      <td className="px-2 py-3 text-center">
-                                        {stock !== null ? (
-                                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${alerta ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                                            {stock}{alerta && <AlertTriangle size={12} className="inline ml-1 -mt-0.5" />}
-                                          </span>
-                                        ) : <span className="text-gray-300">—</span>}
-                                      </td>
-                                      <td className="px-2 py-3">
-                                        <div className="flex items-center gap-1.5">
-                                          <BarraProgreso pct={pct} />
-                                          <span className="text-xs text-gray-400 w-8 text-right shrink-0">{pct}%</span>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {/* Vista: Por moldeador */}
-                        {(vistaAbierta[orden.id] || 'pieza') === 'moldeador' && (
-                          <div className="space-y-3">
-                            {Object.entries(porMoldeador).map(([mol, d]) => {
-                              const pct = d.plan > 0 ? Math.round((d.moldeado / d.plan) * 100) : 0
-                              return (
-                                <div key={mol} className="bg-white rounded-xl border border-gray-200 p-4">
-                                  <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-9 h-9 rounded-full bg-feisen-azul text-white text-sm font-bold flex items-center justify-center shrink-0">
-                                      {mol === 'Sin asignar' ? '?' : mol.charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`text-sm font-bold ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-gray-800'}`}>{mol}</p>
-                                      <p className="text-xs text-gray-400">{d.piezas.length} pieza{d.piezas.length !== 1 ? 's' : ''} asignada{d.piezas.length !== 1 ? 's' : ''}</p>
-                                    </div>
-                                    <div className="text-right shrink-0">
-                                      <p className="text-sm font-bold text-feisen-azul">{d.moldeado} <span className="text-xs font-normal text-gray-400">/ {d.plan}</span></p>
-                                      {d.kg > 0 && <p className="text-xs text-gray-400 font-medium">{d.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</p>}
-                                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                        pct >= 80 ? 'bg-green-100 text-green-700'
-                                        : pct >= 40 ? 'bg-yellow-100 text-yellow-700'
-                                        : 'bg-gray-100 text-gray-500'
-                                      }`}>{pct}%</span>
-                                    </div>
-                                  </div>
-                                  <BarraProgreso pct={pct} />
-                                  {/* Mini tabla de piezas del moldeador */}
-                                  <div className="mt-3 divide-y divide-gray-50">
-                                    {d.piezas.map(p => {
-                                      const pPct = p.cantidad_planeada > 0 ? Math.round((p.avance / p.cantidad_planeada) * 100) : 0
-                                      const pKg  = p.avance * Number(p.items?.peso_unitario || 0)
-                                      return (
-                                        <div key={p.id} className="flex items-center justify-between py-2">
-                                          <span className="text-xs text-gray-600 truncate flex-1">{p.items?.nombre}</span>
-                                          <div className="flex items-center gap-3 ml-2 shrink-0">
-                                            <span className="text-xs text-gray-400">{p.avance}/{p.cantidad_planeada}</span>
-                                            {pKg > 0 && <span className="text-xs text-gray-400">{pKg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</span>}
-                                            <div className="w-16">
-                                              <BarraProgreso pct={pPct} />
-                                            </div>
-                                            <span className="text-xs font-semibold text-gray-500 w-8 text-right">{pPct}%</span>
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-
-                        {/* Vista: Historial diario */}
-                        {(vistaAbierta[orden.id] || 'pieza') === 'historial' && (
-                          <div>
-                            {fechasDesc.length === 0 ? (
-                              <p className="text-center text-gray-400 py-8 text-sm">Sin avances registrados aún.</p>
-                            ) : (
-                              <div className="space-y-3">
-                                {fechasDesc.map(fecha => {
-                                  const entradas = historialPorFecha[fecha]
-                                  const totalDia = entradas.reduce((s, e) => s + e.cantidad, 0)
-                                  return (
-                                    <div key={fecha} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                      <div className="flex items-center justify-between px-4 py-2.5 bg-feisen-azul/5 border-b border-gray-100">
-                                        <div className="flex items-center gap-2">
-                                          <Calendar size={13} className="text-feisen-azul" />
-                                          <span className="text-sm font-bold text-feisen-azul">{fmtFecha(fecha)}</span>
-                                        </div>
-                                        <span className="text-xs font-semibold text-gray-500">{totalDia} moldeadas</span>
-                                      </div>
-                                      <table className="w-full text-sm">
-                                        <tbody className="divide-y divide-gray-50">
-                                          {entradas.map((e, i) => (
-                                            <tr key={i} className="hover:bg-gray-50/40">
-                                              <td className="px-4 py-2 text-gray-700 font-medium">{e.pieza}</td>
-                                              <td className="px-3 py-2 text-xs text-gray-400">{e.moldeador}</td>
-                                              <td className="px-3 py-2 text-right font-bold text-feisen-azul">{e.cantidad}</td>
-                                              <td className="px-3 py-2 text-right text-xs text-gray-400">
-                                                {e.kg > 0 ? `${e.kg.toLocaleString('es-CO',{maximumFractionDigits:1})} kg` : '—'}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* ── Panel: Registrar avance del día ── */}
-                        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                          <button type="button"
-                            onClick={() => setPanelAvance(prev => ({ ...prev, [orden.id]: !prev[orden.id] }))}
-                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <TrendingUp size={16} className="text-feisen-azul" />
-                              <span className="text-sm font-bold text-gray-700">Registrar avance del día</span>
-                            </div>
-                            {panelAvance[orden.id]
-                              ? <ChevronUp size={15} className="text-gray-400" />
-                              : <ChevronDown size={15} className="text-gray-400" />}
-                          </button>
-
-                          {panelAvance[orden.id] && (
-                            <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
-                              <div className="flex items-center gap-3">
-                                <label className="text-xs font-semibold text-gray-600 shrink-0">Fecha</label>
-                                <input type="date"
-                                  value={fechaAvance[orden.id] || hoyCol()}
-                                  onChange={e => setFechaAvance(prev => ({ ...prev, [orden.id]: e.target.value }))}
-                                  className="border border-feisen-borde rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                                />
-                              </div>
-
-                              {errorAv[orden.id] && (
-                                <div className="flex items-center gap-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg px-3 py-2">
-                                  <AlertTriangle size={13} /> {errorAv[orden.id]}
-                                </div>
-                              )}
-
-                              <div className="space-y-2">
-                                {piezas.map(p => {
-                                  const av        = avOrden[p.id]?.total || 0
-                                  const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - av)
-                                  return (
-                                    <div key={p.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{p.items?.nombre}</p>
-                                        <p className="text-xs text-gray-400">
-                                          {p.asignado_a && <span className="mr-2">{p.asignado_a}</span>}
-                                          Pendiente: <span className="font-bold text-gray-600">{pendiente}</span>
-                                        </p>
-                                      </div>
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className="text-xs text-gray-400">Hoy:</span>
-                                        <input type="number" min="0" step="1"
-                                          value={getAv(orden.id, p.id)}
-                                          onChange={e => setAv(orden.id, p.id, e.target.value)}
-                                          placeholder="0"
-                                          className="w-20 border-2 border-gray-200 rounded-xl px-2 py-1.5 text-center text-sm font-bold focus:outline-none focus:border-feisen-azul"
-                                        />
-                                        {(() => {
-                                          const cant = Number(getAv(orden.id, p.id)) || 0
-                                          const peso = Number(p.items?.peso_unitario || 0)
-                                          return cant > 0 && peso > 0
-                                            ? <span className="text-xs text-feisen-azul font-semibold">{(cant * peso).toLocaleString('es-CO',{maximumFractionDigits:1})} kg</span>
-                                            : null
-                                        })()}
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-
-                              <button onClick={() => guardarAvance(orden)} disabled={guardandoAv === orden.id}
-                                className="w-full flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-                                <Plus size={15} />
-                                {guardandoAv === orden.id ? 'Guardando…' : 'Guardar avance'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-
-                    {/* ══ ORDEN COMPLETADA ══ */}
-                    {completada && (() => {
-                      const modo    = vistaOrden[orden.id] || 'pieza'
-                      const setModo = v => setVistaOrden(prev => ({ ...prev, [orden.id]: v }))
-                      return (
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <p className="text-xs font-bold text-gray-400 uppercase">Resultados</p>
-                            <div className="flex rounded-xl overflow-hidden border border-gray-200 text-xs font-semibold">
-                              {[['pieza','Por pieza'],['moldeador','Por moldeador']].map(([val, lab]) => (
-                                <button key={val} type="button" onClick={() => setModo(val)}
-                                  className={`px-3 py-1.5 transition-colors ${modo === val ? 'bg-feisen-azul text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                                  {lab}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {modo === 'pieza' && (
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="bg-gray-100 text-xs text-gray-500 font-bold uppercase">
-                                    <th className="text-left px-3 py-2.5">Pieza</th>
-                                    <th className="text-left px-3 py-2.5">Moldeador</th>
-                                    <th className="text-center px-3 py-2.5">Plan.</th>
-                                    <th className="text-center px-3 py-2.5">✓ Conf.</th>
-                                    <th className="text-center px-3 py-2.5">✗ NC</th>
-                                    <th className="text-left px-3 py-2.5">Motivo</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {piezas.map((p, i) => {
-                                    const rend = p.cantidad_planeada > 0
-                                      ? Math.round(((p.cantidad_conforme || 0) / p.cantidad_planeada) * 100) : null
-                                    return (
-                                      <tr key={p.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                                        <td className="px-3 py-2.5 font-medium text-gray-800">{p.items?.nombre}</td>
-                                        <td className="px-3 py-2.5 text-xs text-gray-400">{p.asignado_a || '—'}</td>
-                                        <td className="px-3 py-2.5 text-center text-gray-600">{p.cantidad_planeada}</td>
-                                        <td className="px-3 py-2.5 text-center font-bold text-green-600">
-                                          {p.cantidad_conforme ?? '—'}
-                                          {rend != null && <span className="ml-1 text-xs font-normal text-gray-400">({rend}%)</span>}
-                                        </td>
-                                        <td className="px-3 py-2.5 text-center font-bold text-red-500">{p.cantidad_nc ?? '—'}</td>
-                                        <td className="px-3 py-2.5 text-xs text-gray-500">{p.motivo_nc || '—'}</td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                                <tfoot>
-                                  <tr className="bg-blue-50 font-semibold text-sm border-t border-blue-100">
-                                    <td colSpan={2} className="px-3 py-2 text-gray-600">Totales</td>
-                                    <td className="px-3 py-2 text-center">{piezas.reduce((s,p)=>s+Number(p.cantidad_planeada||0),0)}</td>
-                                    <td className="px-3 py-2 text-center text-green-600">{piezas.reduce((s,p)=>s+Number(p.cantidad_conforme||0),0)}</td>
-                                    <td className="px-3 py-2 text-center text-red-500">{piezas.reduce((s,p)=>s+Number(p.cantidad_nc||0),0)}</td>
-                                    <td />
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          )}
-
-                          {modo === 'moldeador' && (
-                            <div className="space-y-3">
-                              {Object.entries(porMoldeador).map(([mol, d]) => {
-                                const totConf = d.piezas.reduce((s,p)=>s+Number(p.cantidad_conforme||0),0)
-                                const totNC   = d.piezas.reduce((s,p)=>s+Number(p.cantidad_nc||0),0)
-                                const rend    = d.plan > 0 ? Math.round((totConf/d.plan)*100) : null
-                                return (
-                                  <div key={mol} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-3 bg-feisen-azul/5 border-b border-gray-100">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-7 h-7 rounded-full bg-feisen-azul text-white text-xs font-bold flex items-center justify-center shrink-0">
-                                          {mol === 'Sin asignar' ? '?' : mol.charAt(0).toUpperCase()}
-                                        </div>
-                                        <p className={`text-sm font-bold ${mol==='Sin asignar'?'text-gray-400 italic':'text-gray-800'}`}>{mol}</p>
-                                      </div>
-                                      <div className="flex items-center gap-2 text-xs">
-                                        <span className="font-bold text-green-600">{totConf} conf.</span>
-                                        <span className="font-bold text-red-500">{totNC} NC</span>
-                                        {rend != null && (
-                                          <span className={`font-bold px-2 py-0.5 rounded-full ${rend>=80?'bg-green-100 text-green-700':rend>=60?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'}`}>
-                                            {rend}%
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <table className="w-full text-sm">
-                                      <tbody className="divide-y divide-gray-50">
-                                        {d.piezas.map(p => (
-                                          <tr key={p.id} className="hover:bg-gray-50/50">
-                                            <td className="px-4 py-2.5 font-medium text-gray-800">{p.items?.nombre}</td>
-                                            <td className="px-3 py-2.5 text-center text-gray-400 text-xs">Plan: {p.cantidad_planeada}</td>
-                                            <td className="px-3 py-2.5 text-center font-bold text-green-600">{p.cantidad_conforme ?? '—'}</td>
-                                            <td className="px-3 py-2.5 text-center font-bold text-red-500">{p.cantidad_nc ?? '—'}</td>
-                                            <td className="px-3 py-2.5 text-xs text-gray-400">{p.motivo_nc || ''}</td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })()}
-
-                  </div>
-                )}
-              </div>
+              <button key={k} type="button" aria-pressed={activo} onClick={() => setFiltroEstado(k)}
+                className={`shrink-0 inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-full text-sm font-medium border transition-colors
+                  ${activo ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                {t} <span className={`tabular-nums ${activo ? 'text-white/70' : 'text-gray-400'}`}>{conteos[k]}</span>
+              </button>
             )
           })}
         </div>
+      </div>
+
+      {/* Lista */}
+      {cargando && ordenes.length === 0 ? (
+        <div className="bg-white border border-feisen-borde rounded-xl divide-y divide-feisen-borde-suave" aria-busy="true">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="px-4 py-4 space-y-2 animate-pulse motion-reduce:animate-none">
+              <div className="h-3.5 w-40 bg-feisen-borde-suave rounded" />
+              <div className="h-3 w-64 max-w-full bg-feisen-borde-suave rounded" />
+            </div>
+          ))}
+        </div>
+      ) : secciones.length === 0 ? (
+        <div className="bg-white border border-feisen-borde rounded-xl text-center px-6 py-14">
+          <ClipboardList size={32} className="mx-auto mb-3 text-gray-300" />
+          {busqueda.trim() ? (
+            <>
+              <p className="font-medium text-feisen-texto">Nada coincide con “{busqueda.trim()}”</p>
+              <p className="text-sm text-feisen-texto-2 mt-1">Busca por número (ORD-MOL-0012), una palabra de la pieza, la máquina o el moldeador.</p>
+            </>
+          ) : ordenes.length === 0 ? (
+            <>
+              <p className="font-medium text-feisen-texto">Aún no hay órdenes de moldeo</p>
+              <p className="text-sm text-feisen-texto-2 mt-1 max-w-sm mx-auto">
+                Crea la primera con “Nueva orden”: eliges las máquinas a producir y el sistema calcula las piezas a moldear.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-feisen-texto">No hay órdenes {filtroEstado === 'pendiente' ? 'en curso' : filtroEstado === 'completado' ? 'completadas' : filtroEstado === 'cancelado' ? 'canceladas' : 'con este filtro'}</p>
+              <p className="text-sm text-feisen-texto-2 mt-1">Prueba con “Todas”.</p>
+            </>
+          )}
+        </div>
+      ) : secciones.map(sec => (
+        <section key={sec.clave} className="space-y-1.5">
+          <h2 className={`text-xs font-semibold px-0.5 ${sec.clave === 'atencion' ? 'text-amber-700' : 'text-feisen-texto-2'}`}>
+            {sec.titulo} <span className="font-normal text-gray-400">· {sec.lista.length}{sec.nota ? ` · ${sec.nota}` : ''}</span>
+          </h2>
+          <ul className={`bg-white border rounded-xl overflow-hidden divide-y divide-feisen-borde-suave
+            ${sec.clave === 'atencion' ? 'border-amber-200' : 'border-feisen-borde'} ${sec.clave === 'canceladas' ? 'opacity-75' : ''}`}>
+            {sec.lista.map(filaOrden)}
+          </ul>
+        </section>
+      ))}
+
+      {!cargando && filtradas.length > 0 && (
+        <p className="text-xs text-gray-400 text-right tabular-nums">
+          Mostrando {filtradas.length} de {ordenes.length} {ordenes.length === 1 ? 'orden' : 'órdenes'}
+        </p>
       )}
+
+      {/* ── Panel de detalle ─────────────────────────────────────────────────── */}
+      {abierta && detalleOrden(abierta)}
 
       {/* ── Modal confirmar cancelación ──────────────────────────────────────── */}
       {confirmCancelar && (
         <Modal titulo="Cancelar orden" onCerrar={() => setConfirmCancelar(null)}>
           <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-              ¿Cancelar <span className="font-bold">{numOrden(confirmCancelar.numero)}</span>?
-              La orden quedará como <span className="font-bold">cancelada</span> y no se borrará del historial.
-            </div>
+            <p className="text-sm text-feisen-texto">
+              ¿Cancelar <span className="font-mono font-semibold">{numOrden(confirmCancelar.numero)}</span>?
+              La orden quedará como <b>cancelada</b>: no se borra del historial y deja de aparecer en curso.
+            </p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmCancelar(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
+              <button type="button" onClick={() => setConfirmCancelar(null)}
+                className="flex-1 border border-feisen-borde rounded-lg min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 No, volver
               </button>
-              <button onClick={() => cancelarOrden(confirmCancelar)} disabled={cancelando}
-                className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {cancelando ? 'Cancelando...' : 'Sí, cancelar orden'}
+              <button type="button" onClick={() => cancelarOrden(confirmCancelar)} disabled={cancelando}
+                className="flex-1 bg-feisen-rojo text-white rounded-lg min-h-[44px] text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {cancelando ? 'Cancelando…' : 'Sí, cancelar orden'}
               </button>
             </div>
           </div>
@@ -803,64 +534,430 @@ export default function ListaOrdenesMoldeo() {
       {/* ── Modal editar orden ───────────────────────────────────────────────── */}
       {editModal && (
         <Modal titulo={`Editar ${numOrden(editModal.numero)}`} onCerrar={() => setEditModal(null)}>
-          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          <div className="space-y-4">
             {msgEdit && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700">{msgEdit}</div>
+              <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-3 py-2.5 text-sm">
+                <AlertTriangle size={16} className="shrink-0 mt-px" /> {msgEdit}
+              </div>
             )}
 
-            {/* Fecha */}
-            <div>
-              <label className="text-xs text-gray-500 font-medium block mb-1">Fecha de la orden</label>
+            <label className="block">
+              <span className="text-xs font-medium text-feisen-texto-2 block mb-1">Fecha de la orden</span>
               <input type="date" value={editForm.fecha}
                 onChange={e => setEditForm(prev => ({ ...prev, fecha: e.target.value }))}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
+                className={claseInput} />
+            </label>
 
-            {/* Piezas */}
             {editForm.piezas.length > 0 && (
               <div>
-                <p className="text-xs text-gray-500 font-medium mb-2">Piezas</p>
-                <div className="space-y-2">
+                <p className="text-xs font-medium text-feisen-texto-2 mb-1">Piezas · {editForm.piezas.length}</p>
+                <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
                   {editForm.piezas.map((p, idx) => (
-                    <div key={p.id} className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-gray-700 mb-2 truncate">{p.nombre}</p>
-                      <div className="grid grid-cols-2 gap-2">
+                    <li key={p.id} className="py-3 space-y-2">
+                      <p className="text-sm font-medium text-feisen-texto break-words">{p.nombre}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-2 sm:items-end">
                         <div>
-                          <label className="text-[11px] text-gray-400 block mb-0.5">Cantidad planeada</label>
-                          <input type="number" min="1" step="1"
-                            value={p.cantidad_planeada}
-                            onChange={e => setPieza(idx, 'cantidad_planeada', e.target.value)}
-                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                          <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Cantidad planeada</span>
+                          <Contador valor={p.cantidad_planeada} onCambiar={v => setPieza(idx, 'cantidad_planeada', v)}
+                            etiqueta={`Cantidad planeada de ${p.nombre}`} />
                         </div>
-                        <div>
-                          <label className="text-[11px] text-gray-400 block mb-0.5">Moldeador asignado</label>
-                          <input type="text"
-                            value={p.asignado_a}
+                        <label className="block">
+                          <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Moldeador asignado</span>
+                          <input type="text" value={p.asignado_a}
                             onChange={e => setPieza(idx, 'asignado_a', e.target.value)}
-                            placeholder="Nombre..."
-                            className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-                        </div>
+                            placeholder="Nombre del moldeador" className={claseInput} />
+                        </label>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             )}
 
             <div className="flex gap-3 pt-1">
-              <button onClick={() => setEditModal(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">
+              <button type="button" onClick={() => setEditModal(null)}
+                className="flex-1 border border-feisen-borde rounded-lg min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
-              <button onClick={guardarEdicion} disabled={editGuardando}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {editGuardando ? 'Guardando...' : 'Guardar cambios'}
+              <button type="button" onClick={guardarEdicion} disabled={editGuardando}
+                className="flex-1 bg-feisen-azul text-white rounded-lg min-h-[44px] text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                {editGuardando ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
           </div>
         </Modal>
       )}
-
     </div>
   )
+
+  // ── Detalle de la orden en el panel lateral ────────────────────────────────────
+  function detalleOrden(orden) {
+    const completada = orden.estado === 'completado'
+    const cancelada  = orden.estado === 'cancelado'
+    const piezas     = orden.ordenes_moldeo_piezas || []
+    const maquinas   = orden.ordenes_moldeo_maquinas || []
+    const cargada    = !!avancesData[orden.id]
+    const avOrden    = avancesData[orden.id] || {}
+    const stOrden    = stockData[orden.id]   || {}
+    const r          = resumenOrden(orden, avOrden, stOrden)
+    const registrando = !completada && !cancelada && !!panelAvance[orden.id]
+
+    const encabezado = (
+      <div className="space-y-1.5">
+        <h3 className={`font-mono text-base font-semibold ${cancelada ? 'text-gray-400 line-through' : 'text-feisen-texto'}`}>{numOrden(orden.numero)}</h3>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <BadgeEstado estado={orden.estado} />
+          <span className="inline-flex items-center gap-1 text-xs text-feisen-texto-2"><Calendar size={13} /> {fmtFecha(orden.fecha)}</span>
+          {esVieja(orden) && <BadgeAtencion icono={Clock}>Abierta hace {diasDesde(orden.fecha)} días</BadgeAtencion>}
+        </div>
+        {!completada && !cancelada && (
+          <div className="flex flex-wrap gap-2 pt-1.5">
+            <button type="button" onClick={() => abrirEdicion(orden)} className={claseSecundario}>
+              <Pencil size={14} /> Editar
+            </button>
+            <button type="button" onClick={() => setConfirmCancelar(orden)}
+              className={`${claseSecundario} text-feisen-rojo hover:bg-feisen-rojo-suave`}>
+              <XCircle size={14} /> Cancelar orden
+            </button>
+          </div>
+        )}
+      </div>
+    )
+
+    return (
+      <PanelLateral etiqueta={`Detalle de ${numOrden(orden.numero)}`} onCerrar={() => setExpandido(null)} encabezado={encabezado}>
+        {maquinas.length > 0 && (
+          <section>
+            <h4 className={`${claseEtiqueta} mb-1.5`}>Máquinas</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {maquinas.map((m, i) => (
+                <span key={i} className="bg-feisen-azul-suave text-feisen-azul text-xs font-medium px-2 py-0.5 rounded-md tabular-nums">
+                  {m.cantidad_maquinas} × {m.maquinas_fundicion?.nombre}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ══ ORDEN EN CURSO (o cancelada sin completar) ══ */}
+        {!completada && !cargada && (
+          <p className="text-sm text-feisen-texto-2 py-6 text-center" aria-busy="true">Cargando avance…</p>
+        )}
+
+        {!completada && cargada && !registrando && (
+          <>
+            <section className="space-y-2">
+              <div className="grid grid-cols-3 gap-3">
+                <Cifra etiqueta="Moldeadas" valor={num(r.totalMoldeado)} detalle={`de ${num(r.totalPlaneado)}`} />
+                <Cifra etiqueta="Avance" valor={`${r.pctAvance}%`} />
+                <Cifra etiqueta="Kg" valor={kg(r.kgMoldeados)} detalle="moldeados" />
+              </div>
+              <BarraProgreso pct={r.pctAvance} />
+              {r.hayStockAlerta && !cancelada && (
+                <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                  <AlertTriangle size={14} className="shrink-0 mt-px" />
+                  Hay piezas con stock en bodega menor a lo que falta por moldear.
+                </p>
+              )}
+            </section>
+
+            <Segmentado valor={vistaAbierta[orden.id] || 'pieza'}
+              onCambiar={v => setVistaAbierta(prev => ({ ...prev, [orden.id]: v }))}
+              opciones={[{ valor: 'pieza', texto: 'Por pieza' }, { valor: 'moldeador', texto: 'Por moldeador' }, { valor: 'historial', texto: 'Historial' }]} />
+
+            {/* Vista: Por pieza */}
+            {(vistaAbierta[orden.id] || 'pieza') === 'pieza' && (
+              <ul className="divide-y divide-feisen-borde-suave -mt-1">
+                {piezas.map(p => {
+                  const av        = avOrden[p.id]?.total || 0
+                  const plan      = Number(p.cantidad_planeada || 0)
+                  const pendiente = Math.max(0, plan - av)
+                  const pct       = plan > 0 ? Math.round((av / plan) * 100) : 0
+                  const stock     = stOrden[p.item_id] ?? null
+                  const alerta    = stock !== null && stock < pendiente && pendiente > 0
+                  const peso      = Number(p.items?.peso_unitario || 0)
+                  const kgAv      = av * peso
+                  return (
+                    <li key={p.id} className="py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-feisen-texto break-words">{p.items?.nombre}</p>
+                          <p className="text-xs text-feisen-texto-2 mt-0.5">
+                            {p.asignado_a || 'Sin moldeador'}{av > 0 && peso > 0 ? ` · ${kg(kgAv)} kg` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold text-feisen-texto tabular-nums">
+                            {num(av)} <span className="font-normal text-gray-400">/ {num(plan)}</span>
+                          </p>
+                          <p className="text-xs tabular-nums text-feisen-texto-2">
+                            {pendiente === 0
+                              ? <span className="inline-flex items-center gap-1"><Check size={12} /> Completa</span>
+                              : `Faltan ${num(pendiente)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <BarraProgreso pct={pct} />
+                        <span className="text-xs text-feisen-texto-2 tabular-nums w-9 text-right shrink-0">{pct}%</span>
+                      </div>
+                      {stock !== null && (
+                        <p className={`mt-1.5 text-xs tabular-nums ${alerta ? 'text-amber-700' : 'text-gray-400'}`}>
+                          {alerta && <AlertTriangle size={12} className="inline -mt-0.5 mr-1" />}
+                          Stock en bodega: {num(stock)}{alerta ? ' · menor a lo que falta' : ''}
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Vista: Por moldeador */}
+            {(vistaAbierta[orden.id] || 'pieza') === 'moldeador' && (
+              <ul className="space-y-4">
+                {Object.entries(r.porMoldeador).map(([mol, d]) => {
+                  const pct = d.plan > 0 ? Math.round((d.moldeado / d.plan) * 100) : 0
+                  return (
+                    <li key={mol} className="border border-feisen-borde rounded-xl p-3.5">
+                      <div className="flex items-center gap-3">
+                        <Avatar nombre={mol} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold truncate ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-feisen-texto'}`}>{mol}</p>
+                          <p className="text-xs text-feisen-texto-2">{d.piezas.length} pieza{d.piezas.length !== 1 ? 's' : ''} asignada{d.piezas.length !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold text-feisen-texto tabular-nums">{num(d.moldeado)} <span className="font-normal text-gray-400">/ {num(d.plan)}</span></p>
+                          <p className="text-xs text-feisen-texto-2 tabular-nums">{pct}%{d.kg > 0 ? ` · ${kg(d.kg)} kg` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2.5"><BarraProgreso pct={pct} /></div>
+                      <ul className="mt-2 divide-y divide-feisen-borde-suave">
+                        {d.piezas.map(p => {
+                          const pPct = p.cantidad_planeada > 0 ? Math.round((p.avance / p.cantidad_planeada) * 100) : 0
+                          const pKg  = p.avance * Number(p.items?.peso_unitario || 0)
+                          return (
+                            <li key={p.id} className="flex items-center gap-3 py-2">
+                              <span className="text-xs text-feisen-texto flex-1 min-w-0 break-words">{p.items?.nombre}</span>
+                              <span className="text-xs text-feisen-texto-2 tabular-nums text-right shrink-0">
+                                {num(p.avance)}/{num(p.cantidad_planeada)}{pKg > 0 ? ` · ${kg(pKg)} kg` : ''}
+                              </span>
+                              <span className="text-xs font-medium text-feisen-texto-2 tabular-nums w-9 text-right shrink-0">{pPct}%</span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Vista: Historial diario */}
+            {(vistaAbierta[orden.id] || 'pieza') === 'historial' && (
+              r.fechasDesc.length === 0 ? (
+                <div className="text-center py-8">
+                  <TrendingUp size={28} className="mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm font-medium text-feisen-texto">Sin avances registrados</p>
+                  {!cancelada && <p className="text-xs text-feisen-texto-2 mt-1">Usa “Registrar avance del día” al final de cada turno.</p>}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {r.fechasDesc.map(fecha => {
+                    const entradas = r.historialPorFecha[fecha]
+                    const totalDia = entradas.reduce((s, e) => s + e.cantidad, 0)
+                    return (
+                      <section key={fecha}>
+                        <h4 className="flex items-center justify-between text-xs font-semibold text-feisen-texto-2 mb-1">
+                          <span className="inline-flex items-center gap-1.5"><Calendar size={13} /> {fmtFecha(fecha)}</span>
+                          <span className="font-normal tabular-nums">{num(totalDia)} moldeadas</span>
+                        </h4>
+                        <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
+                          {entradas.map((e, i) => (
+                            <li key={i} className="flex items-start gap-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-feisen-texto break-words">{e.pieza}</p>
+                                <p className="text-xs text-feisen-texto-2">{e.moldeador}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-sm font-semibold text-feisen-texto tabular-nums">{num(e.cantidad)}</p>
+                                {e.kg > 0 && <p className="text-xs text-feisen-texto-2 tabular-nums">{kg(e.kg)} kg</p>}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )
+                  })}
+                </div>
+              )
+            )}
+
+            {!cancelada && (
+              <div className="sticky -bottom-4 -mx-5 px-5 pt-3 pb-4 bg-white border-t border-feisen-borde-suave">
+                <button type="button" onClick={() => setPanelAvance(prev => ({ ...prev, [orden.id]: true }))}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg min-h-[48px] text-[15px] font-semibold hover:opacity-90 active:scale-[.98] transition">
+                  <TrendingUp size={18} /> Registrar avance del día
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Formulario: registrar avance del día ── */}
+        {registrando && cargada && (
+          <>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold text-feisen-texto">Registrar avance del día</h4>
+              </div>
+              <label className="block">
+                <span className="text-xs font-medium text-feisen-texto-2 block mb-1">Fecha del avance</span>
+                <input type="date"
+                  value={fechaAvance[orden.id] || hoyCol()}
+                  onChange={e => setFechaAvance(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                  className={claseInput} />
+              </label>
+
+              {errorAv[orden.id] && (
+                <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo text-sm rounded-lg px-3 py-2.5">
+                  <AlertTriangle size={16} className="shrink-0 mt-px" /> {errorAv[orden.id]}
+                </div>
+              )}
+
+              <p className="text-xs text-feisen-texto-2">Escribe cuántas piezas se moldearon. Deja en blanco las que no tuvieron avance.</p>
+              <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
+                {piezas.map(p => {
+                  const av        = avOrden[p.id]?.total || 0
+                  const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - av)
+                  const cant      = Number(getAv(orden.id, p.id)) || 0
+                  const peso      = Number(p.items?.peso_unitario || 0)
+                  return (
+                    <li key={p.id} className="flex items-center gap-3 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-feisen-texto break-words">{p.items?.nombre}</p>
+                        <p className="text-xs text-feisen-texto-2 tabular-nums">
+                          {p.asignado_a ? `${p.asignado_a} · ` : ''}Faltan {num(pendiente)}
+                          {cant > 0 && peso > 0 && <span className="text-feisen-azul font-medium"> · {kg(cant * peso)} kg</span>}
+                        </p>
+                      </div>
+                      <Contador valor={getAv(orden.id, p.id)} onCambiar={v => setAv(orden.id, p.id, v)}
+                        etiqueta={`Moldeadas de ${p.items?.nombre || 'la pieza'}`} ancho="w-14" />
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+
+            <div className="sticky -bottom-4 -mx-5 px-5 pt-3 pb-4 bg-white border-t border-feisen-borde-suave flex gap-2">
+              <button type="button" onClick={() => setPanelAvance(prev => ({ ...prev, [orden.id]: false }))}
+                className="border border-feisen-borde rounded-lg px-4 min-h-[48px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
+                Volver
+              </button>
+              <button type="button" onClick={() => guardarAvance(orden)} disabled={guardandoAv === orden.id}
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg min-h-[48px] text-[15px] font-semibold hover:opacity-90 disabled:opacity-60 active:scale-[.98] transition">
+                <Plus size={16} />
+                {guardandoAv === orden.id ? 'Guardando…' : 'Guardar avance'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ══ ORDEN COMPLETADA ══ */}
+        {completada && (() => {
+          const modo    = vistaOrden[orden.id] || 'pieza'
+          const setModo = v => setVistaOrden(prev => ({ ...prev, [orden.id]: v }))
+          const totPlan = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
+          const totConf = piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
+          const totNC   = piezas.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
+          const rendTot = totPlan > 0 ? Math.round((totConf / totPlan) * 100) : null
+          return (
+            <>
+              <section className="grid grid-cols-3 gap-3">
+                <Cifra etiqueta="Planeadas" valor={num(totPlan)} />
+                <Cifra etiqueta="Conformes" valor={num(totConf)} detalle={rendTot != null ? `${rendTot}% del plan` : null} />
+                <div className="min-w-0">
+                  <p className={claseEtiqueta}>No conformes</p>
+                  <p className={`text-xl font-semibold tabular-nums mt-0.5 ${totNC > 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{num(totNC)}</p>
+                </div>
+              </section>
+
+              <Segmentado valor={modo} onCambiar={setModo}
+                opciones={[{ valor: 'pieza', texto: 'Por pieza' }, { valor: 'moldeador', texto: 'Por moldeador' }]} />
+
+              {modo === 'pieza' && (
+                <ul className="divide-y divide-feisen-borde-suave -mt-1">
+                  {piezas.map(p => {
+                    const rend = p.cantidad_planeada > 0
+                      ? Math.round(((p.cantidad_conforme || 0) / p.cantidad_planeada) * 100) : null
+                    return (
+                      <li key={p.id} className="py-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-feisen-texto break-words">{p.items?.nombre}</p>
+                            <p className="text-xs text-feisen-texto-2 mt-0.5">{p.asignado_a || 'Sin moldeador'} · Plan {num(p.cantidad_planeada)}</p>
+                          </div>
+                          <div className="text-right shrink-0 tabular-nums">
+                            <p className="text-sm font-semibold text-feisen-texto">
+                              {p.cantidad_conforme ?? '—'} <span className="font-normal text-gray-400 text-xs">conf.</span>
+                            </p>
+                            <p className="text-xs text-feisen-texto-2">
+                              {rend != null && `${rend}% · `}
+                              <span className={Number(p.cantidad_nc) > 0 ? 'text-feisen-rojo font-medium' : ''}>{p.cantidad_nc ?? '—'} NC</span>
+                            </p>
+                          </div>
+                        </div>
+                        {p.motivo_nc && <p className="mt-1.5 text-xs text-feisen-texto-2 bg-feisen-fondo rounded-md px-2 py-1">Motivo NC: {p.motivo_nc}</p>}
+                      </li>
+                    )
+                  })}
+                  <li className="flex items-center justify-between py-3 text-sm font-semibold text-feisen-texto tabular-nums">
+                    <span>Totales</span>
+                    <span>
+                      {num(totPlan)} plan · {num(totConf)} conf. · <span className={totNC > 0 ? 'text-feisen-rojo' : ''}>{num(totNC)} NC</span>
+                    </span>
+                  </li>
+                </ul>
+              )}
+
+              {modo === 'moldeador' && (
+                <ul className="space-y-4">
+                  {Object.entries(r.porMoldeador).map(([mol, d]) => {
+                    const mConf = d.piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
+                    const mNC   = d.piezas.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
+                    const rend  = d.plan > 0 ? Math.round((mConf / d.plan) * 100) : null
+                    return (
+                      <li key={mol} className="border border-feisen-borde rounded-xl overflow-hidden">
+                        <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-feisen-borde-suave">
+                          <Avatar nombre={mol} chico />
+                          <p className={`flex-1 min-w-0 truncate text-sm font-semibold ${mol === 'Sin asignar' ? 'text-gray-400 italic' : 'text-feisen-texto'}`}>{mol}</p>
+                          <div className="text-right shrink-0 text-xs tabular-nums">
+                            <p className="font-semibold text-feisen-texto">{num(mConf)} conf. · <span className={mNC > 0 ? 'text-feisen-rojo' : ''}>{num(mNC)} NC</span></p>
+                            {rend != null && <p className="text-feisen-texto-2">{rend}% del plan</p>}
+                          </div>
+                        </div>
+                        <ul className="divide-y divide-feisen-borde-suave px-3.5">
+                          {d.piezas.map(p => (
+                            <li key={p.id} className="py-2.5">
+                              <div className="flex items-start gap-3">
+                                <span className="flex-1 min-w-0 text-sm text-feisen-texto break-words">{p.items?.nombre}</span>
+                                <span className="text-xs text-feisen-texto-2 tabular-nums text-right shrink-0">
+                                  Plan {num(p.cantidad_planeada)} · <b className="font-semibold text-feisen-texto">{p.cantidad_conforme ?? '—'}</b> conf. · <span className={Number(p.cantidad_nc) > 0 ? 'text-feisen-rojo' : ''}>{p.cantidad_nc ?? '—'} NC</span>
+                                </span>
+                              </div>
+                              {p.motivo_nc && <p className="text-xs text-feisen-texto-2 mt-0.5">{p.motivo_nc}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </>
+          )
+        })()}
+      </PanelLateral>
+    )
+  }
 }

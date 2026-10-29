@@ -61,6 +61,7 @@ import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPers
 import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
 import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
 import Mantenimiento            from './components/mantenimiento/Mantenimiento'
+import { MODULOS }              from './permisos/modulos'
 
 // Al pasar de "Editar OF" (/of/nueva?editar=...) a "Nueva OF" React reutilizaba el formulario
 // con los datos de la OF editada; con la clave arranca limpio cada vez que cambia la OF.
@@ -78,7 +79,7 @@ function Cargando() {
 }
 
 function AppRoutes() {
-  const { session, perfil, cargando, rolEfectivo } = useAuth()
+  const { session, cargando, rolEfectivo, puede } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -93,223 +94,61 @@ function AppRoutes() {
     )
   }
 
-  // CONSULTOR (Ventas / Comercial) → solo stock e historial de sus bodegas (MOTORES)
-  if (rolEfectivo === 'CONSULTOR') {
-    return (
-      <Routes>
-        <Route path="/"          element={<Layout><DashboardConsultor /></Layout>} />
-        <Route path="/dashboard" element={<Layout><DashboardConsultor /></Layout>} />
-        <Route path="/movimientos" element={<Layout><Historial /></Layout>} />
-        <Route path="*"          element={<Layout><DashboardConsultor /></Layout>} />
-      </Routes>
-    )
+  // Pantallas por ruta. Qué rutas abre cada persona lo decide su rol en Configuración ›
+  // Permisos (tabla rol_permisos, catálogo en src/permisos/modulos.js); ADMIN abre todo.
+  const registrarMov = rolEfectivo === 'ADMIN' || rolEfectivo === 'LOGISTICA' ? <RegistrarMovimiento /> : <RegistrarMovimientoAlmacenista />
+  const PANTALLAS = {
+    '/productos': <GestionProductos />, '/movimientos/nuevo': registrarMov, '/movimientos': <Historial />,
+    '/transferencias': <TransferenciasPendientes />, '/mecanizados/paquetes': <GestionPaquetes />,
+    '/reportes': <HubReportes />, '/reportes/corte': <CorteInventario />, '/reportes/inventario-fisico': <InventarioFisico />, '/reportes/kardex': <InformeKardex />,
+    '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />,
+    '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
+    '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
+    '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeVentasInternasFundicion />,
+    '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <OrdenesEnsamble />, '/ensamble/recetas': <RecetasEnsamble />,
+    '/calidad': <NoConformidades />, '/mantenimiento': <Mantenimiento />,
+    '/of/nueva': <NuevaOrdenOFConClave />, '/of/ordenes': <ListaOrdenesOF />, '/of/resumen': <ResumenPlaneacionOF />, '/of/calendario': <CalendarioOF />,
+    '/of/dashboard': <DashboardOF />, '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />,
+    '/costeo': <CosteoFichas />, '/costeo/fichas/:id': <CosteoFicha />, '/costeo/etapas': <EtapasMaestro />, '/costeo/cif': <CifMaestro />, '/costeo/equipos': <EquiposMaestro />,
+    '/rrhh/empleados': <ListaEmpleados />, '/rrhh/empleados/:id': <FichaEmpleado />, '/rrhh/organigrama': <Organigrama />, '/rrhh/organigrama/:id': <FichaCargo />,
+    '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,
+    '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,
+    '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
+    '/config': <GestionConfig />,
   }
+  const permitidos = MODULOS.filter(m => puede(m.clave))
+  const primera = permitidos.flatMap(m => m.rutas).find(r => !r.includes(':'))
 
-  // RRHH (coordinadora de Recursos Humanos) — solo el módulo de personas
-  if (rolEfectivo === 'RRHH') {
-    return (
-      <Routes>
-        <Route path="/rrhh/empleados"     element={<Layout><ListaEmpleados /></Layout>} />
-        <Route path="/rrhh/empleados/:id" element={<Layout><FichaEmpleado /></Layout>} />
-        <Route path="/rrhh/organigrama"     element={<Layout><Organigrama /></Layout>} />
-        <Route path="/rrhh/organigrama/:id" element={<Layout><FichaCargo /></Layout>} />
-        <Route path="/rrhh/novedades"       element={<Layout><Novedades /></Layout>} />
-        <Route path="/rrhh/calendario"      element={<Layout><Calendario /></Layout>} />
-        <Route path="/rrhh/nomina"                  element={<Layout><Nomina /></Layout>} />
-        <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
-        <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
-        <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
-        <Route path="/rrhh/desempeno"                   element={<Layout><Desempeno /></Layout>} />
-        <Route path="/rrhh/desempeno/:cicloId"          element={<Layout><CicloDesempeno /></Layout>} />
-        <Route path="/rrhh/desempeno/:cicloId/:evalId"  element={<Layout><EvaluacionPersona /></Layout>} />
-        {/* Bodega de Administración (dotación, papelería, aseo): stock, movimientos y pedidos de sus bodegas */}
-        <Route path="/productos"          element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo"  element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"        element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"            element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="*"                   element={<Navigate to="/rrhh/empleados" replace />} />
-      </Routes>
-    )
-  }
+  // Inicio según el rol: gerencia, consulta de ventas, registro de bodega o la primera pantalla que tenga
+  const inicio = rolEfectivo === 'ADMIN' ? <Layout><InicioGerencia /></Layout>
+    : rolEfectivo === 'CONSULTOR' ? <Layout><DashboardConsultor /></Layout>
+    : rolEfectivo === 'RRHH' && puede('rrhh') ? <Navigate to="/rrhh/empleados" replace />
+    : puede('movimientos') ? <Layout><DashboardLogistica /></Layout>
+    : primera ? <Navigate to={primera} replace />
+    : <Layout><SinModulos /></Layout>
 
-  // LOGISTICA
-  if (rolEfectivo === 'LOGISTICA') {
-    return (
-      <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
-        <Route path="/ordenes-compra"    element={<Layout><OrdenesCompra /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // OPERARIO
-  if (rolEfectivo === 'OPERARIO') {
-    return (
-      <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // ALMACENISTA
-  if (rolEfectivo === 'ALMACENISTA') {
-    return (
-      <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // JEFE_FUNDICION
-  if (rolEfectivo === 'JEFE_FUNDICION') {
-    return (
-      <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/transferencias"    element={<Layout><TransferenciasPendientes /></Layout>} />
-        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
-        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
-        <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
-        <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
-        <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
-        <Route path="/moldeo/nueva"      element={<Layout><CrearOrdenMoldeo /></Layout>} />
-        <Route path="/moldeo/catalogo"   element={<Layout><GestionBOM /></Layout>} />
-        <Route path="/recogida"          element={<Layout><RecogidaFundida /></Layout>} />
-        <Route path="/nomina/fundicion"  element={<Layout><InformeNomina /></Layout>} />
-        <Route path="/analitica/fundicion" element={<Layout><AnaliticaFundicion /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // JEFE_MECANIZADOS
-  if (rolEfectivo === 'JEFE_MECANIZADOS') {
-    return (
-      <Routes>
-        <Route path="/"                     element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"            element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/productos"            element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo"    element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"          element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"              element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/transferencias"       element={<Layout><TransferenciasPendientes /></Layout>} />
-        <Route path="/calidad"              element={<Layout><NoConformidades /></Layout>} />
-        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
-        <Route path="/mecanizados/registro" element={<Layout><RegistroMecanizado /></Layout>} />
-        <Route path="*"                     element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // JEFE_ENSAMBLE
-  if (rolEfectivo === 'JEFE_ENSAMBLE') {
-    return (
-      <Routes>
-        <Route path="/"                  element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/dashboard"         element={<Layout><DashboardLogistica /></Layout>} />
-        <Route path="/ensamble"          element={<Layout><OrdenesEnsamble /></Layout>} />
-        <Route path="/ensamble/recetas"  element={<Layout><RecetasEnsamble /></Layout>} />
-        <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-        <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimientoAlmacenista /></Layout>} />
-        <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-        <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-        <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
-        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
-        <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    )
-  }
-
-  // ADMIN (y cualquier otro)
   return (
     <Routes>
-      <Route path="/"                  element={<Layout><InicioGerencia /></Layout>} />
-      <Route path="/dashboard"         element={<Layout><InicioGerencia /></Layout>} />
-      <Route path="/productos"         element={<Layout><GestionProductos /></Layout>} />
-      <Route path="/movimientos/nuevo" element={<Layout><RegistrarMovimiento /></Layout>} />
-      <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
-      <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
-      <Route path="/ordenes-compra"    element={<Layout><OrdenesCompra /></Layout>} />
-      <Route path="/config"            element={<Layout><GestionConfig /></Layout>} />
-      <Route path="/mecanizados/paquetes" element={<Layout><GestionPaquetes /></Layout>} />
+      <Route path="/"          element={inicio} />
+      <Route path="/dashboard" element={inicio} />
       {/* Analítica quedó dentro del Inicio de gerencia (2026-10-28) */}
-      <Route path="/analitica"              element={<Navigate to="/dashboard" replace />} />
-      <Route path="/reportes"               element={<Layout><HubReportes /></Layout>} />
-      <Route path="/reportes/corte"         element={<Layout><CorteInventario /></Layout>} />
-      <Route path="/reportes/inventario-fisico" element={<Layout><InventarioFisico /></Layout>} />
-      <Route path="/reportes/kardex"        element={<Layout><InformeKardex /></Layout>} />
-      <Route path="/reportes/ventas-internas-fundicion" element={<Layout><InformeVentasInternasFundicion /></Layout>} />
-      <Route path="/reportes/balance-hierro" element={<Layout><InformeBalanceHierro /></Layout>} />
-      <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
-      <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
-      <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
-      <Route path="/moldeo/nueva"      element={<Layout><CrearOrdenMoldeo /></Layout>} />
-      <Route path="/moldeo/catalogo"   element={<Layout><GestionBOM /></Layout>} />
-      <Route path="/recogida"          element={<Layout><RecogidaFundida /></Layout>} />
-      <Route path="/nomina/fundicion"       element={<Layout><InformeNomina /></Layout>} />
-      <Route path="/analitica/fundicion"    element={<Layout><AnaliticaFundicion /></Layout>} />
-      <Route path="/mecanizados/registro"   element={<Layout><RegistroMecanizado /></Layout>} />
-      <Route path="/transferencias"         element={<Layout><TransferenciasPendientes /></Layout>} />
-      <Route path="/ensamble"               element={<Layout><OrdenesEnsamble /></Layout>} />
-      <Route path="/ensamble/recetas"       element={<Layout><RecetasEnsamble /></Layout>} />
-      <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
-      <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
-      <Route path="/of/nueva"              element={<Layout><NuevaOrdenOFConClave /></Layout>} />
-      <Route path="/of/ordenes"            element={<Layout><ListaOrdenesOF /></Layout>} />
-      <Route path="/of/resumen"            element={<Layout><ResumenPlaneacionOF /></Layout>} />
-      <Route path="/of/calendario"         element={<Layout><CalendarioOF /></Layout>} />
-      <Route path="/of/dashboard"          element={<Layout><DashboardOF /></Layout>} />
-      <Route path="/of/productos"          element={<Layout><ProductosOF /></Layout>} />
-      <Route path="/of/clientes"           element={<Layout><ClientesOF /></Layout>} />
-      {/* Costeo: por ahora solo ADMIN (este bloque también atiende roles sin bloque propio) */}
-      {rolEfectivo === 'ADMIN' && <Route path="/costeo"                element={<Layout><CosteoFichas /></Layout>} />}
-      {rolEfectivo === 'ADMIN' && <Route path="/costeo/fichas/:id"     element={<Layout><CosteoFicha /></Layout>} />}
-      {rolEfectivo === 'ADMIN' && <Route path="/costeo/etapas"         element={<Layout><EtapasMaestro /></Layout>} />}
-      {rolEfectivo === 'ADMIN' && <Route path="/costeo/cif"            element={<Layout><CifMaestro /></Layout>} />}
-      {rolEfectivo === 'ADMIN' && <Route path="/costeo/equipos"        element={<Layout><EquiposMaestro /></Layout>} />}
-      <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
-      <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
-      <Route path="/rrhh/organigrama"      element={<Layout><Organigrama /></Layout>} />
-      <Route path="/rrhh/organigrama/:id"  element={<Layout><FichaCargo /></Layout>} />
-      <Route path="/rrhh/novedades"        element={<Layout><Novedades /></Layout>} />
-      <Route path="/rrhh/calendario"       element={<Layout><Calendario /></Layout>} />
-      <Route path="/rrhh/nomina"                  element={<Layout><Nomina /></Layout>} />
-      <Route path="/rrhh/nomina/tarifas"          element={<Layout><TarifasDestajo /></Layout>} />
-      <Route path="/rrhh/nomina/:periodoId"       element={<Layout><PeriodoNomina /></Layout>} />
-      <Route path="/rrhh/nomina/:periodoId/:liqId" element={<Layout><LiquidacionPersona /></Layout>} />
-      <Route path="/rrhh/desempeno"                   element={<Layout><Desempeno /></Layout>} />
-      <Route path="/rrhh/desempeno/:cicloId"          element={<Layout><CicloDesempeno /></Layout>} />
-      <Route path="/rrhh/desempeno/:cicloId/:evalId"  element={<Layout><EvaluacionPersona /></Layout>} />
-      <Route path="*"                      element={<Navigate to="/dashboard" replace />} />
+      <Route path="/analitica" element={<Navigate to="/dashboard" replace />} />
+      {permitidos.flatMap(m => m.rutas).map(ruta => PANTALLAS[ruta] &&
+        <Route key={ruta} path={ruta} element={<Layout>{PANTALLAS[ruta]}</Layout>} />)}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
 
+// Rol sin ningún módulo asignado en Configuración › Permisos
+function SinModulos() {
+  return (
+    <div className="max-w-md mx-auto mt-16 bg-white border border-feisen-borde rounded-xl p-6 text-center">
+      <p className="font-semibold text-feisen-texto">Tu usuario todavía no tiene módulos asignados</p>
+      <p className="text-sm text-feisen-texto-2 mt-1">Pídele a la administración que le dé permisos a tu rol en Configuración › Permisos.</p>
+    </div>
+  )
+}
 
 export default function App() {
   return (

@@ -1,10 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
 import {
-  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame, User, Recycle
+  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame, User, Recycle,
+  Info, Loader2, X
 } from '../shared/iconos'
+import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
+
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+// Kilos con formato colombiano (solo para mostrar; lo que se guarda no cambia)
+const kg = (n, dec = 1) => Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+// El Contador es un campo de texto: se deja solo dígitos y punto (como hacía el input type="number")
+const soloNumero = v => String(v).replace(',', '.').replace(/[^0-9.]/g, '')
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
@@ -31,6 +39,16 @@ async function generarNumero(perfil, prefix) {
     .order('numero', { ascending: false }).limit(1).maybeSingle()
   const n = last?.numero ? parseInt(last.numero.replace(pre, ''), 10) || 0 : 0
   return `${pre}${String(n + 1).padStart(4, '0')}`
+}
+
+// Movimientos vigentes de un ítem con esa referencia exacta. Sirve para que reintentar una
+// recogida que falló a mitad no vuelva a crear los movimientos que sí alcanzaron a guardarse.
+async function movimientosDe(referencia, tipo, itemIds) {
+  const { data, error } = await supabase.from('movimientos')
+    .select('item_id').eq('referencia', referencia).eq('tipo', tipo)
+    .in('item_id', itemIds).eq('revertido', false)
+  if (error) throw error
+  return data || []
 }
 
 export default function RecogidaFundida() {
@@ -60,6 +78,12 @@ export default function RecogidaFundida() {
   const [vaceaderoKg,  setVaceaderoKg]  = useState({})
   // movimientos hierro/vaceadero de órdenes completadas: { [numOrden]: { hierro, vaceadero } }
   const [movsComp,     setMovsComp]     = useState({})
+  // fundidas cuyo hierro colado ya se descontó en una orden: { [fundidaId]: 'ORD-MOL-xxxx' }
+  const [fundidaUsada, setFundidaUsada] = useState({})
+
+  const [aviso, avisar] = useAviso()
+  const buscarRef = useRef(null)
+  useAtajoBuscar(buscarRef)
 
   useEffect(() => { cargar() }, [])
 
@@ -90,6 +114,21 @@ export default function RecogidaFundida() {
     setOrdenes(ords || [])
     setCompletadas(comps || [])
     setFundidas(funs || [])
+
+    // El hierro de una fundida se descuenta una sola vez: ver a qué orden ya se cargó cada una
+    // (referencia "ORD-MOL-xxxx · FUN-xxxx" de la salida de hierro colado)
+    if ((funs || []).length > 0) {
+      const { data: salHierro } = await supabase.from('movimientos')
+        .select('referencia')
+        .or(funs.map(f => `referencia.like.%${numFun(f.numero)}`).join(','))
+        .eq('item_id', HIERRO_COLADO_ITEM_ID).eq('tipo', 'salida').eq('revertido', false)
+      const usadas = {}
+      for (const m of (salHierro || [])) {
+        const f = funs.find(x => m.referencia?.endsWith(numFun(x.numero)))
+        if (f) usadas[f.id] = m.referencia.split('·')[0].trim()
+      }
+      setFundidaUsada(usadas)
+    }
 
     // Cargar movimientos de hierro colado y vaceadero para órdenes completadas
     const numRefs = (comps || []).map(o => numOrden(o.numero))
@@ -208,8 +247,16 @@ export default function RecogidaFundida() {
       return
     }
 
+    // El hierro de una fundida solo se descuenta una vez (si ya se cargó a otra orden, no se repite)
+    const usadaEn = fundidaUsada[fundidaSel[orden.id]]
+    if (fundidaSel[orden.id] && usadaEn && usadaEn !== numOrden(orden.numero)) {
+      setErrores(prev => ({ ...prev, [orden.id]: `El hierro de esa fundida ya se descontó en ${usadaEn}. Elige otra fundida o deja "Sin vincular".` }))
+      return
+    }
+
     setGuardando(orden.id)
     try {
+      const ref = numOrden(orden.numero)
       const ccFundicion = await nombreBodega(FUNDICION_BODEGA_ID, 'FUNDICIÓN') // nombre actual de la bodega
       // 1. Actualizar piezas con conformes/NC/motivo
       for (const p of piezas) {
@@ -228,9 +275,11 @@ export default function RecogidaFundida() {
         if (error) throw error
       }
 
-      // 2. Movimientos de entrada por piezas conformes
+      // 2. Movimientos de entrada por piezas conformes (se omite si un intento anterior ya la guardó)
       const piezasConformes = piezas.filter(p => Number(getField(orden.id, p.id, 'conforme') || 0) > 0)
-      if (piezasConformes.length > 0) {
+      const entradasPrevias = piezasConformes.length > 0
+        ? await movimientosDe(ref, 'entrada', piezasConformes.map(p => p.item_id)) : []
+      if (piezasConformes.length > 0 && entradasPrevias.length === 0) {
         const numero = await generarNumero(perfil, 'ENT')
         const { error: errMov } = await supabase.from('movimientos').insert(
           piezasConformes.map(p => ({
@@ -257,7 +306,18 @@ export default function RecogidaFundida() {
       const fundidaId = fundidaSel[orden.id]
       if (fundidaId) {
         const fundida = fundidas.find(f => f.id === fundidaId)
-        if (fundida?.hierro_colado > 0) {
+        // Revisión en la base (no solo en lo cargado): otra persona pudo vincularla mientras tanto
+        const { data: salidasFun, error: errFun } = fundida ? await supabase.from('movimientos')
+          .select('referencia').like('referencia', `%${numFun(fundida.numero)}`)
+          .eq('item_id', HIERRO_COLADO_ITEM_ID).eq('tipo', 'salida').eq('revertido', false)
+          : { data: [] }
+        if (errFun) throw errFun
+        const otraOrden = (salidasFun || []).find(m => !m.referencia?.startsWith(ref))
+        if (otraOrden) {
+          throw new Error(`el hierro de ${numFun(fundida.numero)} ya se descontó en ${otraOrden.referencia.split('·')[0].trim()}. Elige otra fundida o deja "Sin vincular"`)
+        }
+        const yaDescontado = (salidasFun || []).length > 0
+        if (fundida?.hierro_colado > 0 && !yaDescontado) {
           const numSal = await generarNumero(perfil, 'SAL')
           const { error: errHC } = await supabase.from('movimientos').insert({
             numero:                numSal,
@@ -287,7 +347,8 @@ export default function RecogidaFundida() {
         return s + nc * peso
       }, 0)
       const kgVacTotal = kgManual + kgNC
-      if (kgVacTotal > 0) {
+      const vacPrevio = kgVacTotal > 0 ? await movimientosDe(ref, 'entrada', [VACEADERO_ITEM_ID]) : []
+      if (kgVacTotal > 0 && vacPrevio.length === 0) {
         const numVac = await generarNumero(perfil, 'ENT')
         const { error: errVac } = await supabase.from('movimientos').insert({
           numero:                numVac,
@@ -315,13 +376,14 @@ export default function RecogidaFundida() {
       if (errOrd) throw errOrd
 
       setExitoOrden(orden.id)
+      avisar(`Recogida de ${numOrden(orden.numero)} registrada`)
       setTimeout(() => {
         setExitoOrden(null)
         setExpandido(null)
         cargar()
       }, 2500)
     } catch (e) {
-      setErrores(prev => ({ ...prev, [orden.id]: 'Error al guardar: ' + e.message }))
+      setErrores(prev => ({ ...prev, [orden.id]: `Error al guardar: ${e.message}. Puedes volver a intentar: lo que alcanzó a guardarse no se repite.` }))
     } finally {
       setGuardando(null)
     }
@@ -337,41 +399,46 @@ export default function RecogidaFundida() {
     )
   })
 
-  return (
-    <div className="max-w-3xl mx-auto p-4 pb-20">
+  const q = (tab === 'pendientes' ? busqueda : busquedaComp).trim()
 
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="bg-orange-100 p-2.5 rounded-xl">
-          <PackageCheck size={22} className="text-orange-600" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">Recogida de Fundida</h1>
-          <p className="text-xs text-gray-500">Registra conformes, NC y vincula la fundida para calcular la merma</p>
-        </div>
-      </div>
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      {aviso}
+
+      <EncabezadoPagina modulo="Fundición" titulo="Recogida de fundida"
+        subtitulo={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">Lo que salió de cada orden de moldeo · Bodega <ChipBodega>Fundición</ChipBodega></span>} />
 
       {/* Pestañas */}
-      <div className="flex gap-1 mb-4 bg-gray-100 rounded-xl p-1">
-        {[['pendientes', `Pendientes (${ordenes.length})`], ['completadas', `Completadas (${completadas.length})`]].map(([id, label]) => (
-          <button key={id} type="button"
-            onClick={() => { setTab(id); setBusqueda(''); setBusquedaComp('') }}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === id ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <Segmentado valor={tab}
+        onCambiar={id => { setTab(id); setBusqueda(''); setBusquedaComp('') }}
+        opciones={[
+          { valor: 'pendientes',  texto: `Por recoger · ${ordenes.length}`, icono: PackageCheck },
+          { valor: 'completadas', texto: `Completadas · ${completadas.length}`, icono: CheckCircle2 },
+        ]} />
 
       {/* Buscador */}
-      <div className="relative mb-4">
-        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        <input type="text"
+      <div className="relative">
+        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-feisen-texto-2 pointer-events-none" />
+        <input ref={buscarRef} type="text"
           value={tab === 'pendientes' ? busqueda : busquedaComp}
           onChange={e => tab === 'pendientes' ? setBusqueda(e.target.value) : setBusquedaComp(e.target.value)}
-          placeholder="Buscar por N°, fecha o pieza…"
-          className="w-full pl-10 pr-4 py-2.5 border border-feisen-borde rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
+          placeholder="Buscar orden, fecha o pieza"
+          className={claseInput + ' pl-10 pr-10 min-h-[44px]'}
         />
+        {q && (
+          <button type="button" aria-label="Borrar búsqueda"
+            onClick={() => tab === 'pendientes' ? setBusqueda('') : setBusquedaComp('')}
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 grid place-items-center text-feisen-texto-2 hover:text-feisen-texto">
+            <X size={16} />
+          </button>
+        )}
       </div>
+
+      {cargando && (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-feisen-texto-2">
+          <Loader2 size={18} className="animate-spin" /> Cargando órdenes…
+        </div>
+      )}
 
       {/* ── Vista Completadas ── */}
       {tab === 'completadas' && !cargando && (() => {
@@ -383,94 +450,92 @@ export default function RecogidaFundida() {
           (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q))
         )
         return filtComp.length === 0 ? (
-          <div className="text-center py-16">
-            <CheckCircle2 size={40} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400 font-medium">{q ? 'Sin resultados.' : 'No hay recogidas completadas.'}</p>
-          </div>
+          <Vacio icono={CheckCircle2}
+            titulo={q ? `Ninguna recogida coincide con "${busquedaComp.trim()}"` : 'Todavía no hay recogidas completadas'}
+            texto={q ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa o parte del nombre de la pieza.'
+              : 'Cuando registres la recogida de una orden en "Por recoger", aparecerá aquí con sus kilos y la merma.'} />
         ) : (
           <div className="space-y-3">
+            <p className="text-xs text-feisen-texto-2 tabular-nums">
+              {filtComp.length === completadas.length ? `Últimas ${completadas.length} órdenes completadas` : `Mostrando ${filtComp.length} de ${completadas.length}`}
+            </p>
             {filtComp.map(orden => {
               const piezas = orden.ordenes_moldeo_piezas || []
               const totalConf = piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
               const totalNC   = piezas.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
+              const hayAsignados = piezas.some(p => p.asignado_a)
+              // Agrupar por moldeador (si no hay asignados, un solo grupo sin título)
+              const grupos = {}
+              for (const p of piezas) {
+                const key = hayAsignados ? (p.asignado_a || 'Sin asignar') : ''
+                if (!grupos[key]) grupos[key] = []
+                grupos[key].push(p)
+              }
               return (
-                <div key={orden.id} className="bg-white rounded-2xl border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className="bg-green-100 text-green-700 font-bold text-sm px-3 py-1 rounded-lg font-mono">
-                        {numOrden(orden.numero)}
-                      </span>
-                      <span className="text-sm text-gray-500">{fmtFecha(orden.fecha)}</span>
+                <article key={orden.id} className="bg-white rounded-xl border border-feisen-borde">
+                  <header className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-feisen-texto font-mono text-sm">{numOrden(orden.numero)}</p>
+                      <p className="text-xs text-feisen-texto-2 tabular-nums">{fmtFecha(orden.fecha)}</p>
                     </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">
-                      ✓ Completada
+                    <span className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-fondo text-feisen-texto-2 border border-feisen-borde-suave">
+                      Completada
                     </span>
-                  </div>
-                  <div className="space-y-3">
-                    {(() => {
-                      const hayAsignados = piezas.some(p => p.asignado_a)
-                      if (!hayAsignados) {
-                        return piezas.map(p => (
-                          <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
-                            <span className="text-gray-700 font-medium truncate flex-1 mr-2">{p.items?.nombre}</span>
-                            <div className="flex gap-3 shrink-0 text-xs font-semibold">
-                              <span className="text-green-600">✓ {p.cantidad_conforme || 0}</span>
-                              {Number(p.cantidad_nc || 0) > 0 && <span className="text-feisen-rojo">✗ {p.cantidad_nc}</span>}
+                  </header>
+
+                  <div className="divide-y divide-feisen-borde-suave">
+                    {Object.entries(grupos).map(([persona, ps]) => {
+                      const subConf = ps.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
+                      const subNC   = ps.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
+                      const conPeso = ps.some(p => Number(p.items?.peso_unitario || 0) > 0)
+                      const subKg   = ps.reduce((s, p) => s + Number(p.cantidad_conforme || 0) * Number(p.items?.peso_unitario || 0), 0)
+                      return (
+                        <div key={persona || 'todos'} className="px-4 py-2">
+                          {hayAsignados && (
+                            <div className="flex items-center justify-between gap-2 py-1">
+                              <p className="text-sm font-semibold text-feisen-texto flex items-center gap-1.5 min-w-0">
+                                <User size={15} className="text-feisen-texto-2 shrink-0" /><span className="truncate">{persona}</span>
+                              </p>
+                              <p className="text-xs text-feisen-texto-2 tabular-nums text-right shrink-0">
+                                {subConf} conf{conPeso && <> · <span className="font-semibold text-feisen-texto">{kg(subKg, 1)} kg</span></>}{subNC > 0 && ` · ${subNC} NC`}
+                              </p>
                             </div>
-                          </div>
-                        ))
-                      }
-                      // Agrupar por moldeador
-                      const grupos = {}
-                      for (const p of piezas) {
-                        const key = p.asignado_a || 'Sin asignar'
-                        if (!grupos[key]) grupos[key] = []
-                        grupos[key].push(p)
-                      }
-                      return Object.entries(grupos).map(([persona, ps]) => (
-                        <div key={persona}>
-                          <p className="text-xs font-bold text-feisen-azul mb-1.5 px-1 flex items-center gap-1"><User size={13} />{persona}</p>
-                          <div className="space-y-1">
+                          )}
+                          <ul className="divide-y divide-feisen-borde-suave">
                             {ps.map(p => {
                               const conf = Number(p.cantidad_conforme || 0)
                               const nc   = Number(p.cantidad_nc || 0)
-                              const kg   = Number(p.items?.peso_unitario || 0)
-                              const kgTotal = conf * kg
+                              const peso = Number(p.items?.peso_unitario || 0)
                               return (
-                                <div key={p.id} className="flex items-center justify-between text-sm px-3 py-2 bg-gray-50 rounded-xl">
-                                  <div className="flex-1 mr-2 min-w-0">
-                                    <span className="text-gray-700 font-medium truncate block">{p.items?.nombre}</span>
-                                    {kg > 0 && <span className="text-xs text-orange-500">{kg} kg/ud</span>}
+                                <li key={p.id} className="flex items-start justify-between gap-3 py-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm text-feisen-texto truncate">{p.items?.nombre}</p>
+                                    {hayAsignados && peso > 0 && <p className="text-xs text-feisen-texto-2 tabular-nums">{kg(peso, 2)} kg/ud</p>}
                                   </div>
-                                  <div className="flex gap-3 shrink-0 text-xs font-semibold">
-                                    <span className="text-green-600">✓ {conf}{kg > 0 ? ` (${kgTotal.toFixed(1)} kg)` : ''}</span>
-                                    {nc > 0 && <span className="text-feisen-rojo">✗ {nc}</span>}
+                                  <div className="text-right shrink-0 tabular-nums">
+                                    <p className="text-sm font-semibold text-feisen-texto">{conf} <span className="font-normal text-feisen-texto-2 text-xs">conf</span></p>
+                                    {hayAsignados && peso > 0 && <p className="text-xs text-feisen-texto-2">{kg(conf * peso, 1)} kg</p>}
+                                    {nc > 0 && <p className="text-xs text-feisen-texto-2">{nc} NC</p>}
                                   </div>
-                                </div>
+                                </li>
                               )
                             })}
-                            <div className="flex gap-3 px-3 text-xs text-gray-400 font-medium">
-                              <span>Subtotal: <strong className="text-green-600">{ps.reduce((s,p) => s + Number(p.cantidad_conforme||0), 0)} conf</strong></span>
-                              {ps.some(p => Number(p.items?.peso_unitario||0) > 0) && (
-                                <strong className="text-orange-600">
-                                  {ps.reduce((s,p) => s + Number(p.cantidad_conforme||0) * Number(p.items?.peso_unitario||0), 0).toFixed(1)} kg
-                                </strong>
-                              )}
-                              {ps.some(p => Number(p.cantidad_nc||0) > 0) && (
-                                <span><strong className="text-feisen-rojo">{ps.reduce((s,p) => s + Number(p.cantidad_nc||0), 0)} NC</strong></span>
-                              )}
-                            </div>
-                          </div>
+                          </ul>
                         </div>
-                      ))
-                    })()}
+                      )
+                    })}
                   </div>
+
                   {(totalConf > 0 || totalNC > 0) && (
-                    <div className="flex gap-4 mt-3 pt-3 border-t border-gray-100 text-xs font-bold">
-                      <span className="text-green-600">Total conformes: {totalConf}</span>
-                      {totalNC > 0 && <span className="text-feisen-rojo">NC: {totalNC}</span>}
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-t border-feisen-borde-suave text-sm tabular-nums">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">Total</span>
+                      <span className="text-right">
+                        <span className="font-semibold text-feisen-texto">{totalConf} conformes</span>
+                        {totalNC > 0 && <span className="text-feisen-texto-2"> · {totalNC} NC</span>}
+                      </span>
                     </div>
                   )}
+
                   {/* Panel merma completada */}
                   {(() => {
                     const ref = numOrden(orden.numero)
@@ -483,88 +548,71 @@ export default function RecogidaFundida() {
                     const kgMerma  = kgHierro - kgPiezas - kgVaceadero
                     const pctMerma = kgHierro > 0 ? (kgMerma / kgHierro * 100) : 0
                     return (
-                      <div className="mt-3 pt-3 border-t border-orange-100 grid grid-cols-2 gap-2">
-                        <div className="bg-orange-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">Hierro colado</p>
-                          <p className="font-bold text-gray-800 text-sm">{kgHierro} kg</p>
-                        </div>
-                        <div className="bg-green-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">Piezas buenas</p>
-                          <p className="font-bold text-green-700 text-sm">{hayPesos ? `${kgPiezas.toFixed(1)} kg` : '—'}</p>
-                        </div>
-                        <div className="bg-yellow-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">Vaceadero</p>
-                          <p className="font-bold text-yellow-700 text-sm">{kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}</p>
-                        </div>
-                        <div className={`rounded-xl p-2 text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50' : 'bg-gray-50'}`}>
-                          <p className="text-xs text-gray-400">Merma real</p>
-                          <p className={`font-bold text-sm ${kgMerma > 0 && hayPesos ? 'text-feisen-rojo' : 'text-gray-400'}`}>
-                            {hayPesos && kgMerma > 0 ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)` : '—'}
-                          </p>
-                        </div>
+                      <div className="border-t border-feisen-borde-suave px-4 py-3">
+                        <BalanceKg
+                          hierro={`${kg(kgHierro, 1)} kg`}
+                          piezas={hayPesos ? `${kg(kgPiezas, 1)} kg` : '—'}
+                          vaceadero={`${kg(kgVaceadero, 2)} kg`}
+                          merma={hayPesos && kgMerma > 0 ? `${kg(kgMerma, 1)} kg` : '—'}
+                          mermaPct={hayPesos && kgMerma > 0 ? `${kg(pctMerma, 1)} % del hierro` : null} />
                       </div>
                     )
                   })()}
-                </div>
+                </article>
               )
             })}
           </div>
         )
       })()}
 
-      {tab === 'pendientes' && cargando ? (
-        <p className="text-center text-gray-400 py-16">Cargando…</p>
-      ) : tab === 'pendientes' && filtradas.length === 0 ? (
-        <div className="text-center py-16">
-          <PackageCheck size={40} className="text-gray-200 mx-auto mb-3" />
-          <p className="text-gray-400 font-medium">
-            {busqueda ? 'Sin resultados.' : 'No hay órdenes pendientes de recogida.'}
-          </p>
-          {!busqueda && <p className="text-xs text-gray-300 mt-1">Cuando se creen órdenes de moldeo aparecerán aquí.</p>}
-        </div>
-      ) : tab === 'pendientes' ? (
+      {/* ── Vista Por recoger ── */}
+      {tab === 'pendientes' && !cargando && filtradas.length === 0 && (
+        <Vacio icono={PackageCheck}
+          titulo={busqueda ? `Ninguna orden coincide con "${busqueda.trim()}"` : 'No hay órdenes por recoger'}
+          texto={busqueda ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa o parte del nombre de la pieza.'
+            : 'Las órdenes de moldeo pendientes aparecen aquí para registrar lo que salió del vaciado. Crea una orden de moldeo y vuelve después de la fundida.'} />
+      )}
+
+      {tab === 'pendientes' && !cargando && filtradas.length > 0 && (
         <div className="space-y-3">
           {filtradas.map(orden => {
             const piezas  = orden.ordenes_moldeo_piezas || []
             const avOrden = avancesRef[orden.id] || {}
             const totalMoldeado = piezas.reduce((s, p) => s + (avOrden[p.id] || 0), 0)
             const totalPlaneado = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
+            const abierta = expandido === orden.id
 
             return (
-              <div key={orden.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <article key={orden.id}
+                className={`bg-white rounded-xl border ${abierta ? 'border-feisen-azul/40' : 'border-feisen-borde'}`}>
 
                 {/* Fila resumen */}
-                <button type="button" onClick={() => toggle(orden)}
-                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors text-left">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <span className="bg-orange-100 text-orange-700 font-bold text-sm px-3 py-1 rounded-lg font-mono shrink-0">
-                      {numOrden(orden.numero)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800">{fmtFecha(orden.fecha)}</p>
-                      <p className="text-xs text-gray-500">
-                        {piezas.length} piezas · {totalPlaneado} planeadas
-                        {avancesRef[orden.id] && totalMoldeado > 0 && ` · ${totalMoldeado} moldeadas`}
-                      </p>
+                <button type="button" onClick={() => toggle(orden)} aria-expanded={abierta}
+                  className="w-full flex items-center gap-3 px-4 py-3 min-h-[64px] text-left rounded-xl hover:bg-feisen-fondo active:bg-feisen-fondo transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-feisen-texto font-mono text-sm">{numOrden(orden.numero)}</span>
+                      <span className="rounded-md px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">Por recoger</span>
                     </div>
+                    <p className="text-xs text-feisen-texto-2 mt-0.5 tabular-nums">
+                      {fmtFecha(orden.fecha)} · {piezas.length} {piezas.length === 1 ? 'pieza' : 'piezas'} · {totalPlaneado} planeadas
+                      {avancesRef[orden.id] && totalMoldeado > 0 && ` · ${totalMoldeado} moldeadas`}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700">
-                      Pendiente recogida
-                    </span>
-                    {expandido === orden.id
-                      ? <ChevronUp size={16} className="text-gray-400" />
-                      : <ChevronDown size={16} className="text-gray-400" />}
-                  </div>
+                  {abierta
+                    ? <ChevronUp size={18} className="text-feisen-texto-2 shrink-0" />
+                    : <ChevronDown size={18} className="text-feisen-texto-2 shrink-0" />}
                 </button>
 
                 {/* Éxito */}
                 {exitoOrden === orden.id && (
-                  <div className="border-t border-green-100 bg-green-50 px-5 py-6 flex flex-col items-center gap-3">
-                    <CheckCircle2 size={40} className="text-green-500" />
-                    <p className="text-sm font-bold text-green-700">¡Recogida registrada!</p>
-                    <p className="text-xs text-green-600 text-center">
-                      Las piezas conformes ingresaron al inventario de FUNDICIÓN
+                  <div className="border-t border-feisen-borde-suave px-4 py-6 flex flex-col items-center gap-2 text-center">
+                    <span className="w-11 h-11 rounded-full bg-emerald-50 grid place-items-center">
+                      <CheckCircle2 size={26} className="text-emerald-700" />
+                    </span>
+                    <p className="text-sm font-semibold text-feisen-texto">Recogida registrada</p>
+                    <p className="text-xs text-feisen-texto-2 max-w-sm">
+                      Las piezas conformes ingresaron al inventario de Fundición
                       {fundidaSel[orden.id] ? ' · se descontó el hierro colado' : ''}
                       {Number(vaceaderoKg[orden.id] || 0) > 0 ? ` · ${vaceaderoKg[orden.id]} kg de vaceadero registrados` : ''}.
                     </p>
@@ -572,295 +620,296 @@ export default function RecogidaFundida() {
                 )}
 
                 {/* Detalle expandido */}
-                {expandido === orden.id && exitoOrden !== orden.id && (
-                  <div className="border-t border-gray-100 bg-gray-50 px-5 py-5 space-y-4">
+                {abierta && exitoOrden !== orden.id && (() => {
+                  const kgVacManual = Number(vaceaderoKg[orden.id] || 0)
+                  const kgVacNC = piezas.reduce((s, p) => {
+                    const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
+                    const peso = Number(p.items?.peso_unitario || 0)
+                    return s + nc * peso
+                  }, 0)
+                  const kgVacTotal = kgVacManual + kgVacNC
+                  const totConf = piezas.reduce((s, p) => s + Number(getField(orden.id, p.id, 'conforme') || 0), 0)
+                  const totNC   = piezas.reduce((s, p) => s + Number(getField(orden.id, p.id, 'nc') || 0), 0)
+                  const conCantidad = piezas.some(p => Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0) > 0)
+                  const faltanAclarar = piezas.filter(p => {
+                    const plan = Number(p.cantidad_planeada || 0)
+                    const suma = Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0)
+                    return plan > 0 && suma < plan && String(getField(orden.id, p.id, 'faltante') || '').trim().length < 3
+                  }).length
 
-                    {/* ── Vincular fundida ── */}
-                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Flame size={15} className="text-orange-500 shrink-0" />
-                        <p className="text-xs font-bold text-orange-700">¿A qué fundida corresponde esta orden?</p>
-                      </div>
+                  return (
+                    <div className="border-t border-feisen-borde-suave px-3 sm:px-4 pt-4 pb-3 space-y-4">
 
-                      <select
-                        value={fundidaSel[orden.id] || ''}
-                        onChange={e => setFundidaSel(prev => ({ ...prev, [orden.id]: e.target.value }))}
-                        className="w-full border border-orange-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                      >
-                        <option value="">— Seleccionar (opcional) —</option>
-                        {fundidas.map(f => (
-                          <option key={f.id} value={f.id}>
-                            {numFun(f.numero)} · {fmtFecha(f.fecha)} · {f.hierro_colado} kg hierro colado
-                          </option>
-                        ))}
-                      </select>
-
-                      {/* Panel de merma */}
-                      {fundidaSel[orden.id] && (() => {
-                        const fundida   = fundidas.find(f => f.id === fundidaSel[orden.id])
-                        const kgEntrada = Number(fundida?.hierro_colado || 0)
-                        const kgPiezas  = calcKgPiezas(orden)
-                        const hayPesos  = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
-                        // Vaceadero = manual + piezas NC con peso
-                        const kgVacManual = Number(vaceaderoKg[orden.id] || 0)
-                        const kgVacNC = piezas.reduce((s, p) => {
+                      {/* ── Piezas ── */}
+                      <section className="space-y-2">
+                        <TituloSeccion titulo="Piezas" detalle={`${piezas.length} ${piezas.length === 1 ? 'pieza' : 'piezas'} · ${totalPlaneado} planeadas`} />
+                        {piezas.map(p => {
+                          const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
                           const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-                          const peso = Number(p.items?.peso_unitario || 0)
-                          return s + nc * peso
-                        }, 0)
-                        const kgVaceadero = kgVacManual + kgVacNC
-                        // Merma real = hierro - piezas buenas - vaceadero
-                        const kgMerma  = kgEntrada - kgPiezas - kgVaceadero
-                        const pctMerma = kgEntrada > 0 ? (kgMerma / kgEntrada * 100) : 0
-
-                        return (
-                          <div className="space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">Hierro colado</p>
-                                <p className="font-bold text-gray-800 text-sm">{kgEntrada} kg</p>
+                          const plan = Number(p.cantidad_planeada || 0)
+                          return (
+                            <div key={p.id} className="border border-feisen-borde rounded-xl p-3 space-y-3">
+                              {/* Encabezado pieza */}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-feisen-texto text-sm leading-snug">{p.items?.nombre}</p>
+                                  <p className="text-xs text-feisen-texto-2 mt-0.5">
+                                    {[p.asignado_a && `Moldeador: ${p.asignado_a}`, p.items?.peso_unitario && `${kg(Number(p.items.peso_unitario), 2)} kg/ud`].filter(Boolean).join(' · ')}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0 tabular-nums">
+                                  <p className="text-lg font-semibold text-feisen-texto leading-tight">{p.cantidad_planeada}</p>
+                                  <p className="text-[11px] uppercase tracking-wide text-feisen-texto-2">planeadas</p>
+                                  {avOrden[p.id] > 0 && (
+                                    <p className="text-xs text-feisen-azul font-medium mt-0.5">{avOrden[p.id]} moldeadas</p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">Piezas buenas</p>
-                                {hayPesos
-                                  ? <p className="font-bold text-green-700 text-sm">{kgPiezas.toFixed(1)} kg</p>
-                                  : <p className="text-xs text-gray-400 italic">sin peso unitario</p>
-                                }
-                              </div>
-                              <div className="bg-yellow-50 rounded-xl p-2.5 border border-yellow-200 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">Vaceadero</p>
-                                <p className="font-bold text-yellow-700 text-sm">
-                                  {kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}
-                                </p>
-                                {kgVacNC > 0 && kgVacManual > 0 && (
-                                  <p className="text-xs text-yellow-600">{kgVacNC.toFixed(2)} NC + {kgVacManual} manual</p>
-                                )}
-                              </div>
-                              <div className={`rounded-xl p-2.5 border text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50 border-red-200' : 'bg-white border-orange-100'}`}>
-                                <p className="text-xs text-gray-400 mb-0.5">Merma real</p>
-                                {hayPesos
-                                  ? <p className={`font-bold text-sm ${kgMerma > 0 ? 'text-feisen-rojo' : 'text-green-600'}`}>
-                                      {kgMerma > 0
-                                        ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)`
-                                        : '0 kg ✓'}
-                                    </p>
-                                  : <p className="text-xs text-gray-400 italic">—</p>
-                                }
-                              </div>
-                            </div>
-                            {hayPesos && kgEntrada > 0 && (
-                              <p className="text-xs text-gray-500 font-medium">
-                                Merma = hierro colado ({kgEntrada} kg) − piezas buenas ({kgPiezas.toFixed(1)} kg) − vaceadero ({kgVaceadero.toFixed(2)} kg)
-                              </p>
-                            )}
-                            <p className="text-xs text-orange-600 font-medium">
-                              ✓ Al guardar se descontarán <strong>{kgEntrada} kg</strong> de HIERRO COLADO del inventario de FUNDICIÓN.
-                            </p>
-                          </div>
-                        )
-                      })()}
-                    </div>
 
-                    {/* Referencia de avance */}
-                    {avancesRef[orden.id] && totalMoldeado > 0 && (
-                      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-                        <p className="text-xs font-bold text-feisen-azul mb-2">Referencia — avance registrado en moldeo</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {piezas.map(p => {
-                            const av = avOrden[p.id] || 0
-                            if (!av) return null
-                            return (
-                              <div key={p.id} className="flex justify-between items-center bg-white rounded-lg px-3 py-1.5 text-xs border border-blue-100">
-                                <span className="text-gray-600 truncate flex-1 mr-2">{p.items?.nombre}</span>
-                                <span className="font-bold text-feisen-azul shrink-0">{av} moldeadas</span>
+                              {/* Conformes / NC */}
+                              <div className="divide-y divide-feisen-borde-suave border-t border-feisen-borde-suave">
+                                <div className="flex items-center justify-between gap-3 pt-2 pb-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-feisen-texto">Conformes</p>
+                                    <p className="text-xs text-feisen-texto-2">Entran a Fundición</p>
+                                  </div>
+                                  <Contador etiqueta="Conformes" valor={getField(orden.id, p.id, 'conforme')}
+                                    onCambiar={v => {
+                                      const conf = soloNumero(v)
+                                      setField(orden.id, p.id, 'conforme', conf)
+                                      const plan = Number(p.cantidad_planeada || 0)
+                                      const ncAuto = Math.max(0, plan - Number(conf || 0))
+                                      if (plan > 0) setField(orden.id, p.id, 'nc', String(ncAuto))
+                                    }} />
+                                </div>
+                                <div className="flex items-center justify-between gap-3 pt-2">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-feisen-texto">No conformes</p>
+                                    <p className="text-xs text-feisen-texto-2">Su peso va al vaceadero</p>
+                                  </div>
+                                  <Contador etiqueta="No conformes" valor={getField(orden.id, p.id, 'nc')}
+                                    onCambiar={v => setField(orden.id, p.id, 'nc', soloNumero(v))} />
+                                </div>
                               </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
 
-                    {/* Error */}
-                    {errores[orden.id] && (
-                      <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">
-                        <AlertTriangle size={15} /> {errores[orden.id]}
-                      </div>
-                    )}
-
-                    {/* Formulario por pieza */}
-                    <div className="space-y-3">
-                      {piezas.map(p => (
-                        <div key={p.id} className="bg-white rounded-xl border border-gray-200 p-4">
-
-                          {/* Encabezado pieza */}
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <p className="font-semibold text-gray-800 text-sm">{p.items?.nombre}</p>
-                              {p.asignado_a && (
-                                <p className="text-xs text-gray-400 mt-0.5">Moldeador: {p.asignado_a}</p>
+                              {nc > 0 && (
+                                <label className="block space-y-1.5">
+                                  <span className="block text-sm font-medium text-feisen-texto">Razón de calidad <span className="font-normal text-feisen-texto-2">(opcional)</span></span>
+                                  <input type="text"
+                                    value={getField(orden.id, p.id, 'motivo')}
+                                    onChange={e => setField(orden.id, p.id, 'motivo', e.target.value)}
+                                    placeholder="Ej: porosidad, grieta…"
+                                    className={claseInput + ' min-h-[44px]'}
+                                  />
+                                </label>
                               )}
-                              {p.items?.peso_unitario && (
-                                <p className="text-xs text-orange-500 mt-0.5 font-medium">
-                                  {p.items.peso_unitario} kg/ud
+
+                              {/* Avisos: suma por encima o por debajo de lo planeado */}
+                              {plan > 0 && conf + nc > plan && (
+                                <p className="text-xs text-amber-700 flex items-start gap-1.5">
+                                  <AlertTriangle size={14} className="shrink-0 mt-px" />
+                                  <span>La suma ({conf + nc}) supera lo planeado ({plan}) en {conf + nc - plan}. Se puede guardar (piezas de otras fundidas).</span>
                                 </p>
                               )}
-                            </div>
-                            <div className="text-right shrink-0 ml-3">
-                              <span className="text-xs text-gray-400">Planeadas</span>
-                              <p className="font-bold text-gray-700 text-base leading-tight">{p.cantidad_planeada}</p>
-                              {avOrden[p.id] > 0 && (
-                                <p className="text-xs text-feisen-azul font-semibold mt-0.5">
-                                  {avOrden[p.id]} moldeadas
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Inputs conforme / NC / motivo */}
-                          <div className="grid grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-xs font-bold text-green-600 mb-1.5">✓ Conformes</label>
-                              <input type="number" min="0" step="1"
-                                value={getField(orden.id, p.id, 'conforme')}
-                                onChange={e => {
-                                  const conf = e.target.value
-                                  setField(orden.id, p.id, 'conforme', conf)
-                                  const plan = Number(p.cantidad_planeada || 0)
-                                  const ncAuto = Math.max(0, plan - Number(conf || 0))
-                                  if (plan > 0) setField(orden.id, p.id, 'nc', String(ncAuto))
-                                }}
-                                placeholder="0"
-                                className="w-full border-2 border-gray-200 rounded-xl px-2 py-2.5 text-center text-base font-bold focus:outline-none focus:border-green-400 focus:ring-0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-red-500 mb-1.5">✗ No conformes</label>
-                              <input type="number" min="0" step="1"
-                                value={getField(orden.id, p.id, 'nc')}
-                                onChange={e => setField(orden.id, p.id, 'nc', e.target.value)}
-                                placeholder="0"
-                                className="w-full border-2 border-gray-200 rounded-xl px-2 py-2.5 text-center text-base font-bold focus:outline-none focus:border-red-400 focus:ring-0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-gray-500 mb-1.5">Razón de calidad</label>
-                              <input type="text"
-                                value={getField(orden.id, p.id, 'motivo')}
-                                onChange={e => setField(orden.id, p.id, 'motivo', e.target.value)}
-                                placeholder="Ej: porosidad, grieta…"
-                                disabled={Number(getField(orden.id, p.id, 'nc') || 0) === 0}
-                                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-gray-400 focus:ring-0 disabled:opacity-40 disabled:bg-gray-50"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Avisos: suma por encima o por debajo de lo planeado */}
-                          {(() => {
-                            const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
-                            const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-                            const plan = Number(p.cantidad_planeada || 0)
-                            if (plan <= 0) return null
-                            if (conf + nc > plan) {
-                              return (
-                                <p className="text-xs text-orange-500 mt-2 font-medium flex items-center gap-1">
-                                  <AlertTriangle size={12} /> Aviso: la suma ({conf + nc}) supera lo planeado ({plan}) en {conf + nc - plan}. Se puede guardar (piezas de otras fundidas).
-                                </p>
-                              )
-                            }
-                            if (conf + nc < plan) {
-                              return (
-                                <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                                  <p className="text-xs text-amber-700 font-semibold flex items-center gap-1 mb-1.5">
-                                    <AlertTriangle size={12} /> No salió todo lo planeado: faltan {plan - conf - nc} de {plan}
+                              {plan > 0 && conf + nc < plan && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                                  <p className="text-xs text-amber-800 font-semibold flex items-start gap-1.5">
+                                    <AlertTriangle size={14} className="shrink-0 mt-px" />
+                                    <span>No salió todo lo planeado: faltan <span className="tabular-nums">{plan - conf - nc} de {plan}</span>. Explica por qué.</span>
                                   </p>
                                   <input type="text"
+                                    aria-label={`Aclaración del faltante de ${p.items?.nombre || 'la pieza'}`}
                                     value={getField(orden.id, p.id, 'faltante')}
                                     onChange={e => setField(orden.id, p.id, 'faltante', e.target.value)}
-                                    placeholder="Aclaración obligatoria. Ej: no se moldeó, se rompió el molde, falta arena…"
-                                    className="w-full border-2 border-amber-200 bg-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-400 focus:ring-0"
+                                    placeholder="Ej: no se moldeó, se rompió el molde, falta arena…"
+                                    className="w-full min-h-[44px] border border-amber-300 bg-white rounded-lg px-3 py-2 text-sm text-feisen-texto focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
                                   />
                                 </div>
-                              )
-                            }
-                            return null
-                          })()}
-                        </div>
-                      ))}
-                    </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </section>
 
-                    {/* ── Vaceadero ── */}
-                    {(() => {
-                      const kgManual = Number(vaceaderoKg[orden.id] || 0)
-                      const kgNC = piezas.reduce((s, p) => {
-                        const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-                        const peso = Number(p.items?.peso_unitario || 0)
-                        return s + nc * peso
-                      }, 0)
-                      const kgTotal = kgManual + kgNC
-                      return (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Recycle size={20} weight="duotone" className="text-yellow-700" />
-                            <p className="text-xs font-bold text-yellow-800">Vaceadero — entrada al inventario</p>
-                          </div>
-                          <input
-                            type="number" min="0" step="0.1"
-                            value={vaceaderoKg[orden.id] || ''}
-                            onChange={e => setVaceaderoKg(prev => ({ ...prev, [orden.id]: e.target.value }))}
-                            placeholder="Kg de vaceadero manual (opcional)"
-                            className="w-full border-2 border-yellow-300 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-yellow-500 bg-white"
-                          />
-                          {(kgNC > 0 || kgManual > 0) && (
-                            <div className="text-xs text-yellow-800 space-y-0.5">
-                              {kgNC > 0 && (
-                                <p>Piezas NC → <strong>{kgNC.toFixed(2)} kg</strong> (automático por peso unitario)</p>
+                      {/* ── Vincular fundida ── */}
+                      <section className="space-y-2">
+                        <TituloSeccion titulo="Fundida" detalle="Opcional" />
+                        <label className="block space-y-1.5">
+                          <span className="flex items-center gap-1.5 text-sm font-medium text-feisen-texto">
+                            <Flame size={16} className="text-feisen-texto-2" /> ¿De qué fundida salieron estas piezas?
+                          </span>
+                          <select
+                            value={fundidaSel[orden.id] || ''}
+                            onChange={e => setFundidaSel(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                            className={claseInput + ' min-h-[44px] text-sm'}
+                          >
+                            <option value="">Sin vincular (no descuenta hierro)</option>
+                            {fundidas.map(f => {
+                              const usada = fundidaUsada[f.id] && fundidaUsada[f.id] !== numOrden(orden.numero)
+                              return (
+                                <option key={f.id} value={f.id} disabled={usada}>
+                                  {numFun(f.numero)} · {fmtFecha(f.fecha)} · {usada ? `hierro ya descontado en ${fundidaUsada[f.id]}` : `${f.hierro_colado} kg hierro colado`}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </label>
+
+                        {/* Panel de merma */}
+                        {fundidaSel[orden.id] && (() => {
+                          const fundida   = fundidas.find(f => f.id === fundidaSel[orden.id])
+                          const kgEntrada = Number(fundida?.hierro_colado || 0)
+                          const kgPiezas  = calcKgPiezas(orden)
+                          const hayPesos  = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
+                          // Vaceadero = manual + piezas NC con peso
+                          const kgVaceadero = kgVacManual + kgVacNC
+                          // Merma real = hierro - piezas buenas - vaceadero
+                          const kgMerma  = kgEntrada - kgPiezas - kgVaceadero
+                          const pctMerma = kgEntrada > 0 ? (kgMerma / kgEntrada * 100) : 0
+
+                          return (
+                            <div className="space-y-2">
+                              <BalanceKg
+                                hierro={`${kg(kgEntrada, 1)} kg`}
+                                piezas={hayPesos ? `${kg(kgPiezas, 1)} kg` : 'Sin peso unitario'}
+                                vaceadero={`${kg(kgVaceadero, 2)} kg`}
+                                vaceaderoDetalle={kgVacNC > 0 && kgVacManual > 0 ? `${kg(kgVacNC, 2)} NC + ${kg(kgVacManual, 2)} manual` : null}
+                                merma={hayPesos ? (kgMerma > 0 ? `${kg(kgMerma, 1)} kg` : '0 kg') : '—'}
+                                mermaPct={hayPesos && kgMerma > 0 ? `${kg(pctMerma, 1)} % del hierro` : null} />
+                              {hayPesos && kgEntrada > 0 && (
+                                <p className="text-xs text-feisen-texto-2 tabular-nums">
+                                  Merma = hierro colado − piezas buenas − vaceadero
+                                </p>
                               )}
-                              {kgManual > 0 && (
-                                <p>Vaceadero manual → <strong>{kgManual} kg</strong></p>
-                              )}
-                              <p className="font-bold text-yellow-900 border-t border-yellow-200 pt-1 mt-1">
-                                Total VACEADERO a ingresar: {kgTotal.toFixed(2)} kg
+                              <p className="text-xs text-feisen-texto-2 flex items-start gap-1.5">
+                                <Info size={14} className="shrink-0 mt-px" />
+                                <span>Al guardar se descuentan <strong className="font-semibold text-feisen-texto tabular-nums">{kg(kgEntrada, 1)} kg</strong> de hierro colado del inventario de Fundición.</span>
                               </p>
                             </div>
-                          )}
-                        </div>
-                      )
-                    })()}
+                          )
+                        })()}
+                      </section>
 
-                    {/* Resumen antes de guardar */}
-                    {piezas.some(p => Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0) > 0) && (
-                      <div className="bg-gray-100 rounded-xl px-4 py-3 flex justify-between text-sm font-semibold">
-                        <span className="text-gray-500">Total a registrar</span>
-                        <div className="flex gap-4">
-                          <span className="text-green-600">
-                            ✓ {piezas.reduce((s,p) => s + Number(getField(orden.id, p.id, 'conforme') || 0), 0)} conformes
+                      {/* ── Vaceadero ── */}
+                      <section className="space-y-2">
+                        <TituloSeccion titulo="Vaceadero" detalle="Entra al inventario" />
+                        <label className="block space-y-1.5">
+                          <span className="flex items-center gap-1.5 text-sm font-medium text-feisen-texto">
+                            <Recycle size={16} className="text-feisen-texto-2" /> Kg recogidos aparte <span className="font-normal text-feisen-texto-2">(opcional)</span>
                           </span>
-                          <span className="text-red-500">
-                            ✗ {piezas.reduce((s,p) => s + Number(getField(orden.id, p.id, 'nc') || 0), 0)} NC
-                          </span>
+                          <div className="relative">
+                            <input
+                              type="number" min="0" step="0.1" inputMode="decimal"
+                              value={vaceaderoKg[orden.id] || ''}
+                              onChange={e => setVaceaderoKg(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                              placeholder="0"
+                              className={claseInput + ' min-h-[44px] pr-12 text-right font-semibold tabular-nums'}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-feisen-texto-2 pointer-events-none">kg</span>
+                          </div>
+                        </label>
+                        {(kgVacNC > 0 || kgVacManual > 0) && (
+                          <dl className="text-sm tabular-nums divide-y divide-feisen-borde-suave border border-feisen-borde-suave rounded-lg">
+                            {kgVacNC > 0 && (
+                              <div className="flex justify-between gap-3 px-3 py-2">
+                                <dt className="text-feisen-texto-2">Piezas NC <span className="text-xs">(por peso unitario)</span></dt>
+                                <dd className="text-feisen-texto">{kg(kgVacNC, 2)} kg</dd>
+                              </div>
+                            )}
+                            {kgVacManual > 0 && (
+                              <div className="flex justify-between gap-3 px-3 py-2">
+                                <dt className="text-feisen-texto-2">Recogido aparte</dt>
+                                <dd className="text-feisen-texto">{kg(kgVacManual, 2)} kg</dd>
+                              </div>
+                            )}
+                            <div className="flex justify-between gap-3 px-3 py-2 font-semibold">
+                              <dt className="text-feisen-texto">Total vaceadero</dt>
+                              <dd className="text-feisen-texto">{kg(kgVacTotal, 2)} kg</dd>
+                            </div>
+                          </dl>
+                        )}
+                      </section>
+
+                      {/* Error */}
+                      {errores[orden.id] && (
+                        <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-3 py-2.5 text-sm">
+                          <AlertTriangle size={16} className="shrink-0 mt-0.5" /> <span>{errores[orden.id]}</span>
+                        </div>
+                      )}
+
+                      {/* Guardar: fijo abajo en celular, con el resumen */}
+                      <div className="sticky bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-4 z-10">
+                        <div className="flex items-center gap-3 bg-white border border-feisen-borde rounded-xl shadow-sm pl-3 pr-2 py-2">
+                          <div className="flex-1 min-w-0 text-sm leading-tight">
+                            {conCantidad
+                              ? <p className="font-semibold text-feisen-texto tabular-nums">{totConf} conf · {totNC} NC</p>
+                              : <p className="font-semibold text-feisen-texto">Sin cantidades</p>}
+                            <p className={`text-xs truncate ${faltanAclarar ? 'text-amber-700' : 'text-feisen-texto-2'}`}>
+                              {faltanAclarar
+                                ? `${faltanAclarar} ${faltanAclarar === 1 ? 'pieza' : 'piezas'} sin aclarar faltante`
+                                : [fundidaSel[orden.id] && 'descuenta hierro', kgVacTotal > 0 && `${kg(kgVacTotal, 1)} kg vaceadero`].filter(Boolean).join(' · ') || 'Cierra la orden'}
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => guardarRecogida(orden)} disabled={guardando === orden.id}
+                            className="inline-flex items-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition">
+                            {guardando === orden.id
+                              ? <><Loader2 size={18} className="animate-spin" /> Registrando…</>
+                              : 'Registrar recogida'}
+                          </button>
                         </div>
                       </div>
-                    )}
 
-                    {/* Guardar */}
-                    <button onClick={() => guardarRecogida(orden)} disabled={guardando === orden.id}
-                      className="w-full flex items-center justify-center gap-2 bg-orange-500 text-white rounded-xl py-3.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-                      <CheckCircle2 size={16} />
-                      {guardando === orden.id ? 'Registrando…' : 'Registrar recogida y cerrar orden'}
-                    </button>
-                    <p className="text-xs text-gray-400 text-center -mt-1">
-                      Piezas conformes → inventario FUNDICIÓN
-                      {fundidaSel[orden.id] ? ' · hierro colado descontado' : ''}
-                      {Number(vaceaderoKg[orden.id] || 0) > 0 ? ' · vaceadero ingresado' : ''}.
-                    </p>
-
-                  </div>
-                )}
-              </div>
+                    </div>
+                  )
+                })()}
+              </article>
             )
           })}
         </div>
-      ) : null}
+      )}
+    </div>
+  )
+}
+
+// ── Piezas visuales de esta pantalla ────────────────────────────────────────
+function TituloSeccion({ titulo, detalle }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 px-1">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{titulo}</h3>
+      {detalle && <span className="text-xs text-feisen-texto-2 tabular-nums">{detalle}</span>}
+    </div>
+  )
+}
+
+// Balance de kilos de la fundida: hierro colado → piezas buenas + vaceadero + merma
+function BalanceKg({ hierro, piezas, vaceadero, vaceaderoDetalle, merma, mermaPct }) {
+  const filas = [
+    ['Hierro colado', hierro, null],
+    ['Piezas buenas', piezas, null],
+    ['Vaceadero', vaceadero, vaceaderoDetalle],
+    ['Merma real', merma, mermaPct],
+  ]
+  return (
+    <dl className="grid grid-cols-2 gap-px bg-feisen-borde-suave border border-feisen-borde-suave rounded-lg overflow-hidden">
+      {filas.map(([etq, valor, extra]) => (
+        <div key={etq} className="bg-white px-3 py-2 min-w-0">
+          <dt className="text-[11px] uppercase tracking-wide text-feisen-texto-2">{etq}</dt>
+          <dd className="text-right tabular-nums">
+            <span className="block text-base font-semibold text-feisen-texto">{valor}</span>
+            {extra && <span className="block text-xs text-feisen-texto-2">{extra}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function Vacio({ icono: Icono, titulo, texto }) {
+  return (
+    <div className="bg-white border border-feisen-borde rounded-xl px-6 py-12 text-center">
+      <Icono size={36} className="text-feisen-texto-2 mx-auto mb-3" />
+      <p className="font-semibold text-feisen-texto">{titulo}</p>
+      <p className="text-sm text-feisen-texto-2 mt-1 max-w-sm mx-auto">{texto}</p>
     </div>
   )
 }
