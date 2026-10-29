@@ -1791,3 +1791,4 @@ el avance se registra a diario y la orden se cierra a mano.
 - El "enlace para celular" de Tiempos reales ahora es `/costeo/fichas/<id>?tab=tiempos` del ERP.
 - **Pendiente** (Angie lo dejó para después): el permiso "solo registrar tiempos" para jefes de área (`profiles.acceso_tiempos`, `SoloTiemposApp`, funciones `costeo_tiempos_fichas/contexto`). Su SQL (`APP COSTEO/supabase/permiso_solo_tiempos.sql`) **nunca se aplicó**; `TiemposTab` ya trae el modo `soloRegistro` por si se retoma.
 - La app vieja de costeo quedó mostrando solo un aviso con el enlace al ERP (los enlaces viejos `?ficha=…&tab=…` llevan a la misma ficha).
+- **Aplicado 2026-10-29** (OK de Angie): `costeo_resumen` con `security_invoker = true` y sin permisos para `anon` (`supabase/migraciones/2026-10-29_costeo_resumen_security_invoker.sql`). Antes cualquiera con la llave pública podía leer costos y márgenes.
