@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -20,6 +20,7 @@ const MODULOS = {
   'Costeo':           Calculator,
   'Recursos Humanos': HardHat,
   'Calidad':          SealCheck,
+  'Mantenimiento':    Toolbox,
 }
 
 // Nombre corto en el menú para que no ocupe dos renglones (en las pantallas sigue el completo)
@@ -66,6 +67,7 @@ const NAV_ADMIN = [
   { to: '/rrhh/nomina',                       icon: Wallet,          label: 'Nómina',             modulo: 'Recursos Humanos' },
   { to: '/rrhh/desempeno',                    icon: Target,          label: 'Desempeño',          modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: SealCheck,     label: 'No conformidades',   modulo: 'Calidad' },
+  { to: '/mantenimiento',                     icon: Toolbox,       label: 'Equipos de planta',  modulo: 'Mantenimiento' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
 
@@ -95,6 +97,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/transferencias',                 icon: Swap,    label: 'Transferencias' },
   { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
+  { to: '/mantenimiento',                  icon: Toolbox,          label: 'Mantenimiento' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas',  grupo: 'Fundición' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo',    grupo: 'Fundición' },
   { to: '/recogida',                       icon: TrayArrowDown,     label: 'Recogida',  grupo: 'Fundición' },
@@ -108,6 +111,7 @@ const NAV_JEFE_MECANIZADOS = [
   { to: '/mecanizados/registro',           icon: Wrench,           label: 'Mecanizado' },
   { to: '/transferencias',                 icon: Swap,    label: 'Transferencias' },
   { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
+  { to: '/mantenimiento',                  icon: Toolbox,          label: 'Mantenimiento' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: History,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
@@ -123,6 +127,7 @@ const NAV_JEFE_ENSAMBLE = [
   { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
+  { to: '/mantenimiento',                  icon: Toolbox,          label: 'Mantenimiento' },
 ]
 
 const NAV_OPERARIO = [

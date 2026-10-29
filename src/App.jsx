@@ -60,6 +60,7 @@ import CicloDesempeno           from './components/rrhh/desempeno/CicloDesempeno
 import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPersona'
 import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
 import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
+import Mantenimiento            from './components/mantenimiento/Mantenimiento'
 
 // Al pasar de "Editar OF" (/of/nueva?editar=...) a "Nueva OF" React reutilizaba el formulario
 // con los datos de la OF editada; con la clave arranca limpio cada vez que cambia la OF.
@@ -192,6 +193,7 @@ function AppRoutes() {
         <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
         <Route path="/transferencias"    element={<Layout><TransferenciasPendientes /></Layout>} />
         <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
+        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
         <Route path="/fundidas"          element={<Layout><ListaFundidas /></Layout>} />
         <Route path="/fundidas/nueva"    element={<Layout><RegistrarFundida /></Layout>} />
         <Route path="/moldeo"            element={<Layout><ListaOrdenesMoldeo /></Layout>} />
@@ -217,6 +219,7 @@ function AppRoutes() {
         <Route path="/pedidos"              element={<Layout><ListaPedidos /></Layout>} />
         <Route path="/transferencias"       element={<Layout><TransferenciasPendientes /></Layout>} />
         <Route path="/calidad"              element={<Layout><NoConformidades /></Layout>} />
+        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
         <Route path="/mecanizados/registro" element={<Layout><RegistroMecanizado /></Layout>} />
         <Route path="*"                     element={<Navigate to="/dashboard" replace />} />
       </Routes>
@@ -236,6 +239,7 @@ function AppRoutes() {
         <Route path="/movimientos"       element={<Layout><Historial /></Layout>} />
         <Route path="/pedidos"           element={<Layout><ListaPedidos /></Layout>} />
         <Route path="/calidad"           element={<Layout><NoConformidades /></Layout>} />
+        <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
         <Route path="*"                  element={<Navigate to="/dashboard" replace />} />
       </Routes>
     )
@@ -274,6 +278,7 @@ function AppRoutes() {
       <Route path="/ensamble"               element={<Layout><OrdenesEnsamble /></Layout>} />
       <Route path="/ensamble/recetas"       element={<Layout><RecetasEnsamble /></Layout>} />
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
+      <Route path="/mantenimiento"         element={<Layout><Mantenimiento /></Layout>} />
       <Route path="/of/nueva"              element={<Layout><NuevaOrdenOFConClave /></Layout>} />
       <Route path="/of/ordenes"            element={<Layout><ListaOrdenesOF /></Layout>} />
       <Route path="/of/resumen"            element={<Layout><ResumenPlaneacionOF /></Layout>} />
