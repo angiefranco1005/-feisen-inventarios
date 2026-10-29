@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from 'lucide-react'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -37,6 +37,7 @@ export default function ListaEmpleados() {
   const [busqueda,     setBusqueda]     = useState('')
   const [filtroArea,   setFiltroArea]   = useState('')
   const [filtroEstado, setFiltroEstado] = useState('activo')
+  const [filtroVinculo, setFiltroVinculo] = useState('')
   const [modal,        setModal]        = useState(false)
   const [form,         setForm]         = useState(FORM_VACIO)
   const [guardando,    setGuardando]    = useState(false)
@@ -82,10 +83,11 @@ export default function ListaEmpleados() {
     return empleados.filter(e =>
       (!filtroEstado || e.estado === filtroEstado) &&
       (!filtroArea || e.area === filtroArea) &&
+      (!filtroVinculo || grupoVinculoDe(e.tipo_contrato) === filtroVinculo) &&
       (!q || nombreCompleto(e).toLowerCase().includes(q)
           || (e.numero_documento || '').includes(q)
           || (e.cargo || '').toLowerCase().includes(q)))
-  }, [empleados, busqueda, filtroArea, filtroEstado])
+  }, [empleados, busqueda, filtroArea, filtroEstado, filtroVinculo])
 
   function abrirNuevo() {
     setForm(FORM_VACIO); setFoto(null); setMsg(null); setModal(true)
@@ -250,6 +252,10 @@ export default function ListaEmpleados() {
         <select value={filtroArea} onChange={e => setFiltroArea(e.target.value)} className={`${E.input} sm:w-48`}>
           <option value="">Todas las áreas</option>
           {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select value={filtroVinculo} onChange={e => setFiltroVinculo(e.target.value)} className={`${E.input} sm:w-44`}>
+          <option value="">Toda vinculación</option>
+          {GRUPOS_VINCULO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
         </select>
         <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} className={`${E.input} sm:w-44`}>
           <option value="">Todos los estados</option>

@@ -31,6 +31,18 @@ export const TIPOS_CONTRATO = ['Indefinido', 'Término fijo', 'Contratista', 'Ap
 export const esAprendiz = (tipo) => (tipo || '').startsWith('Aprendiz SENA')
 export const tieneFechaFin = (tipo) => tipo === 'Término fijo' || esAprendiz(tipo)
 
+// Agrupación amplia para filtrar: planta (indefinido y término fijo), contratistas y aprendices
+export const GRUPOS_VINCULO = [
+  { value: 'planta',      label: 'De planta' },
+  { value: 'contratista', label: 'Contratistas' },
+  { value: 'aprendiz',    label: 'Aprendices SENA' },
+]
+export function grupoVinculoDe(tipo) {
+  if (tipo === 'Contratista') return 'contratista'
+  if (esAprendiz(tipo)) return 'aprendiz'
+  return ['Indefinido', 'Término fijo'].includes(tipo) ? 'planta' : null
+}
+
 // Solo para contratistas: cómo se les paga
 export const TIPOS_VINCULACION = [
   { value: 'destajo', label: 'Al destajo (por piezas)' },
