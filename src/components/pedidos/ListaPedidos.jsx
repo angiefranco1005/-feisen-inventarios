@@ -6,7 +6,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from 'lucide-react'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from '../shared/iconos'
 import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
@@ -23,21 +23,21 @@ const ESTADO_CONFIG = {
 }
 
 const PRIORIDAD_CONFIG = {
-  urgente:       { label: '🔴 Urgente',       color: 'bg-red-100 text-red-700 border border-red-200'     },
-  normal:        { label: '🔵 Normal',         color: 'bg-blue-50 text-blue-700 border border-blue-200'   },
-  puede_esperar: { label: '🟢 Puede esperar',  color: 'bg-green-50 text-green-700 border border-green-200' },
+  urgente:       { label: 'Urgente',       color: 'bg-red-100 text-red-700 border border-red-200'     },
+  normal:        { label: 'Normal',         color: 'bg-blue-50 text-blue-700 border border-blue-200'   },
+  puede_esperar: { label: 'Puede esperar',  color: 'bg-green-50 text-green-700 border border-green-200' },
 }
 
 const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
 
 const HISTORIAL_LABELS = {
-  creado:                  '✅ Pedido creado',
-  editado:                 '✏️ Pedido editado',
-  en_transito:             '🚚 Pasó a En camino',
-  oc_generada:             '🧾 Orden de compra generada',
-  recibido:                '📦 Recibido',
-  parcialmente_recibido:   '⚠️ Recibido parcialmente',
-  cerrado:                 '🔒 Pedido cerrado',
+  creado:                  'Pedido creado',
+  editado:                 'Pedido editado',
+  en_transito:             'Pasó a En camino',
+  oc_generada:             'Orden de compra generada',
+  recibido:                'Recibido',
+  parcialmente_recibido:   'Recibido parcialmente',
+  cerrado:                 'Pedido cerrado',
 }
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
@@ -864,7 +864,7 @@ export default function ListaPedidos() {
             numeroEntrada = numeroMov
             const filas = payloads.map(() => ({ numero: numeroMov, pedido_id: pedido.id, fecha_movimiento: fechaRecepcion || hoyCol(), created_at: new Date().toISOString() }))
             setEntradas(prev => [...filas, ...prev])
-            setMsg({ tipo: 'exito', texto: `✅ Recibido + entrada ${numeroMov} (${payloads.length} ${payloads.length === 1 ? 'ítem' : 'ítems'}) registrada automáticamente.` })
+            setMsg({ tipo: 'exito', texto: `Recibido + entrada ${numeroMov} (${payloads.length} ${payloads.length === 1 ? 'ítem' : 'ítems'}) registrada automáticamente.` })
           }
         } else {
           setMsg({ tipo: 'error', texto: 'Pedido recibido, pero los ítems no tienen producto vinculado al catálogo. Registra la entrada manualmente.' })
@@ -1055,7 +1055,7 @@ export default function ListaPedidos() {
   // llegaron completos ('recibido') como los cerrados manualmente por algún motivo
   // ('cerrado') — ya no hay una pestaña "Recibido" aparte. Dentro de "Completado" cada
   // tarjeta se distingue sola: pastilla verde "Recibido" vs. gris "Cerrado: <motivo>",
-  // más el aviso naranja "⚠️ Llegó incompleto" cuando se cerró sin que llegara todo.
+  // más el aviso naranja "Llegó incompleto" cuando se cerró sin que llegara todo.
   // Agrupar órdenes de compra por pedido, y sumar cuánta cantidad de cada línea del
   // pedido ya quedó cubierta por alguna orden (puede repartirse entre varias)
   const ocPorPedido = {}
@@ -1325,7 +1325,7 @@ export default function ListaPedidos() {
           <div className="space-y-4">
             {modalRecibido.pedido.estado === 'parcialmente_recibido' && (
               <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-xs text-orange-700">
-                ⚠️ Pedido incompleto. Ingresa lo que llegó <strong>en esta entrega</strong>.
+                Pedido incompleto. Ingresa lo que llegó <strong>en esta entrega</strong>.
               </div>
             )}
             <p className="text-sm text-gray-500">Ingresa la cantidad que llegó realmente de cada ítem.</p>
@@ -1551,7 +1551,7 @@ export default function ListaPedidos() {
               <button onClick={() => cerrarPedido(confirmCerrar, motivoCierre)}
                 disabled={!motivoCierre}
                 className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40">
-                🔒 Cerrar pedido
+                Cerrar pedido
               </button>
             </div>
           </div>

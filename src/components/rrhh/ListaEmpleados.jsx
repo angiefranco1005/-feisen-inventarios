@@ -5,7 +5,7 @@ import { siguienteNumero } from '../../utils/siguienteNumero'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from 'lucide-react'
+import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from '../shared/iconos'
 import * as E from './estilos'
 import {
   AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,

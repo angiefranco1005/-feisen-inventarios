@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, CheckCircle, AlertCircle } from '../shared/iconos'
 import logoFeisen from '../../assets/logo-feisen.png'
 
 export default function ResetPasswordPage() {

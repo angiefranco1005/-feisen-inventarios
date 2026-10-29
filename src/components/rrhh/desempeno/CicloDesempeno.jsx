@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase'
 import { exportarDesempeno } from '../../../utils/exportExcel'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
-import { ArrowLeft, Download, Lock, Unlock, ChevronRight, LayoutGrid, List, UserPlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Lock, Unlock, ChevronRight, LayoutGrid, List, UserPlus, Trash2 } from '../../shared/iconos'
 import * as E from '../estilos'
 import { nombreCompleto, iniciales, formatoFecha, urlsFirmadas, AREAS } from '../catalogosRRHH'
 import {

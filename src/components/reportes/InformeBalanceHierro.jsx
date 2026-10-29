@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { exportarBalanceHierro } from '../../utils/exportExcel'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import Alerta from '../shared/Alerta'
-import { Scale, Download, RefreshCw } from 'lucide-react'
+import { Scale, Download, RefreshCw } from '../shared/iconos'
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Informe: BALANCE DE HIERRO de Fundición (Fase 1).

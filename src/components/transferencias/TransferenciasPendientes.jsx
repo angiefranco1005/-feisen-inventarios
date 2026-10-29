@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'

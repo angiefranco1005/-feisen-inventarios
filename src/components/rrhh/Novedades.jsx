@@ -5,7 +5,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { exportarNovedades } from '../../utils/exportExcel'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
-import { Plus, Download, Paperclip, ChevronRight, CalendarClock, List, Users } from 'lucide-react'
+import { Plus, Download, Paperclip, ChevronRight, CalendarClock, List, Users } from '../shared/iconos'
 import * as E from './estilos'
 import ModalNovedad from './ModalNovedad'
 import {

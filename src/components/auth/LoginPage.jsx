@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { Eye, EyeOff, LogIn, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, LogIn, AlertCircle, CheckCircle, ArrowLeft } from '../shared/iconos'
 import logoFeisen from '../../assets/logo-feisen.png'
 
 export default function LoginPage() {

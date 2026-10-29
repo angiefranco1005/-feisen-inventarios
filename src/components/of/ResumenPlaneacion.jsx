@@ -6,7 +6,7 @@ import Alerta from './shared/Alerta'
 import Modal from './shared/Modal'
 import { pendienteProducir, disponibleDespacho, CENTRO_NOMBRE, formatoOF, formatFecha } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw } from '../shared/iconos'
 
 export default function ResumenPlaneacion() {
   const { esAdmin } = useAuth()

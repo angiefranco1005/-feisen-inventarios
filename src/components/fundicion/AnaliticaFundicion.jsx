@@ -5,7 +5,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import {
   BarChart2, Users, Package, Flame, AlertTriangle,
   RefreshCw, TrendingDown, Scale, Recycle,
-} from 'lucide-react'
+} from '../shared/iconos'
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
@@ -338,7 +338,7 @@ export default function AnaliticaFundicion() {
           {stats.totalHierro > 0 && (
             <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                🔥 Balance de hierro · período
+                Balance de hierro · período
               </p>
               {[
                 { label: 'Hierro fundido total', kg: stats.totalHierro,      color: 'bg-orange-400', ref: stats.totalHierro },

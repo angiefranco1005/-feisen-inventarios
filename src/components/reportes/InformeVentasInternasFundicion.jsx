@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { exportarVentasInternasFundicion } from '../../utils/exportExcel'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import Alerta from '../shared/Alerta'
-import { Flame, Download, RefreshCw } from 'lucide-react'
+import { Flame, Download, RefreshCw } from '../shared/iconos'
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Informe: "Ventas internas" de Fundición hacia el proceso productivo.

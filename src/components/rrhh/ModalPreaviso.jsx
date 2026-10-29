@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Paperclip, FileText, ExternalLink, X, AlertTriangle } from 'lucide-react'
+import { Paperclip, FileText, ExternalLink, X, AlertTriangle } from '../shared/iconos'
 import * as E from './estilos'
 import {
   BUCKET_RRHH, TIPO_DOC_PREAVISO, nombreCompleto, formatoFecha, hoyISO, preavisoDe, abrirArchivoRRHH,

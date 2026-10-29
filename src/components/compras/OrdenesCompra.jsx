@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
-import { FileText, Search, Download, Ban, RotateCcw } from 'lucide-react'
+import { FileText, Search, Download, Ban, RotateCcw } from '../shared/iconos'
 
 function normalizar(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')

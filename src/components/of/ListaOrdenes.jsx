@@ -10,7 +10,7 @@ import ModalReversarFabricacion from './ModalReversarFabricacion'
 import ModalReversarEntrega from './ModalReversarEntrega'
 import ModalEntrega from './ModalEntrega'
 import ModalDetalleOF from './ModalDetalleOF'
-import { Edit2, Ban, RotateCcw, RefreshCw, MapPin, Truck, CheckCircle2, LayoutGrid, Rows3 } from 'lucide-react'
+import { Edit2, Ban, RotateCcw, RefreshCw, MapPin, Truck, CheckCircle2, LayoutGrid, Rows3 } from '../shared/iconos'
 import {
   formatoOF, formatFecha, CENTRO_NOMBRE, estadoClase, estadoTexto, ESTADO_BADGE_CLASE,
   pendienteProducir, disponibleDespacho, ofTotalmenteDespachada, nombreTransporte, estadoOF, alertaPromesa

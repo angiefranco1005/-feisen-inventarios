@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
-import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
+import { ClipboardList, CheckCircle2, Plus, Trash2, ArrowLeft, ChevronDown, ChevronUp } from '../shared/iconos'
 
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -619,7 +619,7 @@ export default function CrearOrdenMoldeo() {
 
           <button onClick={handleGuardar} disabled={guardando || piezas.length === 0}
             className="w-full bg-feisen-rojo text-white rounded-xl py-3.5 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity">
-            {guardando ? 'Guardando…' : '💾 Guardar orden de moldeo'}
+            {guardando ? 'Guardando…' : 'Guardar orden de moldeo'}
           </button>
         </div>
       )}

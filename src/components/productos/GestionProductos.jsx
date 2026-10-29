@@ -7,7 +7,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
-import { Plus, Search, Package, AlertTriangle, Upload, RefreshCw, Download, Wrench, ArrowUpDown, X } from 'lucide-react'
+import { Plus, Search, Package, AlertTriangle, Upload, RefreshCw, Download, Wrench, ArrowUpDown, X } from '../shared/iconos'
 import { exportarInventarioActual } from '../../utils/exportExcel'
 import { coincideBusqueda } from '../../utils/busqueda'
 import DetalleProducto, { ESTADOS, colorNivel } from './DetalleProducto'
@@ -306,7 +306,7 @@ export default function GestionProductos() {
 
     setModalMecanizar(false)
     setGuardandoMec(false)
-    setMsg({ tipo: 'exito', texto: `✅ ${cantidad} und mecanizadas correctamente.` })
+    setMsg({ tipo: 'exito', texto: `${cantidad} und mecanizadas correctamente.` })
     cargar()
   }
 

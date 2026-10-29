@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
-import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Factory } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Factory } from '../shared/iconos'
 
 // ── Input editable inline ─────────────────────────────────────────────────────
 function InlineEdit({ valor, onGuardar, className = '' }) {

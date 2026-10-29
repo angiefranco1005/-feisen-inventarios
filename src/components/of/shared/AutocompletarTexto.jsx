@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search } from '../../shared/iconos'
 
 // Input de texto libre con sugerencias filtradas (autocompletar).
 // A diferencia de SelectBuscable, aquí SÍ se puede escribir un valor nuevo

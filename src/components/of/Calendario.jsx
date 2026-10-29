@@ -5,7 +5,7 @@ import Spinner from '../shared/Spinner'
 import ModalDetalleOF from './ModalDetalleOF'
 import { formatoOF, formatFecha, nombreTransporte, ofTotalmenteDespachada, hoyISO } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Info, Truck } from '../shared/iconos'
 
 const NOMBRES_MES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 const NOMBRES_DIA_LARGO = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"]
@@ -142,7 +142,7 @@ export default function Calendario() {
       </div>
 
       {permitirMover && (
-        <p className="text-xs text-feisen-gris-medio -mt-3">💡 Puedes arrastrar una OF a otro día en las vistas de semana o mes para cambiar su fecha de entrega.</p>
+        <p className="text-xs text-feisen-gris-medio -mt-3 flex items-center gap-1.5"><Info size={14} className="shrink-0" /> Puedes arrastrar una OF a otro día en las vistas de semana o mes para cambiar su fecha de entrega.</p>
       )}
 
       {vista === 'dia' && (
@@ -191,7 +191,7 @@ function TarjetaCalendario({ orden, onClick, mini, ocultarCliente, mostrarTransp
       {items.map(it => (
         <p key={it.id} className="opacity-90 truncate">{it.producto} × {it.cantidad}</p>
       ))}
-      {mostrarTransporte && <p className="opacity-85 italic truncate">🚚 {nombreTransporte(orden)}</p>}
+      {mostrarTransporte && <p className="opacity-85 italic truncate flex items-center gap-1"><Truck size={12} className="shrink-0" />{nombreTransporte(orden)}</p>}
     </button>
   )
 }

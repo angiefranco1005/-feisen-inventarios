@@ -10,7 +10,7 @@ import { siguienteNumero } from '../../utils/siguienteNumero'
 import { useBodegasConsulta } from '../consultor/useBodegasConsulta'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
-import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, Pencil, Plus, CalendarDays, MoreHorizontal, FileText, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { Search, ArrowUpDown, RotateCcw, Trash2, RefreshCw, X, Pencil, Plus, CalendarDays, MoreHorizontal, FileText, ArrowDownLeft, ArrowUpRight } from '../shared/iconos'
 
 // Devuelve los ajustes de stock que corresponden a un movimiento, con el
 // mismo criterio que usa el trigger fn_actualizar_stock en la base de datos
@@ -363,7 +363,7 @@ export default function Historial() {
     await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
 
     if (fallosStock.length > 0) {
-      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se editó, pero el stock no se pudo ajustar automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
+      setMsg({ tipo: 'error', texto: `El movimiento se editó, pero el stock no se pudo ajustar automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
     } else if (cambiaProducto) {
       // Una transferencia tiene su otro lado en la bodega destino/origen, con su propio
       // renglón de catálogo: ese no se cambia solo, hay que editarlo también.
@@ -480,7 +480,7 @@ export default function Historial() {
 
     setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
     if (fallosStock.length > 0) {
-      setMsg({ tipo: 'error', texto: `⚠️ El movimiento se eliminó, pero: ${fallosStock.join('; ')}.` })
+      setMsg({ tipo: 'error', texto: `El movimiento se eliminó, pero: ${fallosStock.join('; ')}.` })
     } else {
       setMsg({ tipo: 'exito', texto: `${m.items?.nombre || 'Producto'} eliminado de ${m.numero || 'el movimiento'}` })
     }

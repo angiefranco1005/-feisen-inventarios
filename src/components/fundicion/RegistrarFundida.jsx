@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
-import { Flame, Plus, X, CheckCircle2 } from 'lucide-react'
+import { Flame, Plus, X, CheckCircle2 } from '../shared/iconos'
 
 const FUND_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
 
@@ -297,7 +297,7 @@ export default function RegistrarFundida() {
           onClick={limpiar}
           className="bg-feisen-rojo text-white rounded-xl px-8 py-3 text-sm font-semibold hover:opacity-90 transition-opacity"
         >
-          🔥 Registrar otra fundida
+          Registrar otra fundida
         </button>
       </div>
     )
@@ -433,7 +433,7 @@ export default function RegistrarFundida() {
           disabled={guardando}
           className="w-full bg-feisen-rojo text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity"
         >
-          {guardando ? 'Registrando…' : '🔥 Registrar fundida'}
+          {guardando ? 'Registrando…' : 'Registrar fundida'}
         </button>
       </form>
     </div>

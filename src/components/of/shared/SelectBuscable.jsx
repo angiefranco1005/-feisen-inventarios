@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Search } from 'lucide-react'
+import { ChevronDown, Search } from '../../shared/iconos'
 
 // Combobox con filtro de texto: escribes y filtra la lista de opciones.
 // opciones: array de strings. value/onChange: string seleccionado.

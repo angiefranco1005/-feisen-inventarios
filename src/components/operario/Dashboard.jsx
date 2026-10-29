@@ -4,7 +4,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFechaHora, CENTROS_COSTO } from '../../utils/formatters'
 import Alerta from '../shared/Alerta'
-import { CheckCircle, Search, LogOut, Trash2, Package } from 'lucide-react'
+import { CheckCircle, Search, LogOut, Trash2, Package, ClipboardList, ShoppingCart } from '../shared/iconos'
 
 const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto']
 
@@ -142,19 +142,19 @@ export default function DashboardOperario() {
         <div className="px-5 -mt-5 space-y-4 flex-1">
           <button onClick={() => setVista('salida')}
             className="w-full bg-feisen-rojo text-white rounded-2xl py-7 text-xl font-bold shadow-lg hover:opacity-90 transition-opacity flex flex-col items-center gap-2">
-            <span className="text-4xl">📦</span>
+            <Package size={40} weight="duotone" />
             Registrar salida de material
           </button>
 
           <button onClick={irAHistorial}
             className="w-full bg-white text-feisen-azul rounded-2xl py-7 text-xl font-bold shadow-lg hover:bg-feisen-gris transition-colors flex flex-col items-center gap-2 border border-gray-200">
-            <span className="text-4xl">📋</span>
+            <ClipboardList size={40} weight="duotone" />
             Ver mi historial
           </button>
 
           <button onClick={() => setVista('pedido')}
             className="w-full bg-feisen-azul text-white rounded-2xl py-7 text-xl font-bold shadow-lg hover:opacity-90 transition-opacity flex flex-col items-center gap-2">
-            <span className="text-4xl">🛒</span>
+            <ShoppingCart size={40} weight="duotone" />
             Pedir materia prima
           </button>
         </div>
@@ -247,7 +247,7 @@ export default function DashboardOperario() {
 
               <button type="submit" disabled={guardandoPedido}
                 className="w-full bg-feisen-azul text-white rounded-2xl py-5 text-xl font-bold shadow-lg hover:opacity-90 transition-opacity disabled:opacity-60">
-                {guardandoPedido ? 'Enviando...' : '📨 Enviar pedido'}
+                {guardandoPedido ? 'Enviando...' : 'Enviar pedido'}
               </button>
             </form>
           )}
@@ -269,7 +269,7 @@ export default function DashboardOperario() {
             <div className="text-center py-10 text-feisen-gris-medio">Cargando...</div>
           ) : historial.length === 0 ? (
             <div className="text-center py-10 text-feisen-gris-medio">
-              <p className="text-4xl mb-3">📋</p>
+              <ClipboardList size={40} weight="duotone" className="mx-auto mb-3" />
               <p>No tienes movimientos registrados aún.</p>
             </div>
           ) : historial.map(m => (

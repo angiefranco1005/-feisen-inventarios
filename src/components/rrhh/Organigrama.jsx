@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Network, ListTree, AlertTriangle, ChevronRight } from 'lucide-react'
+import { Plus, Network, ListTree, AlertTriangle, ChevronRight } from '../shared/iconos'
 import * as E from './estilos'
 import { AREAS, nombreCompleto, iniciales, urlsFirmadas, hijosPorPadre } from './catalogosRRHH'
 

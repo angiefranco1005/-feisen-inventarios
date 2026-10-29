@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { FileSpreadsheet, Download, Eye, History, RefreshCw } from 'lucide-react'
+import { FileSpreadsheet, Download, Eye, History, RefreshCw } from '../shared/iconos'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -395,7 +395,7 @@ export default function InformeNomina() {
                       <th className="text-center px-2 py-3">✓ Conf.</th>
                       <th className="text-center px-2 py-3">✗ NC</th>
                       <th className="text-center px-2 py-3">%</th>
-                      <th className="text-center px-2 py-3">🔥 Fund.</th>
+                      <th className="text-center px-2 py-3">Fund.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">

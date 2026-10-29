@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X } from '../../shared/iconos'
 
 export default function Modal({ titulo, onCerrar, children, ancho = 'sm:max-w-lg' }) {
   return (

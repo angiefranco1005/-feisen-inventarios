@@ -1,6 +1,7 @@
 import Modal from './shared/Modal'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatoOF, formatFecha, estadoTexto, estadoClase, ESTADO_BADGE_CLASE, TRANSPORTE_NOMBRE, nombreTransporte } from './shared/formatters'
+import { Paperclip } from '../shared/iconos'
 
 export default function ModalDetalleOF({ orden, onCerrar }) {
   const { esAdmin, esJefeArea, esLogistica, centroCosto } = useAuth()
@@ -31,7 +32,7 @@ export default function ModalDetalleOF({ orden, onCerrar }) {
             <p className="text-feisen-gris-medio">{TRANSPORTE_NOMBRE[orden.transporte] || orden.transporte}{orden.nombre_transportadora ? ' — ' + orden.nombre_transportadora : ''}</p>
             {orden.archivo_oc_url && (
               <a href={orden.archivo_oc_url} target="_blank" rel="noreferrer" className="text-feisen-azul inline-block mt-1">
-                📎 {orden.archivo_oc_nombre || 'Orden de compra adjunta'}
+                <Paperclip size={14} className="inline -mt-0.5 mr-1" />{orden.archivo_oc_nombre || 'Orden de compra adjunta'}
               </a>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { X } from './iconos'
 
 export default function Modal({ titulo, onCerrar, children }) {
   return (

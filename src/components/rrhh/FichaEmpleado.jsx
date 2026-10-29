@@ -8,7 +8,7 @@ import {
   ArrowLeft, Camera, Pencil, User, Briefcase, HeartPulse, Wallet, FolderOpen,
   Upload, FileText, Trash2, ExternalLink, Mail, Smartphone, CalendarDays, AlertTriangle,
   MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock, Target,
-} from 'lucide-react'
+} from '../shared/iconos'
 import {
   BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, esAprendiz, tieneFechaFin, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,

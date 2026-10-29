@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFecha, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, MoveRight, PackagePlus } from 'lucide-react'
+import { ArrowUpDown, MoveRight, PackagePlus } from '../shared/iconos'
 
 export default function DashboardJefeArea() {
   const { perfil } = useAuth()

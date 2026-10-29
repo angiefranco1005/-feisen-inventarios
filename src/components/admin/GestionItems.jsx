@@ -6,7 +6,7 @@ import { formatCOP, formatNumero, UNIDADES_MEDIDA } from '../../utils/formatters
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Upload, AlertTriangle, Package, Trash2 } from 'lucide-react'
+import { Plus, Search, Edit2, ToggleLeft, ToggleRight, Upload, AlertTriangle, Package, Trash2 } from '../shared/iconos'
 
 export default function GestionItems() {
   const { perfil } = useAuth()

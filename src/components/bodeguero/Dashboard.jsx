@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { formatNumero, formatFecha, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import { Link } from 'react-router-dom'
-import { Plus, Package, ArrowUpDown, AlertTriangle } from 'lucide-react'
+import { Plus, Package, ArrowUpDown, AlertTriangle } from '../shared/iconos'
 
 export default function DashboardBodeguero() {
   const { perfil } = useAuth()

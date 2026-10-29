@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Paperclip, FileText, ExternalLink, Trash2, X, AlertTriangle } from 'lucide-react'
+import { Paperclip, FileText, ExternalLink, Trash2, X, AlertTriangle } from '../shared/iconos'
 import * as E from './estilos'
 import {
   BUCKET_RRHH, TIPOS_NOVEDAD, nombreCompleto, formatoFecha, hoyISO,

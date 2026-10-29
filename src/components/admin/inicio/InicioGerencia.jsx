@@ -4,7 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext'
 import Spinner from '../../shared/Spinner'
 import { TIPOS_NOVEDAD } from '../../rrhh/catalogosRRHH'
 import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses } from './datosInicio'
-import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw } from 'lucide-react'
+import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw } from '../../shared/iconos'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica. Arriba lo que requiere
 // decisión, luego Inventarios (valor, pareto, rotación) y una tarjeta por módulo.
@@ -38,7 +38,7 @@ function Tarjeta({ icono: Icono, titulo, estado, enlace, onIr, children }) {
   return (
     <article className="bg-white border border-feisen-borde rounded-xl flex flex-col min-w-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-feisen-borde-suave">
-        <Icono size={16} className="text-gray-400" />
+        <Icono size={18} weight="duotone" className="text-feisen-azul" />
         <h3 className="text-sm font-semibold text-feisen-texto flex-1">{titulo}</h3>
         {estado}
       </div>

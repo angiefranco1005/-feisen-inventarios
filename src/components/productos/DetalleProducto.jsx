@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { cargarConsumo, minimoSugerido, DIAS_CONSUMO } from '../../utils/consumo'
-import { X, ArrowUpDown, Edit2, ToggleLeft, ToggleRight, Trash2, Package } from 'lucide-react'
+import { X, ArrowUpDown, Edit2, ToggleLeft, ToggleRight, Trash2, Package } from '../shared/iconos'
 
 const cop  = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CO')
 const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })

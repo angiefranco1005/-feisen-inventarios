@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
-import { FileDown, Loader2 } from 'lucide-react'
+import { FileDown, Loader2 } from '../shared/iconos'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 
 const fmtCOP = n => '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

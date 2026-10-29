@@ -5,7 +5,7 @@
 // { k, label, tipo?, req?, full?, opciones?, visible?, extra?, nota?, mostrar?, columnas? }.
 // `ctx` lleva datos que algunos campos necesitan (listas para selects, jefe…);
 // `opciones` puede ser una función de ctx para selects dinámicos.
-import { Pencil, Plus, X } from 'lucide-react'
+import { Pencil, Plus, X } from '../shared/iconos'
 import Alerta from '../shared/Alerta'
 import * as E from './estilos'
 import { nombreCompleto, formatoFecha, formatoPesos } from './catalogosRRHH'

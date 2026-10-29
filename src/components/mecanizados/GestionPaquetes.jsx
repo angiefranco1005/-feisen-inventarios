@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Boxes } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Boxes } from '../shared/iconos'
 import { BODEGA_MECANIZADOS_ID, BODEGA_ALMACEN_ID, CAT_PRODUCTO_MECANIZADO_ID } from '../../utils/bodegasCatalogo'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'

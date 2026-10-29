@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { PenLine } from 'lucide-react'
+import { PenLine } from './iconos'
 
 export default function FirmaCanvas({ onFirma, firmaDataUrl, label = 'Firma del responsable' }) {
   const canvasRef   = useRef(null)

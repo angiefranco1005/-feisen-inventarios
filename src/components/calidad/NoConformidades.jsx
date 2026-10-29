@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { ShieldAlert, Plus, RefreshCw, ChevronRight, Check, X, Search } from 'lucide-react'
+import { ShieldAlert, Plus, RefreshCw, ChevronRight, Check, X, Search, User, AlertTriangle } from '../shared/iconos'
 
 const TIPOS_DEFECTO = [
   'Porosidad',
@@ -20,10 +20,10 @@ const TIPOS_DEFECTO = [
 ]
 
 const DESTINOS = [
-  { value: 'vaceadero', label: '🔥 Vaceadero (refundir)' },
-  { value: 'reproceso', label: '🔧 Reproceso' },
-  { value: 'aprobado',  label: '✅ Aprobado con observación' },
-  { value: 'otro',      label: '📦 Otro' },
+  { value: 'vaceadero', label: 'Vaceadero (refundir)' },
+  { value: 'reproceso', label: 'Reproceso' },
+  { value: 'aprobado',  label: 'Aprobado con observación' },
+  { value: 'otro',      label: 'Otro' },
 ]
 
 const ESTADO_CONFIG = {
@@ -258,7 +258,7 @@ export default function NoConformidades() {
                   <span className="text-xs text-gray-400 hidden sm:block shrink-0 max-w-36 truncate">{nc.tipo_defecto}</span>
                 )}
                 {nc.moldeador && (
-                  <span className="text-xs text-orange-500 font-medium hidden md:block shrink-0">👤 {nc.moldeador}</span>
+                  <span className="text-xs text-orange-500 font-medium hidden md:flex items-center gap-1 shrink-0"><User size={13} />{nc.moldeador}</span>
                 )}
                 {nc.estado === 'abierto' && (
                   <button type="button"
@@ -474,8 +474,8 @@ export default function NoConformidades() {
               </div>
             </div>
 
-            <p className="text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-xl">
-              ⚠️ Los movimientos de inventario y el ajuste de nómina se hacen manualmente desde sus respectivos módulos.
+            <p className="text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-xl flex gap-2">
+              <AlertTriangle size={16} className="shrink-0" /> Los movimientos de inventario y el ajuste de nómina se hacen manualmente desde sus respectivos módulos.
             </p>
 
             <div className="flex gap-3 pt-1">
@@ -536,7 +536,7 @@ export default function NoConformidades() {
             </div>
 
             <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl font-medium">
-              ⚠️ Recuerda hacer manualmente: el movimiento de inventario y el ajuste de nómina del moldeador si aplica.
+              Recuerda hacer manualmente: el movimiento de inventario y el ajuste de nómina del moldeador si aplica.
             </p>
 
             <div className="flex gap-3">

@@ -6,7 +6,7 @@ import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import {
   ClipboardList, ChevronDown, ChevronUp, Search, PlusCircle,
   AlertTriangle, TrendingUp, Plus, Calendar, Pencil, XCircle, X,
-} from 'lucide-react'
+} from '../shared/iconos'
 import Modal from '../shared/Modal'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
@@ -473,7 +473,7 @@ export default function ListaOrdenesMoldeo() {
                                       <td className="px-2 py-3 text-center">
                                         {stock !== null ? (
                                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${alerta ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                                            {stock}{alerta ? ' ⚠' : ''}
+                                            {stock}{alerta && <AlertTriangle size={12} className="inline ml-1 -mt-0.5" />}
                                           </span>
                                         ) : <span className="text-gray-300">—</span>}
                                       </td>

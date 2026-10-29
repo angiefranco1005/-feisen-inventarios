@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useBodegasConsulta } from './useBodegasConsulta'
 import Spinner from '../shared/Spinner'
 import { coincideBusqueda } from '../../utils/busqueda'
-import { Package, Search, X, History } from 'lucide-react'
+import { Package, Search, X, History } from '../shared/iconos'
 
 // Vista de consulta (Ventas / Comercial): stock de sus bodegas asignadas (MOTORES),
 // con búsqueda y filtros. Solo lectura, sin precios.

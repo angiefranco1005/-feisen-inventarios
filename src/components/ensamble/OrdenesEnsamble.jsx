@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { fetchAllPages } from '../../utils/fetchAllPages'
-import { ChevronDown, ChevronUp, Plus, Factory, CheckCircle2, Lock, Ban } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Factory, CheckCircle2, Lock, Ban } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import {

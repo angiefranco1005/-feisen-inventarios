@@ -6,7 +6,7 @@ import Alerta from '../shared/Alerta'
 import { EncabezadoPagina, PanelLateral, useAviso } from '../shared/ui'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'
-import { Plus, Search, AlertTriangle, Check } from 'lucide-react'
+import { Plus, Search, AlertTriangle, Check } from '../shared/iconos'
 
 // Configuración (solo ADMIN): usuarios, bodegas, categorías y roles.
 // Diseño de la skill ux-feisen: pestañas con conteo, lista → panel lateral de detalle,

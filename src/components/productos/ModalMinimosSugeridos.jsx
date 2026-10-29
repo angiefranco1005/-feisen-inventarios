@@ -4,7 +4,7 @@ import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { cargarConsumo, minimoSugerido, DIAS_CONSUMO, DIAS_COBERTURA } from '../../utils/consumo'
 import { coincideBusqueda } from '../../utils/busqueda'
-import { Search } from 'lucide-react'
+import { Search } from '../shared/iconos'
 
 const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })
 

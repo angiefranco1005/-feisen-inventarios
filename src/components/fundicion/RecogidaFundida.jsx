@@ -3,8 +3,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
 import {
-  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame,
-} from 'lucide-react'
+  PackageCheck, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, Search, Flame, User, Recycle
+} from '../shared/iconos'
 
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
@@ -429,7 +429,7 @@ export default function RecogidaFundida() {
                       }
                       return Object.entries(grupos).map(([persona, ps]) => (
                         <div key={persona}>
-                          <p className="text-xs font-bold text-feisen-azul mb-1.5 px-1">👤 {persona}</p>
+                          <p className="text-xs font-bold text-feisen-azul mb-1.5 px-1 flex items-center gap-1"><User size={13} />{persona}</p>
                           <div className="space-y-1">
                             {ps.map(p => {
                               const conf = Number(p.cantidad_conforme || 0)
@@ -485,19 +485,19 @@ export default function RecogidaFundida() {
                     return (
                       <div className="mt-3 pt-3 border-t border-orange-100 grid grid-cols-2 gap-2">
                         <div className="bg-orange-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">🔥 Hierro colado</p>
+                          <p className="text-xs text-gray-400">Hierro colado</p>
                           <p className="font-bold text-gray-800 text-sm">{kgHierro} kg</p>
                         </div>
                         <div className="bg-green-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">✅ Piezas buenas</p>
+                          <p className="text-xs text-gray-400">Piezas buenas</p>
                           <p className="font-bold text-green-700 text-sm">{hayPesos ? `${kgPiezas.toFixed(1)} kg` : '—'}</p>
                         </div>
                         <div className="bg-yellow-50 rounded-xl p-2 text-center">
-                          <p className="text-xs text-gray-400">♻️ Vaceadero</p>
+                          <p className="text-xs text-gray-400">Vaceadero</p>
                           <p className="font-bold text-yellow-700 text-sm">{kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}</p>
                         </div>
                         <div className={`rounded-xl p-2 text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50' : 'bg-gray-50'}`}>
-                          <p className="text-xs text-gray-400">⚠️ Merma real</p>
+                          <p className="text-xs text-gray-400">Merma real</p>
                           <p className={`font-bold text-sm ${kgMerma > 0 && hayPesos ? 'text-feisen-rojo' : 'text-gray-400'}`}>
                             {hayPesos && kgMerma > 0 ? `${kgMerma.toFixed(1)} kg (${pctMerma.toFixed(1)}%)` : '—'}
                           </p>
@@ -617,18 +617,18 @@ export default function RecogidaFundida() {
                           <div className="space-y-2">
                             <div className="grid grid-cols-2 gap-2">
                               <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">🔥 Hierro colado</p>
+                                <p className="text-xs text-gray-400 mb-0.5">Hierro colado</p>
                                 <p className="font-bold text-gray-800 text-sm">{kgEntrada} kg</p>
                               </div>
                               <div className="bg-white rounded-xl p-2.5 border border-orange-100 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">✅ Piezas buenas</p>
+                                <p className="text-xs text-gray-400 mb-0.5">Piezas buenas</p>
                                 {hayPesos
                                   ? <p className="font-bold text-green-700 text-sm">{kgPiezas.toFixed(1)} kg</p>
                                   : <p className="text-xs text-gray-400 italic">sin peso unitario</p>
                                 }
                               </div>
                               <div className="bg-yellow-50 rounded-xl p-2.5 border border-yellow-200 text-center">
-                                <p className="text-xs text-gray-400 mb-0.5">♻️ Vaceadero</p>
+                                <p className="text-xs text-gray-400 mb-0.5">Vaceadero</p>
                                 <p className="font-bold text-yellow-700 text-sm">
                                   {kgVaceadero > 0 ? `${kgVaceadero.toFixed(2)} kg` : '0 kg'}
                                 </p>
@@ -637,7 +637,7 @@ export default function RecogidaFundida() {
                                 )}
                               </div>
                               <div className={`rounded-xl p-2.5 border text-center ${kgMerma > 0 && hayPesos ? 'bg-red-50 border-red-200' : 'bg-white border-orange-100'}`}>
-                                <p className="text-xs text-gray-400 mb-0.5">⚠️ Merma real</p>
+                                <p className="text-xs text-gray-400 mb-0.5">Merma real</p>
                                 {hayPesos
                                   ? <p className={`font-bold text-sm ${kgMerma > 0 ? 'text-feisen-rojo' : 'text-green-600'}`}>
                                       {kgMerma > 0
@@ -800,7 +800,7 @@ export default function RecogidaFundida() {
                       return (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 space-y-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">♻️</span>
+                            <Recycle size={20} weight="duotone" className="text-yellow-700" />
                             <p className="text-xs font-bold text-yellow-800">Vaceadero — entrada al inventario</p>
                           </div>
                           <input
@@ -813,10 +813,10 @@ export default function RecogidaFundida() {
                           {(kgNC > 0 || kgManual > 0) && (
                             <div className="text-xs text-yellow-800 space-y-0.5">
                               {kgNC > 0 && (
-                                <p>🔴 Piezas NC → <strong>{kgNC.toFixed(2)} kg</strong> (automático por peso unitario)</p>
+                                <p>Piezas NC → <strong>{kgNC.toFixed(2)} kg</strong> (automático por peso unitario)</p>
                               )}
                               {kgManual > 0 && (
-                                <p>➕ Vaceadero manual → <strong>{kgManual} kg</strong></p>
+                                <p>Vaceadero manual → <strong>{kgManual} kg</strong></p>
                               )}
                               <p className="font-bold text-yellow-900 border-t border-yellow-200 pt-1 mt-1">
                                 Total VACEADERO a ingresar: {kgTotal.toFixed(2)} kg

@@ -6,7 +6,7 @@ import Alerta from './shared/Alerta'
 import Spinner from '../shared/Spinner'
 import SelectBuscable from './shared/SelectBuscable'
 import AutocompletarTexto from './shared/AutocompletarTexto'
-import { Plus, X, Paperclip, Check, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Plus, X, Paperclip, Check, ArrowLeft, ArrowRight } from '../shared/iconos'
 import { CENTRO_NOMBRE, TRANSPORTE_NOMBRE, hoyISO, formatoOF, formatFecha } from './shared/formatters'
 
 const PASOS = [

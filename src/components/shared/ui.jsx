@@ -2,7 +2,7 @@
 // selector segmentado, contador − / +, panel lateral de detalle y aviso que se
 // cierra solo. Usan solo los colores feisen-* para que todas las pantallas se vean igual.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, X } from './iconos'
 
 export function EncabezadoPagina({ modulo, titulo, subtitulo, children }) {
   return (

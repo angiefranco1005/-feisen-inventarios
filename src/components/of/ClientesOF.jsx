@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from './shared/Modal'
 import Alerta from './shared/Alerta'
-import { Plus, Edit2, Trash2, Users, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, Search } from '../shared/iconos'
 
 export default function GestionClientes() {
   const { perfil, esAdmin } = useAuth()

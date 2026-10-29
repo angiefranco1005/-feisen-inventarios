@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -16,160 +16,160 @@ const MODULOS = {
   'Mecanizados':      Wrench,
   'Fundición':        Flame,
   'Producción y Ensamble': Factory,
-  'Ventas': ClipboardList,
+  'Ventas':           Handshake,
   'Costeo':           Calculator,
   'Recursos Humanos': HardHat,
-  'Calidad':          ShieldAlert,
+  'Calidad':          SealCheck,
 }
 
 const NAV_ADMIN = [
   { to: '/dashboard',                         icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                         icon: Package,         label: 'Productos',          modulo: 'Inventarios' },
-  { to: '/movimientos/nuevo',                 icon: ArrowUpDown,     label: 'Movimiento',         modulo: 'Inventarios' },
+  { to: '/movimientos/nuevo',                 icon: ArrowsLeftRight,     label: 'Movimiento',         modulo: 'Inventarios' },
   { to: '/mecanizados/paquetes',              icon: Boxes,           label: 'Paquetes',           modulo: 'Inventarios' },
-  { to: '/movimientos',                       icon: BarChart2,       label: 'Historial',          modulo: 'Inventarios' },
+  { to: '/movimientos',                       icon: History,       label: 'Historial',          modulo: 'Inventarios' },
   { to: '/reportes/inventario-fisico',        icon: ClipboardCheck,  label: 'Inventario físico',  modulo: 'Inventarios' },
-  { to: '/reportes/kardex',                   icon: FileSpreadsheet, label: 'Kardex',             modulo: 'Inventarios' },
-  { to: '/reportes/corte',                    icon: CalendarDays,    label: 'Corte de inventario', modulo: 'Inventarios' },
+  { to: '/reportes/kardex',                   icon: Table, label: 'Kardex',             modulo: 'Inventarios' },
+  { to: '/reportes/corte',                    icon: CalendarCheck,    label: 'Corte de inventario', modulo: 'Inventarios' },
   { to: '/pedidos',                           icon: ShoppingCart,    label: 'Pedidos',            modulo: 'Logística' },
   { to: '/ordenes-compra',                    icon: FileText,        label: 'Órdenes de compra',  modulo: 'Logística' },
   { to: '/mecanizados/registro',              icon: Wrench,          label: 'Registro',           modulo: 'Mecanizados' },
-  { to: '/transferencias',                    icon: ClipboardList,   label: 'Transferencias',     modulo: 'Mecanizados' },
+  { to: '/transferencias',                    icon: Swap,   label: 'Transferencias',     modulo: 'Mecanizados' },
   { to: '/fundidas',                          icon: Flame,           label: 'Fundidas',           modulo: 'Fundición' },
   { to: '/moldeo',                            icon: Layers,          label: 'Moldeo',             modulo: 'Fundición' },
-  { to: '/recogida',                          icon: PackageCheck,    label: 'Recogida',           modulo: 'Fundición' },
-  { to: '/moldeo/catalogo',                   icon: Factory,         label: 'BOM',                modulo: 'Fundición' },
-  { to: '/nomina/fundicion',                  icon: FileSpreadsheet, label: 'Nómina',             modulo: 'Fundición' },
-  { to: '/analitica/fundicion',               icon: Activity,        label: 'Analítica',          modulo: 'Fundición' },
+  { to: '/recogida',                          icon: TrayArrowDown,    label: 'Recogida',           modulo: 'Fundición' },
+  { to: '/moldeo/catalogo',                   icon: TreeStructure,         label: 'BOM',                modulo: 'Fundición' },
+  { to: '/nomina/fundicion',                  icon: Money, label: 'Nómina',             modulo: 'Fundición' },
+  { to: '/analitica/fundicion',               icon: ChartLine,        label: 'Analítica',          modulo: 'Fundición' },
   { to: '/reportes/balance-hierro',           icon: Scale,           label: 'Balance de hierro',  modulo: 'Fundición' },
-  { to: '/reportes/ventas-internas-fundicion', icon: Receipt,        label: 'Ventas internas',    modulo: 'Fundición' },
+  { to: '/reportes/ventas-internas-fundicion', icon: Invoice,        label: 'Ventas internas',    modulo: 'Fundición' },
   { to: '/ensamble',                          icon: Factory,         label: 'Órdenes de ensamble', modulo: 'Producción y Ensamble' },
-  { to: '/ensamble/recetas',                  icon: ClipboardList,   label: 'Recetas',            modulo: 'Producción y Ensamble' },
+  { to: '/ensamble/recetas',                  icon: BookOpenText,   label: 'Recetas',            modulo: 'Producción y Ensamble' },
   { to: '/of/nueva',                          icon: FilePlus,        label: 'Nueva OF',           modulo: 'Ventas' },
-  { to: '/of/ordenes',                        icon: ClipboardList,   label: 'Órdenes',            modulo: 'Ventas' },
+  { to: '/of/ordenes',                        icon: Files,   label: 'Órdenes',            modulo: 'Ventas' },
   { to: '/of/resumen',                        icon: ListChecks,      label: 'Resumen',            modulo: 'Ventas' },
-  { to: '/of/calendario',                     icon: CalendarDays,    label: 'Calendario',         modulo: 'Ventas' },
+  { to: '/of/calendario',                     icon: CalendarDots,    label: 'Calendario',         modulo: 'Ventas' },
   { to: '/of/dashboard',                      icon: BarChart2,       label: 'Dashboard',          modulo: 'Ventas' },
-  { to: '/of/productos',                      icon: Package,         label: 'Productos OF',       modulo: 'Ventas' },
+  { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
   { to: '/costeo',                            icon: Calculator,      label: 'Fichas',             modulo: 'Costeo' },
-  { to: '/costeo/etapas',                     icon: Users,           label: 'Responsables por etapa', modulo: 'Costeo' },
+  { to: '/costeo/etapas',                     icon: UserList,           label: 'Responsables por etapa', modulo: 'Costeo' },
   { to: '/costeo/cif',                        icon: Coins,           label: 'CIF de planta',      modulo: 'Costeo' },
-  { to: '/costeo/equipos',                    icon: Cog,             label: 'Equipos de planta',  modulo: 'Costeo' },
-  { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
+  { to: '/costeo/equipos',                    icon: Engine,             label: 'Equipos de planta',  modulo: 'Costeo' },
+  { to: '/rrhh/empleados',                    icon: UsersThree,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
   { to: '/rrhh/calendario',                   icon: CalendarDays,    label: 'Calendario',         modulo: 'Recursos Humanos' },
   { to: '/rrhh/nomina',                       icon: Wallet,          label: 'Nómina',             modulo: 'Recursos Humanos' },
   { to: '/rrhh/desempeno',                    icon: Target,          label: 'Desempeño',          modulo: 'Recursos Humanos' },
-  { to: '/calidad',                           icon: ShieldAlert,     label: 'No conformidades',   modulo: 'Calidad' },
+  { to: '/calidad',                           icon: SealCheck,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
 
 const NAV_LOGISTICA = [
   { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',         icon: Package,         label: 'Productos' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',       icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo', icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/ordenes-compra',    icon: FileText,         label: 'Órdenes de compra' },
-  { to: '/calidad',           icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/calidad',           icon: SealCheck,      label: 'Calidad' },
 ]
 
 const NAV_ALMACENISTA = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
-  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',                    icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 const NAV_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
-  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',                    icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
-  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/transferencias',                 icon: Swap,    label: 'Transferencias' },
+  { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas',  grupo: 'Fundición' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo',    grupo: 'Fundición' },
-  { to: '/recogida',                       icon: PackageCheck,     label: 'Recogida',  grupo: 'Fundición' },
-  { to: '/nomina/fundicion',               icon: FileSpreadsheet,  label: 'Nómina',    grupo: 'Fundición' },
-  { to: '/analitica/fundicion',            icon: Activity,         label: 'Analítica', grupo: 'Fundición' },
-  { to: '/moldeo/catalogo',                icon: Factory,          label: 'BOM',       grupo: 'Fundición' },
+  { to: '/recogida',                       icon: TrayArrowDown,     label: 'Recogida',  grupo: 'Fundición' },
+  { to: '/nomina/fundicion',               icon: Money,  label: 'Nómina',    grupo: 'Fundición' },
+  { to: '/analitica/fundicion',            icon: ChartLine,         label: 'Analítica', grupo: 'Fundición' },
+  { to: '/moldeo/catalogo',                icon: TreeStructure,          label: 'BOM',       grupo: 'Fundición' },
 ]
 
 const NAV_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,           label: 'Mecanizado' },
-  { to: '/transferencias',                 icon: ClipboardList,    label: 'Transferencias' },
-  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/transferencias',                 icon: Swap,    label: 'Transferencias' },
+  { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
-  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',                    icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 const NAV_JEFE_ENSAMBLE = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
-  { to: '/ensamble/recetas',               icon: ClipboardList,    label: 'Recetas' },
+  { to: '/ensamble/recetas',               icon: BookOpenText,    label: 'Recetas' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
-  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',                    icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
 ]
 
 const NAV_OPERARIO = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
-  { to: '/movimientos',                    icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',                    icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
 ]
 
 // Barra inferior móvil curada — prioriza las acciones más usadas por cada rol
 const MOBILE_OPERARIO = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_ALMACENISTA = [
   { to: '/dashboard',         icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos',       icon: BarChart2,        label: 'Historial' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos',       icon: History,        label: 'Historial' },
+  { to: '/movimientos/nuevo', icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',         icon: Package,          label: 'Productos' },
 ]
 const MOBILE_JEFE_MECANIZADOS = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/mecanizados/registro',           icon: Wrench,          label: 'Mecanizado' },
-  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transf.' },
+  { to: '/transferencias',                 icon: Swap,   label: 'Transf.' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
+  { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
 ]
 const MOBILE_JEFE_ENSAMBLE = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
 ]
 const MOBILE_JEFE_FUNDICION = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/movimientos/nuevo',              icon: ArrowUpDown,      label: 'Movimiento' },
-  { to: '/transferencias',                 icon: ClipboardList,   label: 'Transferencias' },
+  { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
+  { to: '/transferencias',                 icon: Swap,   label: 'Transferencias' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas' },
-  { to: '/calidad',                        icon: ShieldAlert,      label: 'Calidad' },
+  { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
 ]
 
 const NAV_RRHH = [
-  { to: '/rrhh/empleados',   icon: Users,   label: 'Colaboradores' },
+  { to: '/rrhh/empleados',   icon: UsersThree,   label: 'Colaboradores' },
   { to: '/rrhh/organigrama', icon: Network, label: 'Organigrama' },
   { to: '/rrhh/novedades',   icon: CalendarClock, label: 'Novedades' },
   { to: '/rrhh/calendario',  icon: CalendarDays,  label: 'Calendario' },
@@ -177,25 +177,25 @@ const NAV_RRHH = [
   { to: '/rrhh/desempeno',   icon: Target,        label: 'Desempeño' },
   // Bodega de Administración: dotación, papelería y aseo
   { to: '/productos',         icon: Package,      label: 'Productos',  grupo: 'Bodega Administración' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown,  label: 'Movimiento', grupo: 'Bodega Administración' },
-  { to: '/movimientos',       icon: BarChart2,    label: 'Historial',  grupo: 'Bodega Administración' },
+  { to: '/movimientos/nuevo', icon: ArrowsLeftRight,  label: 'Movimiento', grupo: 'Bodega Administración' },
+  { to: '/movimientos',       icon: History,    label: 'Historial',  grupo: 'Bodega Administración' },
   { to: '/pedidos',           icon: ShoppingCart, label: 'Pedidos',    grupo: 'Bodega Administración' },
 ]
 const MOBILE_RRHH = [
-  { to: '/rrhh/empleados', icon: Users,         label: 'Personas' },
+  { to: '/rrhh/empleados', icon: UsersThree,         label: 'Personas' },
   { to: '/rrhh/novedades', icon: CalendarClock, label: 'Novedades' },
   { to: '/rrhh/nomina',    icon: Wallet,        label: 'Nómina' },
   { to: '/pedidos',        icon: ShoppingCart,  label: 'Pedidos' },
-  { to: '/movimientos/nuevo', icon: ArrowUpDown, label: 'Movimiento' },
+  { to: '/movimientos/nuevo', icon: ArrowsLeftRight, label: 'Movimiento' },
 ]
 
 const NAV_CONSULTOR = [
   { to: '/dashboard',   icon: Package,      label: 'Stock' },
-  { to: '/movimientos', icon: BarChart2,    label: 'Historial' },
+  { to: '/movimientos', icon: History,    label: 'Historial' },
 ]
 const MOBILE_CONSULTOR = [
   { to: '/dashboard',   icon: Package,      label: 'Stock' },
-  { to: '/movimientos', icon: BarChart2,    label: 'Historial' },
+  { to: '/movimientos', icon: History,    label: 'Historial' },
 ]
 
 const BADGE = {
@@ -286,7 +286,7 @@ export default function Layout({ children }) {
           ${activo
             ? 'bg-feisen-azul-suave text-feisen-azul font-semibold'
             : 'text-feisen-texto-2 font-medium hover:bg-white hover:text-feisen-texto'}`}>
-        {!sub && <item.icon size={17} strokeWidth={activo ? 2.2 : 1.8} />}
+        {!sub && <item.icon size={18} weight="duotone" />}
         <span>{item.label}</span>
       </Link>
     )
@@ -314,7 +314,7 @@ export default function Layout({ children }) {
                 <button type="button" onClick={() => toggleModulo(m)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium
                     ${tieneActivo && !abierto ? 'text-feisen-azul' : 'text-feisen-texto-2 hover:bg-white hover:text-feisen-texto'}`}>
-                  <Icono size={17} strokeWidth={1.8} />
+                  <Icono size={18} weight="duotone" />
                   <span className="flex-1 text-left">{m}</span>
                   {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
                 </button>
@@ -482,7 +482,7 @@ export default function Layout({ children }) {
             <Link key={item.to} to={item.to}
               className={`flex-1 flex flex-col items-center py-3 gap-1 transition-colors
                 ${activo ? 'text-feisen-azul' : 'text-feisen-gris-medio'}`}>
-              <item.icon size={20} />
+              <item.icon size={20} weight="duotone" />
               <span className="text-xs font-medium leading-tight text-center">{item.label}</span>
             </Link>
           )

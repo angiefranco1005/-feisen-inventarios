@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import Alerta from '../shared/Alerta'
-import { CalendarDays, RefreshCw, ChevronRight, Download, Search } from 'lucide-react'
+import { CalendarDays, RefreshCw, ChevronRight, Download, Search } from '../shared/iconos'
 import { EncabezadoPagina } from '../shared/ui'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { exportarCorteInventario } from '../../utils/exportExcel'

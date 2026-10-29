@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from './shared/Modal'
 import Alerta from './shared/Alerta'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Package, Trash2, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Package, Trash2, Search, ChevronLeft, ChevronRight } from '../shared/iconos'
 
 const POR_PAGINA = 20
 

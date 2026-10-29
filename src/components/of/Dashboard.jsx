@@ -4,7 +4,7 @@ import Spinner from '../shared/Spinner'
 import { dibujarBarrasVertical, dibujarBarrasHorizontal, dibujarDona } from './shared/canvasCharts'
 import { CENTRO_NOMBRE, estadoClase, ofTotalmenteDespachada } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw } from '../shared/iconos'
 
 const COLORES = ['#064794', '#B4271D', '#4B5563', '#5b8fce', '#d9807a', '#94a3ad']
 

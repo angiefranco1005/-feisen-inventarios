@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_ENSAMBLE_ID } from '../../utils/bodegasCatalogo'
-import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Wrench } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Wrench } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import { cargarCatalogo, cargarRecetas, costoUnitario, num } from './ensambleDatos'
 import { formatCOP } from '../../utils/formatters'

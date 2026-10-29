@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 import Alerta from '../../shared/Alerta'
-import { Fingerprint, Upload, ExternalLink } from 'lucide-react'
+import { Fingerprint, Upload, ExternalLink } from '../../shared/iconos'
 import * as E from '../estilos'
 import { BUCKET_RRHH, nombreCompleto, abrirArchivoRRHH, formatoFecha } from '../catalogosRRHH'
 import { leerArchivoHuellero, calcularHuellero, emparejarAlias, HORARIO } from './nominaCalculo'

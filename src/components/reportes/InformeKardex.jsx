@@ -5,7 +5,7 @@ import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina } from '../shared/ui'
-import { TrendingUp, Download, RefreshCw, Search } from 'lucide-react'
+import { TrendingUp, Download, RefreshCw, Search } from '../shared/iconos'
 
 function primerDiaMes() {
   const d = new Date()

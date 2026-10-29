@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { Flame, ChevronDown, ChevronUp, Search, PlusCircle } from 'lucide-react'
+import { Flame, ChevronDown, ChevronUp, Search, PlusCircle } from '../shared/iconos'
 
 function numFun(n) {
   return `FUN-${String(n).padStart(4, '0')}`

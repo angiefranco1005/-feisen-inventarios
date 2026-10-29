@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Warehouse, Tag, Users, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Warehouse, Tag, Users, Trash2, AlertTriangle } from '../shared/iconos'
 import { CENTROS_COSTO } from '../../utils/formatters'
 
 function SeccionBodegas() {

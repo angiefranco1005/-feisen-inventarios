@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Info, XCircle } from '../../shared/iconos'
 
 const TIPOS = {
   error:   { icon: XCircle,       bg: 'bg-red-50',    border: 'border-feisen-rojo', text: 'text-feisen-rojo' },

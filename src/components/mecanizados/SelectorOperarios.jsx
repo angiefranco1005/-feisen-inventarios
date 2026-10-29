@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { coincideBusqueda } from '../../utils/busqueda'
-import { Check, Plus, Search, X } from 'lucide-react'
+import { Check, Plus, Search, X } from '../shared/iconos'
 
 // Elegir quién mecanizó, de los colaboradores activos del área Mecanizados (se pueden
 // marcar varios: trabajo en pareja). Si la persona no está en la lista (contratista,

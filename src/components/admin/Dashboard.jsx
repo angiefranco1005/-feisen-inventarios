@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import {
   Package, ArrowUpDown, ShoppingCart, Plus, Warehouse,
   TrendingUp, AlertTriangle, ChevronDown, ChevronRight, Tag,
-} from 'lucide-react'
+} from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 
@@ -169,7 +169,7 @@ export default function DashboardAdmin() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]} 👋</h1>
+        <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]}</h1>
         <p className="text-gray-500 text-sm mt-1">Panel de administración</p>
       </div>
 

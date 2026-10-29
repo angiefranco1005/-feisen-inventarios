@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { PackagePlus, PackageMinus, BarChart2 } from 'lucide-react'
+import { PackagePlus, PackageMinus, BarChart2 } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 
 export default function DashboardLogistica() {
@@ -29,7 +29,7 @@ export default function DashboardLogistica() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]} 👋</h1>
+        <h1 className="text-2xl font-bold text-feisen-azul">Hola, {perfil?.nombre?.split(' ')[0]}</h1>
         <p className="text-gray-500 text-sm mt-1">{esAlmacenista ? 'Almacenista · Bodega Almacén' : 'Logística · Bodega Motores'}</p>
       </div>
 

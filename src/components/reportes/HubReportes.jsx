@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, ClipboardList, TrendingUp, Flame, Scale, ChevronRight } from 'lucide-react'
+import { CalendarDays, ClipboardList, TrendingUp, Flame, Scale, ChevronRight } from '../shared/iconos'
 import { useAuth } from '../../contexts/AuthContext'
 
 const REPORTES = [

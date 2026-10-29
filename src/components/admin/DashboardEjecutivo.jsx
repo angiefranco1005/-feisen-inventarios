@@ -8,7 +8,7 @@ import {
   TrendingUp, Package, DollarSign, AlertTriangle, Clock,
   CheckCircle, XCircle, AlertCircle, MinusCircle, RotateCcw,
   ChevronDown, ChevronUp, Info, RefreshCw,
-} from 'lucide-react'
+} from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 
@@ -300,7 +300,7 @@ function MetricCard({ titulo, valor, sub, color = AZ, icon: Icon, warn }) {
     <div className={`bg-white rounded-2xl border shadow-sm p-5 ${warn ? 'border-red-200' : 'border-gray-100'}`}>
       <div className="flex items-start justify-between mb-1">
         <p className="text-xs text-gray-400">{titulo}</p>
-        {Icon && <Icon size={18} style={{ color }} className="opacity-40" />}
+        {Icon && <Icon size={20} weight="duotone" style={{ color }} className="opacity-70" />}
       </div>
       <p className="text-2xl font-bold" style={{ color }}>{valor}</p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
@@ -747,7 +747,7 @@ function SeccionSemanal({ d }) {
                   <p className="font-semibold text-gray-800 text-sm">{area}</p>
                   <p className="text-xs text-gray-500">{jefe}</p>
                 </div>
-                <Icon size={22} style={{ color: cfg.iconColor }} className="flex-shrink-0 mt-0.5" />
+                <Icon size={22} weight="duotone" style={{ color: cfg.iconColor }} className="flex-shrink-0 mt-0.5" />
               </div>
               <p className="text-xs text-gray-500 leading-tight">{nota}</p>
               {!datos && (
@@ -803,7 +803,7 @@ function SeccionAlertas({ d }) {
       </div>
 
       {/* Stock negativo */}
-      <Expandible titulo="🔴 Stock negativo (error de registro — salida antes que entrada)" count={d.stockNegativo.length} color={RJ}>
+      <Expandible titulo="Stock negativo (error de registro — salida antes que entrada)" count={d.stockNegativo.length} color={RJ}>
         <TablaAlerta
           cols={['Producto', 'Bodega', 'Cantidad', 'Acción']}
           filas={d.stockNegativo.map(s => [
@@ -816,7 +816,7 @@ function SeccionAlertas({ d }) {
       </Expandible>
 
       {/* Stock en cero con movimiento reciente */}
-      <Expandible titulo="⚠️ Stock en cero con movimiento en últimos 30 días" count={d.stockCeroActivo.length} color={AM}>
+      <Expandible titulo="Stock en cero con movimiento en últimos 30 días" count={d.stockCeroActivo.length} color={AM}>
         <TablaAlerta
           cols={['Producto', 'Bodega', 'Último movimiento']}
           filas={d.stockCeroActivo.map(s => [
@@ -828,7 +828,7 @@ function SeccionAlertas({ d }) {
       </Expandible>
 
       {/* Comprometidos sin stock */}
-      <Expandible titulo="🚨 Pedidos comprometidos sin stock suficiente" count={d.comprometidosSinStock.length} color={RJ}>
+      <Expandible titulo="Pedidos comprometidos sin stock suficiente" count={d.comprometidosSinStock.length} color={RJ}>
         <TablaAlerta
           cols={['Pedido', 'Área', 'Producto', 'Disponible', 'Pendiente', 'Faltante']}
           filas={d.comprometidosSinStock.map(c => [
@@ -889,10 +889,10 @@ function FiltrosGlobales({ filtros, setFiltros, bodegas, categorias, categoriasD
 
 // ── Componente principal ──────────────────────────────────────────────────────
 const TABS = [
-  { id: 0, label: '💰 Financiero' },
-  { id: 1, label: '🔄 Rotación' },
+  { id: 0, label: 'Financiero' },
+  { id: 1, label: 'Rotación' },
   { id: 2, label: '⏱️ Pedidos & Lead Time' },
-  { id: 3, label: '🚨 Alertas' },
+  { id: 3, label: 'Alertas' },
 ]
 
 export default function DashboardEjecutivo() {

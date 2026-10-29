@@ -8,7 +8,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
-import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X } from 'lucide-react'
+import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X } from '../shared/iconos'
 
 const HOY = () => new Date().toLocaleDateString('en-CA')
 
@@ -447,7 +447,7 @@ export default function InventarioFisico() {
       const detalle = fallos.map(f => `${f.nombre} (${f.bodega})`).join(', ')
       setMsg({
         tipo: 'error',
-        texto: `⚠️ Inventario confirmado, pero ${fallos.length} producto(s) NO se pudieron ajustar — corrígelos manualmente: ${detalle}.`,
+        texto: `Inventario confirmado, pero ${fallos.length} producto(s) NO se pudieron ajustar — corrígelos manualmente: ${detalle}.`,
       })
       setTimeout(() => { setVista('lista'); cargarLista() }, 5000)
     } else {

@@ -6,7 +6,7 @@ import Alerta from '../shared/Alerta'
 import {
   ArrowLeft, Briefcase, GraduationCap, Banknote, BookOpen, ClipboardCheck, HardHat, Award, Hammer,
   Users, FileText, Upload, ExternalLink, Trash2, ChevronRight, Network, Target, AlertTriangle,
-} from 'lucide-react'
+} from '../shared/iconos'
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import {
