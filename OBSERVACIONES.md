@@ -1798,3 +1798,9 @@ el avance se registra a diario y la orden se cierra a mano.
 - Repo `angiefranco1005/costeo-feisen` **archivado** en GitHub (solo lectura; se puede desarchivar). La carpeta local `../APP COSTEO` se conserva.
 - Sitio `costeofeisen.netlify.app`: pendiente de borrar en Netlify (requiere que Angie inicie sesión).
 - Las tablas `costeo_*` y la vista `costeo_resumen` **no se tocan**: son de esta misma base y el módulo del ERP las usa.
+
+## 2026-10-29 · Copia local de la Edge Function `actualizar-usuario`
+- La función que cambia correo/contraseña desde Configuración estaba desplegada en Supabase (versión 1) pero **sin copia en el repo**. Se bajó tal cual a `supabase/functions/actualizar-usuario/index.ts` (sin cambios; lo desplegado y el repo son iguales).
+- Ojo: comprueba `profiles.rol = 'ADMIN'` pero no `activo`. Hoy no es un hueco práctico (un admin desactivado es sacado por la app), pero si se vuelve a desplegar conviene usar `get_my_rol()`.
+- En Supabase quedan además `rapid-worker` y `smart-action`: mismo contenido entre sí, la app no las llama (pruebas viejas). Candidatas a borrar con OK de Angie.
+- `enviar-desprendible` está en el repo pero aún **no** está desplegada.
