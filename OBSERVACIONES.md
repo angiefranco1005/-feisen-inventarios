@@ -1901,3 +1901,4 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
 - Clave: secreto de Supabase `ODOO_FC_APIKEY` (clave API de un usuario de Odoo con acceso a Contabilidad). Odoo Online solo permite la API en el plan Personalizado (Custom).
 - Botón "Traer de Odoo" en Cargar informe, visible solo con FC elegida.
 - Pendiente: desplegar la función, probar contra Odoo real, comparar con el Excel de un mes; luego Feisen (Odoo.sh) y la actualización diaria automática.
+- Primera prueba (FC, sep 2026): "Traer de Odoo" dio ~1,43 M menos que el tablero. El dato de origen de septiembre ($258.670.055) es el **Total Ingresos** del estado de resultados de Odoo, que incluye $1.430.000 de ingresos **no operacionales**. Odoo trae solo la venta (Operacionales, $257.240.055). La conexión está bien; los datos 'base' pueden traer ingresos no operacionales en otros meses también.
