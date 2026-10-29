@@ -54,3 +54,27 @@
   .organigrama > ul > li::before,
   .organigrama > ul > li::after { display: none; }
 }
+
+/* Costeo › Tiempos reales: la planilla de toma de tiempos solo existe mientras se imprime
+   y reemplaza toda la app en el papel (PlanillaTiempos.jsx la monta fuera de #root). */
+.planilla-impresion {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 10mm;
+  }
+  body:has(.planilla-impresion) {
+    background: #fff;
+  }
+  body:has(.planilla-impresion) #root {
+    display: none;
+  }
+  .planilla-impresion {
+    display: block;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

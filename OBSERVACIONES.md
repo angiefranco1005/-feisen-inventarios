@@ -1780,3 +1780,14 @@ el avance se registra a diario y la orden se cierra a mano.
 - Octubre se trata como mes parcial (al 27) mientras tenga filas 'base' (constantes `BASE_DAYS`/`BASE_M` del script). Al subir octubre completo desde Odoo deja de ser parcial.
 - El artefacto en claude.ai sigue existiendo con sus propios datos; desde ahora los meses se deben subir en el ERP (lo que se suba al artefacto no llega al ERP).
 - No probado con el ERP real: la subida de un Excel de Odoo (el lector es el mismo del artefacto, ahora guarda en Supabase).
+
+## 2026-10-29 · Módulo Costeo (traído de la app "APP COSTEO")
+
+- La app de costeo (`../APP COSTEO`, costeofeisen.netlify.app, repo `costeo-feisen`) ya usaba **esta misma base** (tablas `costeo_*`, vista `costeo_resumen`), así que no hubo copia de datos: solo se trajeron las pantallas.
+- Pantallas en `src/components/costeo/` (copia de la app de costeo, React 19 → corre igual en React 18) con sus utilidades en `costeo/utils/`. Rutas: `/costeo` (fichas; `?catalogo=pieza` para piezas), `/costeo/fichas/:id` (`?tab=mano_obra|cif|equipos|piezas|tiempos|resumen`), `/costeo/etapas`, `/costeo/cif`, `/costeo/equipos`. Módulo "Costeo" en el menú de ADMIN.
+- **Solo ADMIN por ahora** (decisión de Angie): las rutas van con `rolEfectivo === 'ADMIN'` porque el bloque de rutas del final también atiende roles sin bloque propio. La RLS de las tablas sigue siendo `rol = 'ADMIN' or acceso_costeo` — Julián Acuña tiene `acceso_costeo = true` pero hoy no ve el módulo en el ERP.
+- **Colores**: en la app de costeo `feisen-gris` era el gris oscuro de texto; en el ERP es un gris claro de fondo. Al copiar se cambió `text-feisen-gris` → `text-feisen-texto-2` y `bg-feisen-gris-claro` → `bg-feisen-gris`. Ojo si se vuelve a copiar algo de esa app.
+- La planilla imprimible de Tiempos reales necesita las reglas `.planilla-impresion` / `@media print` que se agregaron al final de `src/index.css`.
+- El "enlace para celular" de Tiempos reales ahora es `/costeo/fichas/<id>?tab=tiempos` del ERP.
+- **Pendiente** (Angie lo dejó para después): el permiso "solo registrar tiempos" para jefes de área (`profiles.acceso_tiempos`, `SoloTiemposApp`, funciones `costeo_tiempos_fichas/contexto`). Su SQL (`APP COSTEO/supabase/permiso_solo_tiempos.sql`) **nunca se aplicó**; `TiemposTab` ya trae el modo `soloRegistro` por si se retoma.
+- La app vieja de costeo quedó mostrando solo un aviso con el enlace al ERP (los enlaces viejos `?ficha=…&tab=…` llevan a la misma ficha).

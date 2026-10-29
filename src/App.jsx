@@ -39,6 +39,11 @@ import CalendarioOF         from './components/of/Calendario'
 import DashboardOF          from './components/of/DashboardVentasOF'
 import ProductosOF          from './components/of/ProductosOF'
 import ClientesOF           from './components/of/ClientesOF'
+import CosteoFichas         from './components/costeo/CosteoFichas'
+import CosteoFicha          from './components/costeo/CosteoFicha'
+import EtapasMaestro        from './components/costeo/EtapasMaestro'
+import CifMaestro           from './components/costeo/CifMaestro'
+import EquiposMaestro       from './components/costeo/EquiposMaestro'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
 import ListaEmpleados           from './components/rrhh/ListaEmpleados'
 import FichaEmpleado            from './components/rrhh/FichaEmpleado'
@@ -276,6 +281,12 @@ function AppRoutes() {
       <Route path="/of/dashboard"          element={<Layout><DashboardOF /></Layout>} />
       <Route path="/of/productos"          element={<Layout><ProductosOF /></Layout>} />
       <Route path="/of/clientes"           element={<Layout><ClientesOF /></Layout>} />
+      {/* Costeo: por ahora solo ADMIN (este bloque también atiende roles sin bloque propio) */}
+      {rolEfectivo === 'ADMIN' && <Route path="/costeo"                element={<Layout><CosteoFichas /></Layout>} />}
+      {rolEfectivo === 'ADMIN' && <Route path="/costeo/fichas/:id"     element={<Layout><CosteoFicha /></Layout>} />}
+      {rolEfectivo === 'ADMIN' && <Route path="/costeo/etapas"         element={<Layout><EtapasMaestro /></Layout>} />}
+      {rolEfectivo === 'ADMIN' && <Route path="/costeo/cif"            element={<Layout><CifMaestro /></Layout>} />}
+      {rolEfectivo === 'ADMIN' && <Route path="/costeo/equipos"        element={<Layout><EquiposMaestro /></Layout>} />}
       <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
       <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
       <Route path="/rrhh/organigrama"      element={<Layout><Organigrama /></Layout>} />

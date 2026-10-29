@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2 } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -17,6 +17,7 @@ const MODULOS = {
   'Fundición':        Flame,
   'Producción y Ensamble': Factory,
   'Ventas': ClipboardList,
+  'Costeo':           Calculator,
   'Recursos Humanos': HardHat,
   'Calidad':          ShieldAlert,
 }
@@ -51,6 +52,10 @@ const NAV_ADMIN = [
   { to: '/of/dashboard',                      icon: BarChart2,       label: 'Dashboard',          modulo: 'Ventas' },
   { to: '/of/productos',                      icon: Package,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
+  { to: '/costeo',                            icon: Calculator,      label: 'Fichas',             modulo: 'Costeo' },
+  { to: '/costeo/etapas',                     icon: Users,           label: 'Responsables por etapa', modulo: 'Costeo' },
+  { to: '/costeo/cif',                        icon: Coins,           label: 'CIF de planta',      modulo: 'Costeo' },
+  { to: '/costeo/equipos',                    icon: Cog,             label: 'Equipos de planta',  modulo: 'Costeo' },
   { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
