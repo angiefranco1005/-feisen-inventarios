@@ -338,7 +338,7 @@ export default function InformeKardex() {
 
       {/* ── Filtros ── */}
       <div className="bg-white border border-feisen-borde rounded-xl p-4 space-y-3">
-        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 [scrollbar-width:none]">
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
           {PERIODOS.map(([t, a, b]) => {
             const activo = fechaInicio === a && fechaFin === b
             return (

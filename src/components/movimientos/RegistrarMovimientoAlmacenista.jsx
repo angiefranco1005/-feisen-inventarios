@@ -1001,15 +1001,15 @@ export default function RegistrarMovimientoAlmacenista() {
           {/* Paquetes de piezas por máquina */}
           {usaPaquetes && (
             <Bloque titulo="Sacar un paquete por máquina" detalle="opcional">
-              <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 snap-x [scrollbar-width:none]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {paquetesBodega.map(p => {
                   const activo = paqueteSelId === p.id
                   return (
                     <button key={p.id} type="button" aria-pressed={activo}
                       onClick={() => { setPaqueteSelId(activo ? '' : p.id); setMultiplicadorPaq(1) }}
-                      className={`snap-start shrink-0 w-48 text-left rounded-lg border px-3 py-2.5 transition-colors active:scale-[.98]
+                      className={`min-h-[44px] text-left rounded-lg border px-3 py-2.5 transition-colors active:scale-[.98]
                         ${activo ? 'border-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde bg-white hover:bg-feisen-fondo'}`}>
-                      <span className="block text-sm font-semibold text-feisen-texto leading-snug line-clamp-2">{p.nombre}</span>
+                      <span className="block text-sm font-semibold text-feisen-texto leading-snug">{p.nombre}</span>
                       <span className="block text-xs text-feisen-texto-2 mt-0.5">{(p.paquete_items || []).length} productos por máquina</span>
                     </button>
                   )

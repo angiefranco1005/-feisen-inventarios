@@ -1706,3 +1706,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - `admin/inicio/operarios.js` primero busca el nombre completo exacto (registros nuevos) y luego hace la búsqueda aproximada (registros viejos); así "Triana" de Wilmer no se le atribuye a José Miguel Piraneque Triana.
 - Pendiente aparte: los movimientos MEC se guardan con `precio_costo_snapshot: 0`, así que el kardex/valor de lo mecanizado sale en $0.
 - Transferencias Fundición → Mecanizados: el ADMIN no tenía esta pantalla en el menú (solo los jefes de Fundición y Mecanizados). Se agregó en Mecanizados → Transferencias, con ruta `/transferencias` para ADMIN. El admin ve todas, sin botones de aprobar: aprobar/rechazar sigue siendo de Mecanizados, que recibe las piezas.
+
+## 2026-10-29 — Paquetes por máquina cortados en Registrar movimiento
+- Las tarjetas de "Sacar un paquete por máquina" estaban en una franja con scroll horizontal y barra oculta: en computador no se podía llegar a las de la derecha (quedaban cortadas) en ninguna bodega (Mecanizados, Almacén…). Ahora es una grilla que se acomoda (1 columna en celular, 2–3 en computador) y el nombre se ve completo.
+- Revisado el mismo patrón en otras pantallas: los chips de filtro de Historial, Kardex e Inventario físico siguen deslizando en celular, pero en computador ahora pasan a la siguiente línea en vez de esconderse.
+- Regla: no usar franjas con `overflow-x-auto` + barra oculta para opciones que el usuario debe poder elegir en escritorio.

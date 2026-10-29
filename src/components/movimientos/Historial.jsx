@@ -573,7 +573,7 @@ export default function Historial() {
             className="w-full border border-feisen-borde rounded-lg pl-10 pr-10 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
           <kbd className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 border border-feisen-borde rounded px-1.5">/</kbd>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none]">
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
           {[['todos', 'Todos'], ['salida', 'Salidas'], ['entrada', 'Entradas'], ['editados', 'Editados']].map(([k, t]) => (
             <button key={k} type="button" aria-pressed={filtroTipo === k} onClick={() => setFiltroTipo(k)}
               className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors

@@ -680,7 +680,7 @@ export default function InventarioFisico() {
             placeholder="Buscar producto por palabras del nombre…"
             className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
         </div>
-        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none]">
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
           {chipsEstado.map(([k, t, n]) => (
             <button key={k} type="button" aria-pressed={filtroEstado === k} onClick={() => { setFiltroEstado(k); setLimite(PAGINA) }}
               className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
