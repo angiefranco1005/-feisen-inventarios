@@ -1747,3 +1747,6 @@ el avance se registra a diario y la orden se cierra a mano.
 - Trigger `trg_motor_seriales_sync`: al eliminar/revertir una salida el motor vuelve a disponible; al eliminar/revertir una entrada se quita el serial (si no ha salido); al corregir el serial de una entrada en el Historial se corrige en la tabla. Corregir el serial de una SALIDA en el Historial no cambia qué motor quedó despachado.
 - La validación es solo en pantalla: ajustes de inventario físico y transferencias de MOTORES no piden serial ni OF.
 - ENT-AF-0433 se partió en una línea por motor (25 seriales); el stock no cambió.
+
+## 2026-10-29 · Salida de Almacén: lo último agregado queda de primero
+- En `ListaProductos` (RegistrarMovimientoAlmacenista) el producto que se agrega, o al que se le suma +1, pasa al primer lugar de la lista y se resalta 1,6 s. Las piezas de un paquete también quedan de primeras. Así se ajusta la cantidad sin bajar por toda la lista.

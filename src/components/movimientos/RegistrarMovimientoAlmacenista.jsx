@@ -63,10 +63,24 @@ function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nomb
   const resultados = esSalida ? [...coinciden].sort((a, b) => ((stockPorItem[b.id] ?? 0) > 0) - ((stockPorItem[a.id] ?? 0) > 0)) : coinciden
   const MAX = 200 // tope solo para no dibujar miles de filas
 
+  // El último que se agrega queda de primero (y resaltado un momento), para poder
+  // ajustar su cantidad sin bajar por toda la lista
+  const [recien, setRecien] = useState(null)
+  useEffect(() => {
+    if (!recien) return
+    const t = setTimeout(() => setRecien(null), 1600)
+    return () => clearTimeout(t)
+  }, [recien])
+
   function agregar(item) {
-    setLineas(prev => prev.some(l => l.item_id === item.id)
-      ? prev.map(l => l.item_id === item.id ? { ...l, cantidad: String((parseFloat(l.cantidad) || 0) + 1) } : l)
-      : [...prev, { item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida, cantidad: '1', peso_unitario: item.peso_unitario ?? null }])
+    setLineas(prev => {
+      const previa = prev.find(l => l.item_id === item.id)
+      const linea = previa
+        ? { ...previa, cantidad: String((parseFloat(previa.cantidad) || 0) + 1) }
+        : { item_id: item.id, item_nombre: item.nombre, unidad: item.unidad_medida, cantidad: '1', peso_unitario: item.peso_unitario ?? null }
+      return [linea, ...prev.filter(l => l.item_id !== item.id)]
+    })
+    setRecien(item.id)
     setTexto('')
     inputRef.current?.focus()
   }
@@ -135,7 +149,7 @@ function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nomb
             const n = parseFloat(l.cantidad) || 0
             const falta = esSalida && n > hay
             return (
-              <li key={l.item_id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 pl-3 pr-1.5 py-2.5 ${falta ? 'bg-feisen-rojo-suave' : 'bg-white'}`}>
+              <li key={l.item_id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 pl-3 pr-1.5 py-2.5 transition-colors duration-700 ${falta ? 'bg-feisen-rojo-suave' : recien === l.item_id ? 'bg-feisen-azul-suave' : 'bg-white'}`}>
                 <div className="flex-1 min-w-[11rem]">
                   <p className="text-sm font-medium text-feisen-texto break-words">{l.item_nombre}</p>
                   <p className={`text-xs tabular-nums ${falta ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
@@ -500,15 +514,15 @@ export default function RegistrarMovimientoAlmacenista() {
       return
     }
 
-    // Se SUMA a lo que ya está en la lista (se pueden sacar varios paquetes en la misma salida)
+    // Se SUMA a lo que ya está en la lista (se pueden sacar varios paquetes en la misma salida).
+    // Las piezas del paquete quedan de primeras, para revisar sus cantidades sin bajar.
     setSProductos(prev => {
-      const res = [...prev]
-      for (const nl of nuevasLineas) {
-        const k = res.findIndex(l => l.item_id === nl.item_id)
-        if (k >= 0) res[k] = { ...res[k], cantidad: String((parseFloat(res[k].cantidad) || 0) + parseFloat(nl.cantidad)) }
-        else res.push(nl)
-      }
-      return res
+      const delPaquete = nuevasLineas.map(nl => {
+        const previa = prev.find(l => l.item_id === nl.item_id)
+        return previa ? { ...previa, cantidad: String((parseFloat(previa.cantidad) || 0) + parseFloat(nl.cantidad)) } : nl
+      })
+      const ids = new Set(nuevasLineas.map(nl => nl.item_id))
+      return [...delPaquete, ...prev.filter(l => !ids.has(l.item_id))]
     })
     setError(faltantes > 0
       ? `Se agregaron ${nuevasLineas.length} de ${piezas.length} piezas del paquete — ${faltantes} ya no están en el catálogo activo.`
