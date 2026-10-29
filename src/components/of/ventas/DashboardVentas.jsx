@@ -73,6 +73,14 @@ export default function DashboardVentas() {
         })
         if (error) throw error
       },
+      traerDeOdoo: async (empresa, mes) => {
+        const { data, error } = await supabase.functions.invoke('ventas-odoo', { body: { empresa, mes } })
+        if (error) {
+          const cuerpo = await error.context?.json?.().catch(() => null)
+          throw new Error(cuerpo?.error || 'No se pudo consultar Odoo.')
+        }
+        return data.filas
+      },
       alGuardar: async () => {
         try { api.current?.actualizar(armarSnapshot(await traerFilas('odoo'))) } catch { /* el mensaje de guardado ya salió */ }
       },

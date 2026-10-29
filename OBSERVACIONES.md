@@ -1893,3 +1893,11 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
 - Niveles que de verdad cambian algo dentro de la pantalla: Productos (Ve = solo consulta; `puedeEditar`) y Pedidos (Todo = gestiona los de todas las áreas, lo que antes era «ser Logística»). En el resto el módulo es sí/no y lo de adentro sigue dependiendo del rol.
 - **Etapa 2 pendiente:** las políticas RLS (118 en 64 tablas) siguen por rol fijo. Si se le da a un rol algo que no tenía, la matriz lo marca con ⚠ porque la pantalla puede salir vacía. Pasar las RLS a `rol_permisos`, módulo por módulo, cada lote con OK de Angie.
 - Roles de la tabla `roles` que hoy no usa nadie: `RECURSOS_HUMANOS` (duplicado de RRHH). `JEFE_ENSAMBLE` lo usa el código pero no está en la tabla roles.
+
+## 2026-10-29 · Ventas: traer el mes directo de Odoo (FC)
+
+- FC está en Odoo Online `https://fc-sas.odoo.com`, base `fc-sas`, **Odoo 19 Enterprise**. Feisen está en Odoo.sh (pendiente).
+- Función `supabase/functions/ventas-odoo`: con la API JSON-2 de Odoo 19 lee `account.invoice.report` (publicadas, `out_invoice`, fecha de factura en el mes), agrupa por cliente + producto (quita el código `[..]` del producto) y devuelve las filas. No guarda: el tablero muestra el mismo resumen que con el Excel y guarda con `ventas_cargar_mes`. Solo quien pasa `ventas_puede_ver()`.
+- Clave: secreto de Supabase `ODOO_FC_APIKEY` (clave API de un usuario de Odoo con acceso a Contabilidad). Odoo Online solo permite la API en el plan Personalizado (Custom).
+- Botón "Traer de Odoo" en Cargar informe, visible solo con FC elegida.
+- Pendiente: desplegar la función, probar contra Odoo real, comparar con el Excel de un mes; luego Feisen (Odoo.sh) y la actualización diaria automática.

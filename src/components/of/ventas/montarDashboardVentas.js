@@ -629,7 +629,21 @@ export function montarDashboardVentas(root, opts){
       showPreview(res,file.name);
     }catch(e){upMsg(e instanceof Fail?e.message:(e&&e.message==='lib'?'No se pudo cargar el lector de Excel. Revisa la conexión e inténtalo de nuevo.':'No pude leer el archivo. Asegúrate de que sea el Excel descargado de la tabla dinámica de Odoo.'),'err')}
   }
-  function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')})}
+  function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')});$('up-odoo-row').hidden=!(opts.traerDeOdoo&&upCo===1)}
+  // Traer de Odoo (solo FC por ahora): la función devuelve las filas del mes y se muestra el mismo resumen que con el Excel
+  (function(){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('up-odoo-mes').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')})();
+  $('up-odoo').onclick=async function(){
+    var ym=$('up-odoo-mes').value,co=upCo,btn=$('up-odoo');
+    if(!ym){upMsg('Elige el mes que quieres traer.','err');return}
+    resetUp();lastFile=null;btn.disabled=true;upMsg('Consultando Odoo de '+coName(co)+'…');
+    try{
+      var filas=await opts.traerDeOdoo(co?'fc':'feisen',ym);
+      if(!filas.length){upMsg('Odoo no tiene facturas publicadas de '+coName(co)+' en ese mes.','err');return}
+      var v=0,q=0,cs={},ps={};filas.forEach(function(f){v+=f.v;q+=f.q;cs[f.c]=1;if(f.p!==SD)ps[f.p]=1});
+      upCo=co;showPreview({months:[{ym:ym,filas:filas,v:v,q:q,nc:Object.keys(cs).length,np:Object.keys(ps).length,check:v,diff:false}]},'Odoo '+coName(co)+' '+ym);
+    }catch(e){upMsg((e&&e.message)||'No se pudo consultar Odoo.','err')}
+    finally{btn.disabled=false}
+  };
   document.querySelectorAll('[data-up-co]').forEach(function(b){b.onclick=function(){upCo=+b.dataset.upCo;paintCo();if(lastFile&&pending)readFile(lastFile)}});
   $('up-file').addEventListener('change',function(e){readFile(e.target.files[0])});
   $('up-month').addEventListener('change',function(){if(lastFile)readFile(lastFile)});
