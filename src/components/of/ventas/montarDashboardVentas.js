@@ -95,6 +95,8 @@ export function montarDashboardVentas(root, opts){
   function MN(m){return NOM[moOf(m)]+(MULTI?' '+yOf(m):'')}
   function MS(m){return ABR[moOf(m)]+(MULTI?' '+String(yOf(m)).slice(2):'')}
   var BASE_DAYS=27,BASE_M=10,MD=31;
+  // Mes en curso (se actualiza solo desde Odoo cada 15 min): se trata como parcial, al día de hoy
+  var HOY=new Date(),M_HOY=(HOY.getFullYear()-2026)*12+HOY.getMonth()+1;
   var CO='all',CO_LBL={all:'Consolidado Feisen + FC',fe:'Feisen',fc:'FC'};
   function inCo(r){return CO==='all'||(CO==='fe'?r[0]===0:r[0]===1)}
   // fila base: [empresa, cliente, producto, mes, valor, cantidad, origen 'b' base | 'u' cargado]
@@ -122,10 +124,12 @@ export function montarDashboardVentas(root, opts){
     LAST=MONTHS[MONTHS.length-1];
     PREV=MONTHS.filter(function(m){return m<LAST}).slice(-6);
     JS=PREV.slice(-3);
-    PARTIAL=LAST===BASE_M&&R.some(function(r){return inCo(r)&&r[3]===BASE_M&&r[6]==='b'});
-    DAYS=PARTIAL?BASE_DAYS:MD;FAC=PARTIAL?MD/BASE_DAYS:1;
+    MD=new Date(yOf(LAST),moOf(LAST)+1,0).getDate();
+    var baseP=LAST===BASE_M&&R.some(function(r){return inCo(r)&&r[3]===BASE_M&&r[6]==='b'});
+    PARTIAL=baseP||LAST===M_HOY;
+    DAYS=baseP?BASE_DAYS:(PARTIAL?HOY.getDate():MD);FAC=PARTIAL?MD/DAYS:1;
     ALL_S=rngS(MONTHS);ALL_L=rngL(MONTHS);PREV_S=rngS(PREV);PREV_L=rngL(PREV);JS_S=rngS(JS);JS_L=rngL(JS);
-    PERIODO=cap(rngL(MONTHS).replace(' a ',' – '))+(MULTI?'':' '+yOf(LAST))+(PARTIAL?' · al '+BASE_DAYS+'/'+String(moOf(BASE_M)+1).padStart(2,'0'):'');
+    PERIODO=cap(rngL(MONTHS).replace(' a ',' – '))+(MULTI?'':' '+yOf(LAST))+(PARTIAL?' · al '+DAYS+'/'+String(moOf(LAST)+1).padStart(2,'0'):'');
     LAST_LBL=MN(LAST)+(PARTIAL?' al '+DAYS:'');
   }
   var SD='Sin detalle',DATA={rows:[]};
@@ -141,7 +145,7 @@ export function montarDashboardVentas(root, opts){
   function creditNote(){
     var n=0,s=0;R.forEach(function(r){if(inCo(r)&&r[4]<0&&r[6]==='b'){n++;s+=r[4]}});
     var ups=Object.keys(UP).map(function(k){return UP[k]}).filter(function(u){return CO==='all'||(CO==='fe'?u.co===0:u.co===1)}).sort(function(a,b){return a.m-b.m||a.co-b.co});
-    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses cargados con el Excel de Odoo traen solo facturas; los traídos directo de Odoo restan las notas crédito. ':'')+(ups.length?'Meses cargados desde Odoo: '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(BASE_M)+' llega hasta el '+BASE_DAYS+'/'+String(moOf(BASE_M)+1).padStart(2,'0')+'/'+yOf(BASE_M)+'.':'');
+    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses cargados con el Excel de Odoo traen solo facturas; los traídos directo de Odoo restan las notas crédito. ':'')+(ups.length?'Meses cargados desde Odoo (el mes en curso se actualiza solo cada 15 minutos): '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(LAST)+' llega hasta el '+DAYS+'/'+String(moOf(LAST)+1).padStart(2,'0')+'/'+yOf(LAST)+'.':'');
   }
 
   // ===== Gráfica mes a mes (compartida) =====
