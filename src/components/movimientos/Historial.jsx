@@ -102,7 +102,7 @@ function SelectorProductoEdicion({ items, valorId, onElegir }) {
           className="shrink-0 text-sm text-gray-500 px-2 py-2">Cancelar</button>
       </div>
       <div className="max-h-56 overflow-y-auto divide-y divide-gray-50">
-        {filtrados.slice(0, 50).map(i => (
+        {filtrados.slice(0, 200).map(i => (
           <button key={i.id} type="button" onClick={() => { onElegir(i); setBuscando(false) }}
             className={`w-full text-left px-3 py-3 text-sm hover:bg-blue-50 rounded-lg
               ${i.id === valorId ? 'font-semibold text-feisen-azul' : 'text-gray-800'}`}>
@@ -110,7 +110,7 @@ function SelectorProductoEdicion({ items, valorId, onElegir }) {
           </button>
         ))}
         {filtrados.length === 0 && <p className="px-3 py-2.5 text-sm text-gray-400">Sin resultados en esta bodega.</p>}
-        {filtrados.length > 50 && <p className="px-3 py-2 text-xs text-gray-400">Mostrando 50 de {filtrados.length}. Escribe más del nombre para acotar.</p>}
+        {filtrados.length > 200 && <p className="px-3 py-2 text-xs text-gray-400">Mostrando 200 de {filtrados.length}. Escribe más del nombre para acotar.</p>}
       </div>
     </div>
   )

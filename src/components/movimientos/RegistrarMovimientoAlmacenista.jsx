@@ -58,8 +58,10 @@ function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nomb
   const [texto, setTexto] = useState('')
   const inputRef = useRef(null)
   useAtajoBuscar(inputRef)
-  const resultados = texto.trim() ? items.filter(i => coincideBusqueda(i.nombre, texto)) : []
-  const MAX = 8
+  // Todos los que coinciden (antes solo 8); en salidas primero los que tienen existencias
+  const coinciden = texto.trim() ? items.filter(i => coincideBusqueda(i.nombre, texto)) : []
+  const resultados = esSalida ? [...coinciden].sort((a, b) => ((stockPorItem[b.id] ?? 0) > 0) - ((stockPorItem[a.id] ?? 0) > 0)) : coinciden
+  const MAX = 200 // tope solo para no dibujar miles de filas
 
   function agregar(item) {
     setLineas(prev => prev.some(l => l.item_id === item.id)
@@ -87,7 +89,12 @@ function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nomb
       </div>
 
       {texto.trim() && (
-        <div className="border border-feisen-borde rounded-lg overflow-hidden divide-y divide-feisen-borde-suave">
+        <div className="border border-feisen-borde rounded-lg overflow-y-auto overscroll-contain max-h-[26rem] divide-y divide-feisen-borde-suave">
+          {resultados.length > 0 && (
+            <p className="sticky top-0 z-10 px-3 py-1.5 text-xs text-feisen-texto-2 bg-feisen-fondo">
+              {resultados.length.toLocaleString('es-CO')} {resultados.length === 1 ? 'producto' : 'productos'}{resultados.length > 6 ? ' · desliza para ver todos' : ''}
+            </p>
+          )}
           {resultados.length === 0 && (
             <p className="px-3 py-3 text-sm text-feisen-texto-2">
               Ningún producto de {nombreBodega || 'la bodega'} tiene “{texto.trim()}” en el nombre. Prueba con una sola palabra.
@@ -112,7 +119,7 @@ function ListaProductos({ items, lineas, setLineas, stockPorItem, esSalida, nomb
             )
           })}
           {resultados.length > MAX && (
-            <p className="px-3 py-2 text-xs text-gray-400 bg-white">Mostrando {MAX} de {resultados.length}. Escribe otra palabra para afinar.</p>
+            <p className="px-3 py-2 text-xs text-gray-400 bg-white">Se muestran {MAX} de {resultados.length}. Escribe otra palabra para afinar.</p>
           )}
         </div>
       )}

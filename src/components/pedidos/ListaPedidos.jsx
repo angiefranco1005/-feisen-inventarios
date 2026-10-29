@@ -472,7 +472,7 @@ function SelectorProducto({ value, onSelect, productos }) {
       </div>
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
-          {filtrados.slice(0, 30).map(p => (
+          {filtrados.slice(0, 200).map(p => (
             <button key={p.id} type="button" onMouseDown={() => { setBusqueda(p.nombre); setAbierto(false); onSelect(p.nombre, p.unidad_medida, p.id) }}
               className="w-full text-left px-4 py-3.5 text-base hover:bg-blue-50 active:bg-blue-100 border-b last:border-0 flex justify-between items-center">
               <span className="font-medium text-gray-800">{p.nombre}</span>

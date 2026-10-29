@@ -72,7 +72,7 @@ function SelectorItem({ items, excluir = [], onSeleccionar, ayuda }) {
       />
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1.5 max-h-80 overflow-y-auto">
-          {filtrados.slice(0, 40).map(i => (
+          {filtrados.slice(0, 200).map(i => (
             <button key={i.id} type="button" onMouseDown={() => elegir(i)}
               className="w-full text-left px-5 py-4 text-base hover:bg-blue-50 border-b border-gray-50 last:border-0 font-medium text-gray-800">
               {i.nombre}

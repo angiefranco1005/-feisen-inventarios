@@ -269,11 +269,16 @@ export default function RegistrarMovimiento() {
                   className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
               </div>
               {mostrarLista && busqueda.trim() && (
-                <div className="border border-feisen-borde rounded-lg overflow-hidden divide-y divide-feisen-borde-suave">
+                <div className="border border-feisen-borde rounded-lg overflow-y-auto overscroll-contain max-h-[26rem] divide-y divide-feisen-borde-suave">
+                  {itemsFiltrados.length > 0 && (
+                    <p className="sticky top-0 z-10 px-3 py-1.5 text-xs text-feisen-texto-2 bg-feisen-fondo">
+                      {itemsFiltrados.length.toLocaleString('es-CO')} {itemsFiltrados.length === 1 ? 'producto' : 'productos'}{itemsFiltrados.length > 6 ? ' · desliza para ver todos' : ''}
+                    </p>
+                  )}
                   {itemsFiltrados.length === 0 && (
                     <p className="px-3 py-3 text-sm text-feisen-texto-2">Ningún producto tiene “{busqueda.trim()}” en el nombre. Prueba con una sola palabra.</p>
                   )}
-                  {itemsFiltrados.slice(0, 8).map(item => {
+                  {itemsFiltrados.slice(0, 200).map(item => {
                     const h = hay(item.id, item.bodega_id)
                     return (
                       <button key={item.id} type="button" onClick={() => seleccionarItem(item)}
@@ -286,7 +291,7 @@ export default function RegistrarMovimiento() {
                       </button>
                     )
                   })}
-                  {itemsFiltrados.length > 8 && <p className="px-3 py-2 text-xs text-gray-400 bg-white">Mostrando 8 de {itemsFiltrados.length}. Escribe otra palabra para afinar.</p>}
+                  {itemsFiltrados.length > 200 && <p className="px-3 py-2 text-xs text-gray-400 bg-white">Se muestran 200 de {itemsFiltrados.length}. Escribe otra palabra para afinar.</p>}
                 </div>
               )}
             </>

@@ -198,7 +198,7 @@ export default function DashboardOperario() {
                         className="w-full border border-feisen-borde rounded-xl pl-10 pr-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
                       {dropdownAbierto === i && filtrados.length > 0 && (
                         <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                          {filtrados.slice(0, 15).map(p => (
+                          {filtrados.slice(0, 200).map(p => (
                             <button key={p.id} type="button"
                               onMouseDown={() => { setPedidoItems(prev => prev.map((x, j) => j === i ? { ...x, descripcion: p.nombre, busqueda: p.nombre, unidad: p.unidad_medida } : x)); setDropdownAbierto(null) }}
                               className="w-full text-left px-4 py-3 hover:bg-feisen-gris border-b last:border-0 flex items-center justify-between">
@@ -319,7 +319,7 @@ export default function DashboardOperario() {
               </div>
               {mostrarLista && itemsFiltrados.length > 0 && (
                 <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                  {itemsFiltrados.slice(0, 15).map(item => (
+                  {itemsFiltrados.slice(0, 200).map(item => (
                     <button key={item.id} type="button" onClick={() => seleccionarItem(item)}
                       className="w-full text-left px-4 py-3 hover:bg-feisen-gris border-b last:border-0 text-feisen-gris-oscuro font-medium text-sm">
                       {item.nombre}
