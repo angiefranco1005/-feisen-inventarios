@@ -192,22 +192,41 @@ export function montarDashboardVentas(root, opts){
   var sel={};
   ['mes','prod','cli'].forEach(function(k){
     sel[k]=document.getElementById('f-'+k);
-    sel[k].addEventListener('change',function(){F[k]=k==='mes'?sel[k].value:buscarValor(k,sel[k].value);sel[k].value=F[k];render()});
-    // Al borrar el buscador se quita el filtro de una vez
-    if(k!=='mes')sel[k].addEventListener('input',function(){if(!sel[k].value&&F[k]){F[k]='';render()}});
+    if(k==='mes')sel[k].addEventListener('change',function(){F[k]=sel[k].value;render()});
+    else buscador(k);
   });
-  // Producto y cliente se escriben: vale el nombre exacto, o el único que contenga lo escrito
-  var LISTA={prod:[],cli:[]};
-  function buscarValor(k,txt){
-    var t=String(txt||'').trim().toLowerCase();if(!t)return '';
-    var ex=LISTA[k].find(function(v){return v.toLowerCase()===t});if(ex)return ex;
-    var parc=LISTA[k].filter(function(v){return v.toLowerCase().indexOf(t)>-1});
-    return parc.length===1?parc[0]:F[k];
+  // Producto y cliente: buscador propio (no la lista del navegador). No muestra nada hasta que se
+  // escribe; luego solo las coincidencias (sin importar tildes), máximo SUG_MAX. Flechas + Enter o clic.
+  var LISTA={prod:[],cli:[]},SUG_MAX=8;
+  function sinTilde(s){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()}
+  function buscador(k){
+    var inp=sel[k],box=document.getElementById('sug-'+k),items=[],act=0;
+    function cerrar(){box.hidden=true;inp.setAttribute('aria-expanded','false')}
+    function elegir(v){F[k]=v;inp.value=v;cerrar();render()}
+    function pintar(){
+      var t=sinTilde(inp.value.trim());
+      if(!t){cerrar();return}
+      var todos=LISTA[k].filter(function(v){return sinTilde(v).indexOf(t)>-1});
+      items=todos.slice(0,SUG_MAX);act=Math.min(act,Math.max(items.length-1,0));
+      box.innerHTML=items.length?items.map(function(v,i){return '<button type="button" role="option" title="'+esc(v)+'" data-sv="'+esc(v)+'"'+(i===act?' class="on" aria-selected="true"':'')+'>'+esc(v)+'</button>'}).join('')+(todos.length>items.length?'<p class="sug-mas">y '+(todos.length-items.length)+' más · sigue escribiendo</p>':''):'<p class="sug-mas">Sin coincidencias</p>';
+      box.hidden=false;inp.setAttribute('aria-expanded','true');
+    }
+    inp.addEventListener('input',function(){act=0;if(!inp.value&&F[k]){F[k]='';render()}pintar()});
+    inp.addEventListener('focus',function(){if(inp.value&&inp.value!==F[k])pintar()});
+    inp.addEventListener('keydown',function(e){
+      if(box.hidden&&e.key!=='Escape')return;
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();act=(act+(e.key==='ArrowDown'?1:-1)+items.length)%Math.max(items.length,1);pintar()}
+      else if(e.key==='Enter'){e.preventDefault();if(items[act])elegir(items[act])}
+      else if(e.key==='Escape'){cerrar();inp.value=F[k]}
+    });
+    // mousedown para que el clic llegue antes de que el campo pierda el foco
+    box.addEventListener('mousedown',function(e){var b=e.target.closest('[data-sv]');e.preventDefault();if(b)elegir(b.dataset.sv)});
+    inp.addEventListener('blur',function(){setTimeout(function(){cerrar();if(inp.value!==F[k])inp.value=F[k]},120)});
   }
   function fillSelects(){['mes','prod','cli'].forEach(function(k){
     var vals={};DATA.rows.forEach(function(r){if(r[IDX[k]]!==SD)vals[r[IDX[k]]]=1});
     var list=k==='mes'?MONTHS.map(function(m){return MN(m)}).filter(function(m){return vals[m]}):Object.keys(vals).sort(function(a,b){return a.localeCompare(b,'es')});
-    if(k!=='mes'){LISTA[k]=list;document.getElementById('dl-'+k).innerHTML=list.map(function(v){return '<option value="'+esc(v)+'">'}).join('');return}
+    if(k!=='mes'){LISTA[k]=list;return}
     sel[k].innerHTML='<option value="">'+cap(ALL_L.replace(' a ',' – '))+'</option>'+list.map(function(v){return '<option>'+esc(v)+'</option>'}).join('');
   })}
   function setF(k,v){F[k]=F[k]===v?'':v;sel[k].value=F[k];render()}

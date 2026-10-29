@@ -1806,7 +1806,7 @@ el avance se registra a diario y la orden se cierra a mano.
 - `enviar-desprendible` está en el repo pero aún **no** está desplegada.
 
 ## 2026-10-29 · Dashboard de ventas: buscador y fichas de cliente / producto
-- En Análisis de ventas, Producto y Cliente ya no son listas desplegables: son buscadores (`<input list>` + `<datalist>`). Vale el nombre exacto o lo que coincida con un solo nombre; si no coincide, se deja el filtro anterior. Borrar el texto quita el filtro.
+- En Análisis de ventas, Producto y Cliente son buscadores propios (`buscador()` en `montarDashboardVentas.js`; se descartó `<datalist>` porque el navegador mostraba la lista completa). No muestran nada hasta escribir; luego hasta 8 coincidencias sin importar tildes ("pinon" encuentra PIÑON), con flechas + Enter o clic. Esc o salir del campo sin elegir deja el filtro anterior; borrar el texto quita el filtro.
 - Al elegir un cliente aparece su **ficha**: total comprado, meses con compras, última compra, todo lo que compra (de mayor a menor, con unidades y %) y **lo que no ha comprado** (productos que otros clientes sí compran, ordenados por venta total).
 - Al elegir un producto aparece su **ficha**: quién lo compra más y **qué clientes no lo compran** (clientes activos en el periodo, ordenados por sus compras totales).
 - Las fichas respetan la empresa y el mes elegidos; tocar una fila filtra por ese producto o cliente. Código: `fichas()` en `of/ventas/montarDashboardVentas.js`.

@@ -79,8 +79,8 @@
   </div>
   <div class="filters" role="group" aria-label="Filtros">
     <label for="f-mes"><span>Mes</span><select id="f-mes"></select></label>
-    <label for="f-prod"><span>Producto</span><input id="f-prod" type="search" list="dl-prod" autocomplete="off" placeholder="Escribe para buscar…"><datalist id="dl-prod"></datalist></label>
-    <label for="f-cli"><span>Cliente</span><input id="f-cli" type="search" list="dl-cli" autocomplete="off" placeholder="Escribe para buscar…"><datalist id="dl-cli"></datalist></label>
+    <label for="f-prod"><span>Producto</span><span class="srch"><input id="f-prod" type="search" autocomplete="off" placeholder="Escribe para buscar…" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sug-prod"><span class="sug" id="sug-prod" role="listbox" hidden></span></span></label>
+    <label for="f-cli"><span>Cliente</span><span class="srch"><input id="f-cli" type="search" autocomplete="off" placeholder="Escribe para buscar…" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sug-cli"><span class="sug" id="sug-cli" role="listbox" hidden></span></span></label>
     <button class="btn ghost" id="f-clear" type="button" hidden>Quitar filtros</button>
   </div>
   <p class="active-f" id="f-summary" aria-live="polite"></p>
