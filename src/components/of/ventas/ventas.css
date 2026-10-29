@@ -94,10 +94,10 @@
 .dv .sm{font-size:13px}
 .dv .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;align-items:end;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 2px rgba(20,33,61,.04),0 4px 16px rgba(20,33,61,.05)}
 .dv .filters label{display:grid;gap:6px;font-size:13px;color:var(--muted);font-weight:600;min-width:0}
-.dv .filters select{font:15px var(--body);color:var(--fg);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%;min-width:0;cursor:pointer;transition:border-color .15s,background .15s}
-.dv .filters select:hover{border-color:var(--blue)}
-.dv .filters select:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
-.dv .filters select.on{border-color:var(--blue);background:var(--blue-soft);color:var(--blue);font-weight:600}
+.dv .filters select,.dv .filters input{font:15px var(--body);color:var(--fg);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%;min-width:0;cursor:pointer;transition:border-color .15s,background .15s}
+.dv .filters select:hover,.dv .filters input:hover{border-color:var(--blue)}
+.dv .filters select:focus-visible,.dv .filters input:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.dv .filters select.on,.dv .filters input.on{border-color:var(--blue);background:var(--blue-soft);color:var(--blue);font-weight:600}
 .dv .btn.ghost{min-height:44px;color:var(--red);border-color:var(--red-soft);background:var(--red-soft)}
 .dv .active-f{font-size:14px;min-height:1.4em;color:var(--muted);margin-top:-14px}
 .dv .active-f b{color:var(--fg)}
@@ -291,3 +291,13 @@
 .dv::before{content:none}
 .dv .dv-nav{border-bottom:1px solid var(--line);margin-bottom:8px}
 .dv .dv-main{padding-top:20px}
+
+/* Fichas de cliente y producto */
+.dv .filters input{cursor:text}
+.dv .fi-card{display:grid;gap:16px}
+.dv .fi-head{display:grid;gap:6px}
+.dv .fi-head .tag{justify-self:start}
+.dv .fi-n{color:var(--blue);font-size:15px}
+.dv .fi-card h3{font-size:15px;margin-bottom:2px}
+.dv .pl.fl{grid-template-columns:1fr;max-height:420px;margin-top:8px}
+.dv .pl.fl .vl small{display:block}

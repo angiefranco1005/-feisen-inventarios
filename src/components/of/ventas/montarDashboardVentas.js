@@ -192,12 +192,23 @@ export function montarDashboardVentas(root, opts){
   var sel={};
   ['mes','prod','cli'].forEach(function(k){
     sel[k]=document.getElementById('f-'+k);
-    sel[k].addEventListener('change',function(){F[k]=sel[k].value;render()});
+    sel[k].addEventListener('change',function(){F[k]=k==='mes'?sel[k].value:buscarValor(k,sel[k].value);sel[k].value=F[k];render()});
+    // Al borrar el buscador se quita el filtro de una vez
+    if(k!=='mes')sel[k].addEventListener('input',function(){if(!sel[k].value&&F[k]){F[k]='';render()}});
   });
+  // Producto y cliente se escriben: vale el nombre exacto, o el único que contenga lo escrito
+  var LISTA={prod:[],cli:[]};
+  function buscarValor(k,txt){
+    var t=String(txt||'').trim().toLowerCase();if(!t)return '';
+    var ex=LISTA[k].find(function(v){return v.toLowerCase()===t});if(ex)return ex;
+    var parc=LISTA[k].filter(function(v){return v.toLowerCase().indexOf(t)>-1});
+    return parc.length===1?parc[0]:F[k];
+  }
   function fillSelects(){['mes','prod','cli'].forEach(function(k){
     var vals={};DATA.rows.forEach(function(r){if(r[IDX[k]]!==SD)vals[r[IDX[k]]]=1});
     var list=k==='mes'?MONTHS.map(function(m){return MN(m)}).filter(function(m){return vals[m]}):Object.keys(vals).sort(function(a,b){return a.localeCompare(b,'es')});
-    sel[k].innerHTML='<option value="">'+(k==='mes'?cap(ALL_L.replace(' a ',' – ')):'Todos')+'</option>'+list.map(function(v){return '<option>'+esc(v)+'</option>'}).join('');
+    if(k!=='mes'){LISTA[k]=list;document.getElementById('dl-'+k).innerHTML=list.map(function(v){return '<option value="'+esc(v)+'">'}).join('');return}
+    sel[k].innerHTML='<option value="">'+cap(ALL_L.replace(' a ',' – '))+'</option>'+list.map(function(v){return '<option>'+esc(v)+'</option>'}).join('');
   })}
   function setF(k,v){F[k]=F[k]===v?'':v;sel[k].value=F[k];render()}
   document.getElementById('f-clear').onclick=function(){Object.keys(F).forEach(function(k){F[k]='';sel[k].value=''});render()};
@@ -380,7 +391,49 @@ export function montarDashboardVentas(root, opts){
     bars(document.getElementById('b-prod'),'prod',4,8,copS);
     bars(document.getElementById('b-uni'),'prod',6,8,function(v){return num(v)+' und'});
     bars(document.getElementById('b-cli'),'cli',4,8,copS);
-    aMonths();treemap();donuts();pareto();
+    fichas();aMonths();treemap();donuts();pareto();
+  }
+
+  // ===== Fichas: al elegir un cliente o un producto =====
+  // Cliente: cuánto compró, qué compra (de mayor a menor) y qué no compra de lo que sí compran otros.
+  // Producto: quién lo compra (de mayor a menor) y qué clientes activos no lo compran.
+  // Ambas respetan el mes elegido y la empresa; tocar una fila filtra por ella.
+  function lista(items,k,fmtV,vacio){
+    if(!items.length)return '<p class="empty">'+vacio+'</p>';
+    return '<div class="pl fl">'+items.map(function(x,i){
+      return '<button type="button" data-pk="'+k+'" data-pv="'+esc(x.n)+'"'+(F[k]===x.n?' class="sel"':'')+'><span class="rk">'+(i+1)+'</span><span class="nm" title="'+esc(x.n)+'">'+esc(x.n)+'</span><span class="vl">'+fmtV(x)+'</span></button>';
+    }).join('')+'</div>';
+  }
+  function sumar(rows,i){var g={};rows.forEach(function(r){var o=g[r[i]]||(g[r[i]]={n:r[i],v:0,q:0});o.v+=r[4];o.q+=r[6]});return Object.keys(g).map(function(k){return g[k]}).filter(function(x){return x.v>0&&x.n!==SD}).sort(function(a,b){return b.v-a.v})}
+  function fichas(){
+    var el=document.getElementById('fichas');
+    if(!F.cli&&!F.prod){el.hidden=true;el.innerHTML='';return}
+    var base=DATA.rows.filter(function(r){return !F.mes||r[2]===F.mes});
+    var cuando=F.mes?' en '+esc(F.mes.toLowerCase()):' de '+ALL_L;
+    var vq=function(x){return copS(x.v)+'<small>'+num(x.q)+' und</small>'};
+    var html='';
+    if(F.cli){
+      var rc=base.filter(function(r){return r[0]===F.cli});
+      var tot=rc.reduce(function(s,r){return s+r[4]},0);
+      var meses={};rc.forEach(function(r){if(r[4]>0)meses[r[7]]=1});var ms=Object.keys(meses).map(Number).sort(function(a,b){return a-b});
+      var compra=sumar(rc,1),tiene={};compra.forEach(function(x){tiene[x.n]=1});
+      var noCompra=sumar(base,1).filter(function(x){return !tiene[x.n]});
+      html+='<section class="card fi-card"><div class="fi-head"><span class="tag t-blue">Ficha del cliente</span><h2 class="ch">'+esc(F.cli)+'</h2>'+
+        '<p class="muted sm">Compró <b class="fi-n">'+cop(tot)+'</b>'+cuando+(ms.length?' · en '+ms.length+(ms.length===1?' mes':' meses')+' · última compra en '+MN(ms[ms.length-1]).toLowerCase():'')+' · '+compra.length+(compra.length===1?' producto distinto':' productos distintos')+'</p></div>'+
+        '<div class="grid2"><div><h3>Lo que más compra</h3><p class="muted sm">De mayor a menor venta · toca uno para ver ese producto</p>'+lista(compra,'prod',function(x){return copS(x.v)+'<small>'+num(x.q)+' und · '+(tot?Math.round(x.v/tot*100):0)+' %</small>'},'No tiene compras con estos filtros.')+'</div>'+
+        '<div><h3>Lo que no ha comprado</h3><p class="muted sm">'+noCompra.length+' productos que otros clientes sí compran'+cuando+', ordenados por lo que más se vende</p>'+lista(noCompra,'prod',function(x){return copS(x.v)+'<small>venta total</small>'},'Ha comprado todo lo que se vende.')+'</div></div></section>';
+    }
+    if(F.prod){
+      var rp=base.filter(function(r){return r[1]===F.prod});
+      var totp=rp.reduce(function(s,r){return s+r[4]},0),uni=rp.reduce(function(s,r){return s+r[6]},0);
+      var quien=sumar(rp,0),lo={};quien.forEach(function(x){lo[x.n]=1});
+      var noLo=sumar(base,0).filter(function(x){return !lo[x.n]});
+      html+='<section class="card fi-card"><div class="fi-head"><span class="tag t-blue">Ficha del producto</span><h2 class="ch">'+esc(F.prod)+'</h2>'+
+        '<p class="muted sm">Se vendieron <b class="fi-n">'+cop(totp)+'</b>'+cuando+' · '+num(uni)+' und · a '+quien.length+(quien.length===1?' cliente':' clientes')+'</p></div>'+
+        '<div class="grid2"><div><h3>Quién lo compra más</h3><p class="muted sm">De mayor a menor · toca uno para ver ese cliente</p>'+lista(quien,'cli',function(x){return copS(x.v)+'<small>'+num(x.q)+' und · '+(totp?Math.round(x.v/totp*100):0)+' %</small>'},'Nadie lo compró con estos filtros.')+'</div>'+
+        '<div><h3>Clientes que no lo compran</h3><p class="muted sm">'+noLo.length+' clientes que compraron otras cosas'+cuando+', ordenados por lo que compran</p>'+lista(noLo,'cli',function(x){return copS(x.v)+'<small>compras totales</small>'},'Todos los clientes lo compraron.')+'</div></div></section>';
+    }
+    el.innerHTML=html;el.hidden=false;
   }
   function loadSet(){
     derive();

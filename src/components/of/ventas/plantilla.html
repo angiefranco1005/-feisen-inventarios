@@ -79,13 +79,15 @@
   </div>
   <div class="filters" role="group" aria-label="Filtros">
     <label for="f-mes"><span>Mes</span><select id="f-mes"></select></label>
-    <label for="f-prod"><span>Producto</span><select id="f-prod"></select></label>
-    <label for="f-cli"><span>Cliente</span><select id="f-cli"></select></label>
+    <label for="f-prod"><span>Producto</span><input id="f-prod" type="search" list="dl-prod" autocomplete="off" placeholder="Escribe para buscar…"><datalist id="dl-prod"></datalist></label>
+    <label for="f-cli"><span>Cliente</span><input id="f-cli" type="search" list="dl-cli" autocomplete="off" placeholder="Escribe para buscar…"><datalist id="dl-cli"></datalist></label>
     <button class="btn ghost" id="f-clear" type="button" hidden>Quitar filtros</button>
   </div>
   <p class="active-f" id="f-summary" aria-live="polite"></p>
 
   <div class="kpis" id="kpis"></div>
+
+  <div class="stack" id="fichas" hidden></div>
 
   <section class="card">
     <div><h2 class="ch">Venta por mes</h2><p class="muted sm">Responde a los filtros de producto y cliente. Toca un mes para filtrar.</p></div>

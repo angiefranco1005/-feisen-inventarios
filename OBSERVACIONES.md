@@ -1804,3 +1804,9 @@ el avance se registra a diario y la orden se cierra a mano.
 - Ojo: comprueba `profiles.rol = 'ADMIN'` pero no `activo`. Hoy no es un hueco práctico (un admin desactivado es sacado por la app), pero si se vuelve a desplegar conviene usar `get_my_rol()`.
 - En Supabase quedan además `rapid-worker` y `smart-action`: mismo contenido entre sí, la app no las llama (pruebas viejas). Candidatas a borrar con OK de Angie.
 - `enviar-desprendible` está en el repo pero aún **no** está desplegada.
+
+## 2026-10-29 · Dashboard de ventas: buscador y fichas de cliente / producto
+- En Análisis de ventas, Producto y Cliente ya no son listas desplegables: son buscadores (`<input list>` + `<datalist>`). Vale el nombre exacto o lo que coincida con un solo nombre; si no coincide, se deja el filtro anterior. Borrar el texto quita el filtro.
+- Al elegir un cliente aparece su **ficha**: total comprado, meses con compras, última compra, todo lo que compra (de mayor a menor, con unidades y %) y **lo que no ha comprado** (productos que otros clientes sí compran, ordenados por venta total).
+- Al elegir un producto aparece su **ficha**: quién lo compra más y **qué clientes no lo compran** (clientes activos en el periodo, ordenados por sus compras totales).
+- Las fichas respetan la empresa y el mes elegidos; tocar una fila filtra por ese producto o cliente. Código: `fichas()` en `of/ventas/montarDashboardVentas.js`.
