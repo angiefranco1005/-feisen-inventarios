@@ -16,7 +16,7 @@ const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
 const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
 
 export default function RegistrarMovimiento() {
-  const { perfil, esAdmin, bodegasOperacion } = useAuth()
+  const { perfil, esAdmin, esLogistica, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
   const location          = useLocation()
   const tipoInicial       = searchParams.get('tipo') || ''
@@ -26,6 +26,10 @@ export default function RegistrarMovimiento() {
   const [items,          setItems]          = useState([])
   const [pedidos,        setPedidos]        = useState([])
   const [itemsFiltrados, setItemsFiltrados] = useState([])
+  // Categoría de donde sale/entra el producto. Logística la elige siempre antes de buscar
+  // (en MOTORES hay EQUIPMASTER STORE y MOTORES CONSTRU); para ADMIN es un filtro opcional.
+  const [categorias,     setCategorias]     = useState([])
+  const [categoriaId,    setCategoriaId]    = useState('')
   const [busqueda,       setBusqueda]       = useState('')
   const [mostrarLista,   setMostrarLista]   = useState(false)
   const [cargando,       setCargando]       = useState(true)
@@ -70,7 +74,7 @@ export default function RegistrarMovimiento() {
       let bodegasQ = supabase.from('bodegas').select('*').eq('activo', true).order('nombre')
       // Catálogo paginado: el servidor corta a 1.000 filas y el catálogo ya tiene más de 1.500 productos
       const itemsQ = fetchAllPages((d, h) => {
-        let q = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, precio_costo')
+        let q = supabase.from('items').select('id, nombre, unidad_medida, bodega_id, categoria_id, precio_costo')
           .eq('activo', true).order('nombre').order('id').range(d, h)
         if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
         return q
@@ -84,15 +88,23 @@ export default function RegistrarMovimiento() {
         if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
         return q
       })
-      const [{ data: bods }, { data: its }, { data: peds }, { data: stk }] = await Promise.all([
+      let catsQ = supabase.from('categorias').select('id, nombre, bodega_id').order('nombre')
+      if (bodegasOperacion) catsQ = catsQ.in('bodega_id', bodegasOperacion)
+      const [{ data: bods }, { data: its }, { data: peds }, { data: stk }, { data: cats }] = await Promise.all([
         bodegasQ,
         itemsQ,
         supabase.from('pedidos').select('id, numero, estado').in('estado', ['pendiente', 'en_transito', 'recibido']).order('created_at', { ascending: false }).limit(50),
         stockQ,
+        catsQ,
       ])
       setStockPorClave(Object.fromEntries((stk || []).map(r => [`${r.item_id}_${r.bodega_id}`, Number(r.cantidad_actual) || 0])))
       setBodegas(bods || [])
       setItems(its || [])
+      // Solo las categorías que tienen productos activos
+      const conItems = new Set((its || []).map(i => i.categoria_id))
+      const catsUsadas = (cats || []).filter(c => conItems.has(c.id))
+      setCategorias(catsUsadas)
+      if (catsUsadas.length === 1) setCategoriaId(catsUsadas[0].id)
       setItemsFiltrados(its || [])
       setPedidos(peds || [])
       if (bods?.length === 1) setForm(f => ({ ...f, bodega_id: bods[0].id }))
@@ -103,8 +115,17 @@ export default function RegistrarMovimiento() {
 
   // Búsqueda por palabras sueltas, sin tildes ni orden (igual que el resto de la app)
   useEffect(() => {
-    setItemsFiltrados(busqueda.trim() ? items.filter(i => coincideBusqueda(i.nombre, busqueda)) : items)
-  }, [busqueda, items])
+    const base = categoriaId ? items.filter(i => i.categoria_id === categoriaId) : items
+    setItemsFiltrados(busqueda.trim() ? base.filter(i => coincideBusqueda(i.nombre, busqueda)) : base)
+  }, [busqueda, items, categoriaId])
+
+  const pideCategoria = esLogistica && categorias.length > 0
+  function elegirCategoria(id) {
+    setCategoriaId(id)
+    // Si el producto elegido no es de la nueva categoría, se suelta
+    setForm(f => (id && items.find(i => i.id === f.item_id)?.categoria_id !== id) ? { ...f, item_id: '', item_nombre: '' } : f)
+    setMostrarLista(true)
+  }
 
   const itemSelBase  = items.find(i => i.id === form.item_id)
   const bodegaSelNom = bodegas.find(b => b.id === (form.bodega_id || itemSelBase?.bodega_id))?.nombre
@@ -153,6 +174,7 @@ export default function RegistrarMovimiento() {
     e.preventDefault()
     setError(''); setGuardando(true)
 
+    if (pideCategoria && !categoriaId) { setError('Elige la categoría del producto.'); setGuardando(false); return }
     if (!form.item_id)   { setError('Selecciona un producto.'); setGuardando(false); return }
     if (!form.bodega_id) { setError('Selecciona una bodega.');  setGuardando(false); return }
     const elegidos = serialesDisp.filter(s => serialesElegidos.has(s.id))
@@ -320,7 +342,33 @@ export default function RegistrarMovimiento() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Producto */}
         {bloque('Producto', <>
-          {!itemSel ? (
+          {(pideCategoria || categorias.length > 1) && (
+            <div className="space-y-1.5 min-w-0">
+              <p className="text-sm font-medium text-feisen-texto">
+                Categoría {!pideCategoria && <span className="font-normal text-gray-400">(opcional)</span>}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {!pideCategoria && (
+                  <button type="button" onClick={() => elegirCategoria('')} aria-pressed={!categoriaId}
+                    className={`min-h-[40px] px-3 rounded-full border text-sm font-medium ${!categoriaId ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto'}`}>
+                    Todas
+                  </button>
+                )}
+                {categorias.map(c => {
+                  const activa = categoriaId === c.id
+                  return (
+                    <button key={c.id} type="button" onClick={() => elegirCategoria(c.id)} aria-pressed={activa}
+                      className={`min-h-[40px] px-3 rounded-full border text-sm font-medium ${activa ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto'}`}>
+                      {c.nombre.trim()}{bodegas.length > 1 ? ` · ${bodegas.find(b => b.id === c.bodega_id)?.nombre || ''}` : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {pideCategoria && !categoriaId ? (
+            <p className="text-sm text-feisen-texto-2">Primero elige la categoría {esEntrada ? 'a la que entran' : 'de la que salen'} los productos.</p>
+          ) : !itemSel ? (
             <>
               <div className="relative">
                 <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -328,10 +376,10 @@ export default function RegistrarMovimiento() {
                   onChange={e => { setBusqueda(e.target.value); setMostrarLista(true) }}
                   onFocus={() => setMostrarLista(true)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (busqueda.trim() && itemsFiltrados[0]) seleccionarItem(itemsFiltrados[0]) } }}
-                  placeholder="Buscar producto por palabras del nombre…"
+                  placeholder={categoriaId ? 'Buscar dentro de la categoría…' : 'Buscar producto por palabras del nombre…'}
                   className="w-full border border-feisen-borde rounded-lg pl-10 pr-3 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
               </div>
-              {mostrarLista && busqueda.trim() && (
+              {((mostrarLista && busqueda.trim()) || categoriaId) && (
                 <div className="border border-feisen-borde rounded-lg overflow-y-auto overscroll-contain max-h-[26rem] divide-y divide-feisen-borde-suave">
                   {itemsFiltrados.length > 0 && (
                     <p className="sticky top-0 z-10 px-3 py-1.5 text-xs text-feisen-texto-2 bg-feisen-fondo">
