@@ -1714,3 +1714,12 @@ el avance se registra a diario y la orden se cierra a mano.
 - Buscador de productos en Registrar movimiento (almacenista/jefes y admin): mostraba solo los primeros 8 resultados ("Mostrando 8 de 163"). Ahora muestra todos (tope de 200 solo por rendimiento) en una lista con desplazamiento y el conteo arriba; en salidas van primero los que tienen existencias.
 - Mismo error revisado en otros buscadores que cortaban sin avisar (operario: 15; recetas de ensamble, BOM, crear orden de moldeo, paquetes: 40; pedidos: 30; historial: 50): todos subidos a 200, ya tenían lista con desplazamiento.
 - Varios paquetes en la misma salida (pedido de Angie, 2026-10-29): ya se sumaban, pero no se notaba. Ahora cada tarjeta muestra "Agregado × N" y debajo sale "En esta salida: Rana × 2 · Pluma × 1". Las piezas repetidas entre paquetes se suman en una sola línea. El resumen es solo de pantalla (no se guarda en el movimiento) y se limpia al guardar o al vaciar la lista.
+
+## 2026-10-29 — Rediseño de Registrar mecanizado (propuesta aprobada por Angie)
+- Misma estética que Registrar movimiento: EncabezadoPagina, bloques blancos con etiquetas de 11 px, Contador − / + compartido, aviso que se cierra solo y barra fija abajo con botón azul "Registrar mecanizado" (antes rojo).
+- Tocar una pieza la agrega con cantidad 1 (si ya está, suma 1); la cantidad se ajusta en la misma fila. Ya no hay panel de cantidad aparte.
+- Buscador con coincideBusqueda (palabras sueltas, sin tildes), todas las coincidencias, primero las que tienen existencias; las agotadas se ven con "Ver N sin existencias".
+- Los productos destino "<nombre> - MECANIZADO" se cargan al abrir la pantalla: si falta o está inactivo, la fila sale en rojo al agregarla y el botón queda bloqueado (antes el error salía al guardar). Se perdió la sugerencia de "nombres parecidos" que daba el error viejo.
+- Nuevo bloque "Registrado hoy": salidas MEC de hoy (fecha_movimiento = hoy, no revertidas) con quién y cuánto; total de piezas del día en el encabezado.
+- El catálogo de piezas ahora usa fetchAllPages (antes una sola consulta, tope 1000).
+- Lo guardado no cambia: mismo número MEC, par salida/entrada por pieza, motivo "Mecanizado por: …" y precio_costo_snapshot 0 (pendiente conocido).
