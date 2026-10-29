@@ -1723,3 +1723,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - Nuevo bloque "Registrado hoy": salidas MEC de hoy (fecha_movimiento = hoy, no revertidas) con quién y cuánto; total de piezas del día en el encabezado.
 - El catálogo de piezas ahora usa fetchAllPages (antes una sola consulta, tope 1000).
 - Lo guardado no cambia: mismo número MEC, par salida/entrada por pieza, motivo "Mecanizado por: …" y precio_costo_snapshot 0 (pendiente conocido).
+
+## 2026-10-29 · Carga de productos EQUIPMASTER STORE (bodega MOTORES)
+- 12 productos creados en MOTORES › EQUIPMASTER STORE con precio de costo $0 (la lista no traía costos; ajustar desde Productos).
+- Stock inicial cargado con la entrada ENT-AF-0433 (referencia "INVENTARIO EQUIPMASTER"). Script: `supabase/migraciones/2026-10-29_equipmaster_store_motores.sql`.
+- Gotcha: `items` no tiene campo de serial; el serial vive en `movimientos.serial_motor`. Cuando hay varias unidades, los seriales van juntos en la entrada separados por " - ". Se buscan desde el Historial.
