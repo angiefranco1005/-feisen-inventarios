@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './components/auth/LoginPage'
 import ResetPasswordPage from './components/auth/ResetPasswordPage'
@@ -32,6 +32,13 @@ import RegistroMecanizado       from './components/mecanizados/RegistroMecanizad
 import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
 import TransferenciasPendientes from './components/transferencias/TransferenciasPendientes'
 import NoConformidades          from './components/calidad/NoConformidades'
+import NuevaOrdenOF        from './components/of/NuevaOrden'
+import ListaOrdenesOF       from './components/of/ListaOrdenes'
+import ResumenPlaneacionOF  from './components/of/ResumenPlaneacion'
+import CalendarioOF         from './components/of/Calendario'
+import DashboardOF          from './components/of/Dashboard'
+import ProductosOF          from './components/of/ProductosOF'
+import ClientesOF           from './components/of/ClientesOF'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
 import ListaEmpleados           from './components/rrhh/ListaEmpleados'
 import FichaEmpleado            from './components/rrhh/FichaEmpleado'
@@ -48,6 +55,13 @@ import CicloDesempeno           from './components/rrhh/desempeno/CicloDesempeno
 import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPersona'
 import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
 import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
+
+// Al pasar de "Editar OF" (/of/nueva?editar=...) a "Nueva OF" React reutilizaba el formulario
+// con los datos de la OF editada; con la clave arranca limpio cada vez que cambia la OF.
+function NuevaOrdenOFConClave() {
+  const [params] = useSearchParams()
+  return <NuevaOrdenOF key={params.get('editar') || 'nueva'} />
+}
 
 function Cargando() {
   return (
@@ -255,6 +269,13 @@ function AppRoutes() {
       <Route path="/ensamble"               element={<Layout><OrdenesEnsamble /></Layout>} />
       <Route path="/ensamble/recetas"       element={<Layout><RecetasEnsamble /></Layout>} />
       <Route path="/calidad"               element={<Layout><NoConformidades /></Layout>} />
+      <Route path="/of/nueva"              element={<Layout><NuevaOrdenOFConClave /></Layout>} />
+      <Route path="/of/ordenes"            element={<Layout><ListaOrdenesOF /></Layout>} />
+      <Route path="/of/resumen"            element={<Layout><ResumenPlaneacionOF /></Layout>} />
+      <Route path="/of/calendario"         element={<Layout><CalendarioOF /></Layout>} />
+      <Route path="/of/dashboard"          element={<Layout><DashboardOF /></Layout>} />
+      <Route path="/of/productos"          element={<Layout><ProductosOF /></Layout>} />
+      <Route path="/of/clientes"           element={<Layout><ClientesOF /></Layout>} />
       <Route path="/rrhh/empleados"        element={<Layout><ListaEmpleados /></Layout>} />
       <Route path="/rrhh/empleados/:id"    element={<Layout><FichaEmpleado /></Layout>} />
       <Route path="/rrhh/organigrama"      element={<Layout><Organigrama /></Layout>} />

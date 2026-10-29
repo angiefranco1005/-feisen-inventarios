@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target } from 'lucide-react'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2 } from 'lucide-react'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useState } from 'react'
 import Modal from './Modal'
@@ -16,6 +16,7 @@ const MODULOS = {
   'Mecanizados':      Wrench,
   'Fundición':        Flame,
   'Producción y Ensamble': Factory,
+  'Órdenes de fabricación': ClipboardList,
   'Recursos Humanos': HardHat,
   'Calidad':          ShieldAlert,
 }
@@ -43,6 +44,13 @@ const NAV_ADMIN = [
   { to: '/reportes/ventas-internas-fundicion', icon: Receipt,        label: 'Ventas internas',    modulo: 'Fundición' },
   { to: '/ensamble',                          icon: Factory,         label: 'Órdenes de ensamble', modulo: 'Producción y Ensamble' },
   { to: '/ensamble/recetas',                  icon: ClipboardList,   label: 'Recetas',            modulo: 'Producción y Ensamble' },
+  { to: '/of/nueva',                          icon: FilePlus,        label: 'Nueva OF',           modulo: 'Órdenes de fabricación' },
+  { to: '/of/ordenes',                        icon: ClipboardList,   label: 'Órdenes',            modulo: 'Órdenes de fabricación' },
+  { to: '/of/resumen',                        icon: ListChecks,      label: 'Resumen',            modulo: 'Órdenes de fabricación' },
+  { to: '/of/calendario',                     icon: CalendarDays,    label: 'Calendario',         modulo: 'Órdenes de fabricación' },
+  { to: '/of/dashboard',                      icon: BarChart2,       label: 'Dashboard',          modulo: 'Órdenes de fabricación' },
+  { to: '/of/productos',                      icon: Package,         label: 'Productos OF',       modulo: 'Órdenes de fabricación' },
+  { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Órdenes de fabricación' },
   { to: '/rrhh/empleados',                    icon: Users,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },

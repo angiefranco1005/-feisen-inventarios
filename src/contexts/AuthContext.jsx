@@ -72,12 +72,17 @@ export function AuthProvider({ children }) {
   const esJefeMecanizados  = rolEfectivo === 'JEFE_MECANIZADOS'
   const esJefeEnsamble     = rolEfectivo === 'JEFE_ENSAMBLE'
   const esRRHH             = rolEfectivo === 'RRHH'
+  // Órdenes de fabricación: roles propios pendientes de definir (por ahora solo ADMIN entra al módulo)
+  const esComercial        = false
+  const esJefeArea         = false
+  const centroCosto        = perfil?.centro_costo_of || null
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esRRHH,
+      esComercial, esJefeArea, centroCosto,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
