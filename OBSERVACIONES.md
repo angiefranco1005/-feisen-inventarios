@@ -1792,3 +1792,9 @@ el avance se registra a diario y la orden se cierra a mano.
 - **Pendiente** (Angie lo dejó para después): el permiso "solo registrar tiempos" para jefes de área (`profiles.acceso_tiempos`, `SoloTiemposApp`, funciones `costeo_tiempos_fichas/contexto`). Su SQL (`APP COSTEO/supabase/permiso_solo_tiempos.sql`) **nunca se aplicó**; `TiemposTab` ya trae el modo `soloRegistro` por si se retoma.
 - La app vieja de costeo quedó mostrando solo un aviso con el enlace al ERP (los enlaces viejos `?ficha=…&tab=…` llevan a la misma ficha).
 - **Aplicado 2026-10-29** (OK de Angie): `costeo_resumen` con `security_invoker = true` y sin permisos para `anon` (`supabase/migraciones/2026-10-29_costeo_resumen_security_invoker.sql`). Antes cualquiera con la llave pública podía leer costos y márgenes.
+
+## 2026-10-29 · Se retira la app de costeo vieja
+- Decisión de Angie: el costeo vive solo en el ERP (módulo Costeo, solo ADMIN). Julián (acceso_costeo) y los jefes de área que registraban tiempos en la app vieja **se quedan sin acceso** a propósito.
+- Repo `angiefranco1005/costeo-feisen` **archivado** en GitHub (solo lectura; se puede desarchivar). La carpeta local `../APP COSTEO` se conserva.
+- Sitio `costeofeisen.netlify.app`: pendiente de borrar en Netlify (requiere que Angie inicie sesión).
+- Las tablas `costeo_*` y la vista `costeo_resumen` **no se tocan**: son de esta misma base y el módulo del ERP las usa.
