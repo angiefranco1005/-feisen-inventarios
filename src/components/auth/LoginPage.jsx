@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       await login(email, password)
     } catch (err) {
-      setError('Correo o contraseña incorrectos. Verifica tus datos.')
+      setError(/desactivado/.test(err?.message || '') ? err.message : 'Correo o contraseña incorrectos. Verifica tus datos.')
     } finally {
       setCargando(false)
     }

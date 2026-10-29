@@ -1728,3 +1728,13 @@ el avance se registra a diario y la orden se cierra a mano.
 - 12 productos creados en MOTORES › EQUIPMASTER STORE con precio de costo $0 (la lista no traía costos; ajustar desde Productos).
 - Stock inicial cargado con la entrada ENT-AF-0433 (referencia "INVENTARIO EQUIPMASTER"). Script: `supabase/migraciones/2026-10-29_equipmaster_store_motores.sql`.
 - Gotcha: `items` no tiene campo de serial; el serial vive en `movimientos.serial_motor`. Cuando hay varias unidades, los seriales van juntos en la entrada separados por " - ". Se buscan desde el Historial.
+
+## 2026-10-29 — Rediseño de Configuración + desactivar usuarios (aprobado por Angie)
+- Pantalla `config/GestionConfig.jsx` con la estética nueva: pestañas con conteo (Usuarios, Bodegas, Categorías, Roles), botón principal según la pestaña y panel lateral (PanelLateral) para crear/editar en vez de modales.
+- Usuarios: aviso arriba de quien no tiene bodega (hoy Leonardo Cardozo), búsqueda, filtro por rol, tabla en escritorio / tarjetas en celular. Al elegir el rol se explica qué ve (`QUE_VE`); sin al menos una bodega no deja guardar (rol ≠ ADMIN). Al crear, como `crear-usuario` solo responde { ok }, se busca el perfil por nombre para guardarle las bodegas de una vez.
+- Bodegas en tarjetas (productos activos, categorías, personas). Eliminar solo aparece si no tiene productos; si no se puede, sugiere desactivarla.
+- Categorías agrupadas por bodega con su número de productos; "vacía" si no tiene, y solo esas muestran Eliminar.
+- Roles: personas por rol y qué ve; las etiquetas de color pasan a un punto de color (el rojo queda para problemas).
+- **Desactivar usuario** (profiles.activo): migración `2026-10-29_usuarios_desactivar.sql` (aplicada). get_my_rol() devuelve NULL si el usuario está desactivado (todas las políticas por rol le niegan acceso) y la app cierra su sesión al cargar o al entrar ("Tu usuario está desactivado…").
+- **Hueco de seguridad cerrado**: la política profiles_update_own (para "Mis listas") dejaba a cualquier usuario cambiarse su propio rol (p. ej. a ADMIN) o reactivarse. El trigger `trg_proteger_campos_perfil` solo deja cambiar rol, activo, acceso_costeo y almacen a un ADMIN activo, y el admin no puede desactivarse ni quitarse el rol a sí mismo. Probado en transacción revertida con Ventas y el admin.
+- Pendiente conocido: las lecturas abiertas a cualquier autenticado (items, stock) no dependen del rol, así que un usuario desactivado con una sesión vieja aún podría leerlas hasta que la app lo saque; la app lo saca al recargar. Para cortar del todo habría que bloquearlo también en Auth (ban) desde una Edge Function.

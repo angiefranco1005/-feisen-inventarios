@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
-import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Edit2, Trash2, Users, Warehouse, Tag, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
+import { EncabezadoPagina, PanelLateral, useAviso } from '../shared/ui'
+import { fetchAllPages } from '../../utils/fetchAllPages'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { Plus, Search, AlertTriangle, Check } from 'lucide-react'
+
+// Configuración (solo ADMIN): usuarios, bodegas, categorías y roles.
+// Diseño de la skill ux-feisen: pestañas con conteo, lista → panel lateral de detalle,
+// excepciones arriba (usuarios sin bodega) y una sola acción principal por pestaña.
 
 const ROLES_SISTEMA = ['ADMIN', 'LOGISTICA', 'ALMACENISTA', 'OPERARIO', 'CONSULTOR'] // no se pueden borrar
 const COLORES_ROL = [
@@ -15,608 +22,666 @@ const COLORES_ROL = [
   { label: 'Amarillo',     value: 'bg-yellow-500 text-white'  },
   { label: 'Gris',         value: 'bg-gray-500 text-white'    },
 ]
+// Qué ve cada rol (se muestra al elegirlo). Los roles nuevos sin descripción muestran solo el nombre.
+const QUE_VE = {
+  ADMIN:            'Ve todas las bodegas, valores, reportes y configuración.',
+  LOGISTICA:        'Pedidos, compras y movimientos de su bodega.',
+  ALMACENISTA:      'Entradas y salidas de su bodega.',
+  JEFE_FUNDICION:   'Producción de fundición, moldeo y su bodega.',
+  JEFE_MECANIZADOS: 'Registro de mecanizado, transferencias y su bodega.',
+  JEFE_ENSAMBLE:    'Órdenes de ensamble y su bodega.',
+  OPERARIO:         'Saca materiales de su bodega.',
+  CONSULTOR:        'Solo consulta el stock y el historial de su bodega.',
+  RRHH:             'Colaboradores, nómina y la bodega de Administración.',
+  RECURSOS_HUMANOS: 'Colaboradores, nómina y la bodega de Administración.',
+}
 
-// ─── SECCIÓN BODEGAS ──────────────────────────────────────────────────────────
-function SeccionBodegas() {
-  const [bodegas,  setBodegas]  = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [modal,    setModal]    = useState(false)
-  const [editando, setEditando] = useState(null)
-  const [form,     setForm]     = useState({ nombre: '', descripcion: '' })
-  const [msg,      setMsg]      = useState(null)
+const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
+const fmt = n => Number(n || 0).toLocaleString('es-CO')
+const plural = (n, uno, varios) => `${fmt(n)} ${n === 1 ? uno : varios}`
+const puntoRol = r => (r?.color || '').split(' ').find(c => c.startsWith('bg-')) || 'bg-gray-400'
+const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(p => p.charAt(0).toUpperCase()).join('')
 
-  useEffect(() => { cargar() }, [])
-
-  async function cargar() {
-    setCargando(true)
-    const { data } = await supabase.from('bodegas').select('*').order('nombre')
-    setBodegas(data || [])
-    setCargando(false)
-  }
-
-  function abrir(b = null) {
-    setEditando(b)
-    setForm(b ? { nombre: b.nombre, descripcion: b.descripcion || '' } : { nombre: '', descripcion: '' })
-    setMsg(null); setModal(true)
-  }
-
-  async function guardar(e) {
-    e.preventDefault(); setMsg(null)
-    let error
-    if (editando) ({ error } = await supabase.from('bodegas').update(form).eq('id', editando.id))
-    else          ({ error } = await supabase.from('bodegas').insert(form))
-    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
-    setModal(false); cargar()
-  }
-
-  async function toggle(b) {
-    await supabase.from('bodegas').update({ activo: !b.activo }).eq('id', b.id)
-    cargar()
-  }
-
-  async function eliminar(b) {
-    if (!window.confirm(`¿Eliminar la bodega "${b.nombre}"? Solo es posible si no tiene productos ni movimientos asociados.`)) return
-    const { error } = await supabase.from('bodegas').delete().eq('id', b.id)
-    if (error) setMsg({ tipo: 'error', texto: 'No se puede eliminar: tiene productos, stock o movimientos asociados.' })
-    else cargar()
-  }
-
-  if (cargando) return <Spinner />
-
+function Etiqueta({ children, htmlFor }) {
+  return <label htmlFor={htmlFor} className="block text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2 mb-1.5">{children}</label>
+}
+function Buscador({ valor, onCambiar, placeholder }) {
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Warehouse size={18} className="text-feisen-azul" /> Bodegas</h2>
-        <button onClick={() => abrir()}
-          className="flex items-center gap-1 bg-feisen-azul text-white px-3 py-1.5 rounded-xl text-sm font-medium hover:opacity-90">
-          <Plus size={15} /> Nueva
-        </button>
-      </div>
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-      <div className="space-y-2">
-        {bodegas.map(b => (
-          <div key={b.id} className={`flex items-center justify-between p-3 rounded-xl border ${b.activo ? 'border-gray-100 bg-gray-50' : 'border-gray-100 bg-gray-50 opacity-50'}`}>
-            <div>
-              <p className="font-medium text-gray-800 text-sm">{b.nombre}</p>
-              {b.descripcion && <p className="text-xs text-gray-400">{b.descripcion}</p>}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => abrir(b)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-              <button onClick={() => toggle(b)} className={`p-1.5 rounded-lg ${b.activo ? 'text-feisen-rojo hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                {b.activo ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-              </button>
-              <button onClick={() => eliminar(b)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {modal && (
-        <Modal titulo={editando ? 'Editar bodega' : 'Nueva bodega'} onCerrar={() => setModal(false)}>
-          <form onSubmit={guardar} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder="Ej: Bodega Motores" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Descripción</label>
-              <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder="Opcional" />
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Guardar</button>
-            </div>
-          </form>
-        </Modal>
-      )}
+    <div className="relative flex-1 min-w-[14rem]">
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <input type="search" value={valor} onChange={e => onCambiar(e.target.value)} placeholder={placeholder} aria-label={placeholder}
+        className="w-full border border-feisen-borde rounded-lg pl-9 pr-3 py-2 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+    </div>
+  )
+}
+function Chip({ activo, onClick, children, n }) {
+  return (
+    <button type="button" aria-pressed={activo} onClick={onClick}
+      className={`shrink-0 inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-full text-sm font-medium border transition-colors
+        ${activo ? 'bg-feisen-texto text-white border-feisen-texto' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+      {children}{n != null && <span className={`tabular-nums ${activo ? 'text-white/70' : 'text-gray-400'}`}>{fmt(n)}</span>}
+    </button>
+  )
+}
+function PiePanel({ onCancelar, guardando, texto, deshabilitado }) {
+  return (
+    <div className="sticky bottom-0 -mx-5 -mb-4 px-5 py-3 bg-white border-t border-feisen-borde flex justify-end gap-2">
+      <button type="button" onClick={onCancelar} className="border border-feisen-borde rounded-lg px-4 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">Cancelar</button>
+      <button type="submit" disabled={guardando || deshabilitado}
+        className="bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-40 hover:opacity-90">
+        {guardando ? 'Guardando…' : texto}
+      </button>
     </div>
   )
 }
 
-// ─── SECCIÓN CATEGORÍAS ───────────────────────────────────────────────────────
-function SeccionCategorias() {
-  const [cats,     setCats]     = useState([])
-  const [bodegas,  setBodegas]  = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [modal,    setModal]    = useState(false)
-  const [editando, setEditando] = useState(null)
-  const [form,     setForm]     = useState({ nombre: '', bodega_id: '' })
-  const [msg,      setMsg]      = useState(null)
+// ─── USUARIOS ─────────────────────────────────────────────────────────────────
+function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
+  const { perfil } = useAuth()
+  const nuevo = !usuario
+  const yoMismo = usuario?.id === perfil?.id
+  const [form, setForm] = useState({ nombre: usuario?.nombre || '', rol: usuario?.rol || 'ALMACENISTA', email: '', password: '' })
+  const [bodegasSel, setBodegasSel] = useState(usuario ? (datos.bodegasDe[usuario.id] || []) : [])
+  const [activo, setActivo] = useState(usuario?.activo !== false)
+  const [emailOriginal, setEmailOriginal] = useState('')
+  const [msg, setMsg] = useState('')
+  const [guardando, setGuardando] = useState(false)
 
-  useEffect(() => { cargar() }, [])
+  // Correo actual (solo al editar)
+  useEffect(() => {
+    if (!usuario) return
+    supabase.rpc('get_user_email', { user_id: usuario.id }).then(({ data }) => {
+      const email = typeof data === 'string' ? data : ''
+      setEmailOriginal(email)
+      setForm(f => ({ ...f, email }))
+    })
+  }, [usuario])
 
-  async function cargar() {
-    setCargando(true)
-    const [{ data: cs }, { data: bs }] = await Promise.all([
-      supabase.from('categorias').select('*, bodegas(nombre)').order('nombre'),
-      supabase.from('bodegas').select('*').eq('activo', true).order('nombre'),
-    ])
-    setCats(cs || [])
-    setBodegas(bs || [])
-    setCargando(false)
+  const esAdminRol = form.rol === 'ADMIN'
+  const faltaBodega = !esAdminRol && bodegasSel.length === 0
+  const alternarBodega = id => setBodegasSel(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  async function llamarFuncion(nombre, cuerpo) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${nombre}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify(cuerpo),
+    })
+    const result = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(result.error || 'No se pudo guardar el acceso')
+    return result
   }
 
-  function abrir(c = null) {
-    setEditando(c)
-    setForm(c ? { nombre: c.nombre, bodega_id: c.bodega_id || '' } : { nombre: '', bodega_id: bodegas[0]?.id || '' })
-    setMsg(null); setModal(true)
+  async function guardarBodegas(id) {
+    const { error: eDel } = await supabase.from('profile_bodegas').delete().eq('profile_id', id)
+    if (eDel) throw eDel
+    if (!esAdminRol && bodegasSel.length) {
+      const { error } = await supabase.from('profile_bodegas').insert(bodegasSel.map(bid => ({ profile_id: id, bodega_id: bid })))
+      if (error) throw error
+    }
   }
 
   async function guardar(e) {
-    e.preventDefault(); setMsg(null)
-    if (!form.bodega_id) { setMsg({ tipo: 'error', texto: 'Selecciona una bodega.' }); return }
-    let error
-    if (editando) ({ error } = await supabase.from('categorias').update(form).eq('id', editando.id))
-    else          ({ error } = await supabase.from('categorias').insert(form))
-    if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
-    setModal(false); cargar()
+    e.preventDefault()
+    if (faltaBodega) return
+    setMsg(''); setGuardando(true)
+    try {
+      if (nuevo) {
+        await llamarFuncion('crear-usuario', { email: form.email.trim(), password: form.password, nombre: form.nombre.trim(), rol: form.rol })
+        // crear-usuario solo responde { ok }: se busca el perfil recién creado para guardarle sus bodegas
+        const { data: creado } = await supabase.from('profiles').select('id')
+          .eq('nombre', form.nombre.trim()).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        const id = creado?.id
+        if (id) await guardarBodegas(id)
+        onGuardado(id ? 'Usuario creado' : 'Usuario creado. Ábrelo para asignarle sus bodegas.')
+        return
+      }
+      const cambios = { nombre: form.nombre.trim(), rol: form.rol }
+      if (!yoMismo) cambios.activo = activo
+      const { error } = await supabase.from('profiles').update(cambios).eq('id', usuario.id)
+      if (error) throw error
+      const email = form.email.trim(), pass = form.password.trim()
+      if (pass || (email && email !== emailOriginal)) {
+        await llamarFuncion('actualizar-usuario', { userId: usuario.id, email: email || undefined, password: pass || undefined })
+      }
+      await guardarBodegas(usuario.id)
+      onGuardado(activo === (usuario.activo !== false) ? 'Cambios guardados' : activo ? 'Usuario reactivado' : 'Usuario desactivado')
+    } catch (err) {
+      setMsg(err.message)
+    } finally {
+      setGuardando(false)
+    }
   }
 
-  async function eliminar(c) {
-    const { error } = await supabase.from('categorias').delete().eq('id', c.id)
-    if (error) setMsg({ tipo: 'error', texto: 'No se puede eliminar: tiene productos asociados.' })
-    else cargar()
-  }
-
-  if (cargando) return <Spinner />
-
-  // Agrupar por bodega
-  const porBodega = bodegas.map(b => ({
-    bodega: b,
-    cats: cats.filter(c => c.bodega_id === b.id),
-  }))
+  const rolesOrden = [...datos.roles].sort((a, b) => (a.nombre === 'ADMIN') - (b.nombre === 'ADMIN'))
 
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Tag size={18} className="text-feisen-azul" /> Categorías</h2>
-        <button onClick={() => abrir()}
-          className="flex items-center gap-1 bg-feisen-azul text-white px-3 py-1.5 rounded-xl text-sm font-medium hover:opacity-90">
-          <Plus size={15} /> Nueva
-        </button>
-      </div>
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-      <div className="space-y-4">
-        {porBodega.map(({ bodega, cats: cs }) => (
-          <div key={bodega.id}>
-            <p className="text-xs font-semibold text-feisen-azul uppercase tracking-wide mb-2">{bodega.nombre}</p>
-            {cs.length === 0
-              ? <p className="text-xs text-gray-400 pl-2">Sin categorías</p>
-              : cs.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100 mb-1.5">
-                  <p className="font-medium text-gray-800 text-sm">{c.nombre}</p>
-                  <div className="flex gap-2">
-                    <button onClick={() => abrir(c)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-                    <button onClick={() => eliminar(c)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              ))
-            }
+    <PanelLateral etiqueta={nuevo ? 'Nuevo usuario' : `Usuario ${usuario.nombre}`} onCerrar={onCerrar}
+      encabezado={
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-full bg-feisen-azul-suave text-feisen-azul grid place-items-center text-sm font-semibold shrink-0">{nuevo ? '+' : iniciales(usuario.nombre)}</span>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold text-feisen-texto truncate">{nuevo ? 'Nuevo usuario' : usuario.nombre}</p>
+            <p className="text-xs text-feisen-texto-2">{nuevo ? 'Entra con el correo y la contraseña que pongas aquí' : (activo ? 'Activo' : 'Desactivado')}</p>
           </div>
-        ))}
-        {cats.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No hay categorías aún.</p>}
+        </div>
+      }>
+      <form onSubmit={guardar} className="space-y-5">
+        {msg && <Alerta tipo="error" mensaje={msg} />}
+        <div>
+          <Etiqueta htmlFor="u-nombre">Nombre completo</Etiqueta>
+          <input id="u-nombre" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Efrain Palma" className={claseInput} />
+        </div>
+
+        <div>
+          <Etiqueta>Rol · qué puede hacer</Etiqueta>
+          {yoMismo && <p className="text-xs text-feisen-texto-2 mb-2">No puedes cambiar tu propio rol.</p>}
+          <div className="space-y-1.5">
+            {rolesOrden.map(r => {
+              const on = form.rol === r.nombre
+              return (
+                <button key={r.nombre} type="button" disabled={yoMismo && !on} aria-pressed={on}
+                  onClick={() => setForm(f => ({ ...f, rol: r.nombre }))}
+                  className={`w-full flex items-start gap-3 text-left rounded-lg border px-3 py-2.5 transition-colors disabled:opacity-40
+                    ${on ? 'border-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde bg-white hover:bg-feisen-fondo'}`}>
+                  <span className={`mt-0.5 w-4 h-4 rounded-full shrink-0 ${on ? 'border-[5px] border-feisen-azul' : 'border-2 border-feisen-borde'}`} />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-feisen-texto"><i className={`w-2 h-2 rounded-full ${puntoRol(r)}`} />{r.label}</span>
+                    {QUE_VE[r.nombre] && <span className="block text-xs text-feisen-texto-2">{QUE_VE[r.nombre]}</span>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {esAdminRol ? (
+          <p className="text-sm text-feisen-texto-2">El administrador ve todas las bodegas; no hace falta asignarle ninguna.</p>
+        ) : (
+          <div>
+            <Etiqueta>Bodegas que puede ver</Etiqueta>
+            <div className="flex flex-wrap gap-1.5">
+              {datos.bodegas.filter(b => b.activo).map(b => {
+                const on = bodegasSel.includes(b.id)
+                return (
+                  <button key={b.id} type="button" aria-pressed={on} onClick={() => alternarBodega(b.id)}
+                    className={`inline-flex items-center gap-1 min-h-[40px] px-3 rounded-lg border text-sm font-medium transition-colors
+                      ${on ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto hover:bg-feisen-fondo'}`}>
+                    {on && <Check size={14} />}{b.nombre}
+                  </button>
+                )
+              })}
+            </div>
+            {faltaBodega && <p className="text-xs text-amber-700 mt-2">Marca al menos una bodega: sin bodega esta persona no ve ningún producto.</p>}
+          </div>
+        )}
+
+        <div className="border border-feisen-borde rounded-lg p-3 space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">Acceso</p>
+          <div>
+            <Etiqueta htmlFor="u-email">Correo</Etiqueta>
+            <input id="u-email" type="email" required={nuevo} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="correo@feisen.com.co" className={claseInput} />
+          </div>
+          <div>
+            <Etiqueta htmlFor="u-pass">{nuevo ? 'Contraseña' : 'Nueva contraseña'}</Etiqueta>
+            <input id="u-pass" type="password" required={nuevo} minLength={nuevo ? 6 : undefined} autoComplete="new-password"
+              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder={nuevo ? 'Mínimo 6 caracteres' : 'Déjala vacía para no cambiarla'} className={claseInput} />
+          </div>
+        </div>
+
+        {!nuevo && !yoMismo && (
+          <div className="flex items-center justify-between gap-3 border-t border-feisen-borde-suave pt-4">
+            <p className="text-sm text-feisen-texto-2">
+              {activo ? 'Desactivar le quita la entrada a la app. Su historial se conserva.' : 'Desactivado: no puede entrar a la app. Al guardar queda así.'}
+            </p>
+            <button type="button" onClick={() => setActivo(a => !a)}
+              className={`shrink-0 border rounded-lg px-3 min-h-[40px] text-sm font-medium bg-white hover:bg-feisen-fondo ${activo ? 'border-feisen-borde text-feisen-rojo' : 'border-feisen-azul text-feisen-azul'}`}>
+              {activo ? 'Desactivar' : 'Reactivar'}
+            </button>
+          </div>
+        )}
+
+        <PiePanel onCancelar={onCerrar} guardando={guardando} deshabilitado={faltaBodega}
+          texto={nuevo ? 'Crear usuario' : 'Guardar cambios'} />
+      </form>
+    </PanelLateral>
+  )
+}
+
+function SeccionUsuarios({ datos, abrir }) {
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroRol, setFiltroRol] = useState('')
+  const rolDe = n => datos.roles.find(r => r.nombre === n)
+  const nombreBodega = id => datos.bodegas.find(b => b.id === id)?.nombre
+  const sinBodega = datos.usuarios.filter(u => u.activo !== false && u.rol !== 'ADMIN' && !(datos.bodegasDe[u.id] || []).length)
+  const conteo = {}
+  datos.usuarios.forEach(u => { conteo[u.rol] = (conteo[u.rol] || 0) + 1 })
+  const lista = datos.usuarios
+    .filter(u => (!filtroRol || u.rol === filtroRol) && (!busqueda.trim() || coincideBusqueda(u.nombre || '', busqueda)))
+    .sort((a, b) => (a.activo === false) - (b.activo === false) || (a.nombre || '').localeCompare(b.nombre || '', 'es'))
+
+  return (
+    <div className="space-y-3">
+      {sinBodega.map(u => (
+        <div key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-amber-50 text-amber-800 rounded-lg px-3 py-2.5 text-sm">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="flex-1 min-w-[12rem]"><b className="text-feisen-texto">{u.nombre}</b> no tiene bodega asignada, así que no ve ningún producto.</span>
+          <button type="button" onClick={() => abrir(u)} className="font-semibold text-feisen-azul">Asignar bodega</button>
+        </div>
+      ))}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Buscador valor={busqueda} onCambiar={setBusqueda} placeholder="Buscar por nombre…" />
+        <div className="flex gap-1.5 overflow-x-auto -mx-4 px-4 pb-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:mx-0 sm:px-0">
+          <Chip activo={!filtroRol} onClick={() => setFiltroRol('')} n={datos.usuarios.length}>Todos</Chip>
+          {Object.entries(conteo).sort((a, b) => b[1] - a[1]).map(([r, n]) => (
+            <Chip key={r} activo={filtroRol === r} onClick={() => setFiltroRol(r)} n={n}>{rolDe(r)?.label || r}</Chip>
+          ))}
+        </div>
       </div>
-      {modal && (
-        <Modal titulo={editando ? 'Editar categoría' : 'Nueva categoría'} onCerrar={() => setModal(false)}>
-          <form onSubmit={guardar} className="space-y-4">
-            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
-              <select required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-                <option value="">Selecciona bodega</option>
-                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre *</label>
-              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder="Ej: Motores" />
-            </div>
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Guardar</button>
-            </div>
-          </form>
-        </Modal>
-      )}
+
+      <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+        <div className="hidden md:grid grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,2fr)_6rem] gap-3 px-4 py-2 bg-feisen-fondo border-b border-feisen-borde text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
+          <span>Persona</span><span>Rol</span><span>Bodegas que ve</span><span className="text-right">Estado</span>
+        </div>
+        {lista.length === 0 && <p className="px-4 py-6 text-sm text-feisen-texto-2">Nadie coincide con la búsqueda.</p>}
+        <ul className="divide-y divide-feisen-borde-suave">
+          {lista.map(u => {
+            const r = rolDe(u.rol)
+            const bods = (datos.bodegasDe[u.id] || []).map(nombreBodega).filter(Boolean)
+            const inactivo = u.activo === false
+            return (
+              <li key={u.id}>
+                <button type="button" onClick={() => abrir(u)}
+                  className={`w-full text-left grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,2fr)_6rem] gap-x-3 gap-y-1.5 items-center px-4 py-3 min-h-[60px] hover:bg-feisen-fondo ${inactivo ? 'opacity-55' : ''}`}>
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-8 h-8 rounded-full bg-feisen-azul-suave text-feisen-azul grid place-items-center text-xs font-semibold shrink-0">{iniciales(u.nombre)}</span>
+                    <span className="font-semibold text-feisen-texto truncate">{u.nombre}</span>
+                  </span>
+                  <span className={`text-xs text-right md:order-last ${inactivo ? 'text-gray-400' : 'text-feisen-texto-2'}`}>{inactivo ? 'Desactivado' : 'Activo'}</span>
+                  <span className="col-span-2 md:col-span-1 flex items-center gap-1.5 text-sm text-feisen-texto pl-[2.6rem] md:pl-0">
+                    <i className={`w-2 h-2 rounded-full ${puntoRol(r)}`} />{r?.label || u.rol}
+                  </span>
+                  <span className="col-span-2 md:col-span-1 flex flex-wrap gap-1 pl-[2.6rem] md:pl-0">
+                    {u.rol === 'ADMIN'
+                      ? <span className="text-xs bg-feisen-fondo text-feisen-texto-2 rounded-md px-2 py-0.5">Todas</span>
+                      : bods.length
+                        ? bods.map(b => <span key={b} className="text-xs bg-feisen-azul-suave text-feisen-azul font-medium rounded-md px-2 py-0.5">{b}</span>)
+                        : <span className="text-xs bg-amber-50 text-amber-700 font-medium rounded-md px-2 py-0.5">Sin bodega</span>}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
     </div>
   )
 }
 
-// ─── SECCIÓN ROLES ────────────────────────────────────────────────────────────
-function SeccionRoles() {
-  const [roles,    setRoles]    = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [modal,    setModal]    = useState(false)
-  const [form,     setForm]     = useState({ nombre: '', label: '', color: COLORES_ROL[3].value })
-  const [msg,      setMsg]      = useState(null)
-  const [guardando,setGuardando]= useState(false)
-
-  useEffect(() => { cargar() }, [])
-
-  async function cargar() {
-    setCargando(true)
-    const { data } = await supabase.from('roles').select('*').order('created_at')
-    setRoles(data || [])
-    setCargando(false)
-  }
-
-  function abrir() {
-    setForm({ nombre: '', label: '', color: COLORES_ROL[3].value })
-    setMsg(null); setModal(true)
-  }
+// ─── BODEGAS ──────────────────────────────────────────────────────────────────
+function PanelBodega({ bodega, productos, onCerrar, onGuardado }) {
+  const nuevo = !bodega
+  const [form, setForm] = useState({ nombre: bodega?.nombre || '', descripcion: bodega?.descripcion || '' })
+  const [activo, setActivo] = useState(bodega?.activo !== false)
+  const [msg, setMsg] = useState('')
+  const [guardando, setGuardando] = useState(false)
 
   async function guardar(e) {
-    e.preventDefault(); setMsg(null); setGuardando(true)
-    const nombre = form.nombre.toUpperCase().replace(/\s+/g, '_')
-    const { error } = await supabase.from('roles').insert({ nombre, label: form.label, color: form.color })
-    if (error) { setMsg({ tipo: 'error', texto: error.message.includes('unique') ? 'Ya existe un rol con ese nombre.' : error.message }); setGuardando(false); return }
-    setModal(false); setGuardando(false); cargar()
+    e.preventDefault(); setMsg(''); setGuardando(true)
+    const datos = { nombre: form.nombre.trim(), descripcion: form.descripcion.trim() || null }
+    const { error } = nuevo
+      ? await supabase.from('bodegas').insert(datos)
+      : await supabase.from('bodegas').update({ ...datos, activo }).eq('id', bodega.id)
+    setGuardando(false)
+    if (error) { setMsg(error.message); return }
+    onGuardado(nuevo ? 'Bodega creada' : 'Cambios guardados')
   }
+
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar la bodega "${bodega.nombre}"? No se puede deshacer.`)) return
+    const { error } = await supabase.from('bodegas').delete().eq('id', bodega.id)
+    if (error) { setMsg('No se puede eliminar: tiene categorías, stock, movimientos o personas asociadas. Desactívala en su lugar.'); return }
+    onGuardado('Bodega eliminada')
+  }
+
+  return (
+    <PanelLateral etiqueta={nuevo ? 'Nueva bodega' : `Bodega ${bodega.nombre}`} onCerrar={onCerrar}
+      encabezado={<p className="text-lg font-semibold text-feisen-texto">{nuevo ? 'Nueva bodega' : bodega.nombre}</p>}>
+      <form onSubmit={guardar} className="space-y-5">
+        {msg && <Alerta tipo="error" mensaje={msg} />}
+        <div>
+          <Etiqueta htmlFor="b-nombre">Nombre</Etiqueta>
+          <input id="b-nombre" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Bodega Motores" className={claseInput} />
+        </div>
+        <div>
+          <Etiqueta htmlFor="b-desc">Descripción (opcional)</Etiqueta>
+          <input id="b-desc" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} placeholder="Para qué se usa" className={claseInput} />
+        </div>
+        {!nuevo && (
+          <div className="flex items-center justify-between gap-3 border-t border-feisen-borde-suave pt-4">
+            <p className="text-sm text-feisen-texto-2">
+              {activo ? 'Desactivarla la oculta de las listas para elegir bodega. Sus datos se conservan.' : 'Inactiva: no aparece para elegir. Al guardar queda así.'}
+            </p>
+            <button type="button" onClick={() => setActivo(a => !a)}
+              className={`shrink-0 border rounded-lg px-3 min-h-[40px] text-sm font-medium bg-white hover:bg-feisen-fondo ${activo ? 'border-feisen-borde text-feisen-rojo' : 'border-feisen-azul text-feisen-azul'}`}>
+              {activo ? 'Desactivar' : 'Reactivar'}
+            </button>
+          </div>
+        )}
+        {!nuevo && productos === 0 && (
+          <button type="button" onClick={eliminar} className="text-sm font-medium text-feisen-rojo">Eliminar bodega</button>
+        )}
+        <PiePanel onCancelar={onCerrar} guardando={guardando} texto={nuevo ? 'Crear bodega' : 'Guardar cambios'} />
+      </form>
+    </PanelLateral>
+  )
+}
+
+function SeccionBodegas({ datos, abrir }) {
+  const lista = [...datos.bodegas].sort((a, b) =>
+    (a.activo === false) - (b.activo === false) || (datos.productosBodega[b.id] || 0) - (datos.productosBodega[a.id] || 0))
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      {lista.map(b => {
+        const productos = datos.productosBodega[b.id] || 0
+        const cats = datos.categorias.filter(c => c.bodega_id === b.id).length
+        const gente = datos.usuarios.filter(u => u.activo !== false && (datos.bodegasDe[u.id] || []).includes(b.id))
+        const inactiva = b.activo === false
+        return (
+          <button key={b.id} type="button" onClick={() => abrir(b)}
+            className={`text-left bg-white border border-feisen-borde rounded-xl p-4 space-y-3 hover:border-gray-300 ${inactiva || !productos ? 'opacity-70' : ''}`}>
+            <span className="flex items-start justify-between gap-2">
+              <span className="font-semibold text-feisen-texto break-words">{b.nombre}</span>
+              <span className={`shrink-0 text-xs font-medium rounded-md px-2 py-0.5 ${inactiva ? 'bg-feisen-fondo text-gray-500' : productos ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-feisen-fondo text-feisen-texto-2'}`}>
+                {inactiva ? 'Inactiva' : productos ? 'Activa' : 'Sin productos'}
+              </span>
+            </span>
+            <span className="grid grid-cols-3 gap-2">
+              {[['Productos', productos], ['Categorías', cats], ['Personas', gente.length]].map(([t, n]) => (
+                <span key={t}><span className="block text-[11px] text-feisen-texto-2">{t}</span><span className="block text-lg font-semibold text-feisen-texto tabular-nums">{fmt(n)}</span></span>
+              ))}
+            </span>
+            <span className="block text-xs text-feisen-texto-2 truncate">
+              {gente.length ? gente.map(u => (u.nombre || '').trim().split(/\s+/)[0]).join(', ') : 'Nadie la tiene asignada'}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
+function PanelCategoria({ categoria, datos, onCerrar, onGuardado }) {
+  const nuevo = !categoria
+  const activas = datos.bodegas.filter(b => b.activo)
+  const [form, setForm] = useState({ nombre: categoria?.nombre || '', bodega_id: categoria?.bodega_id || activas[0]?.id || '' })
+  const [msg, setMsg] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const productos = categoria ? (datos.productosCategoria[categoria.id] || 0) : 0
+
+  async function guardar(e) {
+    e.preventDefault(); setMsg('')
+    if (!form.bodega_id) { setMsg('Elige una bodega.'); return }
+    setGuardando(true)
+    const datosCat = { nombre: form.nombre.trim(), bodega_id: form.bodega_id }
+    const { error } = nuevo
+      ? await supabase.from('categorias').insert(datosCat)
+      : await supabase.from('categorias').update(datosCat).eq('id', categoria.id)
+    setGuardando(false)
+    if (error) { setMsg(error.message); return }
+    onGuardado(nuevo ? 'Categoría creada' : 'Cambios guardados')
+  }
+
+  async function eliminar() {
+    if (!window.confirm(`¿Eliminar la categoría "${categoria.nombre}"?`)) return
+    const { error } = await supabase.from('categorias').delete().eq('id', categoria.id)
+    if (error) { setMsg('No se puede eliminar: tiene productos asociados (también los inactivos).'); return }
+    onGuardado('Categoría eliminada')
+  }
+
+  return (
+    <PanelLateral etiqueta={nuevo ? 'Nueva categoría' : `Categoría ${categoria.nombre}`} onCerrar={onCerrar}
+      encabezado={<div><p className="text-lg font-semibold text-feisen-texto">{nuevo ? 'Nueva categoría' : categoria.nombre}</p>
+        {!nuevo && <p className="text-xs text-feisen-texto-2">{plural(productos, 'producto activo', 'productos activos')}</p>}</div>}>
+      <form onSubmit={guardar} className="space-y-5">
+        {msg && <Alerta tipo="error" mensaje={msg} />}
+        <div>
+          <Etiqueta htmlFor="c-bodega">Bodega</Etiqueta>
+          <select id="c-bodega" required value={form.bodega_id} onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value }))} className={claseInput}>
+            <option value="">Elige la bodega</option>
+            {activas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+          </select>
+        </div>
+        <div>
+          <Etiqueta htmlFor="c-nombre">Nombre</Etiqueta>
+          <input id="c-nombre" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Rodamientos" className={claseInput} />
+        </div>
+        {!nuevo && productos === 0 && (
+          <button type="button" onClick={eliminar} className="text-sm font-medium text-feisen-rojo">Eliminar categoría</button>
+        )}
+        <PiePanel onCancelar={onCerrar} guardando={guardando} texto={nuevo ? 'Crear categoría' : 'Guardar cambios'} />
+      </form>
+    </PanelLateral>
+  )
+}
+
+function SeccionCategorias({ datos, abrir }) {
+  const [busqueda, setBusqueda] = useState('')
+  const grupos = datos.bodegas
+    .map(b => ({ bodega: b, cats: datos.categorias.filter(c => c.bodega_id === b.id).sort((x, y) => x.nombre.localeCompare(y.nombre, 'es')) }))
+    .filter(g => g.cats.length)
+    .sort((a, b) => b.cats.length - a.cats.length)
+  return (
+    <div className="space-y-3">
+      <div className="flex"><Buscador valor={busqueda} onCambiar={setBusqueda} placeholder="Buscar categoría…" /></div>
+      {grupos.map(({ bodega, cats }) => {
+        const visibles = busqueda.trim() ? cats.filter(c => coincideBusqueda(c.nombre, busqueda)) : cats
+        if (!visibles.length) return null
+        return (
+          <section key={bodega.id} className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+            <h3 className="flex justify-between gap-2 px-4 py-2 bg-feisen-fondo border-b border-feisen-borde text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
+              <span>{bodega.nombre}</span><span>{plural(cats.length, 'categoría', 'categorías')}</span>
+            </h3>
+            <ul className="divide-y divide-feisen-borde-suave">
+              {visibles.map(c => {
+                const n = datos.productosCategoria[c.id] || 0
+                return (
+                  <li key={c.id}>
+                    <button type="button" onClick={() => abrir(c)} className="w-full flex items-center justify-between gap-3 px-4 py-2.5 min-h-[48px] text-left hover:bg-feisen-fondo">
+                      <span className="text-sm text-feisen-texto">
+                        {c.nombre}
+                        {!n && <span className="ml-2 text-xs font-medium bg-amber-50 text-amber-700 rounded-md px-1.5 py-0.5">vacía</span>}
+                      </span>
+                      <span className="text-sm text-feisen-texto-2 tabular-nums whitespace-nowrap">{plural(n, 'producto', 'productos')}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── ROLES ────────────────────────────────────────────────────────────────────
+function PanelRol({ onCerrar, onGuardado }) {
+  const [form, setForm] = useState({ nombre: '', label: '', color: COLORES_ROL[3].value })
+  const [msg, setMsg] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  async function guardar(e) {
+    e.preventDefault(); setMsg(''); setGuardando(true)
+    const nombre = form.nombre.trim().toUpperCase().replace(/\s+/g, '_')
+    const { error } = await supabase.from('roles').insert({ nombre, label: form.label.trim(), color: form.color })
+    setGuardando(false)
+    if (error) { setMsg(error.message.includes('unique') ? 'Ya existe un rol con ese nombre.' : error.message); return }
+    onGuardado('Rol creado')
+  }
+
+  return (
+    <PanelLateral etiqueta="Nuevo rol" onCerrar={onCerrar}
+      encabezado={<div><p className="text-lg font-semibold text-feisen-texto">Nuevo rol</p>
+        <p className="text-xs text-feisen-texto-2">Un rol nuevo no ve ninguna pantalla hasta que se programe qué puede hacer.</p></div>}>
+      <form onSubmit={guardar} className="space-y-5">
+        {msg && <Alerta tipo="error" mensaje={msg} />}
+        <div>
+          <Etiqueta htmlFor="r-label">Nombre visible</Etiqueta>
+          <input id="r-label" required value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="Ej: Jefe Ensamble" className={claseInput} />
+        </div>
+        <div>
+          <Etiqueta htmlFor="r-nombre">Código</Etiqueta>
+          <input id="r-nombre" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: JEFE_ENSAMBLE" className={claseInput + ' font-mono uppercase'} />
+          <p className="text-xs text-feisen-texto-2 mt-1">Se guarda en mayúsculas con guion bajo.</p>
+        </div>
+        <div>
+          <Etiqueta>Color del punto</Etiqueta>
+          <div className="flex flex-wrap gap-1.5">
+            {COLORES_ROL.map(c => {
+              const on = form.color === c.value
+              return (
+                <button key={c.value} type="button" aria-pressed={on} onClick={() => setForm(f => ({ ...f, color: c.value }))}
+                  className={`inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg border text-sm ${on ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul font-medium' : 'border-feisen-borde bg-white text-feisen-texto'}`}>
+                  <i className={`w-2.5 h-2.5 rounded-full ${c.value.split(' ')[0]}`} />{c.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <PiePanel onCancelar={onCerrar} guardando={guardando} texto="Crear rol" />
+      </form>
+    </PanelLateral>
+  )
+}
+
+function SeccionRoles({ datos, recargar, avisar }) {
+  const [msg, setMsg] = useState('')
+  const conteo = {}
+  datos.usuarios.forEach(u => { conteo[u.rol] = (conteo[u.rol] || 0) + 1 })
 
   async function eliminar(r) {
+    if (!window.confirm(`¿Eliminar el rol "${r.label}"?`)) return
     const { error } = await supabase.from('roles').delete().eq('id', r.id)
-    if (error) setMsg({ tipo: 'error', texto: 'No se puede eliminar: hay usuarios con este rol.' })
-    else cargar()
+    if (error) { setMsg('No se puede eliminar: hay usuarios con este rol.'); return }
+    avisar('Rol eliminado'); recargar()
   }
 
-  if (cargando) return <Spinner />
-
   return (
-    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Shield size={18} className="text-feisen-azul" /> Roles</h2>
-        <button onClick={abrir}
-          className="flex items-center gap-1 bg-feisen-azul text-white px-3 py-1.5 rounded-xl text-sm font-medium hover:opacity-90">
-          <Plus size={15} /> Nuevo
-        </button>
+    <div className="space-y-3">
+      {msg && <Alerta tipo="error" mensaje={msg} />}
+      <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+        <div className="hidden md:grid grid-cols-[minmax(0,1.3fr)_minmax(0,2.4fr)_5rem_5rem] gap-3 px-4 py-2 bg-feisen-fondo border-b border-feisen-borde text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
+          <span>Rol</span><span>Qué ve</span><span className="text-right">Personas</span><span />
+        </div>
+        <ul className="divide-y divide-feisen-borde-suave">
+          {datos.roles.map(r => {
+            const n = conteo[r.nombre] || 0
+            const sistema = ROLES_SISTEMA.includes(r.nombre)
+            return (
+              <li key={r.id} className="grid grid-cols-[1fr_auto] md:grid-cols-[minmax(0,1.3fr)_minmax(0,2.4fr)_5rem_5rem] gap-x-3 gap-y-1 items-center px-4 py-3">
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-feisen-texto"><i className={`w-2 h-2 rounded-full ${puntoRol(r)}`} />{r.label}</span>
+                  <span className="block text-[11px] font-mono text-gray-400">{r.nombre}</span>
+                </span>
+                <span className="text-sm text-feisen-texto-2 tabular-nums text-right md:order-3">{plural(n, 'persona', 'personas')}</span>
+                <span className="col-span-2 md:col-span-1 md:order-2 text-sm text-feisen-texto-2">{QUE_VE[r.nombre] || 'Sin pantallas programadas todavía.'}</span>
+                <span className="hidden md:block md:order-4 text-right text-xs text-gray-400">
+                  {sistema ? 'sistema' : n === 0 && <button type="button" onClick={() => eliminar(r)} className="text-sm font-medium text-feisen-rojo">Borrar</button>}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
       </div>
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-      <div className="space-y-2">
-        {roles.map(r => (
-          <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-            <div className="flex items-center gap-3">
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${r.color}`}>{r.label}</span>
-              <span className="text-xs text-gray-400 font-mono">{r.nombre}</span>
-              {ROLES_SISTEMA.includes(r.nombre) && <span className="text-xs text-gray-300">sistema</span>}
-            </div>
-            {!ROLES_SISTEMA.includes(r.nombre) && (
-              <button onClick={() => eliminar(r)} className="p-1.5 text-gray-300 hover:text-feisen-rojo hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-            )}
-          </div>
-        ))}
-      </div>
-      {modal && (
-        <Modal titulo="Nuevo rol" onCerrar={() => setModal(false)}>
-          <form onSubmit={guardar} className="space-y-4">
-            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre del rol *</label>
-              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul font-mono uppercase"
-                placeholder="Ej: JEFE_MECANIZADOS" />
-              <p className="text-xs text-gray-400 mt-1">Se guardará en mayúsculas con guion bajo.</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre visible *</label>
-              <input required value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder="Ej: Jefe Mecanizados" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Color de la etiqueta</label>
-              <div className="flex flex-wrap gap-2">
-                {COLORES_ROL.map(c => (
-                  <button key={c.value} type="button"
-                    onClick={() => setForm(f => ({ ...f, color: c.value }))}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border-2 transition-all ${c.value} ${form.color === c.value ? 'border-gray-800 scale-110' : 'border-transparent'}`}>
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">
-                {guardando ? 'Guardando...' : 'Crear rol'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
     </div>
   )
 }
 
-// ─── SECCIÓN USUARIOS ─────────────────────────────────────────────────────────
-function SeccionUsuarios() {
-  const [usuarios,      setUsuarios]      = useState([])
-  const [todasBodegas,  setTodasBodegas]  = useState([])
-  const [todosRoles,    setTodosRoles]    = useState([])
-  const [cargando,      setCargando]      = useState(true)
-  const [modal,         setModal]         = useState(false)
-  const [editando,      setEditando]      = useState(null)
-  const [form,          setForm]          = useState({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
-  const [bodegasSelec,  setBodegasSelec]  = useState([])
-  const [msg,           setMsg]           = useState(null)
-  const [guardando,     setGuardando]     = useState(false)
-
-  useEffect(() => { cargar() }, [])
-
-  async function cargar() {
-    setCargando(true)
-    const [{ data: us }, { data: bs }, { data: rs }] = await Promise.all([
-      supabase.from('profiles').select('*').order('nombre'),
-      supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('roles').select('*').order('created_at'),
-    ])
-    setUsuarios(us || [])
-    setTodasBodegas(bs || [])
-    setTodosRoles(rs || [])
-    setCargando(false)
-  }
-
-  function abrirNuevo() {
-    setEditando(null)
-    setForm({ email: '', password: '', nombre: '', rol: 'LOGISTICA' })
-    setBodegasSelec([])
-    setMsg(null); setModal(true)
-  }
-
-  async function abrirEditar(u) {
-    setEditando(u)
-    setForm({ email: '', password: '', nombre: u.nombre, rol: u.rol })
-    setMsg(null)
-    // Cargar email actual y bodegas en paralelo
-    const [{ data: pb }, emailActual] = await Promise.all([
-      supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', u.id),
-      supabase.rpc('get_user_email', { user_id: u.id }).then(r => r.data || ''),
-    ])
-    setBodegasSelec((pb || []).map(r => r.bodega_id))
-    setForm(f => ({ ...f, email: emailActual }))
-    setModal(true)
-  }
-
-  function toggleBodega(id) {
-    setBodegasSelec(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
-  }
-
-  async function guardar(e) {
-    e.preventDefault(); setMsg(null); setGuardando(true)
-
-    if (editando) {
-      // 1. Actualizar nombre y rol en profiles
-      const { error } = await supabase.from('profiles').update({ nombre: form.nombre, rol: form.rol }).eq('id', editando.id)
-      if (error) { setMsg({ tipo: 'error', texto: error.message }); setGuardando(false); return }
-
-      // 2. Si email o contraseña cambiaron, llamar la Edge Function
-      const emailCambiado = form.email && form.email.trim()
-      const passCambiada  = form.password && form.password.trim()
-      if (emailCambiado || passCambiada) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession()
-          const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/actualizar-usuario`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ userId: editando.id, email: emailCambiado || undefined, password: passCambiada || undefined }),
-          })
-          const result = await resp.json()
-          if (!resp.ok) throw new Error(result.error || 'Error al actualizar credenciales')
-        } catch (err) {
-          setMsg({ tipo: 'error', texto: err.message }); setGuardando(false); return
-        }
-      }
-
-      // 3. Sincronizar bodegas: borrar las viejas, insertar las nuevas
-      await supabase.from('profile_bodegas').delete().eq('profile_id', editando.id)
-      if (bodegasSelec.length > 0) {
-        await supabase.from('profile_bodegas').insert(
-          bodegasSelec.map(bid => ({ profile_id: editando.id, bodega_id: bid }))
-        )
-      }
-
-      setGuardando(false)
-      setModal(false); cargar(); return
-    }
-
-    // Crear usuario vía Edge Function
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crear-usuario`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ email: form.email, password: form.password, nombre: form.nombre, rol: form.rol }),
-      })
-      const result = await resp.json()
-      if (!resp.ok) throw new Error(result.error || 'Error al crear usuario')
-      setModal(false); cargar()
-    } catch (err) {
-      setMsg({ tipo: 'error', texto: err.message })
-    }
-    setGuardando(false)
-  }
-
-  // Mapear bodegas asignadas por usuario (para mostrar en la lista)
-  const [bodegasPorUsuario, setBodegasPorUsuario] = useState({})
-  useEffect(() => {
-    if (usuarios.length === 0 || todasBodegas.length === 0) return
-    supabase.from('profile_bodegas').select('profile_id, bodega_id').then(({ data }) => {
-      const mapa = {}
-      ;(data || []).forEach(r => {
-        if (!mapa[r.profile_id]) mapa[r.profile_id] = []
-        const b = todasBodegas.find(b => b.id === r.bodega_id)
-        if (b) mapa[r.profile_id].push(b.nombre)
-      })
-      setBodegasPorUsuario(mapa)
-    })
-  }, [usuarios, todasBodegas])
-
-  if (cargando) return <Spinner />
-
-  return (
-    <div className="bg-white rounded-xl border border-feisen-borde p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700 flex items-center gap-2"><Users size={18} className="text-feisen-azul" /> Usuarios</h2>
-        <button onClick={abrirNuevo}
-          className="flex items-center gap-1 bg-feisen-azul text-white px-3 py-1.5 rounded-xl text-sm font-medium hover:opacity-90">
-          <Plus size={15} /> Nuevo
-        </button>
-      </div>
-      {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-      <div className="space-y-2">
-        {usuarios.map(u => {
-          const bodegas = bodegasPorUsuario[u.id] || []
-          return (
-            <div key={u.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                  <span className="font-bold text-feisen-azul text-xs">{u.nombre?.charAt(0)?.toUpperCase()}</span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">{u.nombre}</p>
-                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    {(() => { const r = todosRoles.find(x => x.nombre === u.rol); return (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r?.color || 'bg-gray-200 text-gray-600'}`}>
-                        {r?.label || u.rol}
-                      </span>
-                    )})()}
-                    {u.rol !== 'ADMIN' && (
-                      bodegas.length > 0
-                        ? bodegas.map(nb => (
-                            <span key={nb} className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-feisen-azul border border-blue-100">
-                              {nb}
-                            </span>
-                          ))
-                        : <span className="text-xs text-amber-500">⚠ Sin bodega asignada</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => abrirEditar(u)} className="p-1.5 text-feisen-azul hover:bg-blue-50 rounded-lg"><Edit2 size={14} /></button>
-            </div>
-          )
-        })}
-      </div>
-
-      {modal && (
-        <Modal titulo={editando ? 'Editar usuario' : 'Nuevo usuario'} onCerrar={() => setModal(false)}>
-          <form onSubmit={guardar} className="space-y-4">
-            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre completo *</label>
-              <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder="Ej: Efrain Palma" />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Email {editando ? '' : '*'}</label>
-              <input
-                required={!editando}
-                type="email"
-                value={form.email}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder={editando ? 'Dejar igual o escribir nuevo email' : 'correo@feisen.com'}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña {editando ? <span className="text-gray-400 font-normal text-xs">(dejar en blanco para no cambiar)</span> : '*'}</label>
-              <input
-                required={!editando}
-                type="password"
-                minLength={editando ? 0 : 6}
-                value={form.password}
-                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"
-                placeholder={editando ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Rol *</label>
-              <select required value={form.rol} onChange={e => setForm(f => ({ ...f, rol: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
-                {todosRoles.map(r => <option key={r.nombre} value={r.nombre}>{r.label}</option>)}
-              </select>
-            </div>
-
-            {/* Bodegas asignadas — solo aplica para no-admin */}
-            {form.rol !== 'ADMIN' && (
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">Bodegas que puede ver</label>
-                {todasBodegas.length === 0
-                  ? <p className="text-xs text-gray-400">No hay bodegas activas creadas aún.</p>
-                  : (
-                    <div className="space-y-2">
-                      {todasBodegas.map(b => (
-                        <label key={b.id} className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={bodegasSelec.includes(b.id)}
-                            onChange={() => toggleBodega(b.id)}
-                            className="w-4 h-4 accent-feisen-azul rounded"
-                          />
-                          <span className="text-sm text-gray-700">{b.nombre}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )
-                }
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModal(false)} className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={guardando} className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60 hover:opacity-90">
-                {guardando ? 'Guardando...' : editando ? 'Guardar cambios' : 'Crear usuario'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </div>
-  )
-}
-
-// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
+// ─── PANTALLA ─────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'usuarios',   label: 'Usuarios',   icon: Users    },
-  { id: 'roles',      label: 'Roles',      icon: Shield   },
-  { id: 'bodegas',    label: 'Bodegas',    icon: Warehouse },
-  { id: 'categorias', label: 'Categorías', icon: Tag      },
+  { id: 'usuarios',   label: 'Usuarios',   nuevo: 'Nuevo usuario',   cuantos: d => d.usuarios.length },
+  { id: 'bodegas',    label: 'Bodegas',    nuevo: 'Nueva bodega',    cuantos: d => d.bodegas.length },
+  { id: 'categorias', label: 'Categorías', nuevo: 'Nueva categoría', cuantos: d => d.categorias.length },
+  { id: 'roles',      label: 'Roles',      nuevo: 'Nuevo rol',       cuantos: d => d.roles.length },
 ]
 
 export default function GestionConfig() {
   const [tab, setTab] = useState('usuarios')
+  const [datos, setDatos] = useState(null)
+  const [error, setError] = useState('')
+  const [panel, setPanel] = useState(null) // { tipo, registro } — registro null = nuevo
+  const [aviso, avisar] = useAviso()
+
+  const cargar = useCallback(async () => {
+    try {
+      const [us, pb, bs, cs, rs, its] = await Promise.all([
+        supabase.from('profiles').select('id, nombre, rol, activo').order('nombre'),
+        supabase.from('profile_bodegas').select('profile_id, bodega_id'),
+        supabase.from('bodegas').select('*').order('nombre'),
+        supabase.from('categorias').select('id, nombre, bodega_id').order('nombre'),
+        supabase.from('roles').select('*').order('created_at'),
+        fetchAllPages((d, h) => supabase.from('items').select('id, bodega_id, categoria_id').eq('activo', true).order('id').range(d, h)),
+      ])
+      const fallo = [us, pb, bs, cs, rs, its].find(r => r.error)
+      if (fallo) throw fallo.error
+      const bodegasDe = {}
+      for (const r of pb.data || []) (bodegasDe[r.profile_id] ||= []).push(r.bodega_id)
+      const productosBodega = {}, productosCategoria = {}
+      for (const i of its.data || []) {
+        productosBodega[i.bodega_id] = (productosBodega[i.bodega_id] || 0) + 1
+        if (i.categoria_id) productosCategoria[i.categoria_id] = (productosCategoria[i.categoria_id] || 0) + 1
+      }
+      setDatos({ usuarios: us.data || [], bodegasDe, bodegas: bs.data || [], categorias: cs.data || [], roles: rs.data || [], productosBodega, productosCategoria })
+    } catch (e) {
+      setError('No se pudo cargar la configuración: ' + e.message)
+    }
+  }, [])
+  useEffect(() => { cargar() }, [cargar])
+
+  const tabActual = TABS.find(t => t.id === tab)
+  const abrir = tipo => registro => setPanel({ tipo, registro })
+  const cerrar = () => setPanel(null)
+  const guardado = texto => { setPanel(null); avisar(texto); cargar() }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold text-feisen-azul">Configuración</h1>
+    <div className="max-w-4xl mx-auto space-y-4">
+      {aviso}
+      <EncabezadoPagina modulo="Administración" titulo="Configuración"
+        subtitulo="Quién entra a la app, qué bodega ve cada persona y cómo se ordena el inventario.">
+        <button type="button" onClick={() => setPanel({ tipo: tab, registro: null })}
+          className="inline-flex items-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90">
+          <Plus size={16} /> {tabActual.nuevo}
+        </button>
+      </EncabezadoPagina>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl">
+      <div role="tablist" className="flex gap-1 border-b border-feisen-borde overflow-x-auto [scrollbar-width:none]">
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all
-              ${tab === t.id
-                ? 'bg-white text-feisen-azul shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'}`}>
-            <t.icon size={16} />
-            <span className="hidden sm:inline">{t.label}</span>
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`shrink-0 px-3 py-2.5 -mb-px border-b-2 text-sm transition-colors
+              ${tab === t.id ? 'border-feisen-azul text-feisen-azul font-semibold' : 'border-transparent text-feisen-texto-2 font-medium hover:text-feisen-texto'}`}>
+            {t.label}{datos && <span className="ml-1.5 text-gray-400 tabular-nums font-normal">{fmt(t.cuantos(datos))}</span>}
           </button>
         ))}
       </div>
 
-      {tab === 'usuarios'   && <SeccionUsuarios />}
-      {tab === 'roles'      && <SeccionRoles />}
-      {tab === 'bodegas'    && <SeccionBodegas />}
-      {tab === 'categorias' && <SeccionCategorias />}
+      {error && <Alerta tipo="error" mensaje={error} />}
+      {!datos && !error && <div className="flex justify-center py-10"><Spinner /></div>}
+
+      {datos && tab === 'usuarios'   && <SeccionUsuarios datos={datos} abrir={abrir('usuarios')} />}
+      {datos && tab === 'bodegas'    && <SeccionBodegas datos={datos} abrir={abrir('bodegas')} />}
+      {datos && tab === 'categorias' && <SeccionCategorias datos={datos} abrir={abrir('categorias')} />}
+      {datos && tab === 'roles'      && <SeccionRoles datos={datos} recargar={cargar} avisar={avisar} />}
+
+      {panel?.tipo === 'usuarios'   && <PanelUsuario usuario={panel.registro} datos={datos} onCerrar={cerrar} onGuardado={guardado} />}
+      {panel?.tipo === 'bodegas'    && <PanelBodega bodega={panel.registro} productos={panel.registro ? (datos.productosBodega[panel.registro.id] || 0) : 0} onCerrar={cerrar} onGuardado={guardado} />}
+      {panel?.tipo === 'categorias' && <PanelCategoria categoria={panel.registro} datos={datos} onCerrar={cerrar} onGuardado={guardado} />}
+      {panel?.tipo === 'roles'      && <PanelRol onCerrar={cerrar} onGuardado={guardado} />}
     </div>
   )
 }

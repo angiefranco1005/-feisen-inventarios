@@ -32,6 +32,11 @@ export function AuthProvider({ children }) {
       supabase.from('profiles').select('*').eq('id', userId).single(),
       supabase.from('profile_bodegas').select('bodega_id').eq('profile_id', userId),
     ])
+    // Usuario desactivado en Configuración: se cierra la sesión (la base además le quita el rol)
+    if (p && p.activo === false) {
+      await supabase.auth.signOut()
+      return
+    }
     setPerfil(p)
     const bids = (pb || []).map(r => r.bodega_id)
     // Ver stock: solo ADMIN ve todo; el resto solo sus bodegas asignadas
@@ -43,8 +48,13 @@ export function AuthProvider({ children }) {
   }
 
   async function login(email, password) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    const { data: p } = await supabase.from('profiles').select('activo').eq('id', data.user.id).single()
+    if (p && p.activo === false) {
+      await supabase.auth.signOut()
+      throw new Error('Tu usuario está desactivado. Pídele a la administración que lo active.')
+    }
   }
 
   async function logout() {
