@@ -9,6 +9,7 @@ import Spinner from '../shared/Spinner'
 import FirmaCanvas from '../shared/FirmaCanvas'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
+import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, registrarSerialesEntrada, CamposSerial, MAX_SERIALES } from '../shared/seriales'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
@@ -40,6 +41,11 @@ export default function RegistrarMovimiento() {
   // Fecha en que ocurrió el movimiento (hora de Colombia). Por defecto hoy; se puede mover hacia atrás.
   const HOY_COL = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
   const [fechaMov, setFechaMov] = useState(HOY_COL)
+  // Motores (bodega MOTORES): una unidad por serial. En la salida se eligen de los que
+  // están en bodega; si el producto no tiene seriales cargados (o faltan), se escriben.
+  const [serialesDisp,     setSerialesDisp]     = useState([])        // [{ id, serial }] disponibles del producto
+  const [serialesElegidos, setSerialesElegidos] = useState(new Set()) // ids de serialesDisp que salen
+  const [serialesTexto,    setSerialesTexto]    = useState([])        // seriales escritos a mano
 
   const pedidoDesdeNav    = location.state?.pedido_id        || ''
   const cantidadDesdeNav  = location.state?.cantidad_sugerida || ''
@@ -100,6 +106,27 @@ export default function RegistrarMovimiento() {
     setItemsFiltrados(busqueda.trim() ? items.filter(i => coincideBusqueda(i.nombre, busqueda)) : items)
   }, [busqueda, items])
 
+  const itemSelBase  = items.find(i => i.id === form.item_id)
+  const bodegaSelNom = bodegas.find(b => b.id === (form.bodega_id || itemSelBase?.bodega_id))?.nombre
+  const esMotor      = !!itemSelBase && esBodegaMotores(bodegaSelNom)
+  const modoLista    = esMotor && form.tipo === 'salida' && serialesDisp.length > 0
+
+  // Seriales disponibles del motor elegido
+  useEffect(() => {
+    setSerialesDisp([]); setSerialesElegidos(new Set()); setSerialesTexto([])
+    if (!esMotor || !form.item_id) return
+    let vigente = true
+    supabase.from('motor_seriales').select('id, serial')
+      .eq('item_id', form.item_id).eq('estado', 'disponible').order('serial')
+      .then(({ data }) => { if (vigente) setSerialesDisp(data || []) })
+    return () => { vigente = false }
+  }, [form.item_id, esMotor, form.tipo])
+
+  // Sin lista: un campo de serial por cada unidad del contador
+  useEffect(() => {
+    if (esMotor && !modoLista) setSerialesTexto(l => ajustarSeriales(l, parseFloat(form.cantidad)))
+  }, [esMotor, modoLista, form.cantidad])
+
   function seleccionarItem(item) {
     setForm(f => ({ ...f, item_id: item.id, item_nombre: item.nombre, bodega_id: item.bodega_id || f.bodega_id, cantidad: f.cantidad || '1' }))
     setBusqueda('')
@@ -128,9 +155,26 @@ export default function RegistrarMovimiento() {
 
     if (!form.item_id)   { setError('Selecciona un producto.'); setGuardando(false); return }
     if (!form.bodega_id) { setError('Selecciona una bodega.');  setGuardando(false); return }
-    const cantidad = parseFloat(form.cantidad)
-    if (!cantidad || cantidad <= 0) { setError('La cantidad debe ser mayor a cero.'); setGuardando(false); return }
-    if (form.tipo === 'salida' && !form.destino) { setError('Selecciona el destino.'); setGuardando(false); return }
+    const elegidos = serialesDisp.filter(s => serialesElegidos.has(s.id))
+    const cantidad = modoLista ? elegidos.length + serialesTexto.length : parseFloat(form.cantidad)
+    const falla = msg => { setError(msg); setGuardando(false) }
+    if (modoLista && cantidad === 0) return falla('Toca el serial del motor que sale.')
+    if (!cantidad || cantidad <= 0) return falla('La cantidad debe ser mayor a cero.')
+    if (form.tipo === 'salida' && !form.destino) return falla('Selecciona el destino.')
+
+    // Motores: un serial por unidad, sin repetir; la salida va siempre a una OF
+    const seriales = esMotor ? [...elegidos.map(s => s.serial), ...serialesTexto] : []
+    if (esMotor) {
+      if (!Number.isInteger(cantidad)) return falla('Los motores se registran por unidades enteras.')
+      if (cantidad > MAX_SERIALES) return falla(`Registra máximo ${MAX_SERIALES} motores por vez.`)
+      const problema = problemaSeriales(seriales)
+      if (problema) return falla(problema)
+      if (form.tipo === 'salida' && !form.numero_of.trim()) return falla('Escribe la OF (orden de fabricación) a la que va el motor.')
+      if (form.tipo === 'entrada') {
+        const repetidos = await serialesYaEnBodega(form.item_id, seriales)
+        if (repetidos.length) return falla(`Ya hay en bodega un motor con el serial ${repetidos.join(', ')}. Revisa la placa.`)
+      }
+    }
 
     // Validar stock disponible antes de registrar salida
     if (form.tipo === 'salida') {
@@ -176,15 +220,32 @@ export default function RegistrarMovimiento() {
       // Salida
       destino:               form.tipo === 'salida'  ? form.destino       : null,
       numero_of:             form.tipo === 'salida'  ? (form.numero_of    || null) : null,
-      serial_motor:          form.tipo === 'salida'  ? (form.serial_motor || null) : null,
+      serial_motor:          form.tipo === 'salida'  ? (form.serial_motor || null) : null,  // motores: uno por fila, abajo
       referencia:            form.tipo === 'salida'  ? (form.referencia   || null) : null,
       motivo: null, cliente: null,
       fecha_movimiento:      fechaMov || HOY_COL,
     }
 
-    const { error: err } = await supabase.from('movimientos').insert(payload)
+    // Motores: una fila de 1 unidad por serial (todas con el mismo N°), para seguir cada motor
+    const filas = esMotor
+      ? seriales.map(s => ({ ...payload, cantidad: 1, serial_motor: s.trim() }))
+      : [payload]
+    const { data: movs, error: err } = await supabase.from('movimientos').insert(filas)
+      .select('id, item_id, serial_motor, bodega_destino_id')
     setGuardando(false)
     if (err) { setError('Error: ' + err.message); return }
+
+    let errSeriales = null
+    if (esMotor && form.tipo === 'entrada') errSeriales = await registrarSerialesEntrada(movs || [])
+    if (esMotor && form.tipo === 'salida' && elegidos.length) {
+      const movPorSerial = Object.fromEntries((movs || []).map(m => [m.serial_motor, m.id]))
+      const res = await Promise.all(elegidos.map(s => supabase.from('motor_seriales').update({
+        estado: 'despachado', salida_mov_id: movPorSerial[s.serial.trim()] || null,
+        numero_of: form.numero_of.trim(), despachado_en: new Date().toISOString(),
+      }).eq('id', s.id)))
+      errSeriales = res.find(r => r.error)?.error || null
+    }
+    if (errSeriales) setError(`El movimiento ${numero} quedó registrado, pero no se pudo actualizar la lista de seriales (${errSeriales.message}). Avisa a administración.`)
 
     // Si la entrada tiene pedido asociado, marcarlo como recibido
     if (form.tipo === 'entrada' && form.pedido_id) {
@@ -201,6 +262,7 @@ export default function RegistrarMovimiento() {
       ...f, item_id: '', item_nombre: '', cantidad: '', referencia: '',
       numero_of: '', serial_motor: '', destino: '', proveedor: '', pedido_id: '', foto_remision_url: '',
     }))
+    setSerialesDisp([]); setSerialesElegidos(new Set()); setSerialesTexto([])
     setBusqueda('')
     setFirmaDataUrl(null)
     setFechaMov(HOY_COL)
@@ -211,10 +273,11 @@ export default function RegistrarMovimiento() {
 
   const esEntrada = form.tipo === 'entrada'
   const titulo    = esAdmin ? 'Registrar movimiento' : (esEntrada ? 'Registro de entrada' : 'Registro de salida')
-  const itemSel   = items.find(i => i.id === form.item_id)
+  const itemSel   = itemSelBase
   const hay       = (itemId, bodegaId) => stockPorClave[`${itemId}_${bodegaId}`] ?? 0
   const haySel    = itemSel ? hay(itemSel.id, form.bodega_id || itemSel.bodega_id) : 0
-  const cantNum   = parseFloat(form.cantidad) || 0
+  const cantNum   = modoLista ? serialesElegidos.size + serialesTexto.length : (parseFloat(form.cantidad) || 0)
+  const extrasPermitidos = Math.max(0, haySel - serialesDisp.length) // unidades viejas sin serial cargado
   const falta     = !esEntrada && itemSel && cantNum > haySel
   const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
   const campo = (etiqueta, contenido, opcional = false) => (
@@ -309,10 +372,16 @@ export default function RegistrarMovimiento() {
                 <button type="button" aria-label="Cambiar producto" onClick={() => { setForm(f => ({ ...f, item_id: '', item_nombre: '' })); setTimeout(() => buscarRef.current?.focus(), 0) }}
                   className="p-2 -m-1 rounded-lg text-gray-400 hover:text-feisen-texto hover:bg-white"><X size={17} /></button>
               </div>
-              <div className="flex items-center gap-2">
-                <Contador valor={form.cantidad} onCambiar={v => setForm(f => ({ ...f, cantidad: v.replace(',', '.') }))} etiqueta="Cantidad" ancho="w-20" />
-                <span className="text-sm text-feisen-texto-2">{itemSel.unidad_medida}</span>
-              </div>
+              {modoLista ? (
+                <p className="text-sm text-feisen-texto-2">
+                  {cantNum === 0 ? 'Elige abajo el serial que sale' : <>Sale{cantNum === 1 ? '' : 'n'} <b className="text-feisen-texto">{cantNum}</b> {itemSel.unidad_medida}</>}
+                </p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Contador valor={form.cantidad} onCambiar={v => setForm(f => ({ ...f, cantidad: v.replace(',', '.') }))} etiqueta="Cantidad" ancho="w-20" />
+                  <span className="text-sm text-feisen-texto-2">{itemSel.unidad_medida}</span>
+                </div>
+              )}
             </div>
           )}
           {bodegas.length > 1 && campo('Bodega',
@@ -320,6 +389,48 @@ export default function RegistrarMovimiento() {
               <option value="">Selecciona bodega</option>
               {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>)}
+        </>)}
+
+        {/* Motores: serial por unidad */}
+        {esMotor && bloque(esEntrada ? 'Serial de cada motor' : '¿Qué motor sale?', modoLista ? <>
+          <p className="text-sm text-feisen-texto-2">Toca el serial que está en la placa del motor que sale.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {serialesDisp.map(sd => {
+              const activo = serialesElegidos.has(sd.id)
+              return (
+                <button key={sd.id} type="button" aria-pressed={activo}
+                  onClick={() => setSerialesElegidos(prev => { const n = new Set(prev); n.has(sd.id) ? n.delete(sd.id) : n.add(sd.id); return n })}
+                  className={`min-h-[48px] px-3 rounded-lg border text-left font-mono text-[15px] font-semibold transition-colors active:scale-[.98] flex items-center gap-2
+                    ${activo ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde bg-white text-feisen-texto hover:bg-feisen-fondo'}`}>
+                  <span className={`w-5 h-5 rounded border flex items-center justify-center text-xs shrink-0 ${activo ? 'bg-feisen-azul border-feisen-azul text-white' : 'border-feisen-borde'}`}>{activo ? '✓' : ''}</span>
+                  <span className="break-all">{sd.serial}</span>
+                </button>
+              )
+            })}
+          </div>
+          {serialesTexto.length > 0 && <>
+            <p className="text-xs text-feisen-texto-2">Motores sin serial cargado (escríbelo de la placa):</p>
+            <CamposSerial valores={serialesTexto} onCambiar={setSerialesTexto} claseInput={claseInput} />
+          </>}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {serialesTexto.length < extrasPermitidos && (
+              <button type="button" onClick={() => setSerialesTexto(l => [...l, ''])} className="text-sm font-medium text-feisen-azul">
+                + El serial no está en la lista
+              </button>
+            )}
+            {serialesTexto.length > 0 && (
+              <button type="button" onClick={() => setSerialesTexto(l => l.slice(0, -1))} className="text-sm font-medium text-feisen-texto-2">
+                Quitar el último
+              </button>
+            )}
+          </div>
+        </> : <>
+          <p className="text-sm text-feisen-texto-2">
+            {esEntrada
+              ? 'Escribe el serial de la placa de cada motor. Cada motor queda registrado aparte para seguirlo hasta su salida.'
+              : 'Este motor no tiene seriales cargados: escríbelo tal como está en la placa.'}
+          </p>
+          <CamposSerial valores={serialesTexto} onCambiar={setSerialesTexto} claseInput={claseInput} />
         </>)}
 
         {/* Entrada */}
@@ -358,10 +469,15 @@ export default function RegistrarMovimiento() {
               </button>
             ))}
           </div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            {campo('N° orden de fabricación', <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))} placeholder="Ej: 8465" className={claseInput} />, true)}
-            {campo('Serial del motor', <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))} placeholder="Ej: 215325060196" className={claseInput} />, true)}
-          </div>
+          {esMotor ? (
+            campo('OF (orden de fabricación) a la que va el motor',
+              <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))} placeholder="Ej: 8465" className={claseInput} />)
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {campo('N° orden de fabricación', <input value={form.numero_of} onChange={e => setForm(f => ({ ...f, numero_of: e.target.value }))} placeholder="Ej: 8465" className={claseInput} />, true)}
+              {campo('Serial del motor', <input value={form.serial_motor} onChange={e => setForm(f => ({ ...f, serial_motor: e.target.value }))} placeholder="Ej: 215325060196" className={claseInput} />, true)}
+            </div>
+          )}
           {campo('Referencia / observación', <input value={form.referencia} onChange={e => setForm(f => ({ ...f, referencia: e.target.value }))} placeholder="Ej: Factura 001" className={claseInput} />, true)}
         </>)}
 

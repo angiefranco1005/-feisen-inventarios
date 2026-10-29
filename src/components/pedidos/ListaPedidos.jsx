@@ -12,6 +12,7 @@ import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, registrarSerialesEntrada, CamposSerial } from '../shared/seriales'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -514,6 +515,10 @@ export default function ListaPedidos() {
   const [cantRec,       setCantRec]       = useState({})
   const hoyCol = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
   const [fechaRecepcion, setFechaRecepcion] = useState(hoyCol())
+  // Motores del pedido (bodega MOTORES): al recibir con entrada, un serial por unidad
+  const [motoresRec,    setMotoresRec]    = useState(new Set()) // item_id de motores
+  const [serialesRec,   setSerialesRec]   = useState({})        // pedido_item.id → [serial…]
+  const [errorRec,      setErrorRec]      = useState('')
   const [confirmElim,   setConfirmElim]   = useState(null)
   const [confirmCerrar, setConfirmCerrar] = useState(null) // pedido a cerrar
   const [motivoCierre,  setMotivoCierre]  = useState('')
@@ -690,8 +695,17 @@ export default function ListaPedidos() {
     })
     setCantRec(inicial)
     setFechaRecepcion(hoyCol())
+    setSerialesRec({}); setMotoresRec(new Set()); setErrorRec('')
     setModalRecibido({ pedido, conEntrada })
+    const ids = (pedido.pedido_items || []).map(it => it.item_id).filter(Boolean)
+    if (ids.length) {
+      supabase.from('items').select('id, bodegas(nombre)').in('id', ids).then(({ data }) =>
+        setMotoresRec(new Set((data || []).filter(i => esBodegaMotores(i.bodegas?.nombre)).map(i => i.id))))
+    }
   }
+
+  // Seriales de una línea de motor, del tamaño de lo que llegó
+  const serialesDeLinea = it => ajustarSeriales(serialesRec[it.id] || [], parseFloat(cantRec[it.id]))
 
   async function confirmarRecibido() {
     if (guardandoRecibido || recibidoEnCurso.current) return
@@ -700,6 +714,26 @@ export default function ListaPedidos() {
     try {
     const { pedido, conEntrada } = modalRecibido
     const items = pedido.pedido_items || []
+
+    // Motores: cada unidad que llega necesita su serial (se valida antes de tocar nada)
+    setErrorRec('')
+    if (conEntrada) {
+      for (const it of items.filter(i => motoresRec.has(i.item_id) && parseFloat(cantRec[i.id]) > 0)) {
+        const cant = parseFloat(cantRec[it.id])
+        const lista = serialesDeLinea(it)
+        let problema = !Number.isInteger(cant) ? 'los motores se reciben por unidades enteras.'
+          : cant !== lista.length ? 'son demasiadas unidades para recibir de una vez (máximo 50).'
+          : problemaSeriales(lista)
+        if (!problema) {
+          const repetidos = await serialesYaEnBodega(it.item_id, lista)
+          if (repetidos.length) problema = `ya hay en bodega un motor con el serial ${repetidos.join(', ')}.`
+        }
+        if (problema) {
+          setErrorRec(`${it.descripcion}: ${problema.charAt(0).toLowerCase() + problema.slice(1)}`)
+          return // el finally libera el botón
+        }
+      }
+    }
     // El historial se escribe al final (en el finally) para poder incluir el N° de movimiento de la entrada
     let pedidoActualizado = false
     let historialPendiente = null
@@ -801,7 +835,7 @@ export default function ListaPedidos() {
         for (const it of itemsConId) {
           const info = itemMap[it.item_id]
           if (!info) continue
-          payloads.push({
+          const base = {
             numero:                numeroMov,
             tipo:                  'entrada',
             item_id:               it.item_id,
@@ -815,11 +849,17 @@ export default function ListaPedidos() {
             fecha_movimiento:      fechaRecepcion || hoyCol(),
             proveedor: null, foto_remision_url: null, destino: null,
             numero_of: null, serial_motor: null, referencia: null, motivo: null, cliente: null,
-          })
+          }
+          // Motores: una línea de 1 unidad por serial, para seguir cada motor
+          if (motoresRec.has(it.item_id)) serialesDeLinea(it).forEach(sr => payloads.push({ ...base, cantidad: 1, serial_motor: sr.trim() }))
+          else payloads.push(base)
         }
         if (payloads.length > 0) {
-          const { error } = await supabase.from('movimientos').insert(payloads)
+          const { data: movs, error } = await supabase.from('movimientos').insert(payloads)
+            .select('id, item_id, serial_motor, bodega_destino_id')
+          const errSeriales = error ? null : await registrarSerialesEntrada(movs || [])
           if (error) setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al registrar entradas: ' + error.message })
+          else if (errSeriales) setMsg({ tipo: 'error', texto: `Entrada ${numeroMov} registrada, pero no se pudo guardar la lista de seriales (${errSeriales.message}). Avisa a administración.` })
           else {
             numeroEntrada = numeroMov
             const filas = payloads.map(() => ({ numero: numeroMov, pedido_id: pedido.id, fecha_movimiento: fechaRecepcion || hoyCol(), created_at: new Date().toISOString() }))
@@ -1307,11 +1347,14 @@ export default function ListaPedidos() {
                 <p className="text-xs text-gray-400 mt-1">Por defecto hoy. Cámbiala si el material llegó otro día.</p>
               </div>
             )}
+            {errorRec && <Alerta tipo="error" mensaje={errorRec} />}
             {modalRecibido.pedido.pedido_items?.map(it => {
               const yaRecibido = it.cantidad_recibida || 0
               const pendiente = it.cantidad - yaRecibido
+              const conSerial = modalRecibido.conEntrada && motoresRec.has(it.item_id) && parseFloat(cantRec[it.id]) > 0
               return (
-              <div key={it.id} className="flex items-center gap-4">
+              <div key={it.id} className="space-y-2">
+              <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{it.descripcion}</p>
                   <p className="text-xs text-gray-400">Pedido: {it.cantidad} {it.unidad}</p>
@@ -1329,6 +1372,14 @@ export default function ListaPedidos() {
                     <span className="text-xs text-gray-400">{it.unidad}</span>
                   </div>
                 </div>
+              </div>
+              {conSerial && (
+                <div className="bg-feisen-fondo rounded-xl px-3 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-feisen-texto">Serial de cada motor (de la placa)</p>
+                  <CamposSerial valores={serialesDeLinea(it)} onCambiar={v => setSerialesRec(r => ({ ...r, [it.id]: v }))}
+                    claseInput="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                </div>
+              )}
               </div>
               )
             }

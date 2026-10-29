@@ -1738,3 +1738,12 @@ el avance se registra a diario y la orden se cierra a mano.
 - **Desactivar usuario** (profiles.activo): migración `2026-10-29_usuarios_desactivar.sql` (aplicada). get_my_rol() devuelve NULL si el usuario está desactivado (todas las políticas por rol le niegan acceso) y la app cierra su sesión al cargar o al entrar ("Tu usuario está desactivado…").
 - **Hueco de seguridad cerrado**: la política profiles_update_own (para "Mis listas") dejaba a cualquier usuario cambiarse su propio rol (p. ej. a ADMIN) o reactivarse. El trigger `trg_proteger_campos_perfil` solo deja cambiar rol, activo, acceso_costeo y almacen a un ADMIN activo, y el admin no puede desactivarse ni quitarse el rol a sí mismo. Probado en transacción revertida con Ventas y el admin.
 - Pendiente conocido: las lecturas abiertas a cualquier autenticado (items, stock) no dependen del rol, así que un usuario desactivado con una sesión vieja aún podría leerlas hasta que la app lo saque; la app lo saca al recargar. Para cortar del todo habría que bloquearlo también en Auth (ban) desde una Edge Function.
+
+## 2026-10-29 · Motores con seguimiento por serial (bodega MOTORES)
+- Tabla `motor_seriales` (una fila por motor físico): serial, estado disponible/despachado, entrada_mov_id, salida_mov_id, numero_of. Migración `supabase/migraciones/2026-10-29_motor_seriales.sql`.
+- Todo producto de la bodega llamada "MOTORES" (`esBodegaMotores` en `src/components/shared/seriales.jsx`) entra y sale de a 1 unidad por serial: N filas de movimiento con el mismo número.
+  - Entrada (Registrar movimiento y Recibir pedido con entrada): un campo de serial por unidad; no deja seriales vacíos, repetidos o ya disponibles en bodega.
+  - Salida: se tocan los seriales disponibles; la OF es obligatoria. Si el producto no tiene seriales cargados (los 29 viejos de MOTORES CONSTRU) o hay más stock que seriales, se escriben a mano.
+- Trigger `trg_motor_seriales_sync`: al eliminar/revertir una salida el motor vuelve a disponible; al eliminar/revertir una entrada se quita el serial (si no ha salido); al corregir el serial de una entrada en el Historial se corrige en la tabla. Corregir el serial de una SALIDA en el Historial no cambia qué motor quedó despachado.
+- La validación es solo en pantalla: ajustes de inventario físico y transferencias de MOTORES no piden serial ni OF.
+- ENT-AF-0433 se partió en una línea por motor (25 seriales); el stock no cambió.
