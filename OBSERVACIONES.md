@@ -1770,3 +1770,13 @@ el avance se registra a diario y la orden se cierra a mano.
 - En `RegistrarMovimiento.jsx` (Logística/Admin) el bloque Producto empieza con la categoría (chips). Para LOGISTICA es obligatoria: sin categoría no aparece el buscador ("Primero elige la categoría…") y el registro no se deja guardar. En MOTORES son EQUIPMASTER STORE y MOTORES CONSTRU.
 - Al elegir categoría se listan de una vez todos sus productos (no hace falta escribir); el buscador busca dentro de ella. Cambiar de categoría suelta el producto si no es de esa categoría.
 - Solo se muestran categorías de las bodegas del usuario que tengan productos activos; si hay una sola, queda elegida sola. Para ADMIN es un filtro opcional con "Todas".
+
+## 2026-10-29 · Dashboard de ventas dentro de Ventas › Dashboard
+- Ventas › Dashboard tiene dos vistas: **Pedidos (OF)** (el dashboard de la app de OF) y **Dashboard de ventas** (lo que era el artefacto "Dashboard Ventas": Resumen, Análisis, Cargar informe y Tutorial). La vista elegida se recuerda en el navegador (`feisen-of-dashboard`). Componente `src/components/of/DashboardVentasOF.jsx`.
+- El tablero es el código del artefacto casi sin cambios: HTML en `of/ventas/plantilla.html` (importado con `?raw`), JS en `of/ventas/montarDashboardVentas.js` (se monta sobre un div; limpia sus listeners al salir) y CSS en `of/ventas/ventas.css`, todo con prefijo `.dv` para no tocar el resto del ERP. Sin modo oscuro y con la letra Inter del ERP. Imágenes del tutorial en `public/ventas-tutorial/`.
+- Gotcha: el módulo JS NO puede llamarse `dashboardVentas.js` junto a `DashboardVentas.jsx` — macOS no distingue mayúsculas y `import './DashboardVentas'` terminaba cargando el .js.
+- Datos: tabla `ventas_odoo` (migración `2026-10-29_ventas_odoo.sql`), una fila por empresa + mes + cliente + producto. `origen='base'` = las 1.716 filas con que se armó el artefacto (abr – 27 oct 2026, Feisen 969 + FC 747, total $4.828.319.523, incluye notas crédito); `origen='odoo'` = meses subidos en "Cargar informe". Subir un mes llama `ventas_cargar_mes()`, que borra y reemplaza ese mes de esa empresa (todo o nada).
+- Permisos: ver y cargar solo ADMIN (`ventas_puede_ver()`); ajustar cuando se definan roles (Leidy = JEFE_VENTAS).
+- Octubre se trata como mes parcial (al 27) mientras tenga filas 'base' (constantes `BASE_DAYS`/`BASE_M` del script). Al subir octubre completo desde Odoo deja de ser parcial.
+- El artefacto en claude.ai sigue existiendo con sus propios datos; desde ahora los meses se deben subir en el ERP (lo que se suba al artefacto no llega al ERP).
+- No probado con el ERP real: la subida de un Excel de Odoo (el lector es el mismo del artefacto, ahora guarda en Supabase).
