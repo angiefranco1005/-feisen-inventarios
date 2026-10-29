@@ -1828,3 +1828,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - Decisión de Angie tras ver la propuesta (se descartó IBM Plex Sans). Se mantiene Inter.
 - `src/index.css` (toda la app): suavizado de letra activado (`-webkit-font-smoothing: antialiased`; antes en Mac se veía gruesa) y rasgos de Inter `cv11` («a» de un solo piso), `ss01` (números abiertos), `cv05` («l» con cola).
 - Menú (`Layout.jsx`): opciones en peso normal (gris 700, ícono gris 500); la activa en blanco con borde fino, azul y negrita. Títulos de sección («Módulos», «Vista previa», grupos) en mayúsculas 11 px con espaciado. Submenús cuelgan de una línea vertical y la opción activa lleva una marca azul de 2 px. «Producción y Ensamble» se muestra como «Ensamble» solo en el menú (`NOMBRE_EN_MENU`).
+
+## 2026-10-29 · Ícono de la app con el logo
+- El manifest pedía `icons/icon-192.png` y `icon-512.png`, pero **esos archivos nunca existieron**; solo había un `favicon.svg` provisional (una «F» en degradado). Por eso, al instalar el ERP en el computador o el celular, salía esa «F» en lugar del logo.
+- Se copiaron los íconos de la app de OF (mismo logo del cubo Feisen) a `public/icons/` (`icon-192.png`, `icon-512.png`, `favicon.png`) y se quitó el SVG provisional.
+- Quien ya tenga el ERP instalado puede seguir viendo la «F» hasta que el sistema refresque el ícono; si no cambia, desinstalar y volver a instalar la app.
