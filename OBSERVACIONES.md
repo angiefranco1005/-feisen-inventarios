@@ -1823,3 +1823,8 @@ el avance se registra a diario y la orden se cierra a mano.
 - Botón "Planilla para imprimir" en Inventarios → Inventario físico. Se elige bodega (y opcionalmente una categoría) y sale una hoja carta vertical para contar en papel: N°, producto, unidad, casilla en blanco "Cantidad contada" y Observaciones, agrupada por categoría, con 8 filas en blanco al final para lo que no esté en la lista y firmas de quien contó y quien revisó.
 - **Conteo a ciegas** (decisión de Angie): la hoja NO muestra la cantidad del sistema. Lo contado se digita después en un conteo normal de la app, que es la que muestra las diferencias.
 - Se imprime con `window.print()` (o "Guardar como PDF"), igual que la planilla de tiempos de Costeo: `PlanillaInventario.jsx` se monta fuera de #root con `.planilla-impresion`. Usa una página con nombre (`@page vertical` + clase `planilla-vertical` en index.css) porque la regla general de impresión es carta horizontal.
+
+## 2026-10-29 · Letra del menú lateral (Inter ajustada)
+- Decisión de Angie tras ver la propuesta (se descartó IBM Plex Sans). Se mantiene Inter.
+- `src/index.css` (toda la app): suavizado de letra activado (`-webkit-font-smoothing: antialiased`; antes en Mac se veía gruesa) y rasgos de Inter `cv11` («a» de un solo piso), `ss01` (números abiertos), `cv05` («l» con cola).
+- Menú (`Layout.jsx`): opciones en peso normal (gris 700, ícono gris 500); la activa en blanco con borde fino, azul y negrita. Títulos de sección («Módulos», «Vista previa», grupos) en mayúsculas 11 px con espaciado. Submenús cuelgan de una línea vertical y la opción activa lleva una marca azul de 2 px. «Producción y Ensamble» se muestra como «Ensamble» solo en el menú (`NOMBRE_EN_MENU`).

@@ -5,6 +5,10 @@
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    /* Inter: «a» de un solo piso (cv11), números abiertos (ss01), «l» con cola (cv05) */
+    font-feature-settings: 'cv11', 'ss01', 'cv05';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
   }
 

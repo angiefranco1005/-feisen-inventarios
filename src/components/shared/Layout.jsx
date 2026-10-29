@@ -22,6 +22,9 @@ const MODULOS = {
   'Calidad':          SealCheck,
 }
 
+// Nombre corto en el menú para que no ocupe dos renglones (en las pantallas sigue el completo)
+const NOMBRE_EN_MENU = { 'Producción y Ensamble': 'Ensamble' }
+
 const NAV_ADMIN = [
   { to: '/dashboard',                         icon: LayoutDashboard, label: 'Inicio' },
   { to: '/productos',                         icon: Package,         label: 'Productos',          modulo: 'Inventarios' },
@@ -282,12 +285,17 @@ export default function Layout({ children }) {
     const activo = esActivo(item.to)
     return (
       <Link to={item.to} onClick={() => setMenuAbierto(false)}
-        className={`flex items-center gap-2.5 ${sub ? 'pl-9 pr-3 py-1.5' : 'px-3 py-2'} rounded-lg transition-colors text-sm
-          ${activo
-            ? 'bg-feisen-azul-suave text-feisen-azul font-semibold'
-            : 'text-feisen-texto-2 font-medium hover:bg-white hover:text-feisen-texto'}`}>
-        {!sub && <item.icon size={18} weight="duotone" />}
-        <span>{item.label}</span>
+        className={sub
+          ? `relative flex items-center px-2.5 py-1.5 rounded-lg transition-colors text-[13px]
+            ${activo
+              ? 'text-feisen-azul font-semibold before:absolute before:-left-[9px] before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full before:bg-feisen-azul'
+              : 'text-feisen-texto-2 hover:bg-white hover:text-feisen-texto'}`
+          : `flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-[13.5px]
+            ${activo
+              ? 'bg-white text-feisen-azul font-semibold ring-1 ring-feisen-borde'
+              : 'text-gray-700 hover:bg-white hover:text-feisen-texto'}`}>
+        {!sub && <item.icon size={18} weight="duotone" className={activo ? '' : 'text-gray-500'} />}
+        <span className="truncate">{item.label}</span>
       </Link>
     )
   }
@@ -304,7 +312,7 @@ export default function Layout({ children }) {
       </div>
       {modulos.length > 0 && (
         <div className="pt-4 space-y-0.5">
-          <p className="text-[11px] font-medium text-feisen-gris-medio px-3 pb-1.5">Módulos</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-feisen-gris-medio px-3 pb-1.5">Módulos</p>
           {modulos.map(m => {
             const Icono   = MODULOS[m] || Package
             const abierto = modulosAbiertos.has(m)
@@ -312,14 +320,14 @@ export default function Layout({ children }) {
             return (
               <div key={m}>
                 <button type="button" onClick={() => toggleModulo(m)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium
-                    ${tieneActivo && !abierto ? 'text-feisen-azul' : 'text-feisen-texto-2 hover:bg-white hover:text-feisen-texto'}`}>
-                  <Icono size={18} weight="duotone" />
-                  <span className="flex-1 text-left">{m}</span>
-                  {abierto ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors text-[13.5px] hover:bg-white
+                    ${abierto ? 'text-feisen-texto font-medium' : tieneActivo ? 'text-feisen-azul font-medium' : 'text-gray-700 hover:text-feisen-texto'}`}>
+                  <Icono size={18} weight="duotone" className={abierto || tieneActivo ? 'text-feisen-azul' : 'text-gray-500'} />
+                  <span className="flex-1 text-left truncate">{NOMBRE_EN_MENU[m] || m}</span>
+                  {abierto ? <ChevronDown size={15} className="text-feisen-gris-medio" /> : <ChevronRight size={15} className="text-feisen-gris-medio" />}
                 </button>
                 {abierto && (
-                  <div className="space-y-0.5 mt-0.5 mb-1">
+                  <div className="ml-[21px] pl-2 border-l border-feisen-borde space-y-px mt-0.5 mb-1.5">
                     {navItems.filter(i => i.modulo === m).map(item => <NavLink key={item.to} item={item} sub />)}
                   </div>
                 )}
@@ -330,7 +338,7 @@ export default function Layout({ children }) {
       )}
       {grupos.map(g => (
         <div key={g}>
-          <p className="text-[11px] font-medium text-feisen-gris-medio px-3 pt-5 pb-1.5">{g}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-feisen-gris-medio px-3 pt-5 pb-1.5">{g}</p>
           <div className="space-y-0.5">
             {navItems.filter(i => i.grupo === g).map(item => <NavLink key={item.to} item={item} />)}
           </div>
@@ -365,7 +373,7 @@ export default function Layout({ children }) {
         {/* Ver como (solo admin real) */}
         {esAdminReal && (
           <div className="border-t border-feisen-borde pt-3 mt-4 pb-1">
-            <p className="text-[11px] font-medium text-feisen-gris-medio px-3 mb-1.5 flex items-center gap-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-feisen-gris-medio px-3 mb-1.5 flex items-center gap-1.5">
               <Eye size={12} /> Vista previa
             </p>
             <select
