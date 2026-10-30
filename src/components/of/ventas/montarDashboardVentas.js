@@ -2,8 +2,8 @@
 // Se monta dentro de `root`; los datos vienen de Supabase (tabla ventas_odoo) en vez de venir incrustados.
 //   opts.base        { C: clientes[], P: productos[], R: [empresa, iCliente, iProducto, mes, valor, cantidad][] }  (filas de origen 'base')
 //   opts.snapshot    { docs: [{ data() { return { empresa, mes, filas, archivo, subido } } }] }                 (meses cargados desde Odoo)
-//   opts.guardarMes  (body) => Promise   ·   opts.alGuardar () => void   ·   opts.puedeCargar boolean
-import * as XLSX from 'xlsx'
+//   opts.actualizarOdoo () => Promise<resultado[]> | null (botón "Actualizar desde Odoo", solo ADMIN)   ·   opts.alGuardar () => Promise (recarga los meses)
+// Los datos se actualizan solos desde Odoo cada 15 min (función ventas-odoo); ya no se suben Excel.
 
 export function montarDashboardVentas(root, opts){
   var limpiezas=[];
@@ -11,7 +11,7 @@ export function montarDashboardVentas(root, opts){
 
   var store={get:function(k){try{return localStorage.getItem(k)}catch(e){return null}},set:function(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
   // Pestañas
-  var tabs={resumen:document.getElementById('tab-resumen'),analisis:document.getElementById('tab-analisis'),cargar:document.getElementById('tab-cargar'),tutorial:document.getElementById('tab-tutorial')};
+  var tabs={resumen:document.getElementById('tab-resumen'),analisis:document.getElementById('tab-analisis')};
   function show(id){
     Object.keys(tabs).forEach(function(k){
       tabs[k].setAttribute('aria-selected',k===id?'true':'false');
@@ -20,66 +20,7 @@ export function montarDashboardVentas(root, opts){
     window.scrollTo(0,0);
   }
   tabs.resumen.onclick=function(){show('resumen')};
-  tabs.tutorial.onclick=function(){show('tutorial')};
   tabs.analisis.onclick=function(){show('analisis')};
-  tabs.cargar.onclick=function(){show('cargar')};
-  root.addEventListener('click',function(e){var a=e.target.closest('[data-goto]');if(a){e.preventDefault();show(a.dataset.goto)}});
-
-  // Criterios de la tabla dinámica
-  var CRIT=[
-    ["Filtro","Fecha de factura: el mes del informe (del paso 5)"],
-    ["Filtro","Publicado (solo facturas válidas)"],
-    ["Filtro","Clientes y Facturas (del paso 4)"],
-    ["Filas","Contacto (del paso 6)"],
-    ["Filas","Producto, dentro de cada contacto (del paso 6)"],
-    ["Columnas","Fecha de factura › Mes"],
-    ["Medidas","Cantidad de producto"],
-    ["Medidas","Subtotal (valor sin IVA)"]
-  ];
-  var colsEl=document.getElementById('cols');
-  var done=JSON.parse(store.get('odoo-crit')||'[]');
-  CRIT.forEach(function(c,i){
-    var li=document.createElement('li');
-    li.innerHTML='<label><input type="checkbox" id="crit-'+i+'"'+(done.indexOf(i)>-1?' checked':'')+'><span><b>'+c[1]+'</b><code>'+c[0]+'</code></span></label>';
-    colsEl.appendChild(li);
-  });
-  function prog(){
-    var boxes=colsEl.querySelectorAll('input'),on=[];
-    boxes.forEach(function(b,i){if(b.checked)on.push(i)});
-    document.getElementById('prog-txt').textContent=on.length+' de '+boxes.length;
-    document.getElementById('prog-bar').style.width=(on.length/boxes.length*100)+'%';
-    store.set('odoo-crit',JSON.stringify(on));
-  }
-  colsEl.addEventListener('change',prog);prog();
-
-  var sys=store.get('odoo-sys')==='ol'?'ol':'sh';
-  var mes=document.getElementById('mes');
-  var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);
-  mes.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-  function fname(){
-    var tag=sys==='sh'?'Feisen':'FC';
-    document.getElementById('fname').textContent='Ventas_'+tag+'_'+(mes.value||'AAAA-MM')+'.xlsx';
-  }
-  mes.addEventListener('input',fname);
-  function applySys(){
-    document.querySelectorAll('.chip').forEach(function(c){c.setAttribute('aria-pressed',c.dataset.sys===sys?'true':'false')});
-    fname();
-  }
-  document.querySelectorAll('.chip').forEach(function(c){
-    c.onclick=function(){sys=c.dataset.sys;store.set('odoo-sys',sys);applySys()};
-  });
-  applySys();
-
-  // Copiar
-  var toast=document.getElementById('toast'),tt;
-  function say(m){toast.textContent=m;toast.classList.add('show');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('show')},1800)}
-  document.querySelectorAll('[data-copy]').forEach(function(b){
-    b.onclick=function(){
-      var el=document.getElementById(b.dataset.copy),txt=el.textContent;
-      function sel(){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r);say('Texto seleccionado: cópialo con Cmd+C')}
-      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(function(){say('Copiado')},sel)}else sel();
-    };
-  });
 
   var D=opts.base;
   // ===== Datos =====
@@ -145,7 +86,7 @@ export function montarDashboardVentas(root, opts){
   function creditNote(){
     var n=0,s=0;R.forEach(function(r){if(inCo(r)&&r[4]<0&&r[6]==='b'){n++;s+=r[4]}});
     var ups=Object.keys(UP).map(function(k){return UP[k]}).filter(function(u){return CO==='all'||(CO==='fe'?u.co===0:u.co===1)}).sort(function(a,b){return a.m-b.m||a.co-b.co});
-    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses cargados con el Excel de Odoo traen solo facturas; los traídos directo de Odoo restan las notas crédito. ':'')+(ups.length?'Meses cargados desde Odoo (el mes en curso se actualiza solo cada 15 minutos): '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(LAST)+' llega hasta el '+DAYS+'/'+String(moOf(LAST)+1).padStart(2,'0')+'/'+yOf(LAST)+'.':'');
+    return (n?'En los datos de origen se restaron '+n+' notas crédito por '+copS(-s)+'; los meses traídos de Odoo también las restan. ':'')+(ups.length?'Meses cargados desde Odoo (el mes en curso se actualiza solo cada 15 minutos): '+ups.map(function(u){return MS(u.m)+' '+(u.co?'FC':'Feisen')}).join(', ')+'. ':'')+' Los productos de los dos Odoo se unificaron por nombre (sin el código [010] de Feisen) para que sumen juntos; un cliente con el mismo nombre en Feisen y FC se suma en el consolidado. '+(PARTIAL?MN(LAST)+' llega hasta el '+DAYS+'/'+String(moOf(LAST)+1).padStart(2,'0')+'/'+yOf(LAST)+'.':'');
   }
 
   // ===== Gráfica mes a mes (compartida) =====
@@ -544,141 +485,8 @@ export function montarDashboardVentas(root, opts){
   rebuildRows();
   var co0=store.get('ventas-co');setCo(co0==='fe'||co0==='fc'?co0:'all');
 
-  // ===== Cargar informe (Excel de Odoo → db "ventas") =====
-  var XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-  var MES_RX=/(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic|jan|apr|aug|dec)[a-zé]*\.?\s*(?:de\s+)?(\d{4})/i;
-  var MES_N={ene:1,jan:1,feb:2,mar:3,abr:4,apr:4,may:5,jun:6,jul:7,ago:8,aug:8,sep:9,set:9,oct:10,nov:11,dic:12,dec:12};
-  var DBV=null,upCo=0,pending=null;
   var $=function(id){return document.getElementById(id)};
-  function upMsg(t,cls){var el=$('up-msg');el.textContent=t||'';el.className='up-msg'+(cls?' '+cls:'')}
-  function loadXLSX(){return Promise.resolve(XLSX)}
-
-  function numv(v){if(typeof v==='number')return isFinite(v)?v:0;if(v==null)return 0;var s=String(v).replace(/[^\d,.\-]/g,'');if(!s)return 0;if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');var n=parseFloat(s);return isFinite(n)?n:0}
-  function normProd(t){return t.replace(/^\[[^\]]*\]\s*/,'').trim()||SD}
-  function Fail(m){this.message=m}
-  // Lee la tabla dinámica exportada: filas Total › Contacto › Producto (sangría con espacios), columnas por mes con Cantidad y Subtotal.
-  function parseOdoo(XL,wb,mesManual){
-    var ws=wb.Sheets[wb.SheetNames[0]];
-    var A=XL.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:true});
-    (ws['!merges']||[]).forEach(function(m){var v=(A[m.s.r]||[])[m.s.c];for(var r=m.s.r;r<=m.e.r;r++){A[r]=A[r]||[];for(var c=m.s.c;c<=m.e.c;c++)if(A[r][c]==null)A[r][c]=v}});
-    var isV=function(v){return typeof v==='string'&&/subtotal|sin impuestos/i.test(v)};
-    var mr=-1;for(var i=0;i<Math.min(A.length,20);i++){if((A[i]||[]).some(isV)){mr=i;break}}
-    if(mr<0)throw new Fail('No encontré la columna Subtotal. En Medidas deben estar marcadas Cantidad de producto y Subtotal (paso 8).');
-    var cols=[],head=A[mr]||[];
-    for(var c=1;c<head.length;c++){
-      var mv=head[c],kind=isV(mv)?'v':(typeof mv==='string'&&/cantidad/i.test(mv)?'q':null);if(!kind)continue;
-      var ym=null;for(var r=0;r<mr;r++){var hv=A[r]&&A[r][c],mt=typeof hv==='string'&&hv.match(MES_RX);if(mt)ym=mt[2]+'-'+String(MES_N[mt[1].toLowerCase().slice(0,3)]).padStart(2,'0')}
-      cols.push({c:c,kind:kind,ym:ym});
-    }
-    var withM=cols.filter(function(x){return x.ym});
-    if(withM.length)cols=withM;
-    else{
-      if(!mesManual)return {needMonth:true};
-      var fv=cols.find(function(x){return x.kind==='v'}),fq=cols.find(function(x){return x.kind==='q'});
-      cols=[fv,fq].filter(Boolean).map(function(x){return {c:x.c,kind:x.kind,ym:mesManual}});
-    }
-    if(!cols.some(function(x){return x.kind==='v'}))throw new Fail('No encontré valores de Subtotal en el archivo.');
-    var body=[];
-    for(var i2=mr+1;i2<A.length;i2++){var row=A[i2];if(!row||row[0]==null)continue;var raw=String(row[0]);if(!raw.trim())continue;body.push({ind:raw.match(/^\s*/)[0].length,t:raw.trim(),row:row})}
-    if(!body.length)throw new Fail('El archivo no trae filas de clientes. Revisa que hayas usado Expandir todo antes de descargar (paso 9).');
-    var lv=[];body.forEach(function(b){if(lv.indexOf(b.ind)<0)lv.push(b.ind)});lv.sort(function(a,b){return a-b});
-    if(lv.length<3)throw new Fail('No pude separar los clientes de los productos. La tabla debe estar agrupada por Contacto y luego por Producto (paso 6), y expandida antes de descargar (paso 9).');
-    var out={},tot={},cli=null;
-    cols.forEach(function(x){out[x.ym]=out[x.ym]||{};tot[x.ym]=tot[x.ym]||{v:0,q:0}});
-    function add(c,p,row){cols.forEach(function(x){var n=numv(row[x.c]);if(!n)return;var k=c+'\u0001'+p,o=out[x.ym][k]||(out[x.ym][k]={c:c,p:p,v:0,q:0});o[x.kind]+=n})}
-    body.forEach(function(b,ix){
-      var L=lv.indexOf(b.ind);
-      if(L===0){cols.forEach(function(x){tot[x.ym][x.kind]+=numv(b.row[x.c])});return}
-      if(L===1){cli=b.t;var nx=body[ix+1];if(nx&&lv.indexOf(nx.ind)>=2)return;add(cli,SD,b.row);return}
-      if(L===2&&cli)add(cli,normProd(b.t),b.row);
-    });
-    var months=Object.keys(out).sort().map(function(ym){
-      var filas=Object.keys(out[ym]).map(function(k){var o=out[ym][k];return {c:o.c,p:o.p,v:Math.round(o.v*100)/100,q:Math.round(o.q*100)/100}});
-      var v=filas.reduce(function(s,f){return s+f.v},0),q=filas.reduce(function(s,f){return s+f.q},0);
-      var cs={},ps={};filas.forEach(function(f){cs[f.c]=1;if(f.p!==SD)ps[f.p]=1});
-      return {ym:ym,filas:filas,v:v,q:q,nc:Object.keys(cs).length,np:Object.keys(ps).length,check:tot[ym].v,diff:Math.abs(v-tot[ym].v)>1&&tot[ym].v!==0};
-    }).filter(function(m){return m.filas.length});
-    if(!months.length)throw new Fail('El archivo no trae ventas con valor.');
-    return {months:months};
-  }
-  function coName(co){return co?'FC':'Feisen'}
   function docId(co,ym){return (co?'fc':'feisen')+'-'+ym}
-  function showPreview(res,fname){
-    pending={co:upCo,months:res.months,fname:fname};
-    var warn=res.months.filter(function(m){return m.diff});
-    var rows=res.months.map(function(m){
-      var mm=mOfYm(m.ym),had=UP[docId(upCo,m.ym)],base=BASE.some(function(r){return r[0]===upCo&&r[3]===mm});
-      var st=had?'<span class="st rep">Reemplaza la carga anterior</span>':(base?'<span class="st rep">Reemplaza los datos de origen</span>':'<span class="st new">Mes nuevo</span>');
-      return '<tr><td>'+esc(NOM[moOf(mm)]+' '+yOf(mm))+'</td><td class="num">'+num(m.nc)+'</td><td class="num">'+num(m.np)+'</td><td class="num">'+num(m.q)+'</td><td class="num">'+cop(m.v)+'</td><td>'+st+'</td></tr>';
-    }).join('');
-    $('up-preview').innerHTML='<div class="tbl flat"><table><thead><tr><th>Mes</th><th class="num">Clientes</th><th class="num">Productos</th><th class="num">Unidades</th><th class="num">Venta sin IVA</th><th>Al guardar</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
-      (warn.length?'<p class="up-warn">La suma de las filas no coincide con el Total del archivo en '+warn.map(function(m){return esc(m.ym)}).join(', ')+'. Revisa que la tabla esté expandida y vuelve a descargarla.</p>':'');
-    upMsg('Revisa el resumen de '+coName(upCo)+'. Compara la venta con el Total de Odoo y, si coincide, guarda.','');
-    $('up-save').disabled=!DBV;$('up-cancel').hidden=false;
-  }
-  function resetUp(){pending=null;$('up-preview').innerHTML='';$('up-save').disabled=true;$('up-cancel').hidden=true;$('up-month-row').hidden=true;$('up-file').value='';$('up-fname').textContent='Ningún archivo elegido'}
-  var lastFile=null;
-  async function readFile(file){
-    if(!file)return;
-    lastFile=file;$('up-fname').textContent=file.name;$('up-preview').innerHTML='';$('up-save').disabled=true;pending=null;
-    if(!/\.xlsx?$/i.test(file.name)){upMsg('El archivo debe ser el Excel (.xlsx) que descarga Odoo.','err');return}
-    var guess=file.name.match(/feisen|fc/i);if(guess){upCo=/fc/i.test(guess[0])&&!/feisen/i.test(file.name)?1:0;paintCo()}
-    upMsg('Leyendo el archivo…');
-    try{
-      var XL=await loadXLSX();
-      var wb=XL.read(await file.arrayBuffer(),{type:'array'});
-      var mm=$('up-month-row').hidden?null:($('up-month').value||null);
-      var res=parseOdoo(XL,wb,mm);
-      if(res.needMonth){$('up-month-row').hidden=false;if(!$('up-month').value){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('up-month').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}upMsg('Elige el mes del archivo y lo vuelvo a leer.');res=parseOdoo(XL,wb,$('up-month').value)}
-      showPreview(res,file.name);
-    }catch(e){upMsg(e instanceof Fail?e.message:(e&&e.message==='lib'?'No se pudo cargar el lector de Excel. Revisa la conexión e inténtalo de nuevo.':'No pude leer el archivo. Asegúrate de que sea el Excel descargado de la tabla dinámica de Odoo.'),'err')}
-  }
-  function paintCo(){document.querySelectorAll('[data-up-co]').forEach(function(b){b.setAttribute('aria-pressed',+b.dataset.upCo===upCo?'true':'false')});$('up-odoo-row').hidden=!opts.traerDeOdoo}
-  // Traer de Odoo (Feisen y FC): la función devuelve las filas del mes, ya netas de notas crédito, y se muestra el mismo resumen que con el Excel
-  (function(){var d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);$('up-odoo-mes').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')})();
-  $('up-odoo').onclick=async function(){
-    var ym=$('up-odoo-mes').value,co=upCo,btn=$('up-odoo');
-    if(!ym){upMsg('Elige el mes que quieres traer.','err');return}
-    resetUp();lastFile=null;btn.disabled=true;upMsg('Consultando Odoo de '+coName(co)+'…');
-    try{
-      var r=await opts.traerDeOdoo(co?'fc':'feisen',ym),filas=r.filas;
-      if(!filas.length){upMsg('Odoo no tiene facturas publicadas de '+coName(co)+' en ese mes.','err');return}
-      var v=0,q=0,cs={},ps={};filas.forEach(function(f){v+=f.v;q+=f.q;cs[f.c]=1;if(f.p!==SD)ps[f.p]=1});
-      upCo=co;showPreview({months:[{ym:ym,filas:filas,v:v,q:q,nc:Object.keys(cs).length,np:Object.keys(ps).length,check:v,diff:false}]},'Odoo '+coName(co)+' '+ym);
-      if(r.notas)upMsg('Revisa el resumen de '+coName(co)+'. La venta ya resta '+cop(-r.notas)+' de notas crédito; debe coincidir con Ingresos del estado de resultados de Odoo. Si coincide, guarda.','');
-    }catch(e){upMsg((e&&e.message)||'No se pudo consultar Odoo.','err')}
-    finally{btn.disabled=false}
-  };
-  document.querySelectorAll('[data-up-co]').forEach(function(b){b.onclick=function(){upCo=+b.dataset.upCo;paintCo();if(lastFile&&pending)readFile(lastFile)}});
-  $('up-file').addEventListener('change',function(e){readFile(e.target.files[0])});
-  $('up-month').addEventListener('change',function(){if(lastFile)readFile(lastFile)});
-  var drop=$('up-drop');
-  ['dragenter','dragover'].forEach(function(t){drop.addEventListener(t,function(e){e.preventDefault();drop.classList.add('over')})});
-  ['dragleave','drop'].forEach(function(t){drop.addEventListener(t,function(e){e.preventDefault();drop.classList.remove('over')})});
-  drop.addEventListener('drop',function(e){var f=e.dataTransfer&&e.dataTransfer.files[0];if(f)readFile(f)});
-  $('up-cancel').onclick=function(){resetUp();upMsg('')};
-  $('up-save').onclick=async function(){
-    if(!pending||!DBV)return;
-    var p=pending,btn=$('up-save');btn.disabled=true;$('up-cancel').hidden=true;upMsg('Guardando…');
-    var done=0;
-    try{
-      for(var i=0;i<p.months.length;i++){
-        var m=p.months[i],ref=DBV.collection('ventas').doc(docId(p.co,m.ym));
-        var body={empresa:p.co?'fc':'feisen',mes:m.ym,filas:m.filas,total:m.v,unidades:m.q,clientes:m.nc,productos:m.np,archivo:String(p.fname).slice(0,120),subido:new Date().toISOString()};
-        try{await ref.set(body)}catch(e){if(e&&e.code==='unavailable'){await new Promise(function(r){setTimeout(r,800+Math.random()*700)});await ref.set(body)}else throw e}
-        done++;
-      }
-      resetUp();upMsg('Listo: '+done+(done===1?' mes guardado':' meses guardados')+' para '+coName(p.co)+'. El Resumen y el Análisis ya lo muestran.','ok');if(opts.alGuardar)opts.alGuardar();
-    }catch(e){
-      var c=e&&e.code;
-      upMsg((done?'Se guardaron '+done+' de '+p.months.length+' meses. ':'')+(c==='invalid_argument'?'No se pudo guardar: tu usuario no tiene permiso para escribir en este tablero, o el mes tiene demasiadas filas. Pide acceso de edición a quien te compartió el tablero.':c==='quota_exceeded'?'No se pudo guardar: el tablero llegó a su límite de espacio. Avísale a gerencia.':'No se pudo guardar por un problema de conexión. Inténtalo de nuevo en un momento.'),'err');
-      btn.disabled=false;$('up-cancel').hidden=false;
-    }
-  };
-  function renderUpList(){
-    var arr=Object.keys(UP).map(function(k){return UP[k]}).sort(function(a,b){return b.m-a.m||a.co-b.co});
-    $('up-list').innerHTML=arr.length?arr.map(function(u){var d=u.subido?new Date(u.subido):null;return '<div><span title="'+esc(u.archivo||'')+'">'+esc(NOM[moOf(u.m)]+' '+yOf(u.m))+' · '+coName(u.co)+(d&&!isNaN(d)?' <small class="muted">subido '+d.toLocaleDateString('es-CO')+'</small>':'')+'</span><span>'+copS(u.total)+'</span></div>'}).join(''):'<p class="empty">Todavía no se ha cargado ningún mes.</p>';
-  }
   function applySnap(snap){
     var next={};
     snap.docs.forEach(function(d){
@@ -688,7 +496,7 @@ export function montarDashboardVentas(root, opts){
       if(!filas.length)return;
       next[docId(co,x.mes)]={co:co,m:mOfYm(x.mes),ym:x.mes,filas:filas,total:filas.reduce(function(s,f){return s+f.v},0),archivo:typeof x.archivo==='string'?x.archivo:'',subido:typeof x.subido==='string'?x.subido:''};
     });
-    UP=next;rebuildRows();loadSet();rRender();renderUpList();syncTxt();
+    UP=next;rebuildRows();loadSet();rRender();syncTxt();
   }
   // Actualizar desde Odoo: corre ya la misma actualización automática de cada 15 min (mes en curso de las dos empresas)
   var AUTO='Automático · Odoo',syncing=false;
@@ -707,15 +515,11 @@ export function montarDashboardVentas(root, opts){
       try{
         var res=await opts.actualizarOdoo(),fallas=res.filter(function(x){return x.error});
         syncing=false;if(opts.alGuardar)await opts.alGuardar();
-        if(fallas.length){$('sync-st').className='sm up-msg err';$('sync-st').textContent='No se pudo actualizar '+fallas.map(function(x){return x.empresa==='fc'?'FC':'Feisen'}).join(' ni ')+'. '+fallas[0].error}
-      }catch(e){syncing=false;$('sync-st').className='sm up-msg err';$('sync-st').textContent=(e&&e.message)||'No se pudo consultar Odoo.'}
+        if(fallas.length){$('sync-st').className='sm sync-err';$('sync-st').textContent='No se pudo actualizar '+fallas.map(function(x){return x.empresa==='fc'?'FC':'Feisen'}).join(' ni ')+'. '+fallas[0].error}
+      }catch(e){syncing=false;$('sync-st').className='sm sync-err';$('sync-st').textContent=(e&&e.message)||'No se pudo consultar Odoo.'}
       finally{syncing=false;btn.disabled=false}
     };
   }
-  // Guardado en Supabase (antes: base de datos del artefacto). DBV imita la forma que usaba el tablero.
-  if(opts.puedeCargar){
-    DBV={collection:function(){return {doc:function(){return {set:function(body){return opts.guardarMes(body)}}}}}};
-  }else{$('up-off').hidden=false;$('up-form').hidden=true}
   applySnap(opts.snapshot);
 
   return {

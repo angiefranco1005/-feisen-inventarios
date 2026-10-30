@@ -66,21 +66,6 @@ export default function DashboardVentas() {
     api.current = montarDashboardVentas(root.current, {
       base: estado.base,
       snapshot: estado.snapshot,
-      puedeCargar: esAdmin,
-      guardarMes: async body => {
-        const { error } = await supabase.rpc('ventas_cargar_mes', {
-          p_empresa: body.empresa, p_mes: body.mes, p_filas: body.filas, p_archivo: body.archivo,
-        })
-        if (error) throw error
-      },
-      traerDeOdoo: async (empresa, mes) => {
-        const { data, error } = await supabase.functions.invoke('ventas-odoo', { body: { empresa, mes } })
-        if (error) {
-          const cuerpo = await error.context?.json?.().catch(() => null)
-          throw new Error(cuerpo?.error || 'No se pudo consultar Odoo.')
-        }
-        return data
-      },
       actualizarOdoo: esAdmin ? async () => {
         const { data, error } = await supabase.functions.invoke('ventas-odoo', { body: { accion: 'actualizar' } })
         if (error) {
