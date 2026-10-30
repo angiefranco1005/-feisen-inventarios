@@ -804,3 +804,20 @@ export function exportarDesempeno(ciclo, filas, items) {
   }
   XLSX.writeFile(wb, `desempeno_${ciclo.nombre.replace(/\s+/g, '_').toLowerCase()}.xlsx`)
 }
+
+// ─────────────────────────────────────────────────────────────
+//  MANUALES — Listado maestro de documentos (ISO 9001 §7.5)
+//  filas: [{ codigo, titulo, tipo, area, responsable, version, vigente, elaboro, reviso, aprobo, revision, estado }]
+// ─────────────────────────────────────────────────────────────
+export function exportarListadoMaestro(filas) {
+  const wb = XLSX.utils.book_new()
+  const headers = ['Código', 'Documento', 'Tipo', 'Área', 'Responsable', 'Versión', 'Vigente desde',
+    'Elaboró', 'Revisó', 'Aprobó', 'Próxima revisión', 'Estado']
+  const datos = filas.map(f => [f.codigo, f.titulo, f.tipo, f.area, f.responsable || '', f.version, f.vigente,
+    f.elaboro, f.reviso, f.aprobo, f.revision, f.estado])
+  const hoy = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota' })
+  hojaTabla(wb, 'Listado maestro', 'Listado maestro de documentos — Feisen', `Generado el ${hoy} · ${filas.length} documentos`, headers, datos, {
+    anchos: [13, 40, 14, 18, 22, 9, 14, 22, 22, 22, 15, 22],
+  })
+  XLSX.writeFile(wb, `listado_maestro_documentos_${new Date().toISOString().slice(0, 10)}.xlsx`)
+}

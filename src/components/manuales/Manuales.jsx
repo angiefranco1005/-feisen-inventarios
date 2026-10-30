@@ -5,20 +5,23 @@ import { useAuth } from '../../contexts/AuthContext'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, useAviso, useAtajoBuscar } from '../shared/ui'
 import Spinner from '../shared/Spinner'
-import { BookOpenText, CalendarCheck, ChevronRight, FilePlus, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
+import { BookOpenText, CalendarCheck, ChevronRight, FileDown, FilePlus, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
+import { exportarListadoMaestro } from '../../utils/exportExcel'
 import { Etiqueta, fechaCorta, hoyCol, sumarDias } from '../mantenimiento/comun'
-import { AREAS, TIPOS } from './comun'
+import { AREAS, ESTADOS_VERSION, TIPOS } from './comun'
 import FichaManual from './FichaManual'
 import FormManual from './FormManual'
 
 const ORDEN_AREA = Object.fromEntries(AREAS.map((a, i) => [a.valor, i]))
 
 // Manuales de procedimiento: biblioteca de manuales, procedimientos, instructivos, formatos y
-// políticas por área, con versión vigente e historial. Todos consultan; con nivel 'todo' se
-// crean, versionan y marcan obsoletos. La RLS esconde los obsoletos a quien solo consulta.
+// políticas por área, con versión vigente e historial. Cada versión pasa por elaboró → revisó →
+// aprobó (ISO 9001 §7.5). Nivel 've': consulta lo aprobado · 'registra': elabora borradores ·
+// 'todo': revisa, edita y marca obsoletos · ADMIN: aprueba. Arriba, lo que le toca a cada quien.
 export default function Manuales() {
-  const { nivel } = useAuth()
+  const { nivel, perfil, esAdmin } = useAuth()
   const gestiona = nivel('manuales') === 'todo'
+  const elabora = gestiona || nivel('manuales') === 'registra'
   const [params, setParams] = useSearchParams()
   const [aviso, avisar] = useAviso()
   const buscarRef = useRef(null)
@@ -38,9 +41,17 @@ export default function Manuales() {
   const cargar = useCallback(async () => {
     setError('')
     const { data, error: err } = await supabase.from('manuales')
-      .select('*, manual_versiones(version, vigente_desde, created_at)').order('codigo')
+      .select('*, manual_versiones(id, version, estado, vigente_desde, created_at, subido_por, comentario_revision, aprobado_externo, ' +
+        'elaboro:profiles!manual_versiones_subido_por_fkey(nombre), reviso:profiles!manual_versiones_revisado_por_fkey(nombre), aprobo:profiles!manual_versiones_aprobado_por_fkey(nombre))')
+      .order('codigo')
     if (err) setError(err.message)
-    setManuales((data || []).map(m => ({ ...m, vigente: m.manual_versiones.find(v => v.version === m.version_actual) || null })))
+    setManuales((data || []).map(m => {
+      const enTramite = m.manual_versiones.find(v => v.estado !== 'aprobada') || null
+      return {
+        ...m, enTramite, tramite: enTramite ? `${enTramite.id}:${enTramite.estado}` : '',
+        vigente: m.manual_versiones.find(v => v.version === m.version_actual && v.estado === 'aprobada') || null,
+      }
+    }))
     setCargando(false)
   }, [])
   useEffect(() => { cargar() }, [cargar])
@@ -51,9 +62,34 @@ export default function Manuales() {
   const conArchivo = activos.filter(m => m.vigente)
   const revisionVencida = activos.filter(m => m.proxima_revision && m.proxima_revision < hoy)
   const sinArchivo = activos.filter(m => !m.vigente)
-  const recientes = conArchivo.filter(m => m.vigente.created_at.slice(0, 10) >= hace30)
+  const recientes = conArchivo.filter(m => (m.vigente.vigente_desde || '') >= hace30)
   const obsoletos = manuales.filter(m => !m.activo)
   const codigosUsados = useMemo(() => new Set(manuales.map(m => m.codigo)), [manuales])
+
+  // Lo que le toca a esta persona: aprobar (ADMIN), revisar ('todo', no lo suyo), corregir o enviar (lo suyo)
+  const pendientes = activos.filter(m => m.enTramite).map(m => {
+    const v = m.enTramite
+    const mio = v.subido_por === perfil?.id
+    if (esAdmin && (v.estado === 'revisada' || (v.estado === 'en_revision' && !mio))) return { m, v, peso: 0, etiqueta: 'Por aprobar', color: 'bg-feisen-azul' }
+    if (gestiona && v.estado === 'en_revision' && !mio) return { m, v, peso: 1, etiqueta: 'Por revisar', color: 'bg-amber-500' }
+    if (mio && v.estado === 'borrador') return v.comentario_revision
+      ? { m, v, peso: 0, etiqueta: 'Devuelto', color: 'bg-feisen-rojo' }
+      : { m, v, peso: 2, etiqueta: 'Sin enviar', color: 'bg-gray-400' }
+    return null
+  }).filter(Boolean).sort((a, b) => a.peso - b.peso)
+  const enTramite = activos.filter(m => m.enTramite)
+
+  const descargarListado = () => exportarListadoMaestro([...activos, ...obsoletos].sort((a, b) => a.codigo.localeCompare(b.codigo)).map(m => {
+    const v = m.vigente
+    return {
+      codigo: m.codigo, titulo: m.titulo, tipo: TIPOS[m.tipo].texto, area: m.area, responsable: m.responsable,
+      version: v ? m.version_actual : '—', vigente: v?.vigente_desde || '',
+      elaboro: v ? (v.aprobado_externo ? 'Aprobado en papel' : v.elaboro?.nombre || '') : '',
+      reviso: v && !v.aprobado_externo ? v.reviso?.nombre || '' : '', aprobo: v?.aprobo?.nombre || '',
+      revision: m.activo ? m.proxima_revision || '' : '',
+      estado: !m.activo ? 'Obsoleto' : !v ? 'Sin versión aprobada' : m.enTramite ? `Vigente · v${m.enTramite.version} ${ESTADOS_VERSION[m.enTramite.estado].texto.toLowerCase()}` : 'Vigente',
+    }
+  }))
 
   const base = filtro === 'obsoletos' ? obsoletos
     : filtro === 'revision' ? revisionVencida
@@ -98,7 +134,13 @@ export default function Manuales() {
   return (
     <div className="max-w-6xl mx-auto space-y-5 pb-24 lg:pb-8">
       <EncabezadoPagina titulo="Manuales de procedimiento" subtitulo="Cómo se hace cada proceso en Feisen: la versión vigente y su historial.">
-        {gestiona && (
+        {gestiona && manuales.length > 0 && (
+          <button type="button" onClick={descargarListado}
+            className="hidden sm:flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+            <FileDown size={16} /> Listado maestro
+          </button>
+        )}
+        {elabora && (
           <button type="button" onClick={() => abrir('editar', 'nuevo')}
             className="flex items-center gap-1.5 min-h-[40px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold">
             <Plus size={16} /> Nuevo documento
@@ -113,10 +155,10 @@ export default function Manuales() {
           <BookOpenText size={32} weight="duotone" className="mx-auto text-feisen-texto-2" />
           <p className="font-semibold text-feisen-texto">Todavía no hay manuales publicados</p>
           <p className="text-sm text-feisen-texto-2 max-w-md mx-auto">
-            {gestiona ? 'Crea el primer documento: elige el tipo y el área, y el código se arma solo (PR-FUN-001). Sube el archivo en PDF para que se pueda abrir desde el celular.'
+            {elabora ? 'Crea el primer documento: elige el tipo y el área, y el código se arma solo (PR-FUN-001). Sube el archivo en PDF; queda como borrador hasta que lo revisen y gerencia lo apruebe.'
               : 'Cuando la administración publique los procedimientos de tu área, aquí podrás consultarlos y descargarlos.'}
           </p>
-          {gestiona && <button type="button" onClick={() => abrir('editar', 'nuevo')} className="mt-3 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold"><Plus size={16} /> Crear el primer documento</button>}
+          {elabora && <button type="button" onClick={() => abrir('editar', 'nuevo')} className="mt-3 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold"><Plus size={16} /> Crear el primer documento</button>}
         </div>
       ) : <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -126,12 +168,38 @@ export default function Manuales() {
             detalle="en los últimos 30 días" />
           <Kpi id="revision" clase="bg-amber-50 text-amber-700" Icono={CalendarCheck} titulo="Revisión vencida" valor={revisionVencida.length}
             detalle={revisionVencida.length ? 'toca revisarlos y actualizarlos' : 'Todo al día'} />
-          {gestiona
-            ? <Kpi id="sinarchivo" clase="bg-feisen-rojo-suave text-feisen-rojo" Icono={WarningOctagon} titulo="Sin archivo" valor={sinArchivo.length}
-                detalle={sinArchivo.length ? 'creados sin documento' : 'Todos tienen archivo'} />
+          {elabora
+            ? <Kpi id="sinarchivo" clase="bg-feisen-rojo-suave text-feisen-rojo" Icono={WarningOctagon} titulo="Sin aprobar" valor={sinArchivo.length}
+                detalle={sinArchivo.length ? `sin versión vigente · ${enTramite.length} en trámite` : 'Todos tienen versión vigente'} />
             : <Kpi clase="bg-gray-100 text-feisen-texto-2" Icono={FilePlus} titulo="Áreas" valor={new Set(activos.map(m => m.area)).size}
                 detalle="con documentos publicados" />}
         </div>
+
+        {pendientes.length > 0 && (
+          <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+            <div className="flex justify-between px-4 py-3 border-b border-feisen-borde-suave">
+              <span className="text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">Te toca</span>
+              <span className="text-xs text-feisen-texto-2">{pendientes.length} {pendientes.length === 1 ? 'documento' : 'documentos'}</span>
+            </div>
+            <div className="divide-y divide-feisen-borde-suave">
+              {pendientes.map(({ m, v, etiqueta, color }) => (
+                <button key={v.id} type="button" onClick={() => abrir('manual', m.id)} className="relative w-full flex items-center gap-3 text-left px-4 py-3 hover:bg-feisen-fondo">
+                  <span className={`absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r ${color}`} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm text-feisen-texto truncate">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1.5">{etiqueta}</span>
+                      <b className="font-semibold">{m.titulo}</b> · v{v.version}
+                    </span>
+                    <span className="block text-xs text-feisen-texto-2 truncate">
+                      {m.codigo} · {etiqueta === 'Devuelto' ? v.comentario_revision : `elaboró ${v.elaboro?.nombre || '—'}${v.reviso?.nombre ? ` · revisó ${v.reviso.nombre}` : ''}`}
+                    </span>
+                  </span>
+                  <ChevronRight size={16} className="text-gray-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -142,7 +210,7 @@ export default function Manuales() {
             </div>
             {filtro !== 'todos' && (
               <button type="button" onClick={() => setFiltro('todos')} className="self-start sm:self-auto text-sm text-feisen-azul font-medium">
-                Quitar filtro «{{ revision: 'Revisión vencida', sinarchivo: 'Sin archivo', recientes: 'Actualizados', obsoletos: 'Obsoletos' }[filtro]}» ×
+                Quitar filtro «{{ revision: 'Revisión vencida', sinarchivo: 'Sin aprobar', recientes: 'Actualizados', obsoletos: 'Obsoletos' }[filtro]}» ×
               </button>
             )}
           </div>
@@ -171,7 +239,10 @@ export default function Manuales() {
                     </td>
                     <td className="px-4 py-3"><Etiqueta clase={TIPOS[m.tipo].clase}>{TIPOS[m.tipo].texto}</Etiqueta></td>
                     <td className="px-4 py-3 text-feisen-texto-2 whitespace-nowrap">{m.area}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{m.vigente ? `v${m.version_actual}` : <span className="text-xs text-feisen-rojo">Sin archivo</span>}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {m.vigente ? `v${m.version_actual}` : <span className="text-xs text-feisen-rojo">Sin aprobar</span>}
+                      {m.enTramite && <p className="text-xs text-feisen-texto-2 whitespace-nowrap">v{m.enTramite.version} {ESTADOS_VERSION[m.enTramite.estado].texto.toLowerCase()}</p>}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-feisen-texto">{m.vigente ? `${fechaCorta(m.vigente.vigente_desde)} ${m.vigente.vigente_desde.slice(0, 4)}` : '—'}</p>
                       {m.activo && m.proxima_revision && m.proxima_revision < hoy && <p className="text-xs text-amber-700 font-medium">Revisión vencida</p>}
@@ -186,7 +257,7 @@ export default function Manuales() {
               <button key={m.id} type="button" onClick={() => abrir('manual', m.id)} className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-feisen-fondo">
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold text-feisen-texto">{m.titulo}</span>
-                  <span className="block text-xs text-feisen-texto-2">{m.codigo} · {m.area} · {m.vigente ? `v${m.version_actual}` : 'sin archivo'}</span>
+                  <span className="block text-xs text-feisen-texto-2">{m.codigo} · {m.area} · {m.vigente ? `v${m.version_actual}` : 'sin aprobar'}{m.enTramite ? ` · v${m.enTramite.version} ${ESTADOS_VERSION[m.enTramite.estado].texto.toLowerCase()}` : ''}</span>
                   {m.activo && m.proxima_revision && m.proxima_revision < hoy && <span className="block text-xs text-amber-700 font-medium mt-0.5">Revisión vencida</span>}
                 </span>
                 <ChevronRight size={16} className="text-gray-400 shrink-0" />
@@ -199,7 +270,7 @@ export default function Manuales() {
       {manualPanel && !editar && (
         <FichaManual manual={manualPanel} onCerrar={cerrarPanel} onEditar={() => abrir('editar', manualPanel.id)} onCambio={alCambiar} />
       )}
-      {gestiona && (editar === 'nuevo' || manuales.some(m => m.id === editar)) && (
+      {((elabora && editar === 'nuevo') || (gestiona && manuales.some(m => m.id === editar))) && (
         <FormManual manual={editar === 'nuevo' ? null : manuales.find(m => m.id === editar)} codigosUsados={codigosUsados}
           onCerrar={cerrarPanel} onGuardado={alGuardar} />
       )}

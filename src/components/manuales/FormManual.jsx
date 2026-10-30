@@ -3,12 +3,13 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { PanelLateral } from '../shared/ui'
 import { campo, etiquetaCampo, hoyCol, sumarDias } from '../mantenimiento/comun'
-import { AREAS, TIPOS, codigoSugerido, subirVersion } from './comun'
+import { AREAS, TIPOS, accionVersion, codigoSugerido, crearBorrador } from './comun'
 
-// Crear o editar la ficha de un manual (nivel 'todo'). Al crearlo se puede adjuntar de una vez
-// el archivo, que queda como versión 1. La próxima revisión se sugiere a un año.
+// Crear (nivel 'registra' o 'todo') o editar (nivel 'todo') la ficha de un documento. Al crearlo
+// se puede adjuntar el archivo, que queda como borrador de la versión 1 y sigue el flujo de
+// aprobación. ADMIN puede cargarlo como ya aprobado (documentos firmados en papel).
 export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado }) {
-  const { perfil } = useAuth()
+  const { perfil, esAdmin } = useAuth()
   const nuevo = !manual?.id
   const [f, setF] = useState({
     tipo: manual?.tipo || 'procedimiento', area: manual?.area || '', codigo: manual?.codigo || '',
@@ -17,6 +18,7 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
   })
   const [codigoManual, setCodigoManual] = useState(!nuevo) // el usuario escribió el código: no sugerir
   const [archivo, setArchivo] = useState(null)
+  const [yaAprobado, setYaAprobado] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,10 +44,12 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
         const { data, error: err } = await supabase.from('manuales').insert({ ...fila, creado_por: perfil?.id }).select().single()
         if (err) throw new Error(err.message)
         // Si el archivo falla, el documento ya quedó creado: se avisa y se sube desde su ficha
-        let aviso = `${codigo} creado`
+        let aviso = archivo ? `${codigo} creado · borrador v1 listo para enviar a revisión` : `${codigo} creado`
         if (archivo) {
-          try { await subirVersion({ manual: data, version: 1, archivo, cambios: 'Versión inicial', vigenteDesde: hoyCol(), usuarioId: perfil?.id }) }
-          catch (e) { aviso = `${codigo} creado, pero el archivo no subió (${e.message}). Súbelo desde la ficha.` }
+          try {
+            const id = await crearBorrador({ manual: data, version: 1, archivo, cambios: 'Versión inicial', vigenteDesde: yaAprobado ? hoyCol() : null, usuarioId: perfil?.id })
+            if (yaAprobado) { await accionVersion(id, 'cargar_aprobado'); aviso = `${codigo} creado y vigente (v1)` }
+          } catch (e) { aviso = `${codigo} creado, pero el archivo no quedó (${e.message}). Revísalo desde la ficha.` }
         }
         onGuardado(aviso, data.id)
       } else {
@@ -92,7 +96,13 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
         <div><label htmlFor="ma-archivo" className={etiquetaCampo}>Archivo (versión 1)</label>
           <input id="ma-archivo" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" onChange={e => setArchivo(e.target.files?.[0] || null)}
             className="block w-full text-sm text-feisen-texto-2 file:mr-3 file:min-h-[40px] file:px-3 file:rounded-lg file:border file:border-feisen-borde file:bg-white file:text-sm file:font-medium file:text-feisen-texto" />
-          <p className="text-xs text-feisen-texto-2 mt-1">PDF de preferencia, para que se abra en el celular. Puedes subirlo después.</p>
+          <p className="text-xs text-feisen-texto-2 mt-1">PDF de preferencia, para que se abra en el celular. Queda como borrador hasta que lo revisen y lo apruebes.</p>
+          {esAdmin && archivo && (
+            <label className="mt-3 flex items-start gap-2.5 text-sm text-feisen-texto cursor-pointer">
+              <input type="checkbox" checked={yaAprobado} onChange={e => setYaAprobado(e.target.checked)} className="mt-0.5 w-4 h-4 accent-feisen-azul" />
+              <span>Ya está aprobado (firmado en papel)<span className="block text-xs text-feisen-texto-2">Queda vigente de una vez; en el listado maestro sale como «aprobado fuera del sistema».</span></span>
+            </label>
+          )}
         </div>
       )}
 
