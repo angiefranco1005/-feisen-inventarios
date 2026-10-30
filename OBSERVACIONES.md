@@ -1971,3 +1971,6 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Angie sintió muy poco tiempo y la gente no alcanza: ahora sale **una lista al mes** (cambia el día 1) y todo el inventario se cubre **cada 6 meses** (MOTORES cada 2 meses). Con el inventario de hoy: Almacén 103, Mecanizados 66, Fundición 36, Motores 21, Ferretería 8, Corte y doblez 3 por mes.
 - Arranca el **1 de noviembre de 2026** (`INICIO_CICLICO` en utils/conteoCiclico.js); antes de esa fecha la tarjeta solo muestra el aviso.
 - Título del conteo ahora `Conteo cíclico · BODEGA · mes AAAA-MM` (reemplaza el formato semanal, que nunca se llegó a usar). Barra de cobertura: % contado (confirmado) en los últimos 6 meses. Lo de la entrada anterior (semanal) queda reemplazado por esto.
+
+## 2026-10-30 · Conteo cíclico se aplaza a 2027
+- Angie decidió implementarlo desde **enero de 2027**: `INICIO_CICLICO = '2027-01'`. Hasta entonces la tarjeta de Inventario físico solo muestra "El conteo cíclico arranca el 1 de enero de 2027". La primera lista sale el 1 de enero; no hay que tocar nada más ese día.

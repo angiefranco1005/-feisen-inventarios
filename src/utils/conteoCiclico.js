@@ -10,7 +10,7 @@ import { esBodegaMotores } from '../components/shared/seriales'
 // - El título del conteo ("Conteo cíclico · BODEGA · mes AAAA-MM") lo amarra a la
 //   selección: al retomar el borrador se vuelve a mostrar solo esa lista.
 
-export const INICIO_CICLICO = '2026-11' // decisión de Angie: arranca en noviembre de 2026
+export const INICIO_CICLICO = '2027-01' // decisión de Angie (30/10/2026): arranca en enero de 2027
 export const MESES_CICLO = 6
 const MESES_CICLO_MOTORES = 2
 
