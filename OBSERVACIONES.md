@@ -1907,6 +1907,7 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
   - Ve **sin área** (`profiles.centro_costo_of` vacío) = `ofDespacho`: la vista «Pedidos en producción y despacho» de la app OF (sin cliente ni botones). Ve **con área** = `esJefeArea`: solo productos de su centro y registra/reversa fabricación (RLS `of_producciones_insert` por centro).
   - Nuevo campo «Área en las órdenes de fabricación» en Configuración › Usuarios (guarda `centro_costo_of`, solo ADMIN por el trigger `proteger_campos_perfil`).
   - Rol `DESPACHOS` (of ve, productos ve) → Alexander (bodega MOTORES). LOGISTICA, JEFE_FUNDICION y JEFE_MECANIZADOS con of = ve. Julián → Fundición Hierro, William Angulo → Poleas (aluminio).
+  - William Roa (usuario nuevo, Jefe Ensamble, bodega ARMADO Y SOLDADURA): `2026-10-30_of_william_roa.sql` (**aplicada** con OK) da JEFE_ENSAMBLE of = ve y le pone área Construequipos (= producción). No ve Fundición Hierro, Poleas ni Repuestos.
   - Pendiente seguridad: el SELECT de las tablas de OF sigue abierto a cualquier usuario activo (`get_my_rol() IS NOT NULL`); ocultar el cliente es solo de pantalla. Cerrarlo a `mi_nivel('of') <> 'no'` cuando se confirme que ninguna otra pantalla lee OF.
 
 ## 2026-10-29 · Ventas: traer el mes directo de Odoo (FC)
