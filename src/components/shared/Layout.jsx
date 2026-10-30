@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, ChartPieSlice, HandCoins } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { moduloDeRuta } from '../../permisos/modulos'
 import { useState } from 'react'
@@ -22,6 +22,7 @@ const MODULOS = {
   'Recursos Humanos': HardHat,
   'Calidad':          SealCheck,
   'Mantenimiento':    Toolbox,
+  'Finanzas':         Bank,
 }
 
 // Nombre corto en el menú para que no ocupe dos renglones (en las pantallas sigue el completo)
@@ -69,6 +70,10 @@ const NAV_ADMIN = [
   { to: '/rrhh/desempeno',                    icon: Target,          label: 'Desempeño',          modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: SealCheck,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/mantenimiento',                     icon: Toolbox,       label: 'Equipos de planta',  modulo: 'Mantenimiento' },
+  { to: '/finanzas/resultado',                icon: ChartPieSlice, label: 'Resultado por centro', modulo: 'Finanzas' },
+  { to: '/finanzas/cartera',                  icon: HandCoins,     label: 'Cartera',            modulo: 'Finanzas' },
+  { to: '/finanzas/por-pagar',                icon: Receipt,       label: 'Cuentas por pagar',  modulo: 'Finanzas' },
+  { to: '/finanzas/flujo',                    icon: Bank,          label: 'Flujo de caja',      modulo: 'Finanzas' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },
 ]
 

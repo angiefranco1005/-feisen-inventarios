@@ -58,6 +58,8 @@ export const MODULOS = [
     rutas: ['/rrhh/empleados', '/rrhh/empleados/:id', '/rrhh/organigrama', '/rrhh/organigrama/:id', '/rrhh/novedades', '/rrhh/calendario',
       '/rrhh/nomina', '/rrhh/nomina/tarifas', '/rrhh/nomina/:periodoId', '/rrhh/nomina/:periodoId/:liqId',
       '/rrhh/desempeno', '/rrhh/desempeno/:cicloId', '/rrhh/desempeno/:cicloId/:evalId'] },
+  { clave: 'finanzas',       grupo: 'Administración', nombre: 'Finanzas', detalle: 'resultado por centro, cartera, por pagar y flujo de caja (Odoo)', niveles: [], soloAdmin: true,
+    rutas: ['/finanzas/resultado', '/finanzas/cartera', '/finanzas/por-pagar', '/finanzas/flujo'] },
   { clave: 'config',         grupo: 'Administración', nombre: 'Configuración', detalle: 'usuarios, bodegas, roles y permisos', niveles: [], soloAdmin: true,
     rutas: ['/config'] },
 ]

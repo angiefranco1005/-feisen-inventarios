@@ -61,6 +61,9 @@ import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPers
 import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
 import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
 import Mantenimiento            from './components/mantenimiento/Mantenimiento'
+import ResultadoCentros         from './components/finanzas/ResultadoCentros'
+import PendientesFinanzas       from './components/finanzas/Pendientes'
+import FlujoCaja                from './components/finanzas/FlujoCaja'
 import { MODULOS }              from './permisos/modulos'
 
 // Al pasar de "Editar OF" (/of/nueva?editar=...) a "Nueva OF" React reutilizaba el formulario
@@ -114,6 +117,8 @@ function AppRoutes() {
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,
     '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,
     '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
+    '/finanzas/resultado': <ResultadoCentros />, '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
+    '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />,
     '/config': <GestionConfig />,
   }
   const permitidos = MODULOS.filter(m => puede(m.clave))
