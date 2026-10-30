@@ -11,6 +11,9 @@ import {
 // Supuesto: cada factura se cobra o se paga el día que vence. Lo ya vencido va en su propia fila
 // y se puede sacar de la proyección (no se sabe cuándo se cobra/paga de verdad).
 const SEMANAS = 8
+// Bancos que no se suman al saldo de hoy. Decisión de Angie (30/10): el banco de FC en Odoo no es real
+// ($1.476 M) mientras contabilidad lo organiza; solo cuenta el de Feisen. Quitar 'fc' cuando esté corregido.
+const BANCOS_OMITIDOS = ['fc']
 
 export default function FlujoCaja() {
   const [empresa, setEmpresa] = useEmpresa()
@@ -20,8 +23,8 @@ export default function FlujoCaja() {
 
   const calc = useMemo(() => {
     if (!datos) return null
-    const bancos = Object.entries(datos).flatMap(([emp, d]) => (d.bancos || []).map(b => ({ ...b, emp })))
-    const saldoBancos = bancos.reduce((s, b) => s + b.saldo, 0)
+    const bancos = Object.entries(datos).flatMap(([emp, d]) => (d.bancos || []).map(b => ({ ...b, emp, omitido: BANCOS_OMITIDOS.includes(emp) })))
+    const saldoBancos = bancos.filter(b => !b.omitido).reduce((s, b) => s + b.saldo, 0)
     const filas = [
       { id: 'vencido', texto: 'Ya vencido', detalle: 'antes de hoy', cobros: 0, pagos: 0 },
       ...Array.from({ length: SEMANAS }, (_, i) => {
@@ -69,7 +72,7 @@ export default function FlujoCaja() {
       {cargando && !calc ? <Cargando /> : error ? <ErrorOdoo mensaje={error} onReintentar={recargar} /> : calc && <>
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 ${cargando ? 'opacity-60' : ''}`}>
           <Kpi Icono={Bank} clase="bg-feisen-azul-suave text-feisen-azul" titulo="Bancos hoy" valor={millones(calc.saldoBancos)}
-            valorClase={calc.saldoBancos < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'} detalle={`${calc.bancos.length} cuentas y caja`} />
+            valorClase={calc.saldoBancos < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'} detalle={calc.bancos.some(b => b.omitido) ? (empresa === 'fc' ? 'banco de FC sin contar' : 'solo Feisen, sin FC') : `${calc.bancos.length} cuentas y caja`} />
           <Kpi Icono={HandCoins} clase="bg-amber-50 text-amber-700" titulo="Cobrar vencido" valor={millones(calc.vencCobrar)} detalle="los clientes ya debían pagarlo" />
           <Kpi Icono={Receipt} clase="bg-feisen-rojo-suave text-feisen-rojo" titulo="Pagar vencido" valor={millones(calc.vencPagar)}
             valorClase={calc.vencPagar > 0 ? 'text-feisen-rojo' : 'text-feisen-texto'} detalle="ya debimos pagarlo" />
@@ -113,9 +116,12 @@ export default function FlujoCaja() {
           <div className="px-4 py-2.5 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">Bancos y caja en Odoo</div>
           <div className="divide-y divide-feisen-borde-suave">
             {calc.bancos.map(b => (
-              <div key={b.emp + b.nombre} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="flex-1 min-w-0 truncate text-feisen-texto">{b.nombre}{ambas && <span className="text-feisen-texto-2"> · {NOMBRE_EMPRESA[b.emp]}</span>}</span>
-                <span className={`tabular-nums ${b.saldo < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{pesos(b.saldo)}</span>
+              <div key={b.emp + b.nombre} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${b.omitido ? 'opacity-50' : ''}`}>
+                <span className="flex-1 min-w-0 truncate text-feisen-texto">
+                  {b.nombre}{ambas && <span className="text-feisen-texto-2"> · {NOMBRE_EMPRESA[b.emp]}</span>}
+                  {b.omitido && <span className="block text-xs text-feisen-texto-2">no se cuenta: el saldo en Odoo no es real</span>}
+                </span>
+                <span className={`tabular-nums ${b.omitido ? 'line-through text-feisen-texto-2' : b.saldo < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{pesos(b.saldo)}</span>
               </div>
             ))}
           </div>
@@ -124,7 +130,8 @@ export default function FlujoCaja() {
         <p className="text-xs text-feisen-texto-2 leading-relaxed">
           Supone que cada factura se cobra o se paga el día que vence. No incluye nómina, impuestos, créditos ni compras que todavía
           no están facturadas en Odoo. El saldo de bancos es el contable de Odoo: si la conciliación bancaria está atrasada, puede no
-          coincidir con el extracto. Las tarjetas de crédito no se cuentan como disponible.
+          coincidir con el extracto. Las tarjetas de crédito no se cuentan como disponible. Por ahora el banco y la caja de FC tampoco
+          (su saldo en Odoo no es real); los cobros y pagos de FC sí entran en la proyección.
         </p>
       </>}
     </div>
