@@ -3,7 +3,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, ChartPieSlice, HandCoins } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
-import { moduloDeRuta } from '../../permisos/modulos'
 import { useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
@@ -225,7 +224,7 @@ const BADGE = {
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview, puede } = useAuth()
+  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview, puedeRuta } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -246,7 +245,7 @@ export default function Layout({ children }) {
     : esConsultor        ? NAV_CONSULTOR
     : esRRHH             ? NAV_RRHH
     : []
-  const permitido = item => item.to === '/dashboard' || puede(moduloDeRuta(item.to))
+  const permitido = item => item.to === '/dashboard' || puedeRuta(item.to)
   const propios = navBase.filter(permitido)
   const extras = esAdmin ? [] : NAV_ADMIN
     .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))

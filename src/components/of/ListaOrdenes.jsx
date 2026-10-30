@@ -24,7 +24,7 @@ const SELECT_ORDEN_COMPLETA = `
 `
 
 export default function ListaOrdenes() {
-  const { esComercial, esAdmin, esJefeArea, esLogistica, centroCosto, puedeEditarOF } = useAuth()
+  const { esComercial, esAdmin, esJefeArea, ofDespacho: esLogistica, centroCosto, puedeEditarOF } = useAuth()
   const navigate = useNavigate()
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { PERMISOS_INICIALES, nivelDe } from '../permisos/modulos'
+import { PERMISOS_INICIALES, nivelDe, moduloDeRuta, nivelAbreRuta } from '../permisos/modulos'
 
 const AuthContext = createContext(null)
 
@@ -88,12 +88,16 @@ export function AuthProvider({ children }) {
   // Nivel del rol efectivo en un módulo: 'no' | 've' | 'registra' | 'todo'
   const nivel              = modulo => nivelDe(permisos, rolEfectivo, modulo)
   const puede              = modulo => nivel(modulo) !== 'no'
+  const puedeRuta          = ruta => { const m = moduloDeRuta(ruta); return !!m && nivelAbreRuta(m, ruta, nivel(m)) }
   // Órdenes de fabricación: quien tiene el módulo (Registra o Todo) usa la vista comercial y ve
-  // todas las OF; con Registra solo modifica las que creó. Jefe de área: pendiente de definir.
+  // todas las OF; con Registra solo modifica las que creó. Con Ve (despachos) ve lo que está en
+  // producción y por despachar, sin el cliente y sin botones; si además la persona tiene un área
+  // (centro_costo_of, en Configuración › Usuarios) es jefe de área: solo ve y fabrica lo de su área.
   const nivelOF            = nivel('of')
   const esComercial        = !esAdmin && (nivelOF === 'registra' || nivelOF === 'todo')
-  const esJefeArea         = false
   const centroCosto        = perfil?.centro_costo_of || null
+  const esJefeArea         = !esAdmin && nivelOF === 've' && !!centroCosto
+  const ofDespacho         = !esAdmin && nivelOF === 've' && !centroCosto
   const puedeEditarOF      = orden => esAdmin || nivelOF === 'todo' || (nivelOF === 'registra' && orden?.creado_por === perfil?.id)
 
   return (
@@ -101,11 +105,11 @@ export function AuthProvider({ children }) {
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esRRHH,
-      esComercial, esJefeArea, centroCosto, puedeEditarOF,
+      esComercial, ofDespacho, esJefeArea, centroCosto, puedeEditarOF,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
-      permisos, nivel, puede, recargarPermisos,
+      permisos, nivel, puede, puedeRuta, recargarPermisos,
     }}>
       {children}
     </AuthContext.Provider>

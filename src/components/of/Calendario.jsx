@@ -33,7 +33,7 @@ function claseCal(orden) {
 }
 
 export default function Calendario() {
-  const { esJefeArea, esLogistica, esComercial, esAdmin, centroCosto, puedeEditarOF, nivel } = useAuth()
+  const { esJefeArea, ofDespacho: esLogistica, esComercial, esAdmin, centroCosto, puedeEditarOF, nivel } = useAuth()
   // Se puede arrastrar a otra fecha solo la OF que uno puede editar (con Registra, las propias)
   const permitirMover = esComercial || esAdmin
   const puedeMover = o => permitirMover && puedeEditarOF(o)

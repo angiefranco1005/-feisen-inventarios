@@ -1901,6 +1901,13 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
   - Rol `COMERCIAL` («Asesor comercial», verde) con `of = registra`. Todavía **sin personas**: pasar a Fabián (y crear a Viviana) cuando Angie diga.
   - En la app: el módulo `of` ofrece Registra/Todo y tiene `rlsPorMatriz` (la matriz no muestra ⚠). `AuthContext` expone `puedeEditarOF(orden)`; `esComercial` = no ADMIN con OF en Registra o Todo (vista comercial). Lista, calendario (arrastrar) y editar (`/of/nueva?editar=`) respetan las propias. La pestaña «Dashboard de ventas» (facturación Odoo) se ve solo para ADMIN porque `ventas_puede_ver()` es solo ADMIN; si los asesores deben verla, cambiar esa función.
   - Ojo: con 'registra' el asesor puede actualizar columnas de sus `items_of` (igual que en la app OF vieja); la pantalla no lo permite, pero la base sí.
+- **2026-10-30 · OF nivel «Ve»: despachos y jefes de área** (`2026-10-30_of_despachos_y_areas.sql`, **aplicada** con OK).
+  - Angie había creado un *usuario* (Alexander Sanchez) con rol Consultor, no un rol; por eso «no salía» en Permisos. Ojo: editar la columna Consultor cambia a todos los consultores.
+  - Módulo `of` con niveles Ve/Registra/Todo y `rutasNivel` (Nueva OF, Dashboard, Productos OF y Clientes piden Registra). `puedeRuta(ruta)` en `AuthContext` arma menú y rutas con eso (`nivelAbreRuta` en `modulos.js`).
+  - Ve **sin área** (`profiles.centro_costo_of` vacío) = `ofDespacho`: la vista «Pedidos en producción y despacho» de la app OF (sin cliente ni botones). Ve **con área** = `esJefeArea`: solo productos de su centro y registra/reversa fabricación (RLS `of_producciones_insert` por centro).
+  - Nuevo campo «Área en las órdenes de fabricación» en Configuración › Usuarios (guarda `centro_costo_of`, solo ADMIN por el trigger `proteger_campos_perfil`).
+  - Rol `DESPACHOS` (of ve, productos ve) → Alexander (bodega MOTORES). LOGISTICA, JEFE_FUNDICION y JEFE_MECANIZADOS con of = ve. Julián → Fundición Hierro, William Angulo → Poleas (aluminio).
+  - Pendiente seguridad: el SELECT de las tablas de OF sigue abierto a cualquier usuario activo (`get_my_rol() IS NOT NULL`); ocultar el cliente es solo de pantalla. Cerrarlo a `mi_nivel('of') <> 'no'` cuando se confirme que ninguna otra pantalla lee OF.
 
 ## 2026-10-29 · Ventas: traer el mes directo de Odoo (FC)
 

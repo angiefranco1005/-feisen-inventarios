@@ -82,7 +82,7 @@ function Cargando() {
 }
 
 function AppRoutes() {
-  const { session, cargando, rolEfectivo, puede } = useAuth()
+  const { session, cargando, rolEfectivo, puede, puedeRuta } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -122,7 +122,8 @@ function AppRoutes() {
     '/config': <GestionConfig />,
   }
   const permitidos = MODULOS.filter(m => puede(m.clave))
-  const primera = permitidos.flatMap(m => m.rutas).find(r => !r.includes(':'))
+  const rutasPermitidas = permitidos.flatMap(m => m.rutas).filter(puedeRuta)
+  const primera = rutasPermitidas.find(r => !r.includes(':'))
 
   // Inicio según el rol: gerencia, consulta de ventas, registro de bodega o la primera pantalla que tenga
   const inicio = rolEfectivo === 'ADMIN' ? <Layout><InicioGerencia /></Layout>
@@ -138,7 +139,7 @@ function AppRoutes() {
       <Route path="/dashboard" element={inicio} />
       {/* Analítica quedó dentro del Inicio de gerencia (2026-10-28) */}
       <Route path="/analitica" element={<Navigate to="/dashboard" replace />} />
-      {permitidos.flatMap(m => m.rutas).map(ruta => PANTALLAS[ruta] &&
+      {rutasPermitidas.map(ruta => PANTALLAS[ruta] &&
         <Route key={ruta} path={ruta} element={<Layout>{PANTALLAS[ruta]}</Layout>} />)}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

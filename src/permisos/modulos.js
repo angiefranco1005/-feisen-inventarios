@@ -4,7 +4,8 @@
 //
 // Niveles: 'no' · 've' (solo consulta) · 'registra' (crea y edita lo suyo, en su bodega) · 'todo'.
 // `niveles` = lo que la pantalla de verdad sabe hacer para un rol que no es ADMIN; la matriz
-// solo ofrece esos. `rutas` = rutas de App.jsx que abre el módulo.
+// solo ofrece esos. `rutas` = rutas de App.jsx que abre el módulo; `rutasNivel` = rutas que
+// piden un nivel mínimo (las demás se abren con cualquier nivel distinto de 'no').
 //
 // Etapa 1: esto manda en el menú y las rutas. Las políticas RLS siguen por rol fijo, así que
 // darle un módulo a un rol que no lo tenía puede mostrar la pantalla vacía (etapa 2).
@@ -51,7 +52,8 @@ export const MODULOS = [
   { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'],
     rutas: ['/mantenimiento'] },
 
-  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Registra: crea OF, ve todas y edita las suyas · Todo: edita todas', niveles: ['registra', 'todo'], rlsPorMatriz: true,
+  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
+    rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
     rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
 
   { clave: 'costeo',         grupo: 'Administración', nombre: 'Costeo', detalle: 'fichas de costo', niveles: ['todo'],
@@ -81,6 +83,7 @@ export const PERMISOS_INICIALES = {
   JEFE_ENSAMBLE:    { ...BASE_INVENTARIO, mantenimiento: 'registra', ensamble: 'todo' },
   CONSULTOR:        { historial: 've' },
   COMERCIAL:        { of: 'registra' },
+  DESPACHOS:        { of: 've', productos: 've' },
   RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra' },
 }
 
@@ -94,4 +97,11 @@ export function nivelDe(mapa, rol, modulo) {
 // Módulo al que pertenece una ruta (para el menú)
 export function moduloDeRuta(ruta) {
   return MODULOS.find(m => m.rutas.includes(ruta))?.clave || null
+}
+
+// ¿Este nivel alcanza para abrir la ruta? (ver `rutasNivel`)
+export function nivelAbreRuta(modulo, ruta, nivel) {
+  if (nivel === 'no') return false
+  const minimo = MODULO_POR_CLAVE[modulo]?.rutasNivel?.[ruta]
+  return !minimo || ORDEN_NIVEL[nivel] >= ORDEN_NIVEL[minimo]
 }

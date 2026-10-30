@@ -4,7 +4,7 @@ import { formatoOF, formatFecha, estadoTexto, estadoClase, ESTADO_BADGE_CLASE, T
 import { Paperclip } from '../shared/iconos'
 
 export default function ModalDetalleOF({ orden, onCerrar }) {
-  const { esAdmin, esJefeArea, esLogistica, centroCosto } = useAuth()
+  const { esAdmin, esJefeArea, ofDespacho: esLogistica, centroCosto } = useAuth()
   const itemsAMostrar = esJefeArea
     ? (orden.items_of || []).filter(it => it.centro_costo === centroCosto)
     : (orden.items_of || [])

@@ -8,6 +8,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { Plus, Search, AlertTriangle, Check } from '../shared/iconos'
 import SeccionPermisos from './SeccionPermisos'
+import { CENTRO_NOMBRE } from '../of/shared/formatters'
 
 // Configuración (solo ADMIN): usuarios, bodegas, categorías y roles.
 // Diseño de la skill ux-feisen: pestañas con conteo, lista → panel lateral de detalle,
@@ -80,7 +81,7 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
   const { perfil } = useAuth()
   const nuevo = !usuario
   const yoMismo = usuario?.id === perfil?.id
-  const [form, setForm] = useState({ nombre: usuario?.nombre || '', rol: usuario?.rol || 'ALMACENISTA', email: '', password: '' })
+  const [form, setForm] = useState({ nombre: usuario?.nombre || '', rol: usuario?.rol || 'ALMACENISTA', email: '', password: '', centro: usuario?.centro_costo_of || '' })
   const [bodegasSel, setBodegasSel] = useState(usuario ? (datos.bodegasDe[usuario.id] || []) : [])
   const [activo, setActivo] = useState(usuario?.activo !== false)
   const [emailOriginal, setEmailOriginal] = useState('')
@@ -134,10 +135,11 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
           .eq('nombre', form.nombre.trim()).order('created_at', { ascending: false }).limit(1).maybeSingle()
         const id = creado?.id
         if (id) await guardarBodegas(id)
+        if (id && form.centro) await supabase.from('profiles').update({ centro_costo_of: form.centro }).eq('id', id)
         onGuardado(id ? 'Usuario creado' : 'Usuario creado. Ábrelo para asignarle sus bodegas.')
         return
       }
-      const cambios = { nombre: form.nombre.trim(), rol: form.rol }
+      const cambios = { nombre: form.nombre.trim(), rol: form.rol, centro_costo_of: esAdminRol ? null : (form.centro || null) }
       if (!yoMismo) cambios.activo = activo
       const { error } = await supabase.from('profiles').update(cambios).eq('id', usuario.id)
       if (error) throw error
@@ -214,6 +216,25 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
               })}
             </div>
             {faltaBodega && <p className="text-xs text-amber-700 mt-2">Marca al menos una bodega: sin bodega esta persona no ve ningún producto.</p>}
+          </div>
+        )}
+
+        {!esAdminRol && (
+          <div>
+            <Etiqueta>Área en las órdenes de fabricación</Etiqueta>
+            <div className="flex flex-wrap gap-1.5">
+              {[['', 'Ninguna'], ...Object.entries(CENTRO_NOMBRE)].map(([valor, texto]) => {
+                const on = form.centro === valor
+                return (
+                  <button key={valor || 'ninguna'} type="button" aria-pressed={on} onClick={() => setForm(f => ({ ...f, centro: valor }))}
+                    className={`inline-flex items-center gap-1 min-h-[40px] px-3 rounded-lg border text-sm font-medium transition-colors
+                      ${on ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto hover:bg-feisen-fondo'}`}>
+                    {on && <Check size={14} />}{texto}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-feisen-texto-2 mt-1.5">Si su rol tiene las OF en «Ve» y le pones un área, solo ve los productos de esa área y registra su fabricación. Sin área ve la vista de despachos.</p>
           </div>
         )}
 
@@ -622,7 +643,7 @@ export default function GestionConfig() {
   const cargar = useCallback(async () => {
     try {
       const [us, pb, bs, cs, rs, its] = await Promise.all([
-        supabase.from('profiles').select('id, nombre, rol, activo').order('nombre'),
+        supabase.from('profiles').select('id, nombre, rol, activo, centro_costo_of').order('nombre'),
         supabase.from('profile_bodegas').select('profile_id, bodega_id'),
         supabase.from('bodegas').select('*').order('nombre'),
         supabase.from('categorias').select('id, nombre, bodega_id').order('nombre'),
