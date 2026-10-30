@@ -82,22 +82,26 @@ function mesColombia(n = 0) {
   return d.toISOString().slice(0, 7)
 }
 
-async function automatico() {
+// Sin meses: el mes en curso (y el anterior los días 1–5). Con meses (solo con el token de cron, para cargas
+// puntuales de meses viejos) y guardar = false: solo devuelve los totales para revisarlos antes.
+async function automatico(mesesPedidos?: string[], guardar = true) {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   const dia = new Date(Date.now() - 5 * 3600 * 1000).getUTCDate()
-  const meses = dia <= 5 ? [mesColombia(-1), mesColombia()] : [mesColombia()]
+  const meses = mesesPedidos?.length ? mesesPedidos : dia <= 5 ? [mesColombia(-1), mesColombia()] : [mesColombia()]
   const resultado: Record<string, unknown>[] = []
   for (const [empresa, cfg] of Object.entries(ODOO)) {
     const clave = Deno.env.get(cfg.secreto)
     if (!clave) { resultado.push({ empresa, error: `falta ${cfg.secreto}` }); continue }
     for (const mes of meses) {
       try {
-        const { filas } = await traerMes(cfg, clave, mes)
+        const { filas, notas } = await traerMes(cfg, clave, mes)
+        const total = Math.round(filas.reduce((t, f) => t + f.v, 0) * 100) / 100
+        if (!guardar) { resultado.push({ empresa, mes, filas: filas.length, total, notas }); continue }
         // Sin filas no se borra lo que haya (p. ej. el día 1 antes de la primera factura)
         if (!filas.length) { resultado.push({ empresa, mes, filas: 0 }); continue }
         const { error } = await admin.rpc('ventas_cargar_mes', { p_empresa: empresa, p_mes: mes, p_filas: filas, p_archivo: 'Automático · Odoo' })
         if (error) throw error
-        resultado.push({ empresa, mes, filas: filas.length })
+        resultado.push({ empresa, mes, filas: filas.length, total })
       } catch (e) {
         resultado.push({ empresa, mes, error: (e as Error).message })
       }
@@ -116,7 +120,9 @@ serve(async (req) => {
       const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
       const { data: ok } = await admin.rpc('ventas_cron_token_ok', { p_token: token })
       if (ok !== true) return responder({ error: 'No autorizado' }, 401)
-      return responder({ resultado: await automatico() })
+      const cuerpo = await req.json().catch(() => ({}))
+      const meses = Array.isArray(cuerpo.meses) ? cuerpo.meses.filter((m: unknown) => typeof m === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(m)) : undefined
+      return responder({ resultado: await automatico(meses, cuerpo.guardar !== false) })
     }
 
     const authHeader = req.headers.get('Authorization')
