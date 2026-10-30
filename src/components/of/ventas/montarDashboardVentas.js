@@ -688,7 +688,29 @@ export function montarDashboardVentas(root, opts){
       if(!filas.length)return;
       next[docId(co,x.mes)]={co:co,m:mOfYm(x.mes),ym:x.mes,filas:filas,total:filas.reduce(function(s,f){return s+f.v},0),archivo:typeof x.archivo==='string'?x.archivo:'',subido:typeof x.subido==='string'?x.subido:''};
     });
-    UP=next;rebuildRows();loadSet();rRender();renderUpList();
+    UP=next;rebuildRows();loadSet();rRender();renderUpList();syncTxt();
+  }
+  // Actualizar desde Odoo: corre ya la misma actualización automática de cada 15 min (mes en curso de las dos empresas)
+  var AUTO='Automático · Odoo',syncing=false;
+  function syncTxt(){
+    if(syncing||!opts.actualizarOdoo)return;
+    var t=0;Object.keys(UP).forEach(function(k){var u=UP[k];if(u.archivo===AUTO){var d=Date.parse(u.subido);if(d>t)t=d}});
+    var min=t?Math.max(0,Math.round((Date.now()-t)/60000)):-1;
+    $('sync-st').className='muted sm';
+    $('sync-st').textContent=min<0?'Se actualiza solo cada 15 min':(min<1?'Actualizado hace un momento':'Actualizado hace '+(min<60?min+' min':Math.floor(min/60)+' h'));
+  }
+  if(opts.actualizarOdoo){
+    $('sync').hidden=false;
+    var syncInt=setInterval(syncTxt,60000);limpiezas.push(function(){clearInterval(syncInt)});
+    $('sync-btn').onclick=async function(){
+      var btn=$('sync-btn');btn.disabled=true;syncing=true;$('sync-st').textContent='Consultando Odoo…';
+      try{
+        var res=await opts.actualizarOdoo(),fallas=res.filter(function(x){return x.error});
+        syncing=false;if(opts.alGuardar)await opts.alGuardar();
+        if(fallas.length){$('sync-st').className='sm up-msg err';$('sync-st').textContent='No se pudo actualizar '+fallas.map(function(x){return x.empresa==='fc'?'FC':'Feisen'}).join(' ni ')+'. '+fallas[0].error}
+      }catch(e){syncing=false;$('sync-st').className='sm up-msg err';$('sync-st').textContent=(e&&e.message)||'No se pudo consultar Odoo.'}
+      finally{syncing=false;btn.disabled=false}
+    };
   }
   // Guardado en Supabase (antes: base de datos del artefacto). DBV imita la forma que usaba el tablero.
   if(opts.puedeCargar){

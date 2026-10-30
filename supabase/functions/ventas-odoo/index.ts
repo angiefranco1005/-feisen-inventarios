@@ -1,5 +1,6 @@
 // Trae de Odoo las ventas netas de un mes (facturas de cliente publicadas menos notas crédito, sin IVA),
 // agrupadas por cliente + producto, con la misma forma que deja el lector del Excel.
+// Botón "Actualizar desde Odoo" (accion 'actualizar'): corre ya la actualización automática.
 // Botón "Traer de Odoo": no guarda nada, el tablero muestra el resumen y guarda con ventas_cargar_mes.
 // Automático (pg_cron cada 15 min, header x-cron-token): trae y guarda el mes en curso de cada empresa
 // (y el anterior los primeros 5 días, por facturas con fecha atrasada). Ver migración 2026-10-29_ventas_odoo_auto.sql.
@@ -127,7 +128,9 @@ serve(async (req) => {
     const { data: puede } = await userClient.rpc('ventas_puede_ver')
     if (puede !== true) return responder({ error: 'No tienes permiso para cargar informes de ventas.' }, 403)
 
-    const { empresa, mes } = await req.json()
+    const { empresa, mes, accion } = await req.json()
+    // Botón "Actualizar desde Odoo": lo mismo que la tarea de cada 15 min, ya
+    if (accion === 'actualizar') return responder({ resultado: await automatico() })
     const cfg = ODOO[empresa]
     if (!cfg) return responder({ error: 'Esa empresa todavía no está conectada con Odoo.' }, 400)
     if (typeof mes !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return responder({ error: 'Mes inválido.' }, 400)

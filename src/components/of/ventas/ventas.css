@@ -289,7 +289,8 @@
 /* Ajustes para vivir dentro del ERP */
 .dv{background:transparent}
 .dv::before{content:none}
-.dv .dv-nav{border-bottom:1px solid var(--line);margin-bottom:8px}
+.dv .dv-nav{border-bottom:1px solid var(--line);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.dv .sync{display:flex;align-items:center;gap:10px;padding:4px 0}
 .dv .dv-main{padding-top:20px}
 
 /* Fichas de cliente y producto */
