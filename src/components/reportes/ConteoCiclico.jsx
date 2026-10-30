@@ -1,15 +1,26 @@
 import { useState } from 'react'
-import { razonCiclico } from '../../utils/conteoCiclico'
+import { razonCiclico, INICIO_CICLICO, MESES_CICLO } from '../../utils/conteoCiclico'
 import { RefreshCw, Printer, Check, ChevronDown } from '../shared/iconos'
 
-const fechaCorta = f => new Date(`${f}T12:00:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+// "2026-11" → "noviembre de 2026"
+export const nombreMes = mes => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
 
-// Tarjeta "Conteo cíclico de esta semana" de Inventario físico (ver utils/conteoCiclico.js)
+// Tarjeta "Conteo cíclico" del mes en Inventario físico (ver utils/conteoCiclico.js)
 export default function ConteoCiclico({ datos, borradorDe, onContar, onImprimir, ocupado }) {
   const [abierta, setAbierta] = useState(null) // bodega_id con la lista desplegada
-  const { semana, porBodega, totalItems, totalCubiertos } = datos
-  const fin = new Date(`${semana}T12:00:00`); fin.setDate(fin.getDate() + 6)
-  const totalSemana = porBodega.reduce((s, b) => s + b.elegidos.length, 0)
+  if (datos.antesDeIniciar) return (
+    <section className="bg-white border border-feisen-borde rounded-xl p-4 flex items-start gap-2">
+      <RefreshCw size={17} className="shrink-0 mt-0.5 text-feisen-azul" />
+      <div className="min-w-0">
+        <h2 className="font-semibold text-feisen-texto">El conteo cíclico arranca el 1 de {nombreMes(INICIO_CICLICO)}</h2>
+        <p className="text-sm text-feisen-texto-2">
+          Desde ese día, cada mes sale aquí una lista corta de productos al azar por bodega, para contar todo el inventario cada {MESES_CICLO} meses.
+        </p>
+      </div>
+    </section>
+  )
+  const { mes, porBodega, totalItems, totalCubiertos } = datos
+  const totalMes = porBodega.reduce((s, b) => s + b.elegidos.length, 0)
   const listas = porBodega.filter(b => b.hechos >= b.elegidos.length).length
   const pct = totalItems ? Math.round((totalCubiertos / totalItems) * 100) : 0
 
@@ -19,10 +30,10 @@ export default function ConteoCiclico({ datos, borradorDe, onContar, onImprimir,
         <div className="min-w-0">
           <h2 className="font-semibold text-feisen-texto flex items-center gap-1.5">
             <RefreshCw size={17} className="shrink-0 text-feisen-azul" />
-            Conteo cíclico · semana del {fechaCorta(semana)} al {fechaCorta(fin.toLocaleDateString('en-CA'))}
+            Conteo cíclico · {nombreMes(mes)}
           </h2>
           <p className="text-sm text-feisen-texto-2">
-            {totalSemana.toLocaleString('es-CO')} productos escogidos al azar. Cambian el lunes.
+            {totalMes.toLocaleString('es-CO')} productos escogidos al azar. Cambian el 1 de cada mes.
           </p>
         </div>
         <span className={`text-xs font-medium rounded-full px-2.5 py-1 ${listas === porBodega.length ? 'bg-emerald-50 text-emerald-700' : 'bg-feisen-fondo text-feisen-texto-2'}`}>
@@ -32,7 +43,7 @@ export default function ConteoCiclico({ datos, borradorDe, onContar, onImprimir,
 
       <div>
         <div className="flex justify-between gap-2 text-xs text-feisen-texto-2 mb-1">
-          <span>Inventario contado en los últimos 90 días</span>
+          <span>Inventario contado en los últimos {MESES_CICLO} meses</span>
           <span className="tabular-nums">{totalCubiertos.toLocaleString('es-CO')} de {totalItems.toLocaleString('es-CO')} · {pct}%</span>
         </div>
         <div className="h-1.5 rounded-full bg-feisen-borde-suave overflow-hidden">
@@ -53,10 +64,10 @@ export default function ConteoCiclico({ datos, borradorDe, onContar, onImprimir,
                   <ChevronDown size={16} className={`shrink-0 text-gray-400 transition-transform ${abiertaEsta ? '' : '-rotate-90'}`} />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-feisen-texto">
-                      {b.bodega} <span className="font-normal text-feisen-texto-2">· {b.elegidos.length} esta semana</span>
+                      {b.bodega} <span className="font-normal text-feisen-texto-2">· {b.elegidos.length} este mes</span>
                     </span>
                     <span className="block text-xs text-gray-400">
-                      {b.total.toLocaleString('es-CO')} productos{b.cadaMes ? ' · se cuenta cada mes' : ''}
+                      {b.total.toLocaleString('es-CO')} productos · todo cada {b.mesesCiclo} meses
                     </span>
                   </span>
                 </button>

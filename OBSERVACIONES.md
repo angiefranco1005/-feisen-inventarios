@@ -1966,3 +1966,8 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Selección (`src/utils/conteoCiclico.js`): primero los que no tienen conteo confirmado dentro del ciclo; entre ellos sorteo ponderado sin reemplazo (`-ln(u)/peso`, peso = 1 + ln(1 + movimientos 90 días)), con `u` sacado de un hash de `semana|item_id`. Solo usa datos de antes del lunes → la lista no cambia en la semana aunque se vayan confirmando conteos. Sin tablas nuevas.
 - "Contar" abre un conteo normal restringido a esa lista (estado `soloKeys` del editor), con título `Conteo cíclico · BODEGA · semana AAAA-MM-DD`. Ese título es el que amarra el borrador a la selección: al "Seguir" se recalcula la lista de esa semana. Si se le cambia el título, el borrador se abre con todos los productos (no se pierde nada).
 - Avance "x de N": productos de la lista con cantidad en cualquier conteo (borrador o confirmado) fechado desde el lunes. El ícono de impresora saca la planilla a ciegas solo con esa lista.
+
+## 2026-10-30 · Conteo cíclico pasa a mensual y arranca en noviembre
+- Angie sintió muy poco tiempo y la gente no alcanza: ahora sale **una lista al mes** (cambia el día 1) y todo el inventario se cubre **cada 6 meses** (MOTORES cada 2 meses). Con el inventario de hoy: Almacén 103, Mecanizados 66, Fundición 36, Motores 21, Ferretería 8, Corte y doblez 3 por mes.
+- Arranca el **1 de noviembre de 2026** (`INICIO_CICLICO` en utils/conteoCiclico.js); antes de esa fecha la tarjeta solo muestra el aviso.
+- Título del conteo ahora `Conteo cíclico · BODEGA · mes AAAA-MM` (reemplaza el formato semanal, que nunca se llegó a usar). Barra de cobertura: % contado (confirmado) en los últimos 6 meses. Lo de la entrada anterior (semanal) queda reemplazado por esto.
