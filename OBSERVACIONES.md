@@ -1943,3 +1943,13 @@ línea por línea contra el commit anterior). Cambios menores de comportamiento:
 - **2026-10-30 · Sin subir Excel** (pedido de Angie): se quitaron las pestañas "Cargar informe" y "Tutorial: descargar informes" con el lector de Excel, "Traer de Odoo" por mes, sus estilos y `public/ventas-tutorial/`. El tablero queda con Resumen y Análisis, y la única acción manual es "Actualizar desde Odoo" (mes en curso de las dos empresas). La función `ventas-odoo` conserva el modo por mes (`{empresa, mes}`, solo lee) por si se necesita cargar un mes viejo; `ventas_cargar_mes` y los datos 'base' se quedan.
 - 2026-10-30: se compararon abril–septiembre 'base' contra Odoo (función con token de cron, `{meses:[...], guardar:false}`): **los totales coinciden** en las dos empresas (diferencias de centavos por redondeo); los datos 'base' ya eran ventas netas de notas crédito. Para cargar meses viejos: misma llamada con `guardar` omitido (ver `net._http_response`).
 - 2026-10-30: por pedido de Angie se reemplazaron abril–septiembre de Feisen y FC con datos de Odoo (mismos totales). Desde ahí **no quedan filas 'base'**: los 14 meses (abr–oct × 2 empresas) son `origen='odoo'`, "Automático · Odoo".
+
+## Nuevo módulo: Manuales de procedimiento (2026-10-30)
+
+Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por área, con versión vigente e historial. Ruta `/manuales`, componentes en `src/components/manuales/`, migración `supabase/migraciones/2026-10-30_manuales.sql` (**ya aplicada** en Supabase el 2026-10-30).
+
+- **Modelo**: `manuales` (código único tipo `PR-FUN-001`, título, tipo, área, responsable, próxima revisión, `version_actual`, `activo`) + `manual_versiones` (una fila por archivo subido, con "qué cambió" y "vigente desde"). `version_actual = 0` = creado sin archivo. Archivos en el bucket privado `manuales` (50 MB máx.), se abren con enlace firmado de 5 min.
+- **Áreas**: catálogo fijo en `manuales/comun.js` (`AREAS`, texto libre en la base): agregar un área no requiere migración. El código se sugiere solo con tipo + área (`codigoSugerido`).
+- **Permisos por la matriz (etapa 2, `rlsPorMatriz`)**: módulo `manuales`, niveles `ve` (consulta los activos) y `todo` (crea, sube versiones, marca obsoleto). La migración le dio `ve` a **todos** los roles de la tabla `roles`. Los obsoletos no se borran: la RLS los oculta a quien solo tiene `ve`.
+- **Menú**: ítem suelto "Manuales" en `NAV_ADMIN`, puesto al final de la lista a propósito — si va arriba desplaza la barra inferior del celular del admin (se arma con los 5 primeros ítems).
+- **Pendiente**: no hay aviso automático cuando vence la revisión (solo el indicador "Revisión vencida" en la pantalla); no hay "leído y entendido" por persona. Ideas si se piden.

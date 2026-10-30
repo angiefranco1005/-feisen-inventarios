@@ -64,6 +64,7 @@ import Mantenimiento            from './components/mantenimiento/Mantenimiento'
 import ResultadoCentros         from './components/finanzas/ResultadoCentros'
 import PendientesFinanzas       from './components/finanzas/Pendientes'
 import FlujoCaja                from './components/finanzas/FlujoCaja'
+import Manuales                 from './components/manuales/Manuales'
 import { MODULOS }              from './permisos/modulos'
 
 // Al pasar de "Editar OF" (/of/nueva?editar=...) a "Nueva OF" React reutilizaba el formulario
@@ -119,6 +120,7 @@ function AppRoutes() {
     '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
     '/finanzas/resultado': <ResultadoCentros />, '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
     '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />,
+    '/manuales': <Manuales />,
     '/config': <GestionConfig />,
   }
   const permitidos = MODULOS.filter(m => puede(m.clave))

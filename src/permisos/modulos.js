@@ -56,6 +56,8 @@ export const MODULOS = [
     rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
     rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
 
+  { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta y descarga · Todo: publica versiones y marca obsoletos', niveles: ['ve', 'todo'], rlsPorMatriz: true,
+    rutas: ['/manuales'] },
   { clave: 'costeo',         grupo: 'Administración', nombre: 'Costeo', detalle: 'fichas de costo', niveles: ['todo'],
     rutas: ['/costeo', '/costeo/fichas/:id', '/costeo/etapas', '/costeo/cif', '/costeo/equipos'] },
   { clave: 'rrhh',           grupo: 'Administración', nombre: 'Recursos Humanos', detalle: 'colaboradores, nómina, novedades', niveles: ['todo'],
@@ -73,7 +75,7 @@ export const MODULO_POR_CLAVE = Object.fromEntries(MODULOS.map(m => [m.clave, m]
 // Lo que cada rol tenía cuando se creó la tabla (= carga inicial de la migración). Sirve de
 // respaldo si la tabla no carga, y para avisar en la matriz cuando se le da a un rol algo
 // que la base de datos todavía no le deja ver (las RLS siguen por rol hasta la etapa 2).
-const BASE_INVENTARIO = { productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra', calidad: 'registra' }
+const BASE_INVENTARIO = { productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra', calidad: 'registra', manuales: 've' }
 export const PERMISOS_INICIALES = {
   LOGISTICA:        { ...BASE_INVENTARIO, pedidos: 'todo', ordenes_compra: 'todo' },
   ALMACENISTA:      { ...BASE_INVENTARIO },
@@ -81,10 +83,10 @@ export const PERMISOS_INICIALES = {
   JEFE_FUNDICION:   { ...BASE_INVENTARIO, transferencias: 'registra', mantenimiento: 'registra', fundicion: 'todo' },
   JEFE_MECANIZADOS: { ...BASE_INVENTARIO, transferencias: 'registra', mantenimiento: 'registra', mecanizados: 'todo' },
   JEFE_ENSAMBLE:    { ...BASE_INVENTARIO, mantenimiento: 'registra', ensamble: 'todo' },
-  CONSULTOR:        { historial: 've' },
-  COMERCIAL:        { of: 'registra' },
-  DESPACHOS:        { of: 've', productos: 've' },
-  RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra' },
+  CONSULTOR:        { historial: 've', manuales: 've' },
+  COMERCIAL:        { of: 'registra', manuales: 've' },
+  DESPACHOS:        { of: 've', productos: 've', manuales: 've' },
+  RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra', manuales: 've' },
 }
 
 // Nivel de un rol en un módulo según el mapa { rol: { modulo: nivel } }
