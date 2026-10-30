@@ -9,6 +9,7 @@ import { coincideBusqueda } from '../../utils/busqueda'
 import { Plus, Search, AlertTriangle, Check } from '../shared/iconos'
 import SeccionPermisos from './SeccionPermisos'
 import { CENTRO_NOMBRE } from '../of/shared/formatters'
+import { rolUsaBodega } from '../../permisos/modulos'
 
 // Configuración (solo ADMIN): usuarios, bodegas, categorías y roles.
 // Diseño de la skill ux-feisen: pestañas con conteo, lista → panel lateral de detalle,
@@ -35,6 +36,7 @@ const QUE_VE = {
   OPERARIO:         'Saca materiales de su bodega.',
   CONSULTOR:        'Solo consulta el stock y el historial de su bodega.',
   RRHH:             'Colaboradores, nómina y la bodega de Administración.',
+  JEFE_MANTENIMIENTO: 'Ve las OF sin cliente y hace pedidos de su bodega de mantenimiento.',
 }
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
@@ -78,7 +80,7 @@ function PiePanel({ onCancelar, guardando, texto, deshabilitado }) {
 
 // ─── USUARIOS ─────────────────────────────────────────────────────────────────
 function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
-  const { perfil } = useAuth()
+  const { perfil, permisos } = useAuth()
   const nuevo = !usuario
   const yoMismo = usuario?.id === perfil?.id
   const [form, setForm] = useState({ nombre: usuario?.nombre || '', rol: usuario?.rol || 'ALMACENISTA', email: '', password: '', centro: usuario?.centro_costo_of || '' })
@@ -99,7 +101,9 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
   }, [usuario])
 
   const esAdminRol = form.rol === 'ADMIN'
-  const faltaBodega = !esAdminRol && bodegasSel.length === 0
+  // Solo se pide bodega si el rol tiene algún módulo que trabaje con bodegas (inventario, pedidos…)
+  const usaBodega = rolUsaBodega(permisos, form.rol)
+  const faltaBodega = usaBodega && bodegasSel.length === 0
   const alternarBodega = id => setBodegasSel(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
   async function llamarFuncion(nombre, cuerpo) {
@@ -216,6 +220,7 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
               })}
             </div>
             {faltaBodega && <p className="text-xs text-amber-700 mt-2">Marca al menos una bodega: sin bodega esta persona no ve ningún producto.</p>}
+            {!usaBodega && <p className="text-xs text-feisen-texto-2 mt-2">Este rol no maneja inventario: la bodega es opcional.</p>}
           </div>
         )}
 
@@ -273,11 +278,12 @@ function PanelUsuario({ usuario, datos, onCerrar, onGuardado }) {
 }
 
 function SeccionUsuarios({ datos, abrir }) {
+  const { permisos } = useAuth()
   const [busqueda, setBusqueda] = useState('')
   const [filtroRol, setFiltroRol] = useState('')
   const rolDe = n => datos.roles.find(r => r.nombre === n)
   const nombreBodega = id => datos.bodegas.find(b => b.id === id)?.nombre
-  const sinBodega = datos.usuarios.filter(u => u.activo !== false && u.rol !== 'ADMIN' && !(datos.bodegasDe[u.id] || []).length)
+  const sinBodega = datos.usuarios.filter(u => u.activo !== false && rolUsaBodega(permisos, u.rol) && !(datos.bodegasDe[u.id] || []).length)
   const conteo = {}
   datos.usuarios.forEach(u => { conteo[u.rol] = (conteo[u.rol] || 0) + 1 })
   const lista = datos.usuarios
@@ -331,7 +337,9 @@ function SeccionUsuarios({ datos, abrir }) {
                       ? <span className="text-xs bg-feisen-fondo text-feisen-texto-2 rounded-md px-2 py-0.5">Todas</span>
                       : bods.length
                         ? bods.map(b => <span key={b} className="text-xs bg-feisen-azul-suave text-feisen-azul font-medium rounded-md px-2 py-0.5">{b}</span>)
-                        : <span className="text-xs bg-amber-50 text-amber-700 font-medium rounded-md px-2 py-0.5">Sin bodega</span>}
+                        : rolUsaBodega(permisos, u.rol)
+                          ? <span className="text-xs bg-amber-50 text-amber-700 font-medium rounded-md px-2 py-0.5">Sin bodega</span>
+                          : <span className="text-xs bg-feisen-fondo text-feisen-texto-2 rounded-md px-2 py-0.5">No maneja inventario</span>}
                   </span>
                 </button>
               </li>

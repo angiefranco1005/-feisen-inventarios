@@ -10,6 +10,8 @@ import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
 import { ClipboardList, Plus, Search, ChevronLeft, Pencil, Check, X, Printer } from '../shared/iconos'
 import PlanillaInventario from './PlanillaInventario'
+import ConteoCiclico from './ConteoCiclico'
+import { cargarConteoCiclico, lunesDe, tituloCiclico, leerTituloCiclico } from '../../utils/conteoCiclico'
 
 const HOY = () => new Date().toLocaleDateString('en-CA')
 
@@ -102,7 +104,34 @@ export default function InventarioFisico() {
   const [preparandoPl,  setPreparandoPl]  = useState(false)
   const [planilla,      setPlanilla]      = useState(null) // { bodega, categoria, items } mientras se imprime
 
+  // Conteo cíclico de la semana (sugerencia por bodega). soloKeys restringe el editor a esa lista.
+  const [ciclico,  setCiclico]  = useState(null)
+  const [soloKeys, setSoloKeys] = useState(null)
+
   useEffect(() => { cargarLista() }, [])
+  useEffect(() => {
+    if (!esAdmin) return
+    cargarConteoCiclico(supabase, lunesDe(HOY())).then(({ datos }) => { if (datos) setCiclico(datos) })
+  }, [esAdmin])
+
+  // Borrador ya empezado para la bodega en esta semana (para "Seguir" en vez de crear otro)
+  function borradorCiclico(b) {
+    const t = tituloCiclico(b.bodega, ciclico.semana)
+    return inventarios.find(i => i.estado !== 'confirmado' && i.notas === t) || null
+  }
+
+  async function contarCiclico(b, borrador) {
+    if (borrador) { await continuarBorrador(borrador); return }
+    setCargando(true)
+    let num
+    try { num = await siguienteNumero('inventarios_fisicos', 'INV-FIS') }
+    catch (e) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + e.message }); setCargando(false); return }
+    await cargarEditorConConteos(null, num, HOY(), tituloCiclico(b.bodega, ciclico.semana), {}, new Set(b.elegidos.map(e => e.key)))
+  }
+
+  function imprimirCiclico(b) {
+    setPlanilla({ bodega: b.bodega, detalle: `Conteo cíclico, semana del ${ciclico.semana}`, items: b.elegidos })
+  }
 
   async function abrirPlanilla() {
     setModalPlanilla(true)
@@ -194,12 +223,20 @@ export default function InventarioFisico() {
       const key = `${it.item_id}_${it.bodega_id}`
       if (it.cantidad_fisica !== null) conteosGuardados[key] = String(it.cantidad_fisica)
     }
+    // Conteo cíclico: se vuelve a mostrar solo la lista de esa bodega y semana
+    let keys = null
+    const cic = leerTituloCiclico(inv.notas)
+    if (cic) {
+      const { datos } = cic.semana === ciclico?.semana ? { datos: ciclico } : await cargarConteoCiclico(supabase, cic.semana)
+      const b = datos?.porBodega.find(x => x.bodega === cic.bodega)
+      if (b) keys = new Set([...b.elegidos.map(e => e.key), ...Object.keys(conteosGuardados)])
+    }
     // Luego cargar items completos igual que iniciarNuevo
-    await cargarEditorConConteos(inv.id, inv.numero, inv.fecha, inv.notas || '', conteosGuardados)
+    await cargarEditorConConteos(inv.id, inv.numero, inv.fecha, inv.notas || '', conteosGuardados, keys)
   }
 
   // ── lógica compartida: cargar items + abrir editor ───────────────────────
-  async function cargarEditorConConteos(id, num, fecha_, notas_, conteosIniciales) {
+  async function cargarEditorConConteos(id, num, fecha_, notas_, conteosIniciales, keys = null) {
     const [
       { data: stockData },
       { data: bodegasData },
@@ -234,6 +271,7 @@ export default function InventarioFisico() {
     for (const item of itemsData) {
       if (!item.nombre || !item.bodega_id) continue
       const key = `${item.id}_${item.bodega_id}`
+      if (keys && !keys.has(key)) continue
       rows.push({
         key, item_id: item.id, item_nombre: item.nombre, item_unidad: item.unidad_medida,
         bodega_id: item.bodega_id, bodega_nombre: bodegaMap[item.bodega_id] || '',
@@ -244,6 +282,7 @@ export default function InventarioFisico() {
     rows.sort((a, b) => a.bodega_nombre.localeCompare(b.bodega_nombre) || a.item_nombre.localeCompare(b.item_nombre))
 
     setItems(rows)
+    setSoloKeys(keys)
     setBodegas(bodegasData || [])
     setConteos(conteosIniciales || {})
     setBusqueda('')
@@ -265,7 +304,7 @@ export default function InventarioFisico() {
     let num
     try { num = await siguienteNumero('inventarios_fisicos', 'INV-FIS') }
     catch (e) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + e.message }); setCargando(false); return }
-    await cargarEditorConConteos(null, num, HOY(), '', {})
+    await cargarEditorConConteos(null, num, HOY(), '', {}, null)
   }
 
   // ── conteo con fecha pasada: calcular el Sistema a PRIMERA HORA de esa fecha ──
@@ -504,6 +543,7 @@ export default function InventarioFisico() {
     } else {
       avisar(`${numero} confirmado · ${conDif.length} productos ajustados`)
       setMsg(null); setVista('lista'); cargarLista()
+      cargarConteoCiclico(supabase, lunesDe(HOY())).then(({ datos }) => { if (datos) setCiclico(datos) })
     }
   }
 
@@ -598,6 +638,11 @@ export default function InventarioFisico() {
           </Modal>
         )}
         {planilla && <PlanillaInventario {...planilla} />}
+
+        {ciclico && ciclico.porBodega.length > 0 && (
+          <ConteoCiclico datos={ciclico} borradorDe={borradorCiclico} ocupado={cargando}
+            onContar={contarCiclico} onImprimir={imprimirCiclico} />
+        )}
 
         {cargando ? <Spinner /> : inventarios.length === 0 ? (
           <div className="bg-white border border-feisen-borde rounded-xl text-center px-6 py-14">
@@ -704,13 +749,18 @@ export default function InventarioFisico() {
     <div className="space-y-4 max-w-5xl mx-auto">
       {aviso}
       <div className="flex items-start gap-2">
-        <button onClick={() => { setVista('lista'); setMsg(null) }} aria-label="Volver a la lista"
+        <button onClick={() => {
+            setVista('lista'); setMsg(null); cargarLista()
+            // Un borrador recién guardado cuenta para el avance del cíclico y para "Seguir"
+            if (soloKeys) cargarConteoCiclico(supabase, lunesDe(HOY())).then(({ datos }) => { if (datos) setCiclico(datos) })
+          }} aria-label="Volver a la lista"
           className="p-2 -ml-2 mt-3 text-feisen-texto-2 hover:text-feisen-texto hover:bg-white rounded-lg">
           <ChevronLeft size={20} />
         </button>
         <div className="flex-1 min-w-0">
           <EncabezadoPagina modulo="Inventario físico" titulo={<>Conteo <span className="font-mono text-lg">{numero}</span></>}
-            subtitulo={esConteoPasado ? `Contado el ${fechaLarga(fecha)}` : 'Escribe lo que contaste; la diferencia se calcula sola.'} />
+            subtitulo={soloKeys ? `Conteo cíclico: solo los ${items.length} productos sugeridos esta semana.`
+              : esConteoPasado ? `Contado el ${fechaLarga(fecha)}` : 'Escribe lo que contaste; la diferencia se calcula sola.'} />
         </div>
       </div>
 

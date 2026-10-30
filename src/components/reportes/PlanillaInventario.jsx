@@ -5,7 +5,7 @@ const FILAS_EXTRA = 8 // filas en blanco al final para productos que no están e
 // Planilla en papel para el conteo físico de una bodega. Conteo a ciegas: no muestra lo
 // que dice el sistema, para que quien cuenta no copie el número. Se monta fuera de #root
 // y solo se ve al imprimir (ver reglas @media print en index.css).
-export default function PlanillaInventario({ bodega, categoria, items }) {
+export default function PlanillaInventario({ bodega, categoria, detalle, items }) {
   // Agrupada por categoría, en el orden en que llegan (categoría y nombre)
   const grupos = []
   for (const it of items) {
@@ -29,6 +29,7 @@ export default function PlanillaInventario({ bodega, categoria, items }) {
                   <div className="text-sm">
                     Bodega: <strong>{bodega}</strong>
                     {categoria ? <> · Categoría: <strong>{categoria}</strong></> : null}
+                    {detalle ? <> · {detalle}</> : null}
                     {' '}· {items.length} productos
                   </div>
                 </div>

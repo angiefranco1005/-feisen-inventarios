@@ -6,6 +6,8 @@
 // `niveles` = lo que la pantalla de verdad sabe hacer para un rol que no es ADMIN; la matriz
 // solo ofrece esos. `rutas` = rutas de App.jsx que abre el módulo; `rutasNivel` = rutas que
 // piden un nivel mínimo (las demás se abren con cualquier nivel distinto de 'no').
+// `usaBodega` = el módulo trabaja con las bodegas asignadas a la persona: si su rol no tiene
+// ninguno de esos, no hace falta asignarle bodega (ej. quien solo ve OF).
 //
 // Etapa 1: esto manda en el menú y las rutas. Las políticas RLS siguen por rol fijo, así que
 // darle un módulo a un rol que no lo tenía puede mostrar la pantalla vacía (etapa 2).
@@ -21,35 +23,35 @@ export const NIVELES = {
 export const ORDEN_NIVEL = { no: 0, ve: 1, registra: 2, todo: 3 }
 
 export const MODULOS = [
-  { clave: 'productos',      grupo: 'Inventario', nombre: 'Productos y stock', detalle: 'existencias de su bodega', niveles: ['ve', 'registra'],
+  { clave: 'productos',      grupo: 'Inventario', nombre: 'Productos y stock', detalle: 'existencias de su bodega', niveles: ['ve', 'registra'], usaBodega: true,
     rutas: ['/productos'] },
-  { clave: 'movimientos',    grupo: 'Inventario', nombre: 'Entradas y salidas', detalle: 'registrar movimientos', niveles: ['registra'],
+  { clave: 'movimientos',    grupo: 'Inventario', nombre: 'Entradas y salidas', detalle: 'registrar movimientos', niveles: ['registra'], usaBodega: true,
     rutas: ['/movimientos/nuevo'] },
-  { clave: 'historial',      grupo: 'Inventario', nombre: 'Historial', detalle: 'movimientos registrados', niveles: ['ve'],
+  { clave: 'historial',      grupo: 'Inventario', nombre: 'Historial', detalle: 'movimientos registrados', niveles: ['ve'], usaBodega: true,
     rutas: ['/movimientos'] },
-  { clave: 'transferencias', grupo: 'Inventario', nombre: 'Transferencias', detalle: 'aprobar lo que llega a su bodega', niveles: ['registra'],
+  { clave: 'transferencias', grupo: 'Inventario', nombre: 'Transferencias', detalle: 'aprobar lo que llega a su bodega', niveles: ['registra'], usaBodega: true,
     rutas: ['/transferencias'] },
-  { clave: 'paquetes',       grupo: 'Inventario', nombre: 'Paquetes por máquina', detalle: 'kits para sacar de una vez', niveles: ['todo'],
+  { clave: 'paquetes',       grupo: 'Inventario', nombre: 'Paquetes por máquina', detalle: 'kits para sacar de una vez', niveles: ['todo'], usaBodega: true,
     rutas: ['/mecanizados/paquetes'] },
-  { clave: 'reportes',       grupo: 'Inventario', nombre: 'Inventario físico, kardex y corte', detalle: 'reportes de inventario', niveles: ['ve'],
+  { clave: 'reportes',       grupo: 'Inventario', nombre: 'Inventario físico, kardex y corte', detalle: 'reportes de inventario', niveles: ['ve'], usaBodega: true,
     rutas: ['/reportes', '/reportes/corte', '/reportes/inventario-fisico', '/reportes/kardex'] },
 
-  { clave: 'pedidos',        grupo: 'Compras', nombre: 'Pedidos internos', detalle: 'Registra: los suyos · Todo: gestiona los de todos', niveles: ['registra', 'todo'],
+  { clave: 'pedidos',        grupo: 'Compras', nombre: 'Pedidos internos', detalle: 'Registra: los suyos · Todo: gestiona los de todos', niveles: ['registra', 'todo'], usaBodega: true,
     rutas: ['/pedidos'] },
   { clave: 'ordenes_compra', grupo: 'Compras', nombre: 'Órdenes de compra', detalle: 'a proveedores', niveles: ['todo'],
     rutas: ['/ordenes-compra'] },
 
-  { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, BOM, nómina', niveles: ['todo'],
+  { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, BOM, nómina', niveles: ['todo'], usaBodega: true,
     rutas: ['/fundidas', '/fundidas/nueva', '/moldeo', '/moldeo/nueva', '/moldeo/catalogo', '/recogida', '/nomina/fundicion', '/analitica/fundicion'] },
   { clave: 'informes_fundicion', grupo: 'Producción', nombre: 'Informes de fundición', detalle: 'balance de hierro, ventas internas', niveles: ['ve'],
     rutas: ['/reportes/balance-hierro', '/reportes/ventas-internas-fundicion'] },
-  { clave: 'mecanizados',    grupo: 'Producción', nombre: 'Mecanizados', detalle: 'registro de mecanizado', niveles: ['todo'],
+  { clave: 'mecanizados',    grupo: 'Producción', nombre: 'Mecanizados', detalle: 'registro de mecanizado', niveles: ['todo'], usaBodega: true,
     rutas: ['/mecanizados/registro'] },
-  { clave: 'ensamble',       grupo: 'Producción', nombre: 'Ensamble', detalle: 'órdenes y recetas', niveles: ['todo'],
+  { clave: 'ensamble',       grupo: 'Producción', nombre: 'Ensamble', detalle: 'órdenes y recetas', niveles: ['todo'], usaBodega: true,
     rutas: ['/ensamble', '/ensamble/recetas'] },
-  { clave: 'calidad',        grupo: 'Producción', nombre: 'Calidad', detalle: 'no conformidades', niveles: ['registra'],
+  { clave: 'calidad',        grupo: 'Producción', nombre: 'Calidad', detalle: 'no conformidades', niveles: ['registra'], usaBodega: true,
     rutas: ['/calidad'] },
-  { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'],
+  { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'], usaBodega: true,
     rutas: ['/mantenimiento'] },
 
   { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
@@ -86,6 +88,7 @@ export const PERMISOS_INICIALES = {
   CONSULTOR:        { historial: 've', manuales: 've' },
   COMERCIAL:        { of: 'registra', manuales: 've' },
   DESPACHOS:        { of: 've', productos: 've', manuales: 've' },
+  JEFE_MANTENIMIENTO: { of: 've', pedidos: 'registra', manuales: 've' },
   RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra', manuales: 've' },
 }
 
@@ -99,6 +102,12 @@ export function nivelDe(mapa, rol, modulo) {
 // Módulo al que pertenece una ruta (para el menú)
 export function moduloDeRuta(ruta) {
   return MODULOS.find(m => m.rutas.includes(ruta))?.clave || null
+}
+
+// ¿El rol trabaja con bodegas? (si no, la persona puede quedar sin bodega asignada)
+export function rolUsaBodega(mapa, rol) {
+  if (rol === 'ADMIN') return false
+  return MODULOS.some(m => m.usaBodega && nivelDe(mapa, rol, m.clave) !== 'no')
 }
 
 // ¿Este nivel alcanza para abrir la ruta? (ver `rutasNivel`)

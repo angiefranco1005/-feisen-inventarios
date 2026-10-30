@@ -192,7 +192,7 @@ function textoCompra(p, ordenes) {
   if (/^no hay oc/i.test(t)) return t.replace(/^no hay oc\s*(compra\s*)?/i, 'compra ').toLowerCase()
   return t
 }
-const AREA_NOMBRE = { FUNDICION: 'Fundición', PRODUCCION: 'Producción', ALMACEN: 'Almacén', MECANIZADOS: 'Mecanizados', LOGISTICA: 'Logística', INNOVACION: 'Innovación', ADMINISTRACION: 'Administración' }
+const AREA_NOMBRE = { FUNDICION: 'Fundición', PRODUCCION: 'Producción', ALMACEN: 'Almacén', MECANIZADOS: 'Mecanizados', LOGISTICA: 'Logística', INNOVACION: 'Innovación', ADMINISTRACION: 'Administración', MANTENIMIENTO: 'Mantenimiento' }
 const nombreArea = a => a ? (AREA_NOMBRE[a] || a.charAt(0) + a.slice(1).toLowerCase()) : ''
 
 function TarjetaPedido({ p, permisos, ordenesDelPedido, onAbrir, onAccion }) {
@@ -491,7 +491,7 @@ export default function ListaPedidos() {
   // Pedidos «Todo» (Configuración › Permisos; hoy Logística): ve y gestiona los pedidos de todas las áreas
   const esLogistica = !esAdmin && nivel('pedidos') === 'todo'
 
-  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', JEFE_ENSAMBLE: 'PRODUCCION', CONSULTOR: 'INNOVACION', RRHH: 'ADMINISTRACION' }
+  const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', JEFE_ENSAMBLE: 'PRODUCCION', CONSULTOR: 'INNOVACION', RRHH: 'ADMINISTRACION', JEFE_MANTENIMIENTO: 'MANTENIMIENTO' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
