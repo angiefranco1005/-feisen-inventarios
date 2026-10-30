@@ -48,11 +48,24 @@ export const ESTADOS_VERSION = {
   aprobada:    { texto: 'Aprobada',          clase: 'bg-emerald-50 text-emerald-700' },
 }
 
-// Campos de versión que usan la lista y la ficha (con los nombres de elaboró / revisó / aprobó)
+// Campos de versión que usan la lista y la ficha
 export const SELECT_VERSION = 'id, manual_id, version, estado, archivo_path, archivo_nombre, archivo_tamano, cambios, vigente_desde, created_at, ' +
-  'enviado_at, revisado_at, aprobado_at, aprobado_externo, comentario_revision, subido_por, ' +
-  'elaboro:profiles!manual_versiones_subido_por_fkey(nombre), reviso:profiles!manual_versiones_revisado_por_fkey(nombre), ' +
-  'aprobo:profiles!manual_versiones_aprobado_por_fkey(nombre)'
+  'enviado_at, revisado_at, aprobado_at, aprobado_externo, comentario_revision, subido_por, revisado_por, aprobado_por'
+
+// Agrega { elaboro, reviso, aprobo: { nombre } } a cada versión. Los nombres salen por la función
+// manual_nombres porque las reglas de profiles no dejan ver a los demás (salvo a ADMIN).
+export async function ponerNombres(versiones) {
+  const ids = [...new Set(versiones.flatMap(v => [v.subido_por, v.revisado_por, v.aprobado_por]).filter(Boolean))]
+  const { data } = ids.length ? await supabase.rpc('manual_nombres', { p_ids: ids }) : { data: [] }
+  const nombre = Object.fromEntries((data || []).map(p => [p.id, { nombre: p.nombre }]))
+  return versiones.map(v => ({ ...v, elaboro: nombre[v.subido_por] || null, reviso: nombre[v.revisado_por] || null, aprobo: nombre[v.aprobado_por] || null }))
+}
+
+// ¿El documento va dirigido a este rol? (igual que manual_dirigido en la base; ADMIN nunca)
+export const dirigidoA = (manual, rol) => !!rol && rol !== 'ADMIN' && (!manual.dirigido_a?.length || manual.dirigido_a.includes(rol))
+
+// Avisa al menú que cambiaron los pendientes de Manuales (para refrescar el contador)
+export const avisarCambioManuales = () => window.dispatchEvent(new Event('manuales-cambio'))
 
 const subirArchivo = async (manualId, version, archivo) => {
   const limpio = sinTildes(archivo.name).replace(/[^\w.-]+/g, '_')

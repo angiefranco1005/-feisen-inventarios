@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, ChartPieSlice, HandCoins } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from './Modal'
 import Alerta from './Alerta'
 import logoFeisen from '../../assets/logo-feisen.png'
@@ -235,6 +235,22 @@ export default function Layout({ children }) {
   const [msgPwd,        setMsgPwd]        = useState(null)
   const [guardandoPwd,  setGuardandoPwd]  = useState(false)
 
+  // Contador de Manuales en el menú: documentos por leer, trámites que le tocan y revisiones
+  // vencidas (función manuales_mis_avisos). La pantalla de Manuales avisa con 'manuales-cambio'.
+  const [avisosManuales, setAvisosManuales] = useState(0)
+  const veManuales = puedeRuta('/manuales')
+  useEffect(() => {
+    if (!veManuales) return
+    let vivo = true
+    const cargar = () => supabase.rpc('manuales_mis_avisos').then(({ data }) => {
+      const a = data?.[0]
+      if (vivo && a) setAvisosManuales(a.por_leer + a.te_toca + a.revision_vencida)
+    })
+    cargar()
+    window.addEventListener('manuales-cambio', cargar)
+    return () => { vivo = false; window.removeEventListener('manuales-cambio', cargar) }
+  }, [veManuales, perfil?.id])
+
   // Menú: el orden curado de cada rol, filtrado por sus permisos (Configuración › Permisos),
   // más los módulos que se le hayan dado y no estaban en su lista, agrupados por módulo.
   const navBase = esAdmin          ? NAV_ADMIN
@@ -318,6 +334,9 @@ export default function Layout({ children }) {
               : 'text-gray-700 hover:bg-white hover:text-feisen-texto'}`}>
         {!sub && <item.icon size={18} weight="duotone" className={activo ? '' : 'text-gray-500'} />}
         <span className="truncate">{item.label}</span>
+        {item.to === '/manuales' && avisosManuales > 0 && (
+          <span aria-label={`${avisosManuales} pendientes`} className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-feisen-azul text-white text-[11px] font-semibold grid place-items-center tabular-nums">{avisosManuales}</span>
+        )}
       </Link>
     )
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { PanelLateral } from '../shared/ui'
@@ -15,7 +15,13 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
     tipo: manual?.tipo || 'procedimiento', area: manual?.area || '', codigo: manual?.codigo || '',
     titulo: manual?.titulo || '', descripcion: manual?.descripcion || '', responsable: manual?.responsable || '',
     proxima_revision: manual?.proxima_revision || (nuevo ? sumarDias(hoyCol(), 365) : ''),
+    dirigido_a: manual?.dirigido_a || [],
   })
+  const [roles, setRoles] = useState([])
+  useEffect(() => {
+    supabase.from('roles').select('nombre, label').neq('nombre', 'ADMIN').order('label').then(({ data }) => setRoles(data || []))
+  }, [])
+  const alternarRol = r => setF(prev => ({ ...prev, dirigido_a: prev.dirigido_a.includes(r) ? prev.dirigido_a.filter(x => x !== r) : [...prev.dirigido_a, r] }))
   const [codigoManual, setCodigoManual] = useState(!nuevo) // el usuario escribió el código: no sugerir
   const [archivo, setArchivo] = useState(null)
   const [yaAprobado, setYaAprobado] = useState(false)
@@ -37,7 +43,7 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
     const fila = {
       tipo: f.tipo, area: f.area, codigo, titulo: f.titulo.trim(),
       descripcion: f.descripcion.trim() || null, responsable: f.responsable.trim() || null,
-      proxima_revision: f.proxima_revision || null,
+      proxima_revision: f.proxima_revision || null, dirigido_a: f.dirigido_a,
     }
     try {
       if (nuevo) {
@@ -92,6 +98,23 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
         <div><label htmlFor="ma-rev" className={etiquetaCampo}>Próxima revisión</label>
           <input id="ma-rev" type="date" value={f.proxima_revision} onChange={e => cambiar('proxima_revision', e.target.value)} className={campo} /></div>
       </div>
+      {roles.length > 0 && (
+        <div><p className={etiquetaCampo}>Lo deben leer</p>
+          <div className="flex flex-wrap gap-1.5">
+            {[{ nombre: '', label: 'Todos' }, ...roles].map(r => {
+              const activo = r.nombre ? f.dirigido_a.includes(r.nombre) : f.dirigido_a.length === 0
+              return (
+                <button key={r.nombre || 'todos'} type="button" aria-pressed={activo}
+                  onClick={() => r.nombre ? alternarRol(r.nombre) : setF(prev => ({ ...prev, dirigido_a: [] }))}
+                  className={`min-h-[34px] px-3 rounded-full border text-[13px] ${activo ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+                  {r.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-feisen-texto-2 mt-1">Cada persona de esos cargos confirma «leído y entendido» cada vez que se aprueba una versión nueva.</p>
+        </div>
+      )}
       {nuevo && (
         <div><label htmlFor="ma-archivo" className={etiquetaCampo}>Archivo (versión 1)</label>
           <input id="ma-archivo" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" onChange={e => setArchivo(e.target.files?.[0] || null)}

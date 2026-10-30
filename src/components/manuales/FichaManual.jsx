@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { PanelLateral } from '../shared/ui'
-import { Check, Download, FileText, Pencil, Send, Upload, X } from '../shared/iconos'
+import { Check, Download, Eye, FileText, Pencil, Send, Upload, X } from '../shared/iconos'
 import { Etiqueta, Titulo, campo, etiquetaCampo, fechaCorta, hoyCol, textoProxima } from '../mantenimiento/comun'
 import {
-  ESTADOS_VERSION, SELECT_VERSION, TIPOS, abrirArchivo, accionVersion, crearBorrador, descartarBorrador,
-  reemplazarArchivo, tamanoArchivo,
+  ESTADOS_VERSION, SELECT_VERSION, TIPOS, abrirArchivo, accionVersion, crearBorrador, descartarBorrador, dirigidoA,
+  ponerNombres, reemplazarArchivo, tamanoArchivo,
 } from './comun'
 
 const fechaLarga = f => f ? `${fechaCorta(f)} ${f.slice(0, 4)}` : '—'
@@ -14,10 +14,11 @@ const inputArchivo = 'block w-full text-sm text-feisen-texto-2 file:mr-3 file:mi
 const ACEPTA = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*'
 
 // Ficha de un documento: versión vigente, la versión en trámite (elaboró → revisó → aprobó) con
-// las acciones que le tocan a cada quien, e historial de versiones aprobadas.
+// las acciones que le tocan a cada quien, «leído y entendido» de la versión vigente (y para
+// nivel 'todo', quién falta por leerla) e historial de versiones aprobadas.
 // Elabora: nivel 'registra' o 'todo' · Revisa / devuelve: 'todo' (no quien elaboró) · Aprueba: ADMIN.
 export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
-  const { perfil, nivel, esAdmin } = useAuth()
+  const { perfil, nivel, esAdmin, rolEfectivo } = useAuth()
   const niv = nivel('manuales')
   const gestiona = niv === 'todo'
   const elabora = niv === 'registra' || niv === 'todo'
@@ -27,16 +28,40 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
   const [formVersion, setFormVersion] = useState(null) // null | { archivo, cambios, vigente_desde }
   const [devolviendo, setDevolviendo] = useState(null) // null | comentario
   const [guardando, setGuardando] = useState(false)
+  const [miLectura, setMiLectura] = useState(undefined) // undefined = cargando · null = no la he leído
+  const [lectores, setLectores] = useState(null)        // nivel 'todo': [{ nombre, rol, leido_at }]
+  const [verLectores, setVerLectores] = useState(false)
 
   useEffect(() => {
     let vivo = true
     supabase.from('manual_versiones').select(SELECT_VERSION)
       .eq('manual_id', manual.id).order('version', { ascending: false })
-      .then(({ data, error: err }) => { if (!vivo) return; if (err) setError(err.message); setVersiones(data || []) })
+      .then(async ({ data, error: err }) => {
+        const conNombres = await ponerNombres(data || [])
+        if (!vivo) return
+        if (err) setError(err.message)
+        setVersiones(conNombres)
+      })
     return () => { vivo = false }
   }, [manual.id, manual.version_actual, manual.tramite])
 
   const vigente = versiones?.find(v => v.version === manual.version_actual && v.estado === 'aprobada')
+  const meToca = dirigidoA(manual, rolEfectivo) && manual.activo
+
+  useEffect(() => {
+    if (!vigente) return
+    let vivo = true
+    supabase.from('manual_lecturas').select('leido_at').eq('version_id', vigente.id).eq('usuario_id', perfil?.id).maybeSingle()
+      .then(({ data }) => { if (vivo) setMiLectura(data || null) })
+    if (gestiona) supabase.rpc('manual_lecturas_estado', { p_manual: manual.id }).then(({ data }) => { if (vivo) setLectores(data || []) })
+    return () => { vivo = false }
+  }, [vigente?.id, perfil?.id, gestiona, manual.id])
+
+  const confirmarLectura = () => hacer(async () => {
+    const { error: err } = await supabase.from('manual_lecturas').insert({ version_id: vigente.id, usuario_id: perfil?.id })
+    if (err) throw new Error(err.message)
+    setMiLectura({ leido_at: new Date().toISOString() })
+  }, `Lectura de ${manual.codigo} v${manual.version_actual} confirmada`)
   const tramite = versiones?.find(v => v.estado !== 'aprobada')
   const aprobadas = (versiones || []).filter(v => v.estado === 'aprobada')
   const tipo = TIPOS[manual.tipo]
@@ -164,6 +189,21 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
 
       {error && <p className="text-sm text-feisen-rojo bg-feisen-rojo-suave rounded-lg px-3 py-2">{error}</p>}
 
+      {vigente && meToca && miLectura !== undefined && (miLectura ? (
+        <p className="flex items-center gap-2 text-sm text-emerald-700">
+          <Check size={15} /> Leíste y entendiste la versión {manual.version_actual} el {fechaLarga(miLectura.leido_at.slice(0, 10))}
+        </p>
+      ) : (
+        <section className="flex flex-col sm:flex-row sm:items-center gap-3 bg-feisen-azul-suave rounded-xl p-4">
+          <p className="flex-1 text-sm text-feisen-texto">
+            <b className="font-semibold">Este documento va dirigido a tu cargo.</b> Ábrelo, léelo y confirma que lo entendiste.
+          </p>
+          <button type="button" onClick={confirmarLectura} disabled={guardando} className={principal}>
+            <Eye size={15} /> Leído y entendido
+          </button>
+        </section>
+      ))}
+
       {formVersion && (
         <section className="space-y-3 bg-feisen-fondo border border-feisen-borde rounded-xl p-4">
           <Titulo>Borrador de la versión {Math.max(0, ...(versiones || []).map(v => v.version)) + 1}</Titulo>
@@ -234,6 +274,36 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
         </div>
         {vigente && <Firmas v={vigente} />}
       </section>
+
+      {gestiona && vigente && lectores && (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Titulo>Lectura de la versión {manual.version_actual}</Titulo>
+            <span className="text-xs text-feisen-texto-2">{manual.dirigido_a?.length ? `Para: ${manual.dirigido_a.length} ${manual.dirigido_a.length === 1 ? 'cargo' : 'cargos'}` : 'Para: todos'}</span>
+          </div>
+          {lectores.length === 0 ? <p className="text-sm text-feisen-texto-2">No hay personas activas en los cargos a los que va dirigido.</p> : <>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                <div className="h-full bg-emerald-600" style={{ width: `${(lectores.filter(l => l.leido_at).length / lectores.length) * 100}%` }} />
+              </div>
+              <span className="text-sm tabular-nums text-feisen-texto">{lectores.filter(l => l.leido_at).length} de {lectores.length}</span>
+            </div>
+            <button type="button" onClick={() => setVerLectores(v => !v)} className="text-sm text-feisen-azul font-medium">
+              {verLectores ? 'Ocultar personas' : lectores.some(l => !l.leido_at) ? `Ver quién falta (${lectores.filter(l => !l.leido_at).length})` : 'Ver quién leyó'}
+            </button>
+            {verLectores && (
+              <div className="border border-feisen-borde rounded-xl divide-y divide-feisen-borde-suave">
+                {lectores.map(l => (
+                  <div key={l.usuario_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate text-feisen-texto">{l.nombre}</span>
+                    <span className={`shrink-0 text-xs ${l.leido_at ? 'text-emerald-700' : 'text-feisen-texto-2'}`}>{l.leido_at ? `Leído el ${fechaLarga(l.leido_at.slice(0, 10))}` : 'Pendiente'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>}
+        </section>
+      )}
 
       <section className="space-y-2">
         <Titulo>Historial de versiones aprobadas</Titulo>

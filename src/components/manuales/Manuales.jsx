@@ -5,10 +5,10 @@ import { useAuth } from '../../contexts/AuthContext'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, useAviso, useAtajoBuscar } from '../shared/ui'
 import Spinner from '../shared/Spinner'
-import { BookOpenText, CalendarCheck, ChevronRight, FileDown, FilePlus, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
+import { BookOpenText, CalendarCheck, ChevronRight, Eye, FileDown, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
 import { exportarListadoMaestro } from '../../utils/exportExcel'
 import { Etiqueta, fechaCorta, hoyCol, sumarDias } from '../mantenimiento/comun'
-import { AREAS, ESTADOS_VERSION, TIPOS } from './comun'
+import { AREAS, ESTADOS_VERSION, TIPOS, avisarCambioManuales, dirigidoA, ponerNombres } from './comun'
 import FichaManual from './FichaManual'
 import FormManual from './FormManual'
 
@@ -17,9 +17,10 @@ const ORDEN_AREA = Object.fromEntries(AREAS.map((a, i) => [a.valor, i]))
 // Manuales de procedimiento: biblioteca de manuales, procedimientos, instructivos, formatos y
 // políticas por área, con versión vigente e historial. Cada versión pasa por elaboró → revisó →
 // aprobó (ISO 9001 §7.5). Nivel 've': consulta lo aprobado · 'registra': elabora borradores ·
-// 'todo': revisa, edita y marca obsoletos · ADMIN: aprueba. Arriba, lo que le toca a cada quien.
+// 'todo': revisa, edita y marca obsoletos · ADMIN: aprueba. Arriba, lo que le toca a cada quien,
+// incluidos los documentos que debe leer y confirmar («leído y entendido»).
 export default function Manuales() {
-  const { nivel, perfil, esAdmin } = useAuth()
+  const { nivel, perfil, esAdmin, rolEfectivo } = useAuth()
   const gestiona = nivel('manuales') === 'todo'
   const elabora = gestiona || nivel('manuales') === 'registra'
   const [params, setParams] = useSearchParams()
@@ -30,9 +31,11 @@ export default function Manuales() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [manuales, setManuales] = useState([])
+  const [leidas, setLeidas] = useState(new Set())      // versiones que yo confirmé
+  const [lecturas, setLecturas] = useState({})         // manual_id → { leidos, total } (nivel 'todo')
   const [busqueda, setBusqueda] = useState('')
   const [area, setArea] = useState('')
-  const [filtro, setFiltro] = useState('todos') // todos | revision | sinarchivo | recientes | obsoletos
+  const [filtro, setFiltro] = useState('todos') // todos | revision | sinarchivo | recientes | porleer | obsoletos
 
   // Paneles: ?manual=<id> · ?editar=<id>|nuevo
   const abrir = (clave, valor) => setParams(valor ? { [clave]: valor } : {}, { replace: false })
@@ -40,20 +43,27 @@ export default function Manuales() {
 
   const cargar = useCallback(async () => {
     setError('')
-    const { data, error: err } = await supabase.from('manuales')
-      .select('*, manual_versiones(id, version, estado, vigente_desde, created_at, subido_por, comentario_revision, aprobado_externo, ' +
-        'elaboro:profiles!manual_versiones_subido_por_fkey(nombre), reviso:profiles!manual_versiones_revisado_por_fkey(nombre), aprobo:profiles!manual_versiones_aprobado_por_fkey(nombre))')
-      .order('codigo')
-    if (err) setError(err.message)
-    setManuales((data || []).map(m => {
-      const enTramite = m.manual_versiones.find(v => v.estado !== 'aprobada') || null
+    const [ma, le, re] = await Promise.all([
+      supabase.from('manuales').select('*, manual_versiones(id, version, estado, vigente_desde, created_at, subido_por, revisado_por, aprobado_por, comentario_revision, aprobado_externo)').order('codigo'),
+      supabase.from('manual_lecturas').select('version_id').eq('usuario_id', perfil?.id),
+      gestiona ? supabase.rpc('manual_lecturas_resumen') : Promise.resolve({ data: [] }),
+    ])
+    if (ma.error) setError(ma.error.message)
+    const versiones = await ponerNombres((ma.data || []).flatMap(m => m.manual_versiones))
+    const porId = Object.fromEntries(versiones.map(v => [v.id, v]))
+    setManuales((ma.data || []).map(m => {
+      const vs = m.manual_versiones.map(v => porId[v.id])
+      const enTramite = vs.find(v => v.estado !== 'aprobada') || null
       return {
         ...m, enTramite, tramite: enTramite ? `${enTramite.id}:${enTramite.estado}` : '',
-        vigente: m.manual_versiones.find(v => v.version === m.version_actual && v.estado === 'aprobada') || null,
+        vigente: vs.find(v => v.version === m.version_actual && v.estado === 'aprobada') || null,
       }
     }))
+    setLeidas(new Set((le.data || []).map(l => l.version_id)))
+    setLecturas(Object.fromEntries((re.data || []).map(r => [r.manual_id, r])))
     setCargando(false)
-  }, [])
+    avisarCambioManuales()
+  }, [perfil?.id, gestiona])
   useEffect(() => { cargar() }, [cargar])
 
   const hoy = hoyCol()
@@ -61,22 +71,31 @@ export default function Manuales() {
   const activos = manuales.filter(m => m.activo)
   const conArchivo = activos.filter(m => m.vigente)
   const revisionVencida = activos.filter(m => m.proxima_revision && m.proxima_revision < hoy)
+  const revisionProxima = activos.filter(m => m.proxima_revision && m.proxima_revision >= hoy && m.proxima_revision <= sumarDias(hoy, 30))
+  const porLeer = activos.filter(m => m.vigente && dirigidoA(m, rolEfectivo) && !leidas.has(m.vigente.id))
   const sinArchivo = activos.filter(m => !m.vigente)
   const recientes = conArchivo.filter(m => (m.vigente.vigente_desde || '') >= hace30)
   const obsoletos = manuales.filter(m => !m.activo)
   const codigosUsados = useMemo(() => new Set(manuales.map(m => m.codigo)), [manuales])
 
-  // Lo que le toca a esta persona: aprobar (ADMIN), revisar ('todo', no lo suyo), corregir o enviar (lo suyo)
-  const pendientes = activos.filter(m => m.enTramite).map(m => {
-    const v = m.enTramite
-    const mio = v.subido_por === perfil?.id
-    if (esAdmin && (v.estado === 'revisada' || (v.estado === 'en_revision' && !mio))) return { m, v, peso: 0, etiqueta: 'Por aprobar', color: 'bg-feisen-azul' }
-    if (gestiona && v.estado === 'en_revision' && !mio) return { m, v, peso: 1, etiqueta: 'Por revisar', color: 'bg-amber-500' }
-    if (mio && v.estado === 'borrador') return v.comentario_revision
-      ? { m, v, peso: 0, etiqueta: 'Devuelto', color: 'bg-feisen-rojo' }
-      : { m, v, peso: 2, etiqueta: 'Sin enviar', color: 'bg-gray-400' }
-    return null
-  }).filter(Boolean).sort((a, b) => a.peso - b.peso)
+  // Lo que le toca a esta persona: aprobar (ADMIN), revisar ('todo', no lo suyo), corregir o enviar
+  // (lo suyo), revisiones periódicas vencidas ('todo') y documentos por leer
+  const firmas = v => `elaboró ${v.elaboro?.nombre || '—'}${v.reviso?.nombre ? ` · revisó ${v.reviso.nombre}` : ''}`
+  const pendientes = [
+    ...activos.filter(m => m.enTramite).map(m => {
+      const v = m.enTramite
+      const mio = v.subido_por === perfil?.id
+      const item = (peso, etiqueta, color, detalle = firmas(v)) => ({ m, clave: v.id, version: v.version, peso, etiqueta, color, detalle })
+      if (esAdmin && (v.estado === 'revisada' || (v.estado === 'en_revision' && !mio))) return item(0, 'Por aprobar', 'bg-feisen-azul')
+      if (gestiona && v.estado === 'en_revision' && !mio) return item(1, 'Por revisar', 'bg-amber-500')
+      if (mio && v.estado === 'borrador') return v.comentario_revision ? item(0, 'Devuelto', 'bg-feisen-rojo', v.comentario_revision) : item(3, 'Sin enviar', 'bg-gray-400')
+      return null
+    }),
+    ...(gestiona ? revisionVencida : []).map(m => ({ m, clave: `rev-${m.id}`, version: m.version_actual, peso: 2, etiqueta: 'Revisión vencida', color: 'bg-amber-500',
+      detalle: `tocaba revisarlo el ${fechaCorta(m.proxima_revision)} ${m.proxima_revision.slice(0, 4)}${m.responsable ? ` · ${m.responsable}` : ''}` })),
+    ...porLeer.map(m => ({ m, clave: `leer-${m.id}`, version: m.version_actual, peso: 2, etiqueta: 'Por leer', color: 'bg-feisen-azul',
+      detalle: `versión vigente desde el ${fechaCorta(m.vigente.vigente_desde)} · confirma que lo leíste` })),
+  ].filter(Boolean).sort((a, b) => a.peso - b.peso)
   const enTramite = activos.filter(m => m.enTramite)
 
   const descargarListado = () => exportarListadoMaestro([...activos, ...obsoletos].sort((a, b) => a.codigo.localeCompare(b.codigo)).map(m => {
@@ -87,6 +106,7 @@ export default function Manuales() {
       elaboro: v ? (v.aprobado_externo ? 'Aprobado en papel' : v.elaboro?.nombre || '') : '',
       reviso: v && !v.aprobado_externo ? v.reviso?.nombre || '' : '', aprobo: v?.aprobo?.nombre || '',
       revision: m.activo ? m.proxima_revision || '' : '',
+      lectura: lecturas[m.id] ? `${lecturas[m.id].leidos} de ${lecturas[m.id].total}` : '',
       estado: !m.activo ? 'Obsoleto' : !v ? 'Sin versión aprobada' : m.enTramite ? `Vigente · v${m.enTramite.version} ${ESTADOS_VERSION[m.enTramite.estado].texto.toLowerCase()}` : 'Vigente',
     }
   }))
@@ -95,6 +115,7 @@ export default function Manuales() {
     : filtro === 'revision' ? revisionVencida
     : filtro === 'sinarchivo' ? sinArchivo
     : filtro === 'recientes' ? recientes
+    : filtro === 'porleer' ? porLeer
     : activos
   const buscados = base.filter(m => coincideBusqueda(`${m.codigo} ${m.titulo} ${m.descripcion || ''} ${m.responsable || ''} ${m.area}`, busqueda))
   const lista = buscados.filter(m => !area || m.area === area)
@@ -167,12 +188,13 @@ export default function Manuales() {
           <Kpi id="recientes" clase="bg-gray-100 text-feisen-texto-2" Icono={Sparkles} titulo="Actualizados" valor={recientes.length}
             detalle="en los últimos 30 días" />
           <Kpi id="revision" clase="bg-amber-50 text-amber-700" Icono={CalendarCheck} titulo="Revisión vencida" valor={revisionVencida.length}
-            detalle={revisionVencida.length ? 'toca revisarlos y actualizarlos' : 'Todo al día'} />
+            detalle={revisionVencida.length ? `toca revisarlos${revisionProxima.length ? ` · ${revisionProxima.length} vencen en 30 días` : ''}`
+              : revisionProxima.length ? `${revisionProxima.length} vencen en 30 días` : 'Todo al día'} />
           {elabora
             ? <Kpi id="sinarchivo" clase="bg-feisen-rojo-suave text-feisen-rojo" Icono={WarningOctagon} titulo="Sin aprobar" valor={sinArchivo.length}
                 detalle={sinArchivo.length ? `sin versión vigente · ${enTramite.length} en trámite` : 'Todos tienen versión vigente'} />
-            : <Kpi clase="bg-gray-100 text-feisen-texto-2" Icono={FilePlus} titulo="Áreas" valor={new Set(activos.map(m => m.area)).size}
-                detalle="con documentos publicados" />}
+            : <Kpi id="porleer" clase="bg-feisen-azul-suave text-feisen-azul" Icono={Eye} titulo="Por leer" valor={porLeer.length}
+                detalle={porLeer.length ? 'confirma que los leíste' : 'Estás al día'} />}
         </div>
 
         {pendientes.length > 0 && (
@@ -182,16 +204,16 @@ export default function Manuales() {
               <span className="text-xs text-feisen-texto-2">{pendientes.length} {pendientes.length === 1 ? 'documento' : 'documentos'}</span>
             </div>
             <div className="divide-y divide-feisen-borde-suave">
-              {pendientes.map(({ m, v, etiqueta, color }) => (
-                <button key={v.id} type="button" onClick={() => abrir('manual', m.id)} className="relative w-full flex items-center gap-3 text-left px-4 py-3 hover:bg-feisen-fondo">
+              {pendientes.map(({ m, clave, version, etiqueta, color, detalle }) => (
+                <button key={clave} type="button" onClick={() => abrir('manual', m.id)} className="relative w-full flex items-center gap-3 text-left px-4 py-3 hover:bg-feisen-fondo">
                   <span className={`absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r ${color}`} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm text-feisen-texto truncate">
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1.5">{etiqueta}</span>
-                      <b className="font-semibold">{m.titulo}</b> · v{v.version}
+                      <b className="font-semibold">{m.titulo}</b>{version ? ` · v${version}` : ''}
                     </span>
                     <span className="block text-xs text-feisen-texto-2 truncate">
-                      {m.codigo} · {etiqueta === 'Devuelto' ? v.comentario_revision : `elaboró ${v.elaboro?.nombre || '—'}${v.reviso?.nombre ? ` · revisó ${v.reviso.nombre}` : ''}`}
+                      {m.codigo} · {detalle}
                     </span>
                   </span>
                   <ChevronRight size={16} className="text-gray-400 shrink-0" />
@@ -210,7 +232,7 @@ export default function Manuales() {
             </div>
             {filtro !== 'todos' && (
               <button type="button" onClick={() => setFiltro('todos')} className="self-start sm:self-auto text-sm text-feisen-azul font-medium">
-                Quitar filtro «{{ revision: 'Revisión vencida', sinarchivo: 'Sin aprobar', recientes: 'Actualizados', obsoletos: 'Obsoletos' }[filtro]}» ×
+                Quitar filtro «{{ revision: 'Revisión vencida', sinarchivo: 'Sin aprobar', porleer: 'Por leer', recientes: 'Actualizados', obsoletos: 'Obsoletos' }[filtro]}» ×
               </button>
             )}
           </div>
@@ -246,6 +268,8 @@ export default function Manuales() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-feisen-texto">{m.vigente ? `${fechaCorta(m.vigente.vigente_desde)} ${m.vigente.vigente_desde.slice(0, 4)}` : '—'}</p>
                       {m.activo && m.proxima_revision && m.proxima_revision < hoy && <p className="text-xs text-amber-700 font-medium">Revisión vencida</p>}
+                      {lecturas[m.id] && <p className={`text-xs ${lecturas[m.id].leidos < lecturas[m.id].total ? 'text-feisen-texto-2' : 'text-emerald-700'}`}>Leído {lecturas[m.id].leidos} de {lecturas[m.id].total}</p>}
+                      {!gestiona && m.vigente && porLeer.includes(m) && <p className="text-xs text-feisen-azul font-medium">Por leer</p>}
                     </td>
                   </tr>
                 ))}
@@ -259,6 +283,7 @@ export default function Manuales() {
                   <span className="block text-sm font-semibold text-feisen-texto">{m.titulo}</span>
                   <span className="block text-xs text-feisen-texto-2">{m.codigo} · {m.area} · {m.vigente ? `v${m.version_actual}` : 'sin aprobar'}{m.enTramite ? ` · v${m.enTramite.version} ${ESTADOS_VERSION[m.enTramite.estado].texto.toLowerCase()}` : ''}</span>
                   {m.activo && m.proxima_revision && m.proxima_revision < hoy && <span className="block text-xs text-amber-700 font-medium mt-0.5">Revisión vencida</span>}
+                  {porLeer.includes(m) && <span className="block text-xs text-feisen-azul font-medium mt-0.5">Por leer</span>}
                 </span>
                 <ChevronRight size={16} className="text-gray-400 shrink-0" />
               </button>
