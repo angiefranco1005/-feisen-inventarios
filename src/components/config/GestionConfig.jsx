@@ -34,7 +34,6 @@ const QUE_VE = {
   OPERARIO:         'Saca materiales de su bodega.',
   CONSULTOR:        'Solo consulta el stock y el historial de su bodega.',
   RRHH:             'Colaboradores, nómina y la bodega de Administración.',
-  RECURSOS_HUMANOS: 'Colaboradores, nómina y la bodega de Administración.',
 }
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
