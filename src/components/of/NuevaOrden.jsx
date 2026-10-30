@@ -16,7 +16,7 @@ const PASOS = [
 ]
 
 export default function NuevaOrden() {
-  const { perfil, esAdmin } = useAuth()
+  const { perfil, esAdmin, puedeEditarOF } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const ordenEditandoId = params.get('editar')
@@ -24,6 +24,7 @@ export default function NuevaOrden() {
 
   const [paso, setPaso] = useState(1)
   const [cargandoOrden, setCargandoOrden] = useState(editando)
+  const [ajena, setAjena] = useState(false) // OF de otra persona que este usuario no puede editar
   const [guardando, setGuardando] = useState(false)
   const [msg, setMsg] = useState(null)
   const [proximoNumero, setProximoNumero] = useState(null)
@@ -84,6 +85,7 @@ export default function NuevaOrden() {
     setCargandoOrden(true)
     const { data: orden } = await supabase.from('ordenes_fabricacion').select('*').eq('id', ordenEditandoId).single()
     const { data: items } = await supabase.from('items_of').select('*').eq('orden_id', ordenEditandoId)
+    if (orden && !puedeEditarOF(orden)) { setAjena(true); setCargandoOrden(false); return }
     if (orden) {
       setCliente(orden.cliente)
       setFechaOrden(orden.fecha_orden)
@@ -216,6 +218,12 @@ export default function NuevaOrden() {
   }
 
   if (cargandoOrden) return <Spinner texto="Cargando Orden de Fabricación..." />
+  if (ajena) return (
+    <div className="max-w-xl mx-auto space-y-3">
+      <Alerta tipo="info" mensaje="Esta OF la creó otra persona: puedes verla en Órdenes, pero solo quien la creó (o administración) la puede editar." />
+      <Link to="/of/ordenes" className="inline-flex items-center gap-1.5 text-sm text-feisen-azul font-medium hover:underline"><ArrowLeft size={15} /> Volver a Órdenes</Link>
+    </div>
+  )
 
   const totalUnidades = lineas.reduce((s, l) => s + Number(l.cantidad || 0), 0)
   const mostrar = n => editando || paso === n

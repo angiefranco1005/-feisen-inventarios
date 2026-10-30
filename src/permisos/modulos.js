@@ -8,6 +8,8 @@
 //
 // Etapa 1: esto manda en el menú y las rutas. Las políticas RLS siguen por rol fijo, así que
 // darle un módulo a un rol que no lo tenía puede mostrar la pantalla vacía (etapa 2).
+// `rlsPorMatriz` = las RLS de ese módulo ya leen rol_permisos (función mi_nivel), así que
+// cualquier nivel funciona también en la base de datos.
 
 export const NIVELES = {
   no:       { texto: 'No',       ayuda: 'No le aparece' },
@@ -49,7 +51,7 @@ export const MODULOS = [
   { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'],
     rutas: ['/mantenimiento'] },
 
-  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'OF, calendario, clientes, dashboard', niveles: ['todo'],
+  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Registra: crea OF, ve todas y edita las suyas · Todo: edita todas', niveles: ['registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
 
   { clave: 'costeo',         grupo: 'Administración', nombre: 'Costeo', detalle: 'fichas de costo', niveles: ['todo'],
@@ -78,6 +80,7 @@ export const PERMISOS_INICIALES = {
   JEFE_MECANIZADOS: { ...BASE_INVENTARIO, transferencias: 'registra', mantenimiento: 'registra', mecanizados: 'todo' },
   JEFE_ENSAMBLE:    { ...BASE_INVENTARIO, mantenimiento: 'registra', ensamble: 'todo' },
   CONSULTOR:        { historial: 've' },
+  COMERCIAL:        { of: 'registra' },
   RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra' },
 }
 

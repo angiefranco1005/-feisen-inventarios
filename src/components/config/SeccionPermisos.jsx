@@ -17,7 +17,7 @@ const CLASE = {
 }
 const GRUPOS = [...new Set(MODULOS.map(m => m.grupo))]
 // Nombre para roles que el código conoce aunque no estén en la tabla roles
-const NOMBRE_ROL = { JEFE_FUNDICION: 'Jefe Fundición', JEFE_ENSAMBLE: 'Jefe Ensamble', JEFE_MECANIZADOS: 'Jefe Mecanizados', RRHH: 'Recursos Humanos', OPERARIO: 'Operario', CONSULTOR: 'Consultor' }
+const NOMBRE_ROL = { JEFE_FUNDICION: 'Jefe Fundición', JEFE_ENSAMBLE: 'Jefe Ensamble', JEFE_MECANIZADOS: 'Jefe Mecanizados', RRHH: 'Recursos Humanos', OPERARIO: 'Operario', CONSULTOR: 'Consultor', COMERCIAL: 'Asesor comercial' }
 
 export default function SeccionPermisos({ datos, avisar }) {
   const { perfil, permisos, recargarPermisos } = useAuth()
@@ -55,7 +55,7 @@ export default function SeccionPermisos({ datos, avisar }) {
   }
 
   // Se le dio más de lo que tenía al crear la tabla: la base (RLS por rol) quizá no lo deje ver
-  const sinBase = (rol, modulo, nivel) =>
+  const sinBase = (rol, modulo, nivel) => !MODULOS.find(x => x.clave === modulo)?.rlsPorMatriz &&
     ORDEN_NIVEL[nivel] > ORDEN_NIVEL[PERMISOS_INICIALES[rol]?.[modulo] || 'no']
 
   return (

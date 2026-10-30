@@ -33,8 +33,10 @@ function claseCal(orden) {
 }
 
 export default function Calendario() {
-  const { esJefeArea, esLogistica, esComercial, esAdmin, centroCosto } = useAuth()
+  const { esJefeArea, esLogistica, esComercial, esAdmin, centroCosto, puedeEditarOF, nivel } = useAuth()
+  // Se puede arrastrar a otra fecha solo la OF que uno puede editar (con Registra, las propias)
   const permitirMover = esComercial || esAdmin
+  const puedeMover = o => permitirMover && puedeEditarOF(o)
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [actualizando, setActualizando] = useState(false)
@@ -61,7 +63,7 @@ export default function Calendario() {
   }
 
   async function moverFecha(orden, nuevaFechaISO) {
-    if (!permitirMover || orden.fecha_promesa === nuevaFechaISO) return
+    if (!puedeMover(orden) || orden.fecha_promesa === nuevaFechaISO) return
     const ok = window.confirm(
       `¿Mover ${formatoOF(orden.numero)} — ${orden.cliente} del ${formatFecha(orden.fecha_promesa)} al ${formatFecha(nuevaFechaISO)}?`
     )
@@ -142,13 +144,13 @@ export default function Calendario() {
       </div>
 
       {permitirMover && (
-        <p className="text-xs text-feisen-gris-medio -mt-3 flex items-center gap-1.5"><Info size={14} className="shrink-0" /> Puedes arrastrar una OF a otro día en las vistas de semana o mes para cambiar su fecha de entrega.</p>
+        <p className="text-xs text-feisen-gris-medio -mt-3 flex items-center gap-1.5"><Info size={14} className="shrink-0" /> Puedes arrastrar una OF a otro día en las vistas de semana o mes para cambiar su fecha de entrega{nivel('of') === 'registra' ? ' (solo las que tú creaste)' : ''}.</p>
       )}
 
       {vista === 'dia' && (
         <div className="space-y-3">
           {ordenesDe(fechaActual).length === 0 && <p className="text-sm text-feisen-gris-medio italic bg-white rounded-2xl p-6 text-center">No hay Órdenes de Fabricación programadas para este día.</p>}
-          {ordenesDe(fechaActual).map(o => <TarjetaCalendario key={o.id} orden={o} onClick={() => setDetalle(o)} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={permitirMover} />)}
+          {ordenesDe(fechaActual).map(o => <TarjetaCalendario key={o.id} orden={o} onClick={() => setDetalle(o)} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={puedeMover(o)} />)}
         </div>
       )}
 
@@ -163,7 +165,7 @@ export default function Calendario() {
                 onDrop={e => soltarEnFecha(e, dia)}>
                 <p className="text-xs font-semibold text-feisen-gris-medio mb-2">{NOMBRES_DIA_CORTO[i]} {dia.getDate()}</p>
                 <div className="space-y-2">
-                  {ords.map(o => <TarjetaCalendario key={o.id} orden={o} mini onClick={() => setDetalle(o)} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={permitirMover} />)}
+                  {ords.map(o => <TarjetaCalendario key={o.id} orden={o} mini onClick={() => setDetalle(o)} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={puedeMover(o)} />)}
                 </div>
               </div>
             )
@@ -172,7 +174,7 @@ export default function Calendario() {
       )}
 
       {vista === 'mes' && (
-        <VistaMes fechaActual={fechaActual} ordenesDe={ordenesDe} onClick={setDetalle} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={permitirMover} onSoltar={soltarEnFecha} />
+        <VistaMes fechaActual={fechaActual} ordenesDe={ordenesDe} onClick={setDetalle} ocultarCliente={esJefeArea || esLogistica} mostrarTransporte={!esJefeArea} centroFiltro={esJefeArea ? centroCosto : null} permitirMover={permitirMover} puedeMover={puedeMover} onSoltar={soltarEnFecha} />
       )}
 
       {detalle && <ModalDetalleOF orden={detalle} onCerrar={() => setDetalle(null)} />}
@@ -196,7 +198,7 @@ function TarjetaCalendario({ orden, onClick, mini, ocultarCliente, mostrarTransp
   )
 }
 
-function VistaMes({ fechaActual, ordenesDe, onClick, ocultarCliente, mostrarTransporte, centroFiltro, permitirMover, onSoltar }) {
+function VistaMes({ fechaActual, ordenesDe, onClick, ocultarCliente, mostrarTransporte, centroFiltro, permitirMover, puedeMover, onSoltar }) {
   const year = fechaActual.getFullYear()
   const month = fechaActual.getMonth()
   const primerDia = new Date(year, month, 1)
@@ -221,7 +223,7 @@ function VistaMes({ fechaActual, ordenesDe, onClick, ocultarCliente, mostrarTran
               <>
                 <p className="text-xs font-bold text-feisen-gris-oscuro mb-1">{dia.getDate()}</p>
                 <div className="space-y-1">
-                  {ordenesDe(dia).map(o => <TarjetaCalendario key={o.id} orden={o} mini onClick={() => onClick(o)} ocultarCliente={ocultarCliente} mostrarTransporte={mostrarTransporte} centroFiltro={centroFiltro} permitirMover={permitirMover} />)}
+                  {ordenesDe(dia).map(o => <TarjetaCalendario key={o.id} orden={o} mini onClick={() => onClick(o)} ocultarCliente={ocultarCliente} mostrarTransporte={mostrarTransporte} centroFiltro={centroFiltro} permitirMover={puedeMover(o)} />)}
                 </div>
               </>
             )}

@@ -24,7 +24,7 @@ const SELECT_ORDEN_COMPLETA = `
 `
 
 export default function ListaOrdenes() {
-  const { esComercial, esAdmin, esJefeArea, esLogistica, centroCosto } = useAuth()
+  const { esComercial, esAdmin, esJefeArea, esLogistica, centroCosto, puedeEditarOF } = useAuth()
   const navigate = useNavigate()
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -186,6 +186,7 @@ export default function ListaOrdenes() {
           vista={vista}
           esAdmin={esAdmin}
           esComercial={esComercial}
+          puedeEditarOF={puedeEditarOF}
           filtroEstado={filtroEstado}
           onEditar={id => navigate(`/of/nueva?editar=${id}`)}
           onRegistrarEntrega={(orden, itemId) => setModalEnt({ orden, items: orden.items_of, itemInicialId: itemId })}
@@ -280,7 +281,7 @@ function coincideEstado(orden, filtroEstado) {
   return orden.items_of.some(it => estadoClase(it) === filtroEstado)
 }
 
-function VistaComercial({ ordenes, vista, esAdmin, esComercial, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar }) {
+function VistaComercial({ ordenes, vista, esAdmin, esComercial, puedeEditarOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar }) {
   // OF abierta desde la vista "Por estado" (se muestra la tarjeta completa con sus botones en un modal)
   const [abiertaId, setAbiertaId] = useState(null)
   const ordenadas = ordenes // ya vienen ordenadas por número descendente (más nuevas primero)
@@ -293,7 +294,7 @@ function VistaComercial({ ordenes, vista, esAdmin, esComercial, filtroEstado, on
   // Al usar un botón desde el modal, se cierra para que el modal de la acción quede al frente
   const cerrarY = fn => (...args) => { setAbiertaId(null); fn(...args) }
   const acciones = {
-    esAdmin, esComercial, filtroEstado,
+    esAdmin, esComercial, puedeEditarOF, filtroEstado,
     onEditar: cerrarY(onEditar), onRegistrarEntrega: cerrarY(onRegistrarEntrega), onRegistrarFabricacion: cerrarY(onRegistrarFabricacion),
     onReversarFabricacion: cerrarY(onReversarFabricacion), onReversarEntrega: cerrarY(onReversarEntrega), onVerDetalle: cerrarY(onVerDetalle),
     onCancelar: cerrarY(onCancelar), onReactivar: cerrarY(onReactivar),
@@ -344,8 +345,10 @@ function TituloSeccion({ texto, cantidad }) {
   )
 }
 
-function TarjetaOF({ orden, esAdmin, esComercial, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar, completada, sinMarco }) {
+function TarjetaOF({ orden, esAdmin, puedeEditarOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar, completada, sinMarco }) {
   const cancelada = orden.cancelada
+  // Con nivel Registra solo se modifican las OF propias; las demás se ven sin botones
+  const puedeEditar = puedeEditarOF(orden)
   const itemsAMostrar = filtroEstado ? orden.items_of.filter(it => estadoClase(it) === filtroEstado) : orden.items_of
   return (
     <div className={`bg-white overflow-hidden ${sinMarco ? '-mx-6 -my-5' : 'border border-feisen-borde rounded-xl'} ${cancelada ? 'opacity-70' : ''}`}>
@@ -414,7 +417,7 @@ function TarjetaOF({ orden, esAdmin, esComercial, filtroEstado, onEditar, onRegi
                       Registrar fabricación
                     </button>
                   )}
-                  {disponibleDespacho(item) > 0 && (
+                  {puedeEditar && disponibleDespacho(item) > 0 && (
                     <button onClick={() => onRegistrarEntrega(orden, item.id)}
                       className="text-xs bg-white border border-feisen-rojo text-feisen-rojo hover:bg-feisen-rojo-suave px-3 py-2 rounded-lg font-semibold transition-colors">
                       Registrar entrega
@@ -426,7 +429,7 @@ function TarjetaOF({ orden, esAdmin, esComercial, filtroEstado, onEditar, onRegi
                       ↩ Reversar fabricación
                     </button>
                   )}
-                  {(esAdmin || esComercial) && item.entregado > 0 && (
+                  {puedeEditar && item.entregado > 0 && (
                     <button onClick={() => onReversarEntrega(orden, item.id)}
                       className="text-[11px] text-feisen-gris-medio hover:text-feisen-rojo sm:text-right">
                       ↩ Reversar despacho
@@ -444,17 +447,17 @@ function TarjetaOF({ orden, esAdmin, esComercial, filtroEstado, onEditar, onRegi
         <span className="text-feisen-gris-medio">Creado por: {orden.creador?.nombre || '—'}</span>
         <span className="flex items-center gap-4">
           {!sinMarco && <button onClick={() => onVerDetalle(orden)} className="text-feisen-azul font-medium hover:underline">Ver detalle</button>}
-          {!cancelada && (
+          {puedeEditar && !cancelada && (
             <button onClick={() => onEditar(orden.id)} className="text-feisen-azul font-medium hover:underline flex items-center gap-1">
               <Edit2 size={12} /> Editar
             </button>
           )}
-          {cancelada && (
+          {puedeEditar && cancelada && (
             <button onClick={() => onReactivar(orden)} className="text-emerald-700 font-medium hover:underline flex items-center gap-1">
               <RotateCcw size={12} /> Reactivar
             </button>
           )}
-          {!cancelada && !completada && (
+          {puedeEditar && !cancelada && !completada && (
             <button onClick={() => onCancelar(orden)} className="text-feisen-gris-medio hover:text-feisen-rojo flex items-center gap-1">
               <Ban size={12} /> Cancelar OF
             </button>
@@ -466,7 +469,7 @@ function TarjetaOF({ orden, esAdmin, esComercial, filtroEstado, onEditar, onRegi
 }
 
 // Tarjeta compacta para la columna de OF ya despachadas
-function TarjetaDespachada({ orden, esAdmin, esComercial, onVerDetalle, onReversarEntrega, onEditar }) {
+function TarjetaDespachada({ orden, puedeEditarOF, onVerDetalle, onReversarEntrega, onEditar }) {
   let ultima = null
   orden.items_of.forEach(it => it.entregas?.forEach(e => { if (e.tipo !== 'reversion' && (!ultima || e.fecha > ultima)) ultima = e.fecha }))
   const aTiempo = ultima && ultima <= orden.fecha_promesa
@@ -489,8 +492,10 @@ function TarjetaDespachada({ orden, esAdmin, esComercial, onVerDetalle, onRevers
       </p>
       <div className="flex items-center gap-4 mt-2 text-xs">
         <button onClick={() => onVerDetalle(orden)} className="text-feisen-azul font-medium hover:underline">Ver detalle</button>
-        <button onClick={() => onEditar(orden.id)} className="text-feisen-azul font-medium hover:underline">Editar</button>
-        {(esAdmin || esComercial) && (
+        {puedeEditarOF(orden) && (
+          <button onClick={() => onEditar(orden.id)} className="text-feisen-azul font-medium hover:underline">Editar</button>
+        )}
+        {puedeEditarOF(orden) && (
           <button onClick={() => onReversarEntrega(orden, orden.items_of.find(it => it.entregado > 0)?.id)}
             className="text-feisen-gris-medio hover:text-feisen-rojo ml-auto">↩ Reversar despacho</button>
         )}

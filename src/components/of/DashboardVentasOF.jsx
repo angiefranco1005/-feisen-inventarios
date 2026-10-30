@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import Dashboard from './Dashboard'
 import DashboardVentas from './ventas/DashboardVentas'
 
@@ -8,8 +9,10 @@ const VISTAS = [
 ]
 
 // Dashboard del módulo Ventas: el análisis de las OF y el dashboard de ventas de Odoo.
-// La vista elegida se recuerda en este navegador.
+// La vista elegida se recuerda en este navegador. El de ventas (facturación de Odoo) es solo de
+// administración: ventas_puede_ver() en la base.
 export default function DashboardVentasOF() {
+  const { esAdmin } = useAuth()
   const [vista, setVista] = useState(() => {
     try { return localStorage.getItem('feisen-of-dashboard') === 'ventas' ? 'ventas' : 'pedidos' } catch { return 'pedidos' }
   })
@@ -18,6 +21,8 @@ export default function DashboardVentasOF() {
     setVista(v)
     try { localStorage.setItem('feisen-of-dashboard', v) } catch { /* sin almacenamiento */ }
   }
+
+  if (!esAdmin) return <div className="max-w-5xl mx-auto"><Dashboard /></div>
 
   return (
     <div className="max-w-5xl mx-auto space-y-5">

@@ -85,20 +85,23 @@ export function AuthProvider({ children }) {
   const esJefeMecanizados  = rolEfectivo === 'JEFE_MECANIZADOS'
   const esJefeEnsamble     = rolEfectivo === 'JEFE_ENSAMBLE'
   const esRRHH             = rolEfectivo === 'RRHH'
-  // Órdenes de fabricación: roles propios pendientes de definir (por ahora solo ADMIN entra al módulo)
-  const esComercial        = false
-  const esJefeArea         = false
-  const centroCosto        = perfil?.centro_costo_of || null
   // Nivel del rol efectivo en un módulo: 'no' | 've' | 'registra' | 'todo'
   const nivel              = modulo => nivelDe(permisos, rolEfectivo, modulo)
   const puede              = modulo => nivel(modulo) !== 'no'
+  // Órdenes de fabricación: quien tiene el módulo (Registra o Todo) usa la vista comercial y ve
+  // todas las OF; con Registra solo modifica las que creó. Jefe de área: pendiente de definir.
+  const nivelOF            = nivel('of')
+  const esComercial        = !esAdmin && (nivelOF === 'registra' || nivelOF === 'todo')
+  const esJefeArea         = false
+  const centroCosto        = perfil?.centro_costo_of || null
+  const puedeEditarOF      = orden => esAdmin || nivelOF === 'todo' || (nivelOF === 'registra' && orden?.creado_por === perfil?.id)
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esRRHH,
-      esComercial, esJefeArea, centroCosto,
+      esComercial, esJefeArea, centroCosto, puedeEditarOF,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
