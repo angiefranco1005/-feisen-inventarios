@@ -9,7 +9,10 @@ import { useAutoRefrescar } from './shared/useAutoRefrescar'
 import { RefreshCw } from '../shared/iconos'
 
 export default function ResumenPlaneacion() {
-  const { esAdmin } = useAuth()
+  const { esAdmin, esComercial } = useAuth()
+  // Ver las OF de un producto (con su cliente): admin y quien tiene OF con Registra o Todo (Leidy, asesores).
+  // Jefes de área y despachos ven el resumen sin clientes.
+  const veDetalle = esAdmin || esComercial
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)
   const [actualizando, setActualizando] = useState(false)
@@ -120,8 +123,8 @@ export default function ResumenPlaneacion() {
               const g = grupos[prod]
               return (
                 <tr key={prod}
-                  onClick={esAdmin ? () => setProductoSeleccionado(prod) : undefined}
-                  className={`border-b border-gray-100 ${esAdmin ? 'cursor-pointer hover:bg-feisen-gris' : ''}`}>
+                  onClick={veDetalle ? () => setProductoSeleccionado(prod) : undefined}
+                  className={`border-b border-gray-100 ${veDetalle ? 'cursor-pointer hover:bg-feisen-gris' : ''}`}>
                   <td className="py-3 px-4 font-medium text-feisen-gris-oscuro">{prod}</td>
                   <td className="px-2 font-bold text-feisen-azul">{g.pendienteFabricar} uds</td>
                   <td className="px-2 font-bold text-feisen-azul">{g.pendienteDespachar} uds</td>
@@ -134,7 +137,7 @@ export default function ResumenPlaneacion() {
         </table>
       </div>
 
-      {esAdmin && productoSeleccionado && grupos[productoSeleccionado] && (
+      {veDetalle && productoSeleccionado && grupos[productoSeleccionado] && (
         <Modal titulo={`OF relacionadas — ${productoSeleccionado}`} onCerrar={() => setProductoSeleccionado(null)} ancho="sm:max-w-2xl">
           <div className="space-y-3">
             <p className="text-sm text-feisen-gris-medio">
