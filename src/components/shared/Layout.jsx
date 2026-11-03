@@ -226,7 +226,7 @@ const BADGE = {
 }
 
 export default function Layout({ children }) {
-  const { perfil, logout, esAdmin, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview, puedeRuta } = useAuth()
+  const { perfil, logout, esAdmin, esComercial, esLogistica, esAlmacenista, esOperario, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esConsultor, esRRHH, esAdminReal, rolPreview, setRolPreview, puedeRuta } = useAuth()
   const location  = useLocation()
   const navigate  = useNavigate()
   const [menuAbierto,   setMenuAbierto]   = useState(false)
@@ -266,12 +266,15 @@ export default function Layout({ children }) {
   const permitido = item => item.to === '/dashboard' || puedeRuta(item.to)
   // Órdenes de fabricación a la mano para quien no es admin (jefes de área, comerciales, despachos):
   // va de segundo en el menú y en la barra inferior del celular, en vez de quedar al final en "Ventas".
-  const itemOF = !esAdmin && puedeRuta('/of/ordenes') ? { to: '/of/ordenes', icon: Files, label: 'Órdenes de fabricación', corto: 'OF' } : null
+  // Asesores y gerente de ventas no: para ellos Ventas es su módulo principal y va completo, primero.
+  const itemOF = !esAdmin && !esComercial && puedeRuta('/of/ordenes') ? { to: '/of/ordenes', icon: Files, label: 'Órdenes de fabricación', corto: 'OF' } : null
   const propios = navBase.filter(permitido)
   if (itemOF && !propios.some(i => i.to === itemOF.to)) propios.splice(propios[0]?.to === '/dashboard' ? 1 : 0, 0, itemOF)
   const extras = esAdmin ? [] : NAV_ADMIN
     .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))
     .map(i => ({ to: i.to, icon: i.icon, label: i.label, grupo: i.modulo }))
+  // Ventas: Inicio, luego el grupo Ventas y después Inventarios (solo su bodega de motores)
+  if (esComercial) extras.sort((a, b) => (b.grupo === 'Ventas') - (a.grupo === 'Ventas'))
   const conInicio = !esAdmin && !esRRHH && !propios.some(i => i.to === '/dashboard')
   const navItems = [...(conInicio ? [{ to: '/dashboard', icon: LayoutDashboard, label: 'Inicio' }] : []), ...propios, ...extras]
 

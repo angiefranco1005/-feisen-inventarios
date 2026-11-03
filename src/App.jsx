@@ -6,6 +6,7 @@ import Layout from './components/shared/Layout'
 import Spinner from './components/shared/Spinner'
 
 import InicioGerencia     from './components/admin/inicio/InicioGerencia'
+import InicioVentas       from './components/of/InicioVentas'
 import DashboardLogistica from './components/logistica/Dashboard'
 import DashboardConsultor from './components/consultor/Dashboard'
 import GestionProductos   from './components/productos/GestionProductos'
@@ -83,7 +84,7 @@ function Cargando() {
 }
 
 function AppRoutes() {
-  const { session, cargando, rolEfectivo, puede, puedeRuta } = useAuth()
+  const { session, cargando, rolEfectivo, puede, puedeRuta, esComercial } = useAuth()
 
   if (cargando) return <Cargando />
 
@@ -131,6 +132,7 @@ function AppRoutes() {
   const inicio = rolEfectivo === 'ADMIN' ? <Layout><InicioGerencia /></Layout>
     : rolEfectivo === 'CONSULTOR' ? <Layout><DashboardConsultor /></Layout>
     : rolEfectivo === 'RRHH' && puede('rrhh') ? <Navigate to="/rrhh/empleados" replace />
+    : esComercial ? <Layout><InicioVentas /></Layout>
     : puede('movimientos') ? <Layout><DashboardLogistica /></Layout>
     : primera ? <Navigate to={primera} replace />
     : <Layout><SinModulos /></Layout>
