@@ -2002,3 +2002,10 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 ## 2026-11-03 · Inventario físico: % de diferencia por conteo
 - Cada conteo muestra **contados**, **con diferencia** y el **% con diferencia sobre lo contado** (no sobre toda la bodega): en la lista (debajo de la fecha), en el panel de detalle (3 tarjetas) y mientras se cuenta (tarjeta "Con diferencia" y barra de abajo). Función `resumenConteo` en InventarioFisico.jsx; lo que quedó sin cantidad no entra, y la diferencia se redondea a 3 decimales como en el resto de la pantalla.
 - La lista trae `inventario_fisico_items` de los 100 conteos visibles en una consulta aparte (pocas miles de filas); sin tablas ni vistas nuevas.
+
+## 2026-11-03 · Pedidos con varias OC y compra directa por línea
+- Un pedido ya podía tener varias OC (`ordenes_compra.pedido_id`, una por proveedor; el modal solo propone lo que falta). En la base hay varios así: PED-0214, PED-0193, PED-0179, PED-0151, PED-0130 (4 OC). Lo que faltaba era verlo y poder mezclar con compra directa.
+- Columna nueva `pedido_items.cantidad_compra_directa` (migración `supabase/migraciones/2026-11-03_pedido_items_compra_directa.sql`, OK de Angie). Falta por comprar de una línea = cantidad − máx(en OC + compra directa, recibido). Solo se calcula si el pedido tiene alguna OC de la app o compra directa por línea (los viejos con texto libre en `numero_oc` no dicen qué cubre qué) y no está pendiente, recibido ni cerrado (`faltaComprar` en ListaPedidos.jsx).
+- Ficha: aviso «Falta comprar N de M productos» y botón «Otra OC» junto a Recibir. Detalle: lo mismo + «Compra directa», y por línea «en OC · compra directa · sin comprar». Menú ⋯: «Compra directa de lo que falta».
+- Compra directa: ahora pide qué líneas (todas marcadas); guarda la cantidad en cada línea, suma «Compra directa · quién» a `numero_oc` en vez de reemplazarlo y deja historial `compra_directa`. Desde pendiente sigue pasando a En camino.
+- «Generar OC» descuenta también lo comprado directo y, si el pedido ya tiene algo cubierto, viene con las líneas que faltan ya marcadas.

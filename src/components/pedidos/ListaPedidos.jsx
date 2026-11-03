@@ -6,7 +6,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, FileText, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from '../shared/iconos'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from '../shared/iconos'
 import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
@@ -35,6 +35,7 @@ const HISTORIAL_LABELS = {
   editado:                 'Pedido editado',
   en_transito:             'Pasó a En camino',
   oc_generada:             'Orden de compra generada',
+  compra_directa:          'Compra directa',
   recibido:                'Recibido',
   parcialmente_recibido:   'Recibido parcialmente',
   cerrado:                 'Pedido cerrado',
@@ -182,9 +183,27 @@ function estadoPedido(p) {
 }
 const TONO_TEXTO = { rojo: 'text-feisen-rojo', verde: 'text-emerald-700', '': 'text-feisen-texto' }
 
+// Un pedido puede tener varias OC (una por proveedor) y además compra directa de algunas
+// líneas. Lo que falta por comprar de cada línea = pedido − (en OC + compra directa), sin
+// contar lo que ya llegó. Solo se calcula si el pedido ya tiene alguna OC o compra directa
+// por línea: en los viejos (texto libre en numero_oc) no se sabe qué cubre qué.
+function lineasSinComprar(p, cobertura) {
+  return (p.pedido_items || [])
+    .map(it => ({ it, falta: Number((it.cantidad - Math.max((cobertura?.[it.id] || 0) + (it.cantidad_compra_directa || 0), it.cantidad_recibida || 0)).toFixed(3)) }))
+    .filter(x => x.falta > 0)
+}
+function faltaComprar(p, ordenes, cobertura) {
+  if (p.estado === 'pendiente' || p.estado === 'cerrado' || p.estado === 'recibido') return []
+  if (!ordenes?.length && !(p.pedido_items || []).some(it => it.cantidad_compra_directa > 0)) return []
+  return lineasSinComprar(p, cobertura)
+}
+
 // Cómo se compró: OC de la app, compra directa o el texto libre de antes ("NO HAY OC COMPRA EFRAIN")
 function textoCompra(p, ordenes) {
-  if (ordenes?.length) return ordenes.map(o => o.numero).join(', ')
+  if (ordenes?.length) {
+    const directa = /compra directa · ([^,]+)/i.exec(p.numero_oc || '')
+    return ordenes.map(o => o.numero).join(', ') + (directa ? ` + compra ${directa[1].trim()}` : '')
+  }
   const t = (p.numero_oc || '').trim()
   if (!t) return null
   if (/^compra directa/i.test(t)) return t.replace(/^compra directa · /i, 'compra ')
@@ -195,13 +214,14 @@ function textoCompra(p, ordenes) {
 const AREA_NOMBRE = { FUNDICION: 'Fundición', PRODUCCION: 'Producción', ALMACEN: 'Almacén', MECANIZADOS: 'Mecanizados', LOGISTICA: 'Logística', INNOVACION: 'Innovación', ADMINISTRACION: 'Administración', MANTENIMIENTO: 'Mantenimiento' }
 const nombreArea = a => a ? (AREA_NOMBRE[a] || a.charAt(0) + a.slice(1).toLowerCase()) : ''
 
-function TarjetaPedido({ p, permisos, ordenesDelPedido, onAbrir, onAccion }) {
+function TarjetaPedido({ p, permisos, ordenesDelPedido, coberturaPorItem, onAbrir, onAccion }) {
   const Ico = ICONO_ETAPA[p.estado] || ShoppingCart
   const est = estadoPedido(p)
   const its = p.pedido_items || []
   const que = its.length === 0 ? 'Pedido sin productos' : its.length === 1 ? its[0].descripcion : `${its[0].descripcion} y ${its.length - 1} más`
   const compra = textoCompra(p, ordenesDelPedido)
   const principal = accionPrincipal(p, permisos)
+  const falta = faltaComprar(p, ordenesDelPedido, coberturaPorItem)
   return (
     <div className="bg-white rounded-xl border border-feisen-borde hover:border-gray-300 transition-colors grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-3 gap-y-2.5 items-center p-3 pl-3.5">
       <button type="button" onClick={onAbrir} aria-label={`Ver ${p.numero}`}
@@ -218,6 +238,9 @@ function TarjetaPedido({ p, permisos, ordenesDelPedido, onAbrir, onAccion }) {
           {' · '}{p.profiles?.nombre || p.solicitante_nombre || '—'}{p.area ? ` · ${nombreArea(p.area)}` : ''}
           {compra ? ` · ${compra}` : ''}
         </span>
+        {falta.length > 0 && (
+          <span className="block text-xs font-medium text-amber-700">Falta comprar {falta.length} de {its.length} producto{its.length !== 1 ? 's' : ''}</span>
+        )}
       </button>
       <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-3 border-t sm:border-0 border-feisen-borde-suave pt-2.5 sm:pt-0">
         <button type="button" onClick={onAbrir} className="text-left sm:text-right min-w-0">
@@ -225,13 +248,19 @@ function TarjetaPedido({ p, permisos, ordenesDelPedido, onAbrir, onAccion }) {
           <span className="block text-xs text-feisen-texto-2 truncate max-w-[14rem]">{est.detalle}</span>
         </button>
         <span className="flex items-center gap-1 shrink-0">
+          {falta.length > 0 && permisos.generarOC && (
+            <button type="button" onClick={() => onAccion('oc', p)}
+              className="border border-feisen-azul text-feisen-azul bg-white rounded-lg px-3 min-h-[38px] text-sm font-semibold hover:bg-feisen-azul-suave active:scale-[.98] transition">
+              Otra OC
+            </button>
+          )}
           {principal && (
             <button type="button" onClick={() => onAccion(principal.clave, p)}
               className="bg-feisen-azul text-white rounded-lg px-3.5 min-h-[38px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
               {principal.texto}
             </button>
           )}
-          <MenuAcciones opciones={opcionesMenu(p, permisos)} onElegir={clave => clave === 'ver' ? onAbrir() : onAccion(clave, p)} etiqueta={`Más acciones de ${p.numero}`} />
+          <MenuAcciones opciones={opcionesMenu(p, permisos, falta)} onElegir={clave => clave === 'ver' ? onAbrir() : onAccion(clave, p)} etiqueta={`Más acciones de ${p.numero}`} />
         </span>
       </div>
     </div>
@@ -244,12 +273,13 @@ function accionPrincipal(p, permisos) {
   if ((p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && permisos.recibir) return { clave: 'recibir', texto: 'Recibir' }
   return null
 }
-function opcionesMenu(p, permisos) {
+function opcionesMenu(p, permisos, falta = []) {
   const abierto = p.estado !== 'cerrado' && p.estado !== 'recibido'
   return [
     { clave: 'ver', texto: 'Ver detalle e historial' },
     permisos.editar && p.estado === 'pendiente' && { clave: 'editar', texto: 'Editar pedido' },
     permisos.transito && p.estado === 'pendiente' && { clave: 'directa', texto: 'Compra directa (sin OC)' },
+    permisos.transito && falta.length > 0 && { clave: 'directa', texto: 'Compra directa de lo que falta' },
     permisos.generarOC && p.estado !== 'pendiente' && abierto && (p.pedido_items?.length > 0) && { clave: 'oc', texto: 'Generar otra orden de compra' },
     permisos.cerrar && p.estado !== 'cerrado' && { clave: 'cerrar', texto: 'Cerrar pedido…', separado: true },
     permisos.eliminar && { clave: 'eliminar', texto: 'Eliminar…', peligro: true, separado: !(permisos.cerrar && p.estado !== 'cerrado') },
@@ -296,6 +326,7 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
   const est = estadoPedido(p)
   const principal = accionPrincipal(p, permisos)
   const compra = textoCompra(p, ordenesDelPedido)
+  const porComprar = faltaComprar(p, ordenesDelPedido, coberturaPorItem)
   const fondo = est.tono === 'rojo' ? 'bg-feisen-rojo-suave' : est.tono === 'verde' ? 'bg-emerald-50' : 'bg-feisen-fondo'
   const titulo = h => <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">{h}</h4>
   return (
@@ -311,10 +342,25 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
       <div className={`rounded-xl px-4 py-3 ${fondo}`}>
         <p className={`text-base font-semibold ${TONO_TEXTO[est.tono]}`}>{est.titulo}</p>
         <p className="text-sm text-feisen-texto-2">{est.detalle}{compra ? ` · ${compra}` : ''}</p>
+        {porComprar.length > 0 && (
+          <p className="text-sm font-medium text-amber-700 mt-0.5">Falta comprar {porComprar.length} de {(p.pedido_items || []).length} productos: genera otra OC o márcalos como compra directa.</p>
+        )}
       </div>
 
-      {(principal || (permisos.transito && p.estado === 'pendiente')) && (
+      {(principal || (permisos.transito && p.estado === 'pendiente') || porComprar.length > 0) && (
         <div className="flex flex-wrap gap-2">
+          {porComprar.length > 0 && permisos.generarOC && (
+            <button type="button" onClick={() => onAccion('oc', p)}
+              className="border border-feisen-azul text-feisen-azul bg-white rounded-lg px-4 min-h-[42px] text-sm font-semibold hover:bg-feisen-azul-suave">
+              Otra OC
+            </button>
+          )}
+          {porComprar.length > 0 && permisos.transito && (
+            <button type="button" onClick={() => onAccion('directa', p)}
+              className="border border-feisen-borde rounded-lg px-4 min-h-[42px] text-sm font-semibold text-feisen-texto hover:bg-feisen-fondo">
+              Compra directa
+            </button>
+          )}
           {principal && (
             <button type="button" onClick={() => onAccion(principal.clave, p)}
               className="bg-feisen-azul text-white rounded-lg px-4 min-h-[42px] text-sm font-semibold hover:opacity-90 active:scale-[.98] transition">
@@ -337,6 +383,8 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
             const rec = it.cantidad_recibida || 0
             const falta = it.cantidad - rec
             const cubiertoOC = coberturaPorItem?.[it.id] || 0
+            const directa = it.cantidad_compra_directa || 0
+            const sinComprar = porComprar.find(x => x.it.id === it.id)?.falta || 0
             const llego = p.estado === 'parcialmente_recibido' || p.estado === 'recibido' || p.estado === 'cerrado'
             return (
               <li key={it.id} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2.5 text-sm">
@@ -344,6 +392,12 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
                   <span className="block text-feisen-texto break-words">{it.descripcion}</span>
                   {cubiertoOC > 0 && p.estado === 'pendiente' && (
                     <span className="block text-xs text-feisen-texto-2">En OC: {cubiertoOC}{cubiertoOC < it.cantidad ? ` · falta pedir ${it.cantidad - cubiertoOC}` : ''}</span>
+                  )}
+                  {p.estado !== 'pendiente' && (cubiertoOC > 0 || directa > 0 || sinComprar > 0) && (
+                    <span className="block text-xs text-feisen-texto-2">
+                      {[cubiertoOC > 0 && `en OC: ${cubiertoOC}`, directa > 0 && `compra directa: ${directa}`].filter(Boolean).join(' · ')}
+                      {sinComprar > 0 && <span className="text-amber-700 font-medium">{cubiertoOC > 0 || directa > 0 ? ' · ' : ''}sin comprar: {sinComprar}</span>}
+                    </span>
                   )}
                 </span>
                 <span className="text-right whitespace-nowrap tabular-nums">
@@ -674,16 +728,30 @@ export default function ListaPedidos() {
   async function marcarTransito(e) {
     e.preventDefault()
     if (!formTransito.numero_oc) { return }
-    // Compra directa (sin OC de la app): quién compra queda en numero_oc, como se venía escribiendo
+    const p = modalTransito
+    const elegidas = (p.lineas || []).filter(x => formTransito.sel?.has(x.it.id))
+    if (p.lineas?.length && !elegidas.length) { setMsg({ tipo: 'error', texto: 'Marca al menos un producto.' }); return }
+    // Compra directa (sin OC de la app): quién compra queda en numero_oc, como se venía escribiendo.
+    // Si el pedido ya tenía OC u otra compra, se suma al texto en vez de reemplazarlo.
     const quien = formTransito.numero_oc.trim()
+    const texto = /^oc/i.test(quien) ? quien : `Compra directa · ${quien}`
+    const previo = (p.numero_oc || '').trim()
+    // Cada línea guarda cuánto se compró directo, para saber qué falta (y no volver a meterlo en una OC)
+    for (const { it, falta } of elegidas) {
+      const { error } = await supabase.from('pedido_items')
+        .update({ cantidad_compra_directa: (it.cantidad_compra_directa || 0) + falta }).eq('id', it.id)
+      if (error) { setMsg({ tipo: 'error', texto: `No se pudo marcar "${it.descripcion}": ${error.message}` }); return }
+    }
     const { error } = await supabase.from('pedidos').update({
-      estado: 'en_transito',
-      numero_oc: /^oc/i.test(quien) ? quien : `Compra directa · ${quien}`,
-      fecha_estimada_llegada: formTransito.fecha_estimada || null,
-    }).eq('id', modalTransito.id)
+      ...(p.estado === 'pendiente' ? { estado: 'en_transito' } : {}),
+      numero_oc: previo && !previo.includes(texto) ? `${previo}, ${texto}` : (previo || texto),
+      ...(formTransito.fecha_estimada ? { fecha_estimada_llegada: formTransito.fecha_estimada } : {}),
+    }).eq('id', p.id)
     if (error) { setMsg({ tipo: 'error', texto: 'No se pudo pasar a En camino: ' + error.message }); return }
-    await registrarHistorial(modalTransito.id, 'en_transito', `Compra directa: ${quien}`)
-    avisar(`${modalTransito.numero} va en camino`)
+    const todas = elegidas.length === (p.pedido_items || []).length
+    await registrarHistorial(p.id, p.estado === 'pendiente' ? 'en_transito' : 'compra_directa',
+      `Compra directa: ${quien}${todas ? '' : ` · ${elegidas.map(x => `${x.it.descripcion} (${x.falta})`).join(', ')}`}`)
+    avisar(p.estado === 'pendiente' ? `${p.numero} va en camino` : `Compra directa anotada en ${p.numero}`)
     setModalTransito(null)
     setFormTransito({ numero_oc: '', fecha_estimada: '' })
     cargar()
@@ -919,7 +987,11 @@ export default function ListaPedidos() {
   function ejecutarAccion(clave, p) {
     if (clave === 'oc')       return setModalGenerarOC(p)
     if (clave === 'recibir')  return iniciarRecibido(p, true)
-    if (clave === 'directa')  { setFormTransito({ numero_oc: '', fecha_estimada: '' }); return setModalTransito(p) }
+    if (clave === 'directa')  {
+      const lineas = lineasSinComprar(p, coberturaPorItem)
+      setFormTransito({ numero_oc: '', fecha_estimada: p.fecha_estimada_llegada || '', sel: new Set(lineas.map(x => x.it.id)) })
+      return setModalTransito({ ...p, lineas })
+    }
     if (clave === 'editar')   return abrirEditar(p)
     if (clave === 'cerrar')   { setMotivoCierre(''); return setConfirmCerrar(p) }
     if (clave === 'eliminar') return setConfirmElim(p)
@@ -1181,7 +1253,7 @@ export default function ListaPedidos() {
             key={p.id}
             p={p}
             permisos={permisosDe(p)}
-            ordenesDelPedido={ocPorPedido[p.id] || []}
+            ordenesDelPedido={ocPorPedido[p.id] || []} coberturaPorItem={coberturaPorItem}
             onAbrir={() => abrirDetalle(p.id)}
             onAccion={ejecutarAccion}
           />
@@ -1404,9 +1476,27 @@ export default function ListaPedidos() {
       {modalTransito && (
         <Modal titulo={`Compra directa · ${modalTransito.numero}`} onCerrar={() => setModalTransito(null)}>
           <form onSubmit={marcarTransito} className="space-y-4">
+            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
             <p className="text-sm text-feisen-texto-2">
-              Para lo que se compra <b>sin orden de compra</b>. Si hay OC, genérala con el ícono <FileText size={13} className="inline -mt-0.5" /> del pedido y pasa sola a En camino.
+              Para lo que se compra <b>sin orden de compra</b>. Lo que va con OC se saca con «Generar OC» u «Otra OC»: un pedido puede tener varias.
             </p>
+            {modalTransito.lineas?.length > 0 && (
+              <fieldset>
+                <legend className="text-sm font-medium text-gray-700 mb-1">¿Qué se compra directo?</legend>
+                <ul className="border border-feisen-borde rounded-xl divide-y divide-feisen-borde-suave max-h-56 overflow-y-auto">
+                  {modalTransito.lineas.map(({ it, falta }) => (
+                    <li key={it.id}>
+                      <label className="flex items-center gap-3 px-3 py-2.5 text-sm cursor-pointer">
+                        <input type="checkbox" className="w-4 h-4 accent-feisen-azul" checked={formTransito.sel?.has(it.id) || false}
+                          onChange={e => setFormTransito(f => { const sel = new Set(f.sel); e.target.checked ? sel.add(it.id) : sel.delete(it.id); return { ...f, sel } })} />
+                        <span className="flex-1 min-w-0 text-feisen-texto break-words">{it.descripcion}</span>
+                        <span className="tabular-nums text-feisen-texto-2 whitespace-nowrap">{falta} {it.unidad}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            )}
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">¿Quién compra? *</label>
               <input required value={formTransito.numero_oc} onChange={e => setFormTransito(f => ({ ...f, numero_oc: e.target.value }))}
@@ -1422,7 +1512,7 @@ export default function ListaPedidos() {
               <button type="button" onClick={() => setModalTransito(null)}
                 className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
               <button type="submit"
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">Pasar a En camino</button>
+                className="flex-1 bg-feisen-azul text-white rounded-xl py-2.5 text-sm font-semibold hover:opacity-90">{modalTransito.estado === 'pendiente' ? 'Pasar a En camino' : 'Guardar'}</button>
             </div>
           </form>
         </Modal>

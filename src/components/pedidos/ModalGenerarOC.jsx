@@ -58,10 +58,11 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
 
       const sel = {}
       itemsPedido.forEach(it => {
-        const cubierto  = coberturaPorItem[it.id] || 0
+        // Lo cubierto por otras OC o por compra directa ya no se vuelve a pedir
+        const cubierto  = (coberturaPorItem[it.id] || 0) + (it.cantidad_compra_directa || 0)
         const pendiente = Math.max(0, it.cantidad - cubierto)
         sel[it.id] = {
-          incluir:  false,
+          incluir:  cubierto > 0 && pendiente > 0, // "otra OC": ya vienen marcadas las líneas que faltan
           cantidad: pendiente > 0 ? pendiente : it.cantidad,
           precio:   pMap[it.item_id] || 0,
         }
@@ -96,10 +97,10 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
     for (const it of lineasIncluidas) {
       const cant = parseFloat(seleccion[it.id]?.cantidad)
       if (!cant || cant <= 0) { setMsg({ tipo: 'error', texto: `Cantidad inválida para "${it.descripcion}".` }); return }
-      const cubierto  = coberturaPorItem[it.id] || 0
+      const cubierto  = (coberturaPorItem[it.id] || 0) + (it.cantidad_compra_directa || 0)
       const pendiente = it.cantidad - cubierto
       if (cant > pendiente + 0.001) {
-        setMsg({ tipo: 'error', texto: `"${it.descripcion}": solo quedan ${pendiente} ${it.unidad} sin cubrir por otra orden.` })
+        setMsg({ tipo: 'error', texto: `"${it.descripcion}": solo quedan ${pendiente} ${it.unidad} sin cubrir por otra orden o compra directa.` })
         return
       }
     }
