@@ -5,6 +5,7 @@ import { dibujarBarrasVertical, dibujarBarrasHorizontal, dibujarDona } from './s
 import { CENTRO_NOMBRE, estadoClase, ofTotalmenteDespachada } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
 import { RefreshCw } from '../shared/iconos'
+import DemorasOF from './DemorasOF'
 
 const COLORES = ['#064794', '#B4271D', '#4B5563', '#5b8fce', '#d9807a', '#94a3ad']
 
@@ -171,6 +172,8 @@ export default function Dashboard() {
         <TarjetaMetrica valor={canceladas} label="OF canceladas" />
       </div>
       <p className="text-xs text-feisen-gris-medio -mt-3">Las métricas y gráficos de abajo no incluyen las OF canceladas.</p>
+
+      <DemorasOF ordenes={vigentes} />
 
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <h2 className="font-semibold text-feisen-gris-oscuro mb-4">Tiempos de entrega (promedio, sobre OF ya despachadas)</h2>
