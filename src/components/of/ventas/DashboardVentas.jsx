@@ -47,7 +47,8 @@ function armarSnapshot(filas) {
 }
 
 export default function DashboardVentas() {
-  const { esAdmin } = useAuth()
+  // «Actualizar desde Odoo»: quien ve el dashboard (ADMIN y gerente de ventas; ventas_puede_ver() en la función)
+  const { veVentasOdoo } = useAuth()
   const root = useRef(null)
   const api = useRef(null)
   const [estado, setEstado] = useState({ cargando: true, error: null, base: null, snapshot: null })
@@ -66,7 +67,7 @@ export default function DashboardVentas() {
     api.current = montarDashboardVentas(root.current, {
       base: estado.base,
       snapshot: estado.snapshot,
-      actualizarOdoo: esAdmin ? async () => {
+      actualizarOdoo: veVentasOdoo ? async () => {
         const { data, error } = await supabase.functions.invoke('ventas-odoo', { body: { accion: 'actualizar' } })
         if (error) {
           const cuerpo = await error.context?.json?.().catch(() => null)
@@ -79,7 +80,7 @@ export default function DashboardVentas() {
       },
     })
     return () => { api.current?.desmontar(); api.current = null }
-  }, [estado.base, estado.snapshot, esAdmin])
+  }, [estado.base, estado.snapshot, veVentasOdoo])
 
   if (estado.cargando) return <Spinner texto="Cargando ventas..." />
   if (estado.error) return <Alerta tipo="error" mensaje={estado.error} />
