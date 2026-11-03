@@ -101,13 +101,15 @@ export function AuthProvider({ children }) {
   const puedeEditarOF      = orden => esAdmin || nivelOF === 'todo' || (nivelOF === 'registra' && orden?.creado_por === perfil?.id)
   // Despachos: con Registra o Todo se registran y reversan entregas de cualquier OF (Fabián despacha las de todos)
   const puedeDespacharOF   = esAdmin || esComercial
+  // Dashboard de ventas (facturación de Odoo): administración y la gerente de ventas; igual que ventas_puede_ver()
+  const veVentasOdoo       = esAdmin || rolEfectivo === 'JEFE_VENTAS'
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esRRHH,
-      esComercial, ofDespacho, esJefeArea, centroCosto, puedeEditarOF, puedeDespacharOF,
+      esComercial, ofDespacho, esJefeArea, centroCosto, puedeEditarOF, puedeDespacharOF, veVentasOdoo,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
