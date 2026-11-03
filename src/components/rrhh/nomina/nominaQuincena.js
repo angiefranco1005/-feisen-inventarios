@@ -4,7 +4,7 @@
 import { supabase } from '../../../lib/supabase'
 import { BUCKET_RRHH } from '../catalogosRRHH'
 import { fetchAllPages } from '../../../utils/fetchAllPages'
-import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales, valoresHora, valorDiaBase } from './nominaCalculo'
+import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales, valoresHora, valorDiaBase, leerArchivoHuellero, calcularHuellero, emparejarAlias } from './nominaCalculo'
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
@@ -53,6 +53,44 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     observaciones: ausente > 0 ? `${ausente} día${ausente === 1 ? '' : 's'} laboral${ausente === 1 ? '' : 'es'} con novedad en la quincena.` : null,
   }
   return { liq, piezas: [] }
+}
+
+// ─── Huellero en la liquidación ──────────────────────────────────────────────
+// Lo que se guarda en liquidacion.huellero: horas sugeridas (RRHH las aplica tras
+// verificar la autorización) y días hábiles con marcación.
+export const sugerenciaHuellero = (r, archivo) => ({
+  nombre_huellero: r.nombre, horas_extra: r.horas_extra, horas_recargo: r.horas_recargo,
+  dias_trabajados: r.dias_trabajados, incompletos: r.incompletos, dias: r.dias, archivo, calculado_en: new Date().toISOString(),
+})
+
+// Cambios a una liquidación por el huellero. A los de "al día" los días se les
+// toman del huellero (días hábiles con marcación), no del calendario (pedido de
+// Angie, 2026-11-03). Las horas siguen solo como sugerencia.
+export function cambiosPorHuellero(liq, r, archivo, piezas = []) {
+  const cambios = { huellero: sugerenciaHuellero(r, archivo) }
+  if (liq.modalidad === 'dia') {
+    cambios.dias = r.dias_trabajados
+    Object.assign(cambios, calcularTotales({ ...liq, ...cambios }, piezas))
+  }
+  return cambios
+}
+
+// Resultado del archivo del huellero ya guardado en la quincena, por empleado.
+// Sirve para quien se agrega a la quincena después de cargar el archivo.
+export async function huelleroDeQuincena(periodo, empleados) {
+  if (!periodo?.huellero_path) return new Map()
+  const { data: blob, error } = await supabase.storage.from(BUCKET_RRHH).download(periodo.huellero_path)
+  if (error) throw new Error(`No se pudo leer el huellero de la quincena: ${error.message}`)
+  const { marcas } = leerArchivoHuellero(new Uint8Array(await blob.arrayBuffer()))
+  const porPersona = calcularHuellero(marcas, periodo.fecha_inicio, periodo.fecha_fin)
+  const { data: alias } = await supabase.from('nomina_alias').select('alias, empleado_id')
+  const mapa = new Map((alias || []).map(a => [a.alias, a.empleado_id]))
+  const res = new Map()
+  for (const r of porPersona) {
+    const id = emparejarAlias(r.alias, empleados, mapa)
+    if (id) res.set(id, r)
+  }
+  return res
 }
 
 // Crea la quincena con una liquidación sugerida por cada colaborador activo

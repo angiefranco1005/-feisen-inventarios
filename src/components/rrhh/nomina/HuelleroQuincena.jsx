@@ -5,20 +5,14 @@ import { Fingerprint, Upload, ExternalLink } from '../../shared/iconos'
 import * as E from '../estilos'
 import { BUCKET_RRHH, nombreCompleto, abrirArchivoRRHH, formatoFecha } from '../catalogosRRHH'
 import { leerArchivoHuellero, calcularHuellero, emparejarAlias, HORARIO } from './nominaCalculo'
-import { quincenaDeFecha, nombreQuincena } from './nominaQuincena'
+import { quincenaDeFecha, nombreQuincena, cambiosPorHuellero } from './nominaQuincena'
 
 const limpiarNombre = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_')
 const fmtH = (h) => Number(h || 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })
 
-// Sugerencia que se guarda en la liquidación (no cambia lo que se paga)
-const sugerencia = (r, archivo) => ({
-  nombre_huellero: r.nombre, horas_extra: r.horas_extra, horas_recargo: r.horas_recargo,
-  dias_trabajados: r.dias_trabajados, incompletos: r.incompletos, dias: r.dias, archivo, calculado_en: new Date().toISOString(),
-})
-
-// Carga del archivo del huellero de la quincena: calcula horas extra y días
-// por persona y los deja como SUGERIDOS en cada liquidación.
-export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, onActualizado, onMoverQuincena }) {
+// Carga del archivo del huellero de la quincena: calcula horas extra y días por
+// persona. Las horas quedan SUGERIDAS; a los de "al día" se les ponen los días.
+export default function HuelleroQuincena({ periodo, liqs, piezas = [], empleados, cerrada, onActualizado, onMoverQuincena }) {
   const input = useRef(null)
   const [procesando, setProcesando] = useState(false)
   const [resultado,  setResultado]  = useState(null)   // { sinVincular[], fueraQuincena[], aplicadas, ilegibles, porAlias }
@@ -35,6 +29,14 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
     const file = ev.target.files?.[0]
     ev.target.value = ''
     if (file) procesar(file)
+  }
+
+  // Vuelve a pasar el archivo ya cargado (p. ej. a gente agregada después a la quincena)
+  async function reaplicar() {
+    setProcesando(true); setMsg(null)
+    const { data: blob, error } = await supabase.storage.from(BUCKET_RRHH).download(periodo.huellero_path)
+    if (error) { setMsg({ tipo: 'error', texto: `No se pudo leer el archivo: ${error.message}` }); setProcesando(false); return }
+    procesar(new File([blob], periodo.huellero_nombre || 'huellero.xlsx'))
   }
 
   async function moverYCargar() {
@@ -90,7 +92,8 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
       if (!empId) { sinVincular.push(r); continue }
       const liq = liqPorEmp.get(empId)
       if (!liq) { fueraQuincena.push({ ...r, empId }); continue }
-      const { error } = await supabase.from('nomina_liquidaciones').update({ huellero: sugerencia(r, archivo) }).eq('id', liq.id)
+      const { error } = await supabase.from('nomina_liquidaciones')
+        .update(cambiosPorHuellero(liq, r, archivo, piezas.filter(p => p.liquidacion_id === liq.id))).eq('id', liq.id)
       if (error) throw new Error(error.message)
       usadas.add(liq.id); aplicadas++
     }
@@ -110,7 +113,7 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
     const liq = liqs.find(l => l.empleado_id === empleadoId)
     if (liq) {
       const { error: e2 } = await supabase.from('nomina_liquidaciones')
-        .update({ huellero: sugerencia(r, periodo.huellero_nombre) }).eq('id', liq.id)
+        .update(cambiosPorHuellero(liq, r, periodo.huellero_nombre, piezas.filter(p => p.liquidacion_id === liq.id))).eq('id', liq.id)
       if (e2) { setMsg({ tipo: 'error', texto: e2.message }); return }
     }
     setResultado(res => ({
@@ -160,12 +163,16 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
               className="inline-flex items-center gap-1 text-feisen-texto hover:text-feisen-azul hover:underline">
               {periodo.huellero_nombre} <ExternalLink size={12} strokeWidth={1.8} />
             </button>
-            {' · '}{conSugerencia} persona{conSugerencia === 1 ? '' : 's'} con horas sugeridas
+            {' · '}{conSugerencia} de {liqs.length} persona{liqs.length === 1 ? '' : 's'} con huellero
+            {!cerrada && conSugerencia < liqs.length && (
+              <button onClick={reaplicar} disabled={procesando} className={`${E.btnTextoAzul} ml-1`}>Aplicar a toda la quincena</button>
+            )}
           </p>
         ) : (
           <p className="text-xs text-feisen-gris-medio">
             Sube el archivo del huellero de la quincena (Excel con "Nombre" y "Fecha/Hora"). Se calculan las horas adicionales
             (horas extra en planta, servicios adicionales en contratistas) como <strong>sugerencia</strong> en cada liquidación; tú verificas si estaban autorizadas y decides si se aplican.
+            A los de "al día" se les ponen de una vez los días hábiles con marcación.
           </p>
         )}
         <p className="text-[11px] text-feisen-gris-medio">
@@ -177,7 +184,7 @@ export default function HuelleroQuincena({ periodo, liqs, empleados, cerrada, on
         {resultado && (
           <div className="space-y-3 border-t border-feisen-borde-suave pt-3">
             <p className="text-feisen-texto">
-              {resultado.aplicadas} persona{resultado.aplicadas === 1 ? '' : 's'} con sugerencia guardada.
+              {resultado.aplicadas} persona{resultado.aplicadas === 1 ? '' : 's'} con sugerencia guardada; a los de "al día" se les pusieron los días con marcación.
               {resultado.ilegibles > 0 && <span className="text-amber-600"> {resultado.ilegibles} fila{resultado.ilegibles === 1 ? '' : 's'} con fecha que no se pudo leer.</span>}
             </p>
             {resultado.sinVincular.length > 0 && (

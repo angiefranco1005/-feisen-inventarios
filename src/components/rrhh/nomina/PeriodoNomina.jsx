@@ -12,7 +12,7 @@ import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas } from '../catalo
 import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
 import HuelleroQuincena from './HuelleroQuincena'
 import { generarDesprendibles, desprendibleBase64, nombreArchivoDesprendible } from '../../../utils/desprendiblePagoPDF'
-import { nombreQuincena, contextoQuincena, liquidacionSugerida, cambiarQuincena, rangoQuincena, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
+import { nombreQuincena, contextoQuincena, liquidacionSugerida, cambiarQuincena, rangoQuincena, CAMPOS_PAGO_EMPLEADO, huelleroDeQuincena, cambiosPorHuellero } from './nominaQuincena'
 
 // Planilla de una quincena: todas las personas con lo que se les paga
 export default function PeriodoNomina() {
@@ -167,8 +167,11 @@ export default function PeriodoNomina() {
     try {
       const ctx = await contextoQuincena(periodo.fecha_inicio, periodo.fecha_fin)
       const { liq, piezas: pz } = liquidacionSugerida(emp, periodo.fecha_inicio, periodo.fecha_fin, ctx)
+      // Si la quincena ya tiene huellero cargado, se toma de una vez su sugerencia
+      const h = (await huelleroDeQuincena(periodo, ctx.empleados)).get(emp.id)
+      const conH = h ? { ...liq, ...cambiosPorHuellero(liq, h, periodo.huellero_nombre, pz) } : liq
       const { data, error } = await supabase.from('nomina_liquidaciones')
-        .insert({ ...liq, periodo_id: periodoId, ...calcularTotales(liq, pz) }).select('id').single()
+        .insert({ ...conH, periodo_id: periodoId, ...calcularTotales(conH, pz) }).select('id').single()
       if (error) throw error
       if (pz.length) await supabase.from('nomina_piezas').insert(pz.map(p => ({ ...p, liquidacion_id: data.id })))
       navigate(`/rrhh/nomina/${periodoId}/${data.id}`)
@@ -185,8 +188,13 @@ export default function PeriodoNomina() {
     try {
       const ctx = await contextoQuincena(periodo.fecha_inicio, periodo.fecha_fin)
       const ids = new Set(fuera.map(e => e.id))
+      const huellero = await huelleroDeQuincena(periodo, ctx.empleados)
       const sugeridas = ctx.empleados.filter(e => ids.has(e.id))
         .map(e => liquidacionSugerida(e, periodo.fecha_inicio, periodo.fecha_fin, ctx))
+        .map(({ liq, piezas: pz }) => {
+          const h = huellero.get(liq.empleado_id)
+          return { liq: h ? { ...liq, ...cambiosPorHuellero(liq, h, periodo.huellero_nombre, pz) } : liq, piezas: pz }
+        })
       const { data: creadas, error } = await supabase.from('nomina_liquidaciones')
         .insert(sugeridas.map(({ liq, piezas: pz }) => ({ ...liq, periodo_id: periodoId, ...calcularTotales(liq, pz) })))
         .select('id, empleado_id')
@@ -318,7 +326,7 @@ export default function PeriodoNomina() {
         ))}
       </div>
 
-      <HuelleroQuincena periodo={periodo} liqs={liqs} empleados={empleados} cerrada={cerrada} onActualizado={cargar} onMoverQuincena={moverQuincena} />
+      <HuelleroQuincena periodo={periodo} liqs={liqs} piezas={piezas} empleados={empleados} cerrada={cerrada} onActualizado={cargar} onMoverQuincena={moverQuincena} />
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-2">
