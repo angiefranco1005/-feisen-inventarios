@@ -2015,3 +2015,9 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Pedido de Angie. `rol_permisos`: ALMACENISTA · paquetes = todo (Mateo es el único almacenista activo; se quita en Configuración › Permisos). El menú lo agrega solo (módulos dados que no estaban en NAV_ALMACENISTA).
 - RLS nuevas `paquetes_manage_bodega` y `paquete_items_manage_bodega`: con `mi_nivel('paquetes') = 'todo'` se crea/edita/borra solo en las bodegas de `profile_bodegas`. ADMIN conserva su política. Migración `supabase/migraciones/2026-11-03_paquetes_por_bodega.sql` (OK de Angie). Probado simulando la sesión de Mateo: puede los 25 de ALMACEN, ninguno de MECANIZADOS. El módulo queda `rlsPorMatriz`.
 - GestionPaquetes.jsx: quien no es ADMIN solo ve las pestañas de sus bodegas (sin pestañas si es una sola).
+
+## 2026-11-03 · Inventario físico: diferencias en plata
+- Lista: cada conteo muestra además la diferencia neta en $ (copCorto). Detalle: faltante, sobrante y neto, la plata de cada producto y las diferencias ordenadas de mayor a menor valor; avisa cuántos productos con diferencia no tienen costo (no suman).
+- Precio: el `precio_costo_snapshot` del movimiento de ajuste (referencia = número del conteo, mismo producto y bodega); si no hubo ajuste (borrador) se usa el `precio_costo` actual (`preciosConteo`). La lista trae `items` y los movimientos `INV-FIS-%` en paginado.
+- Arreglado: los valores negativos salían "$-15.000"; ahora `copSigno` → "−$15.000" / "+$45.600" en toda la pantalla (detalle, resumen del editor y confirmación).
+- Hallazgo (3-nov): los conteos de lámina de CORTE Y DOBLEZ dan los faltantes más grandes: INV-FIS-0038 (oct) −$121 M y INV-FIS-0034 (sep) −$96 M. Ej. lámina calibre 12: sistema 124, contadas 8. Parece consumo de lámina que no se registra como salida.

@@ -18,11 +18,27 @@ const HOY = () => new Date().toLocaleDateString('en-CA')
 const PAGINA = 150 // productos que se pintan a la vez en el conteo (rápido en celular)
 
 // Exactitud de un conteo: de los productos contados, cuántos tenían diferencia con el
-// sistema y qué porcentaje es eso. Lo no contado (cantidad_fisica vacía) no entra.
-function resumenConteo(filas) {
+// sistema y qué porcentaje es eso, y cuánto vale en plata. Lo no contado no entra.
+// `precioDe(fila)` = costo unitario (ver preciosConteo); sin precio no suma y se cuenta aparte.
+function resumenConteo(filas, precioDe = () => 0) {
   const contadas = filas.filter(f => f.cantidad_fisica != null)
-  const conDif = contadas.filter(f => Number((f.cantidad_fisica - f.cantidad_sistema).toFixed(3)) !== 0).length
-  return { contados: contadas.length, conDif, pct: contadas.length ? (conDif / contadas.length) * 100 : 0 }
+  let conDif = 0, faltante = 0, sobrante = 0, sinPrecio = 0
+  for (const f of contadas) {
+    const dif = Number((f.cantidad_fisica - f.cantidad_sistema).toFixed(3))
+    if (!dif) continue
+    conDif++
+    const precio = precioDe(f)
+    if (!precio) { sinPrecio++; continue }
+    if (dif < 0) faltante += dif * precio; else sobrante += dif * precio
+  }
+  return { contados: contadas.length, conDif, pct: contadas.length ? (conDif / contadas.length) * 100 : 0,
+    faltante, sobrante, neto: faltante + sobrante, sinPrecio }
+}
+// Precio de una fila de conteo: el costo con que se hizo el ajuste (movimiento con referencia
+// = número del conteo, precio_costo_snapshot); si no hubo ajuste (borrador, o sin diferencia),
+// el costo actual del producto.
+function preciosConteo(precios) {
+  return (inv, f) => precios.ajuste[`${inv?.numero}|${f.item_id}|${f.bodega_id}`] ?? precios.actual[f.item_id] ?? 0
 }
 const pctTxt = p => `${p.toLocaleString('es-CO', { maximumFractionDigits: p < 10 && p > 0 ? 1 : 0 })}%`
 
@@ -75,6 +91,7 @@ export default function InventarioFisico() {
   // Lista
   const [inventarios, setInventarios] = useState([])
   const [resumenes,   setResumenes]   = useState({}) // inventario_id → resumenConteo
+  const [precios,     setPrecios]     = useState({ ajuste: {}, actual: {} }) // ver preciosConteo
 
   // Editor
   const [items,        setItems]       = useState([])
@@ -200,11 +217,22 @@ export default function InventarioFisico() {
     setCargando(false)
     const ids = (data || []).map(i => i.id)
     if (!ids.length) return
-    const { data: filas } = await fetchAllPages((d, h) => supabase.from('inventario_fisico_items')
-      .select('id, inventario_id, cantidad_fisica, cantidad_sistema').in('inventario_id', ids).order('id').range(d, h))
+    const [{ data: filas }, { data: its }, { data: ajustes }] = await Promise.all([
+      fetchAllPages((d, h) => supabase.from('inventario_fisico_items')
+        .select('id, inventario_id, item_id, bodega_id, cantidad_fisica, cantidad_sistema').in('inventario_id', ids).order('id').range(d, h)),
+      fetchAllPages((d, h) => supabase.from('items').select('id, precio_costo').order('id').range(d, h)),
+      fetchAllPages((d, h) => supabase.from('movimientos').select('id, item_id, bodega_origen_id, bodega_destino_id, referencia, precio_costo_snapshot')
+        .like('referencia', 'INV-FIS-%').order('id').range(d, h)),
+    ])
+    const pr = { ajuste: {}, actual: {} }
+    for (const i of its || []) if (i.precio_costo > 0) pr.actual[i.id] = i.precio_costo
+    for (const m of ajustes || []) if (m.precio_costo_snapshot > 0) pr.ajuste[`${m.referencia}|${m.item_id}|${m.bodega_origen_id || m.bodega_destino_id}`] = m.precio_costo_snapshot
+    setPrecios(pr)
+    const precioDe = preciosConteo(pr)
+    const invPorId = Object.fromEntries((data || []).map(i => [i.id, i]))
     const porInv = {}
     for (const f of filas || []) (porInv[f.inventario_id] ||= []).push(f)
-    setResumenes(Object.fromEntries(Object.entries(porInv).map(([id, fs]) => [id, resumenConteo(fs)])))
+    setResumenes(Object.fromEntries(Object.entries(porInv).map(([id, fs]) => [id, resumenConteo(fs, f => precioDe(invPorId[id], f))])))
   }
 
   // ── renombrar título desde la lista ─────────────────────────────────────
@@ -596,6 +624,8 @@ export default function InventarioFisico() {
             <span className="block text-xs text-feisen-texto-2 mt-0.5 tabular-nums">
               {resumenes[inv.id].contados.toLocaleString('es-CO')} contados · <span className={resumenes[inv.id].conDif ? 'text-feisen-rojo' : ''}>
                 {resumenes[inv.id].conDif.toLocaleString('es-CO')} con diferencia ({pctTxt(resumenes[inv.id].pct)})</span>
+              {resumenes[inv.id].conDif > 0 && <> · <span className={resumenes[inv.id].neto < 0 ? 'text-feisen-rojo font-medium' : 'font-medium'}>
+                {resumenes[inv.id].neto > 0 ? '+' : ''}{copCorto(resumenes[inv.id].neto)}</span></>}
             </span>
           )}
         </button>
@@ -696,9 +726,12 @@ export default function InventarioFisico() {
 
         {/* Panel con el detalle de un conteo */}
         {verDetalle && (() => {
-          const conDifDet = detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema !== 0)
+          const precioDet = f => preciosConteo(precios)(verDetalle, f)
+          // Primero las diferencias que más plata mueven
+          const valorAbs = i => Math.abs(((i.cantidad_fisica ?? 0) - i.cantidad_sistema) * precioDet(i))
+          const conDifDet = detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema !== 0).sort((a, b) => valorAbs(b) - valorAbs(a))
           const ordenados = [...conDifDet, ...detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema === 0)]
-          const resDet = resumenConteo(detalleItems)
+          const resDet = resumenConteo(detalleItems, precioDet)
           return (
             <PanelLateral etiqueta={`Detalle de ${verDetalle.numero}`} onCerrar={() => setVerDetalle(null)} encabezado={
               <div className="space-y-1.5">
@@ -728,6 +761,15 @@ export default function InventarioFisico() {
                       <p className={`text-2xl font-semibold tabular-nums ${resDet.conDif ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{pctTxt(resDet.pct)}</p>
                     </div>
                   </div>
+                  {resDet.conDif > 0 && (
+                    <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave text-sm">
+                      <div className="flex justify-between gap-3 px-3 py-2"><span className="text-feisen-texto-2">Faltante (había menos)</span><span className="tabular-nums text-feisen-rojo">{copSigno(resDet.faltante)}</span></div>
+                      <div className="flex justify-between gap-3 px-3 py-2"><span className="text-feisen-texto-2">Sobrante (había más)</span><span className="tabular-nums text-feisen-texto">{copSigno(resDet.sobrante)}</span></div>
+                      <div className="flex justify-between gap-3 px-3 py-2 font-semibold"><span className="text-feisen-texto">Diferencia neta</span>
+                        <span className={`tabular-nums ${resDet.neto < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{copSigno(resDet.neto)}</span></div>
+                      {resDet.sinPrecio > 0 && <p className="px-3 py-2 text-xs text-feisen-texto-2">{resDet.sinPrecio} producto{resDet.sinPrecio !== 1 ? 's' : ''} con diferencia no tiene{resDet.sinPrecio !== 1 ? 'n' : ''} costo y no suma{resDet.sinPrecio !== 1 ? 'n' : ''}.</p>}
+                    </div>
+                  )}
                   <section>
                     <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1 grid grid-cols-[1fr_auto] gap-3">
                       <span>Producto</span><span>Sistema → Físico</span>
@@ -745,6 +787,11 @@ export default function InventarioFisico() {
                             <span className="text-right tabular-nums">
                               <span className="block text-sm text-feisen-texto-2 whitespace-nowrap">{cant(i.cantidad_sistema)} → <b className="text-feisen-texto">{i.cantidad_fisica == null ? '—' : cant(i.cantidad_fisica)}</b></span>
                               <Diferencia dif={dif} />
+                              {dif !== 0 && i.cantidad_fisica != null && (
+                                <span className={`block text-xs tabular-nums ${precioDet(i) ? (dif < 0 ? 'text-feisen-rojo' : 'text-feisen-texto-2') : 'text-gray-300'}`}>
+                                  {precioDet(i) ? copSigno(dif * precioDet(i)) : 'Sin costo'}
+                                </span>
+                              )}
                             </span>
                           </li>
                         )
@@ -932,7 +979,7 @@ export default function InventarioFisico() {
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-feisen-texto flex flex-wrap justify-between gap-2">
             <span>Resumen de diferencias · {conDiferencia} productos</span>
             <span className="tabular-nums text-feisen-texto-2">
-              Faltante <b className="text-feisen-rojo">{cop(totalFaltante)}</b> · Sobrante <b className="text-feisen-texto">+{cop(totalSobrante)}</b>
+              Faltante <b className="text-feisen-rojo">{copSigno(totalFaltante)}</b> · Sobrante <b className="text-feisen-texto">{copSigno(totalSobrante)}</b>
             </span>
           </summary>
           <ul className="divide-y divide-feisen-borde-suave border-t border-feisen-borde-suave">
@@ -947,7 +994,7 @@ export default function InventarioFisico() {
                   </span>
                   <Diferencia dif={item.diferencia} />
                   <span className={`w-24 text-right tabular-nums text-xs ${item.valor_diferencia === null ? 'text-gray-300' : item.valor_diferencia < 0 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>
-                    {item.valor_diferencia === null ? 'Sin precio' : (item.valor_diferencia > 0 ? '+' : '') + cop(item.valor_diferencia)}
+                    {item.valor_diferencia === null ? 'Sin precio' : copSigno(item.valor_diferencia)}
                   </span>
                 </li>
               ))}
@@ -983,7 +1030,7 @@ export default function InventarioFisico() {
           <div className="space-y-4">
             <p className="text-sm text-feisen-texto">
               Se ajusta el stock de <b>{conDiferencia} producto{conDiferencia > 1 ? 's' : ''}</b>. Cada ajuste queda en el Historial como movimiento
-              con referencia {numero}. Valor neto: <b className={neto < 0 ? 'text-feisen-rojo' : ''}>{neto > 0 ? '+' : ''}{cop(neto)}</b>.
+              con referencia {numero}. Valor neto: <b className={neto < 0 ? 'text-feisen-rojo' : ''}>{copSigno(neto)}</b>.
             </p>
             <ul className="max-h-60 overflow-y-auto border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
               {itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).map(item => (
@@ -1019,6 +1066,7 @@ export default function InventarioFisico() {
 // ── Ayudas de formato ───────────────────────────────────────────────────────
 const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
 const cop  = n => `$${Math.round(n).toLocaleString('es-CO')}`
+const copSigno = n => `${n < 0 ? '−' : n > 0 ? '+' : ''}${cop(Math.abs(n))}` // −$15.000 / +$45.600
 function copCorto(n) {
   const a = Math.abs(n), s = n < 0 ? '−' : ''
   if (a >= 1e6) return `${s}$${(a / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M`
