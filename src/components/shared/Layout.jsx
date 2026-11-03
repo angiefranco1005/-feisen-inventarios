@@ -264,7 +264,11 @@ export default function Layout({ children }) {
     : esRRHH             ? NAV_RRHH
     : []
   const permitido = item => item.to === '/dashboard' || puedeRuta(item.to)
+  // Órdenes de fabricación a la mano para quien no es admin (jefes de área, comerciales, despachos):
+  // va de segundo en el menú y en la barra inferior del celular, en vez de quedar al final en "Ventas".
+  const itemOF = !esAdmin && puedeRuta('/of/ordenes') ? { to: '/of/ordenes', icon: Files, label: 'Órdenes de fabricación', corto: 'OF' } : null
   const propios = navBase.filter(permitido)
+  if (itemOF && !propios.some(i => i.to === itemOF.to)) propios.splice(propios[0]?.to === '/dashboard' ? 1 : 0, 0, itemOF)
   const extras = esAdmin ? [] : NAV_ADMIN
     .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))
     .map(i => ({ to: i.to, icon: i.icon, label: i.label, grupo: i.modulo }))
@@ -280,7 +284,8 @@ export default function Layout({ children }) {
     : esConsultor        ? MOBILE_CONSULTOR
     : esRRHH             ? MOBILE_RRHH
     : []).filter(permitido)
-  const mobileItems = mobileCurada.length >= 3 ? mobileCurada : navItems.filter(i => !i.abajo).slice(0, 5)
+  if (itemOF && mobileCurada.length) mobileCurada.splice(1, 0, itemOF)
+  const mobileItems = mobileCurada.length >= 3 ? mobileCurada.slice(0, 6) : navItems.filter(i => !i.abajo).slice(0, 5)
   const badge    = BADGE[perfil?.rol] || { color: 'bg-gray-400 text-white', label: perfil?.rol }
   const { hayActualizacion, actualizar } = useUpdateAvailable()
 
@@ -532,7 +537,7 @@ export default function Layout({ children }) {
               className={`flex-1 flex flex-col items-center py-3 gap-1 transition-colors
                 ${activo ? 'text-feisen-azul' : 'text-feisen-gris-medio'}`}>
               <item.icon size={20} weight="duotone" />
-              <span className="text-xs font-medium leading-tight text-center">{item.label}</span>
+              <span className="text-xs font-medium leading-tight text-center">{item.corto || item.label}</span>
             </Link>
           )
         })}
