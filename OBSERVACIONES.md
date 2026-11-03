@@ -2022,3 +2022,10 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Precio: el `precio_costo_snapshot` del movimiento de ajuste (referencia = número del conteo, mismo producto y bodega); si no hubo ajuste (borrador) se usa el `precio_costo` actual (`preciosConteo`). La lista trae `items` y los movimientos `INV-FIS-%` en paginado.
 - Arreglado: los valores negativos salían "$-15.000"; ahora `copSigno` → "−$15.000" / "+$45.600" en toda la pantalla (detalle, resumen del editor y confirmación).
 - Hallazgo (3-nov): los conteos de lámina de CORTE Y DOBLEZ dan los faltantes más grandes: INV-FIS-0038 (oct) −$121 M y INV-FIS-0034 (sep) −$96 M. Ej. lámina calibre 12: sistema 124, contadas 8. Parece consumo de lámina que no se registra como salida.
+
+## 2026-11-03 · Pedidos: "Guardando…" pegado al recibir el segundo pedido
+
+- **Síntoma (Angie):** después de recibir un pedido, al abrir «Recibir» en otro el botón salía en «Guardando…» y no dejaba hacer nada hasta recargar la página.
+- **Causa:** en `confirmarRecibido()` (`ListaPedidos.jsx`) las variables `pedidoActualizado`, `historialPendiente` y `numeroEntrada` se declaraban con `let` **dentro** del `try`, y el `finally` las usaba. El `finally` no las ve → `ReferenceError` antes de `setGuardandoRecibido(false)` y de soltar `recibidoEnCurso`. Venía del commit ed560766 (15/10/2026, número de movimiento en el historial).
+- **Efecto colateral:** desde el 15/10/2026 (tarde) **no se escribió en `pedido_historial` ninguna recepción** (`recibido` / `parcialmente_recibido`). Los pedidos, cantidades y entradas sí quedaron bien; solo falta esa línea del historial. Si se quiere, se puede reconstruir desde `pedidos.fecha_recibido` y `movimientos.pedido_id` (con OK de Angie).
+- **Fix:** las tres variables se declaran antes del `try`. Revisé todo `src/` con un análisis del código (bloques `finally` que usen variables declaradas dentro de su `try`): era el único caso.

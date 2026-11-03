@@ -781,6 +781,12 @@ export default function ListaPedidos() {
     if (guardandoRecibido || recibidoEnCurso.current) return
     recibidoEnCurso.current = true
     setGuardandoRecibido(true)
+    // El historial se escribe al final (en el finally) para poder incluir el N° de movimiento de la entrada.
+    // Van FUERA del try: declaradas adentro, el finally no las ve y lanza ReferenceError antes de
+    // liberar el botón (quedaba "Guardando…" para el siguiente pedido y no se escribía el historial).
+    let pedidoActualizado = false
+    let historialPendiente = null
+    let numeroEntrada = null
     try {
     const { pedido, conEntrada } = modalRecibido
     const items = pedido.pedido_items || []
@@ -804,10 +810,6 @@ export default function ListaPedidos() {
         }
       }
     }
-    // El historial se escribe al final (en el finally) para poder incluir el N° de movimiento de la entrada
-    let pedidoActualizado = false
-    let historialPendiente = null
-    let numeroEntrada = null
 
     // 1. Sumar a la cantidad_recibida existente (para re-recepciones)
     const nuevasCantidades = {}
