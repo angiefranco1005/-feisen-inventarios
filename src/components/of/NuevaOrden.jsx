@@ -129,6 +129,8 @@ export default function NuevaOrden() {
   async function guardar() {
     setMsg(null)
     if (!cliente.trim() || !fechaPromesa) { setMsg({ tipo: 'error', texto: 'Cliente y fecha de promesa son obligatorios.' }); setPaso(1); return }
+    // Toda OF nueva sale de una cotización (2026-11-03). Las OF viejas sin cotización se pueden seguir editando.
+    if (!editando && !numeroCotizacion.trim()) { setMsg({ tipo: 'error', texto: 'El número de cotización es obligatorio para crear la OF.' }); setPaso(1); return }
     if (lineas.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto.' }); setPaso(2); return }
     if (!ciudad.trim()) { setMsg({ tipo: 'error', texto: 'La ciudad de destino es obligatoria.' }); setPaso(3); return }
 
@@ -247,7 +249,7 @@ export default function NuevaOrden() {
       <Campo label="Fecha de promesa de entrega *">
         <input type="date" value={fechaPromesa} onChange={e => setFechaPromesa(e.target.value)} className={INPUT} />
       </Campo>
-      <Campo label="Número de cotización (opcional)">
+      <Campo label={editando ? 'Número de cotización' : 'Número de cotización *'}>
         <input value={numeroCotizacion} onChange={e => setNumeroCotizacion(e.target.value)} placeholder="Ej: COT-1234" className={INPUT} />
       </Campo>
       <div className="sm:col-span-2">
