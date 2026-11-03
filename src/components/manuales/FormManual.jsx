@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { PanelLateral } from '../shared/ui'
+import { PanelLateral, Segmentado } from '../shared/ui'
+import { PenLine, Upload } from '../shared/iconos'
 import { campo, etiquetaCampo, hoyCol, sumarDias } from '../mantenimiento/comun'
-import { AREAS, TIPOS, accionVersion, codigoSugerido, crearBorrador } from './comun'
+import { AREAS, TIPOS, accionVersion, codigoSugerido, crearBorrador, crearBorradorEscrito } from './comun'
+import { contenidoVacio } from './estructura'
 
 // Crear (nivel 'registra' o 'todo') o editar (nivel 'todo') la ficha de un documento. Al crearlo
-// se puede adjuntar el archivo, que queda como borrador de la versión 1 y sigue el flujo de
-// aprobación. ADMIN puede cargarlo como ya aprobado (documentos firmados en papel).
+// se elige cómo: escribirlo en la app con el asistente guiado (se abre al crear) o adjuntar un
+// archivo, que queda como borrador de la versión 1. Ambos siguen el flujo de aprobación.
+// ADMIN puede cargar un archivo como ya aprobado (documentos firmados en papel).
 export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado }) {
   const { perfil, esAdmin } = useAuth()
   const nuevo = !manual?.id
@@ -23,6 +26,7 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
   }, [])
   const alternarRol = r => setF(prev => ({ ...prev, dirigido_a: prev.dirigido_a.includes(r) ? prev.dirigido_a.filter(x => x !== r) : [...prev.dirigido_a, r] }))
   const [codigoManual, setCodigoManual] = useState(!nuevo) // el usuario escribió el código: no sugerir
+  const [como, setComo] = useState('escribir') // escribir | archivo
   const [archivo, setArchivo] = useState(null)
   const [yaAprobado, setYaAprobado] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -49,6 +53,13 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
       if (nuevo) {
         const { data, error: err } = await supabase.from('manuales').insert({ ...fila, creado_por: perfil?.id }).select().single()
         if (err) throw new Error(err.message)
+        if (como === 'escribir') {
+          // Borrador vacío del tipo; el asistente se abre al volver a la lista
+          try { await crearBorradorEscrito({ manual: data, version: 1, contenido: contenidoVacio(f.tipo), cambios: 'Versión inicial', usuarioId: perfil?.id }) }
+          catch (e) { onGuardado(`${codigo} creado, pero no se pudo preparar el borrador (${e.message}).`, data.id); return }
+          onGuardado(`${codigo} creado · empieza a escribirlo`, data.id, { redactar: true })
+          return
+        }
         // Si el archivo falla, el documento ya quedó creado: se avisa y se sube desde su ficha
         let aviso = archivo ? `${codigo} creado · borrador v1 listo para enviar a revisión` : `${codigo} creado`
         if (archivo) {
@@ -116,6 +127,17 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
         </div>
       )}
       {nuevo && (
+        <div><p className={etiquetaCampo}>¿Cómo lo vas a hacer?</p>
+          <Segmentado valor={como} onCambiar={setComo} opciones={[
+            { valor: 'escribir', texto: 'Escribirlo aquí', icono: PenLine },
+            { valor: 'archivo', texto: 'Ya tengo el archivo', icono: Upload },
+          ]} />
+          <p className="text-xs text-feisen-texto-2 mt-1">
+            {como === 'escribir' ? 'Recomendado: un asistente te guía parte por parte, con ejemplos, y al final lo descargas en PDF o Word.' : 'Sube el documento que ya tienes (Word, PDF, Excel…).'}
+          </p>
+        </div>
+      )}
+      {nuevo && como === 'archivo' && (
         <div><label htmlFor="ma-archivo" className={etiquetaCampo}>Archivo (versión 1)</label>
           <input id="ma-archivo" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" onChange={e => setArchivo(e.target.files?.[0] || null)}
             className="block w-full text-sm text-feisen-texto-2 file:mr-3 file:min-h-[40px] file:px-3 file:rounded-lg file:border file:border-feisen-borde file:bg-white file:text-sm file:font-medium file:text-feisen-texto" />
@@ -134,7 +156,7 @@ export default function FormManual({ manual, codigosUsados, onCerrar, onGuardado
       <div className="sticky bottom-0 -mx-5 -mb-4 px-5 py-3 bg-white border-t border-feisen-borde-suave">
         <button type="button" onClick={guardar} disabled={guardando}
           className="w-full min-h-[48px] rounded-lg bg-feisen-azul text-white font-semibold disabled:opacity-50">
-          {guardando ? 'Guardando…' : nuevo ? 'Crear documento' : 'Guardar cambios'}
+          {guardando ? 'Guardando…' : nuevo ? (como === 'escribir' ? 'Crear y empezar a escribir' : 'Crear documento') : 'Guardar cambios'}
         </button>
       </div>
     </PanelLateral>

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { PanelLateral } from '../shared/ui'
-import { Check, Download, Eye, FileText, Pencil, Send, Upload, X } from '../shared/iconos'
+import { Check, Download, Eye, FileText, PenLine, Pencil, Send, Upload, X } from '../shared/iconos'
 import { Etiqueta, Titulo, campo, etiquetaCampo, fechaCorta, hoyCol, textoProxima } from '../mantenimiento/comun'
 import {
-  ESTADOS_VERSION, SELECT_VERSION, TIPOS, abrirArchivo, accionVersion, crearBorrador, descartarBorrador, dirigidoA,
+  ESTADOS_VERSION, SELECT_VERSION, TIPOS, abrirArchivo, accionVersion, crearBorrador, crearBorradorEscrito, descartarBorrador, dirigidoA,
   ponerNombres, reemplazarArchivo, tamanoArchivo,
 } from './comun'
+import { contenidoVacio } from './estructura'
+import Lector from './Lector'
 
 const fechaLarga = f => f ? `${fechaCorta(f)} ${f.slice(0, 4)}` : '—'
 const inputArchivo = 'block w-full text-sm text-feisen-texto-2 file:mr-3 file:min-h-[40px] file:px-3 file:rounded-lg file:border file:border-feisen-borde file:bg-white file:text-sm file:font-medium file:text-feisen-texto'
@@ -17,7 +20,9 @@ const ACEPTA = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*'
 // las acciones que le tocan a cada quien, «leído y entendido» de la versión vigente (y para
 // nivel 'todo', quién falta por leerla) e historial de versiones aprobadas.
 // Elabora: nivel 'registra' o 'todo' · Revisa / devuelve: 'todo' (no quien elaboró) · Aprueba: ADMIN.
-export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
+// Una versión es un archivo subido o un documento escrito en la app (`contenido`): este último se
+// lee en el Lector (con descarga PDF/Word) y se edita en el asistente (`onRedactar`).
+export default function FichaManual({ manual, onCerrar, onEditar, onCambio, onRedactar }) {
   const { perfil, nivel, esAdmin, rolEfectivo } = useAuth()
   const niv = nivel('manuales')
   const gestiona = niv === 'todo'
@@ -31,6 +36,7 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
   const [miLectura, setMiLectura] = useState(undefined) // undefined = cargando · null = no la he leído
   const [lectores, setLectores] = useState(null)        // nivel 'todo': [{ nombre, rol, leido_at }]
   const [verLectores, setVerLectores] = useState(false)
+  const [leyendo, setLeyendo] = useState(null)          // versión escrita en la app abierta en el Lector
 
   useEffect(() => {
     let vivo = true
@@ -75,6 +81,7 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
   }
 
   const abrir = async v => {
+    if (v.contenido) { setLeyendo(v); return }
     setAbriendo(v.id); setError('')
     try { await abrirArchivo(v.archivo_path) } catch (e) { setError(`No se pudo abrir: ${e.message}`) }
     setAbriendo(null)
@@ -88,6 +95,17 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
       await crearBorrador({ manual, version, archivo: formVersion.archivo, cambios: formVersion.cambios || (version === 1 ? 'Versión inicial' : ''), vigenteDesde: formVersion.vigente_desde || null, usuarioId: perfil?.id })
       setFormVersion(null)
     }, `${manual.codigo} · borrador v${version} creado`)
+  }
+
+  // Nueva versión escrita: parte de la vigente (o vacía si es la primera) y abre el asistente
+  const escribirVersion = async () => {
+    setGuardando(true); setError('')
+    try {
+      const version = Math.max(0, ...(versiones || []).map(v => v.version)) + 1
+      await crearBorradorEscrito({ manual, version, contenido: vigente?.contenido ? structuredClone(vigente.contenido) : contenidoVacio(manual.tipo),
+        cambios: version === 1 ? 'Versión inicial' : '', usuarioId: perfil?.id })
+      onRedactar()
+    } catch (e) { setError(e.message); setGuardando(false) }
   }
 
   const cambiarEstado = () => hacer(async () => {
@@ -127,7 +145,12 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
   const accionesTramite = v => {
     const mio = v.subido_por === perfil?.id
     const a = []
-    if (v.estado === 'borrador' && (mio || gestiona)) {
+    if (v.estado === 'borrador' && v.contenido && mio) {
+      a.push(<button key="escribir" type="button" onClick={onRedactar} className={principal}><PenLine size={15} /> Seguir escribiendo</button>)
+      a.push(<button key="descartar" type="button" disabled={guardando} className="text-sm text-feisen-rojo hover:underline px-1"
+        onClick={() => hacer(() => descartarBorrador(v), `Borrador v${v.version} descartado`)}>Descartar borrador</button>)
+    }
+    if (v.estado === 'borrador' && !v.contenido && (mio || gestiona)) {
       a.push(<button key="enviar" type="button" disabled={guardando} className={principal}
         onClick={() => hacer(() => accionVersion(v.id, 'enviar'), `v${v.version} enviada a revisión`)}><Send size={15} /> Enviar a revisión</button>)
       a.push(<label key="archivo" className={`${boton} cursor-pointer`}><Upload size={15} /> Cambiar archivo
@@ -178,11 +201,14 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
               <FileText size={16} /> {abriendo === vigente.id ? 'Abriendo…' : 'Abrir documento'}
             </button>
           )}
-          {elabora && manual.activo && versiones && !tramite && !formVersion && (
-            <button type="button" onClick={() => setFormVersion({ archivo: null, cambios: '', vigente_desde: '' })} className={boton}>
-              <Upload size={15} /> {aprobadas.length ? 'Nueva versión' : 'Subir borrador'}
-            </button>
-          )}
+          {elabora && manual.activo && versiones && !tramite && !formVersion && (aprobadas.length === 0 ? <>
+            <button type="button" onClick={escribirVersion} disabled={guardando} className={principal}><PenLine size={15} /> Escribirlo aquí</button>
+            <button type="button" onClick={() => setFormVersion({ archivo: null, cambios: '', vigente_desde: '' })} className={boton}><Upload size={15} /> Subir archivo</button>
+          </> : vigente?.contenido ? (
+            <button type="button" onClick={escribirVersion} disabled={guardando} className={boton}><PenLine size={15} /> Nueva versión</button>
+          ) : (
+            <button type="button" onClick={() => setFormVersion({ archivo: null, cambios: '', vigente_desde: '' })} className={boton}><Upload size={15} /> Nueva versión</button>
+          ))}
           {gestiona && <button type="button" onClick={onEditar} className={boton}><Pencil size={15} /> Editar</button>}
         </div>
       </>}>
@@ -238,8 +264,8 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
           )}
           <button type="button" onClick={() => abrir(tramite)} disabled={abriendo === tramite.id}
             className="w-full flex items-center gap-2 text-left text-sm text-feisen-azul hover:underline disabled:opacity-50">
-            <FileText size={16} /> <span className="truncate">{tramite.archivo_nombre}</span>
-            <span className="text-xs text-feisen-texto-2 shrink-0">{tamanoArchivo(tramite.archivo_tamano)}</span>
+            <FileText size={16} /> <span className="truncate">{tramite.contenido ? 'Ver el documento' : tramite.archivo_nombre}</span>
+            {!tramite.contenido && <span className="text-xs text-feisen-texto-2 shrink-0">{tamanoArchivo(tramite.archivo_tamano)}</span>}
           </button>
           {tramite.cambios && <p className="text-sm text-feisen-texto">{tramite.cambios}</p>}
           <Firmas v={tramite} />
@@ -270,7 +296,7 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
           {dato('Responsable', manual.responsable)}
           {dato('Vigente desde', vigente && fechaLarga(vigente.vigente_desde))}
           {dato('Próxima revisión', manual.proxima_revision && `${fechaLarga(manual.proxima_revision)}${manual.activo ? ` · ${textoProxima(manual.proxima_revision)}` : ''}`)}
-          {dato('Archivo', vigente && `${vigente.archivo_nombre.split('.').pop().toUpperCase()} · ${tamanoArchivo(vigente.archivo_tamano)}`)}
+          {dato('Archivo', vigente && (vigente.contenido ? 'Escrito en la app (PDF y Word)' : `${vigente.archivo_nombre.split('.').pop().toUpperCase()} · ${tamanoArchivo(vigente.archivo_tamano)}`))}
         </div>
         {vigente && <Firmas v={vigente} />}
       </section>
@@ -311,7 +337,7 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
         {versiones && aprobadas.length === 0 && (
           <p className="text-sm text-feisen-texto-2">
             {tramite ? 'Ninguna versión aprobada todavía; la de arriba está en trámite.'
-              : elabora ? 'Todavía no tiene archivo. Usa «Subir borrador» para empezar la versión 1.' : 'Este documento todavía no tiene una versión aprobada.'}
+              : elabora ? 'Todavía no tiene contenido. Usa «Escribirlo aquí» (guiado) o «Subir archivo» para empezar la versión 1.' : 'Este documento todavía no tiene una versión aprobada.'}
           </p>
         )}
         {aprobadas.length > 0 && (
@@ -341,6 +367,8 @@ export default function FichaManual({ manual, onCerrar, onEditar, onCambio }) {
           {manual.activo ? 'Marcar obsoleto (deja de verse para los demás; su historial se conserva)' : 'Reactivar el documento'}
         </button>
       )}
+      {/* En el body: el panel lateral tiene transform y encerraría a un elemento fixed */}
+      {leyendo && createPortal(<Lector manual={manual} version={leyendo} aprobadas={aprobadas} onCerrar={() => setLeyendo(null)} />, document.body)}
     </PanelLateral>
   )
 }

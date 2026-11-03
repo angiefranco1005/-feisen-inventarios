@@ -5,12 +5,15 @@ import { useAuth } from '../../contexts/AuthContext'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, useAviso, useAtajoBuscar } from '../shared/ui'
 import Spinner from '../shared/Spinner'
-import { BookOpenText, CalendarCheck, ChevronRight, Eye, FileDown, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
+import { BookOpenText, CalendarCheck, ChevronRight, Eye, FileDown, GraduationCap, Plus, Search, Sparkles, WarningOctagon } from '../shared/iconos'
 import { exportarListadoMaestro } from '../../utils/exportExcel'
 import { Etiqueta, fechaCorta, hoyCol, sumarDias } from '../mantenimiento/comun'
 import { AREAS, ESTADOS_VERSION, TIPOS, avisarCambioManuales, dirigidoA, ponerNombres } from './comun'
 import FichaManual from './FichaManual'
 import FormManual from './FormManual'
+import GuiaIso from './GuiaIso'
+import Asistente from './Asistente'
+import { GUIA_ISO } from './plantillasIso'
 
 const ORDEN_AREA = Object.fromEntries(AREAS.map((a, i) => [a.valor, i]))
 
@@ -37,7 +40,7 @@ export default function Manuales() {
   const [area, setArea] = useState('')
   const [filtro, setFiltro] = useState('todos') // todos | revision | sinarchivo | recientes | porleer | obsoletos
 
-  // Paneles: ?manual=<id> · ?editar=<id>|nuevo
+  // Paneles: ?manual=<id> · ?editar=<id>|nuevo · ?guia=1 · ?redactar=<id> (asistente a pantalla completa)
   const abrir = (clave, valor) => setParams(valor ? { [clave]: valor } : {}, { replace: false })
   const cerrarPanel = () => setParams({}, { replace: false })
 
@@ -122,13 +125,17 @@ export default function Manuales() {
     .sort((a, b) => (ORDEN_AREA[a.area] ?? 99) - (ORDEN_AREA[b.area] ?? 99) || a.codigo.localeCompare(b.codigo))
   const areasConDocs = AREAS.filter(a => buscados.some(m => m.area === a.valor))
 
-  const alGuardar = (mensaje, id) => { abrir('manual', id); avisar(mensaje); cargar() }
+  const alGuardar = async (mensaje, id, opciones = {}) => { avisar(mensaje); await cargar(); abrir(opciones.redactar ? 'redactar' : 'manual', id) }
+  const alEmpezarGuia = async manual => { avisar(`${manual.codigo} creado con la plantilla`); await cargar(); abrir('redactar', manual.id) }
+  const guiaHechos = GUIA_ISO.filter(i => manuales.some(m => m.plantilla === i.clave && m.vigente)).length
+  const guiaEmpezados = GUIA_ISO.filter(i => manuales.some(m => m.plantilla === i.clave)).length
   const alCambiar = mensaje => { avisar(mensaje); cargar() }
 
   if (cargando) return <div className="py-20 grid place-items-center"><Spinner /></div>
 
   const manualPanel = manuales.find(m => m.id === params.get('manual'))
   const editar = params.get('editar')
+  const redactando = manuales.find(m => m.id === params.get('redactar'))
 
   const Kpi = ({ id, clase, Icono, titulo, valor, detalle }) => {
     const activo = filtro === id
@@ -161,7 +168,13 @@ export default function Manuales() {
             <FileDown size={16} /> Listado maestro
           </button>
         )}
-        {elabora && (
+        {manuales.length > 0 && (
+          <button type="button" onClick={() => abrir('guia', '1')}
+            className="flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+            <GraduationCap size={16} /> Guía ISO
+          </button>
+        )}
+        {elabora && manuales.length > 0 && (
           <button type="button" onClick={() => abrir('editar', 'nuevo')}
             className="flex items-center gap-1.5 min-h-[40px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold">
             <Plus size={16} /> Nuevo documento
@@ -174,14 +187,31 @@ export default function Manuales() {
       {manuales.length === 0 ? (
         <div className="bg-white border border-feisen-borde rounded-xl px-6 py-12 text-center space-y-2">
           <BookOpenText size={32} weight="duotone" className="mx-auto text-feisen-texto-2" />
-          <p className="font-semibold text-feisen-texto">Todavía no hay manuales publicados</p>
-          <p className="text-sm text-feisen-texto-2 max-w-md mx-auto">
-            {elabora ? 'Crea el primer documento: elige el tipo y el área, y el código se arma solo (PR-FUN-001). Sube el archivo en PDF; queda como borrador hasta que lo revisen y gerencia lo apruebe.'
-              : 'Cuando la administración publique los procedimientos de tu área, aquí podrás consultarlos y descargarlos.'}
+          <p className="font-semibold text-feisen-texto">{elabora ? 'Empecemos a construir los manuales de Feisen' : 'Todavía no hay manuales publicados'}</p>
+          <p className="text-sm text-feisen-texto-2 max-w-lg mx-auto">
+            {elabora ? 'No necesitas saber de ISO ni tener nada escrito. La guía te dice qué documentos necesita la planta y en qué orden; cada uno trae una plantilla adelantada y un asistente que te lleva parte por parte. Al final lo descargas en PDF o Word.'
+              : 'Cuando la administración publique los procedimientos de tu área, aquí podrás leerlos y descargarlos.'}
           </p>
-          {elabora && <button type="button" onClick={() => abrir('editar', 'nuevo')} className="mt-3 inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold"><Plus size={16} /> Crear el primer documento</button>}
+          {elabora && (
+            <div className="pt-3 flex flex-col sm:flex-row gap-2 justify-center">
+              <button type="button" onClick={() => abrir('guia', '1')} className="inline-flex items-center justify-center gap-1.5 min-h-[48px] px-5 rounded-lg bg-feisen-azul text-white text-sm font-semibold"><GraduationCap size={17} /> Empezar con la guía ISO</button>
+              <button type="button" onClick={() => abrir('editar', 'nuevo')} className="inline-flex items-center justify-center gap-1.5 min-h-[48px] px-4 rounded-lg border border-feisen-borde text-sm font-medium text-feisen-texto hover:bg-feisen-fondo"><Plus size={16} /> Documento en blanco</button>
+            </div>
+          )}
         </div>
       ) : <>
+        {elabora && guiaHechos < GUIA_ISO.length && (
+          <button type="button" onClick={() => abrir('guia', '1')}
+            className="w-full flex items-center gap-3 text-left bg-feisen-azul-suave rounded-xl px-4 py-3 hover:ring-1 hover:ring-feisen-azul">
+            <GraduationCap size={22} weight="duotone" className="text-feisen-azul shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-feisen-texto">Guía ISO 9001: {guiaHechos} de {GUIA_ISO.length} documentos vigentes</span>
+              <span className="block text-xs text-feisen-texto-2">{guiaEmpezados > guiaHechos ? `${guiaEmpezados - guiaHechos} en curso · ` : ''}Sigue con el próximo documento sugerido</span>
+            </span>
+            <ChevronRight size={16} className="text-feisen-azul shrink-0" />
+          </button>
+        )}
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Kpi clase="bg-feisen-azul-suave text-feisen-azul" Icono={BookOpenText} titulo="Vigentes" valor={conArchivo.length}
             detalle={`en ${new Set(conArchivo.map(m => m.area)).size} áreas`} />
@@ -293,11 +323,19 @@ export default function Manuales() {
       </>}
 
       {manualPanel && !editar && (
-        <FichaManual manual={manualPanel} onCerrar={cerrarPanel} onEditar={() => abrir('editar', manualPanel.id)} onCambio={alCambiar} />
+        <FichaManual manual={manualPanel} onCerrar={cerrarPanel} onEditar={() => abrir('editar', manualPanel.id)} onCambio={alCambiar}
+          onRedactar={async () => { await cargar(); abrir('redactar', manualPanel.id) }} />
       )}
       {((elabora && editar === 'nuevo') || (gestiona && manuales.some(m => m.id === editar))) && (
         <FormManual manual={editar === 'nuevo' ? null : manuales.find(m => m.id === editar)} codigosUsados={codigosUsados}
           onCerrar={cerrarPanel} onGuardado={alGuardar} />
+      )}
+      {params.get('guia') && (
+        <GuiaIso manuales={manuales} codigosUsados={codigosUsados} onCerrar={cerrarPanel} onEmpezado={alEmpezarGuia} onAbrir={m => abrir('manual', m.id)} />
+      )}
+      {redactando && (
+        <Asistente manual={redactando} onCerrar={() => { abrir('manual', redactando.id); cargar() }}
+          onCambio={mensaje => { avisar(mensaje); cargar(); abrir('manual', redactando.id) }} />
       )}
       {aviso}
     </div>

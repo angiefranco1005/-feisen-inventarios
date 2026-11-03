@@ -50,7 +50,7 @@ export const ESTADOS_VERSION = {
 
 // Campos de versión que usan la lista y la ficha
 export const SELECT_VERSION = 'id, manual_id, version, estado, archivo_path, archivo_nombre, archivo_tamano, cambios, vigente_desde, created_at, ' +
-  'enviado_at, revisado_at, aprobado_at, aprobado_externo, comentario_revision, subido_por, revisado_por, aprobado_por'
+  'enviado_at, revisado_at, aprobado_at, aprobado_externo, comentario_revision, subido_por, revisado_por, aprobado_por, contenido'
 
 // Agrega { elaboro, reviso, aprobo: { nombre } } a cada versión. Los nombres salen por la función
 // manual_nombres porque las reglas de profiles no dejan ver a los demás (salvo a ADMIN).
@@ -92,13 +92,33 @@ export async function reemplazarArchivo(version, archivo) {
   const { error } = await supabase.from('manual_versiones')
     .update({ archivo_path: path, archivo_nombre: archivo.name, archivo_tamano: archivo.size }).eq('id', version.id)
   if (error) { await supabase.storage.from(BUCKET_MANUALES).remove([path]); throw new Error(error.message) }
-  await supabase.storage.from(BUCKET_MANUALES).remove([version.archivo_path])
+  if (version.archivo_path) await supabase.storage.from(BUCKET_MANUALES).remove([version.archivo_path])
 }
 
 export async function descartarBorrador(version) {
   const { error } = await supabase.from('manual_versiones').delete().eq('id', version.id)
   if (error) throw new Error(error.message)
-  await supabase.storage.from(BUCKET_MANUALES).remove([version.archivo_path])
+  if (version.archivo_path) await supabase.storage.from(BUCKET_MANUALES).remove([version.archivo_path])
+}
+
+// Borrador escrito en la app (asistente): sin archivo, con el contenido estructurado del tipo
+export async function crearBorradorEscrito({ manual, version, contenido, cambios, usuarioId }) {
+  const { data, error } = await supabase.from('manual_versiones').insert({
+    manual_id: manual.id, version, contenido, cambios: cambios?.trim() || null, subido_por: usuarioId,
+  }).select('id').single()
+  if (error) throw new Error(error.message)
+  return data.id
+}
+
+// Crea un documento nuevo a partir de una plantilla de la guía ISO, con su borrador v1 escrito
+export async function crearDesdeGuia({ item, contenidoInicial, codigo, usuarioId }) {
+  const { data: manual, error } = await supabase.from('manuales').insert({
+    codigo, titulo: item.titulo, tipo: item.tipo, area: item.area, responsable: item.responsable,
+    dirigido_a: item.dirigido || [], plantilla: item.clave, creado_por: usuarioId,
+  }).select().single()
+  if (error) throw new Error(error.message)
+  await crearBorradorEscrito({ manual, version: 1, contenido: contenidoInicial, cambios: 'Versión inicial', usuarioId })
+  return manual
 }
 
 // enviar | revisar | aprobar | devolver | cargar_aprobado (las reglas viven en la base)
