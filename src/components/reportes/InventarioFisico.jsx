@@ -17,6 +17,15 @@ const HOY = () => new Date().toLocaleDateString('en-CA')
 
 const PAGINA = 150 // productos que se pintan a la vez en el conteo (rápido en celular)
 
+// Exactitud de un conteo: de los productos contados, cuántos tenían diferencia con el
+// sistema y qué porcentaje es eso. Lo no contado (cantidad_fisica vacía) no entra.
+function resumenConteo(filas) {
+  const contadas = filas.filter(f => f.cantidad_fisica != null)
+  const conDif = contadas.filter(f => Number((f.cantidad_fisica - f.cantidad_sistema).toFixed(3)) !== 0).length
+  return { contados: contadas.length, conDif, pct: contadas.length ? (conDif / contadas.length) * 100 : 0 }
+}
+const pctTxt = p => `${p.toLocaleString('es-CO', { maximumFractionDigits: p < 10 && p > 0 ? 1 : 0 })}%`
+
 // Título editable en línea, desde la lista — funciona tanto para borradores
 // como para inventarios ya confirmados (antes no había forma de corregir el
 // título de uno ya confirmado sin volver a abrirlo).
@@ -65,6 +74,7 @@ export default function InventarioFisico() {
 
   // Lista
   const [inventarios, setInventarios] = useState([])
+  const [resumenes,   setResumenes]   = useState({}) // inventario_id → resumenConteo
 
   // Editor
   const [items,        setItems]       = useState([])
@@ -188,6 +198,13 @@ export default function InventarioFisico() {
       .limit(100)
     setInventarios(data || [])
     setCargando(false)
+    const ids = (data || []).map(i => i.id)
+    if (!ids.length) return
+    const { data: filas } = await fetchAllPages((d, h) => supabase.from('inventario_fisico_items')
+      .select('id, inventario_id, cantidad_fisica, cantidad_sistema').in('inventario_id', ids).order('id').range(d, h))
+    const porInv = {}
+    for (const f of filas || []) (porInv[f.inventario_id] ||= []).push(f)
+    setResumenes(Object.fromEntries(Object.entries(porInv).map(([id, fs]) => [id, resumenConteo(fs)])))
   }
 
   // ── renombrar título desde la lista ─────────────────────────────────────
@@ -402,6 +419,7 @@ export default function InventarioFisico() {
 
   const contados      = itemsConCalculo.filter(i => i.cantidad_fisica !== null).length
   const conDiferencia = itemsConCalculo.filter(i => i.diferencia !== null && i.diferencia !== 0).length
+  const pctDif        = contados ? (conDiferencia / contados) * 100 : 0
 
   // ── guardar borrador ─────────────────────────────────────────────────────
   async function guardarBorrador() {
@@ -574,6 +592,12 @@ export default function InventarioFisico() {
           <span className="block text-xs text-feisen-texto-2 mt-0.5">
             {fechaLarga(inv.fecha)}{inv.profiles?.nombre ? ` · ${inv.profiles.nombre}` : ''}
           </span>
+          {resumenes[inv.id]?.contados > 0 && (
+            <span className="block text-xs text-feisen-texto-2 mt-0.5 tabular-nums">
+              {resumenes[inv.id].contados.toLocaleString('es-CO')} contados · <span className={resumenes[inv.id].conDif ? 'text-feisen-rojo' : ''}>
+                {resumenes[inv.id].conDif.toLocaleString('es-CO')} con diferencia ({pctTxt(resumenes[inv.id].pct)})</span>
+            </span>
+          )}
         </button>
         <div className="hidden sm:block w-64 min-w-0 text-sm">
           <TituloEditable valor={inv.notas} onGuardar={val => renombrarTitulo(inv, val)} />
@@ -674,6 +698,7 @@ export default function InventarioFisico() {
         {verDetalle && (() => {
           const conDifDet = detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema !== 0)
           const ordenados = [...conDifDet, ...detalleItems.filter(i => (i.cantidad_fisica ?? 0) - i.cantidad_sistema === 0)]
+          const resDet = resumenConteo(detalleItems)
           return (
             <PanelLateral etiqueta={`Detalle de ${verDetalle.numero}`} onCerrar={() => setVerDetalle(null)} encabezado={
               <div className="space-y-1.5">
@@ -689,14 +714,18 @@ export default function InventarioFisico() {
               {verDetalle.notas && <p className="hidden sm:block text-sm text-feisen-texto">{verDetalle.notas}</p>}
               {cargandoDetalle ? <Spinner /> : (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div className="border border-feisen-borde rounded-lg px-3 py-2.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Contados</p>
-                      <p className="text-2xl font-semibold text-feisen-texto tabular-nums">{detalleItems.length.toLocaleString('es-CO')}</p>
+                      <p className="text-2xl font-semibold text-feisen-texto tabular-nums">{resDet.contados.toLocaleString('es-CO')}</p>
                     </div>
                     <div className="border border-feisen-borde rounded-lg px-3 py-2.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Con diferencia</p>
-                      <p className={`text-2xl font-semibold tabular-nums ${conDifDet.length ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{conDifDet.length.toLocaleString('es-CO')}</p>
+                      <p className={`text-2xl font-semibold tabular-nums ${resDet.conDif ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{resDet.conDif.toLocaleString('es-CO')}</p>
+                    </div>
+                    <div className="border border-feisen-borde rounded-lg px-3 py-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">% diferencia</p>
+                      <p className={`text-2xl font-semibold tabular-nums ${resDet.conDif ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{pctTxt(resDet.pct)}</p>
                     </div>
                   </div>
                   <section>
@@ -812,6 +841,7 @@ export default function InventarioFisico() {
           className="text-left sm:text-right sm:pl-4 sm:border-l border-feisen-borde-suave">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Con diferencia</p>
           <p className={`text-2xl font-semibold tabular-nums ${conDiferencia ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{conDiferencia.toLocaleString('es-CO')}</p>
+          {contados > 0 && <p className="text-xs text-feisen-texto-2 tabular-nums">{pctTxt(pctDif)} de los contados</p>}
         </button>
         <div className="text-right sm:pl-4 sm:border-l border-feisen-borde-suave">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Valor neto</p>
@@ -931,7 +961,7 @@ export default function InventarioFisico() {
           <p className="flex-1 min-w-0 text-sm leading-tight">
             <b className="block text-feisen-texto tabular-nums">{contados.toLocaleString('es-CO')} contados</b>
             <span className={`text-xs tabular-nums ${conDiferencia ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
-              {conDiferencia ? `${conDiferencia} con diferencia` : 'Sin diferencias'}
+              {conDiferencia ? `${conDiferencia} con diferencia · ${pctTxt(pctDif)}` : 'Sin diferencias'}
             </span>
           </p>
           <button onClick={guardarBorrador} disabled={guardando}

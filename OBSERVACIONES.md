@@ -1974,3 +1974,7 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 
 ## 2026-10-30 · Conteo cíclico se aplaza a 2027
 - Angie decidió implementarlo desde **enero de 2027**: `INICIO_CICLICO = '2027-01'`. Hasta entonces la tarjeta de Inventario físico solo muestra "El conteo cíclico arranca el 1 de enero de 2027". La primera lista sale el 1 de enero; no hay que tocar nada más ese día.
+
+## 2026-11-03 · Inventario físico: % de diferencia por conteo
+- Cada conteo muestra **contados**, **con diferencia** y el **% con diferencia sobre lo contado** (no sobre toda la bodega): en la lista (debajo de la fecha), en el panel de detalle (3 tarjetas) y mientras se cuenta (tarjeta "Con diferencia" y barra de abajo). Función `resumenConteo` en InventarioFisico.jsx; lo que quedó sin cantidad no entra, y la diferencia se redondea a 3 decimales como en el resto de la pantalla.
+- La lista trae `inventario_fisico_items` de los 100 conteos visibles en una consulta aparte (pocas miles de filas); sin tablas ni vistas nuevas.
