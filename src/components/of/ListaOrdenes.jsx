@@ -24,7 +24,7 @@ const SELECT_ORDEN_COMPLETA = `
 `
 
 export default function ListaOrdenes() {
-  const { esComercial, esAdmin, esJefeArea, ofDespacho: esLogistica, centroCosto, puedeEditarOF } = useAuth()
+  const { esComercial, esAdmin, esJefeArea, ofDespacho: esLogistica, centroCosto, puedeEditarOF, puedeDespacharOF } = useAuth()
   const navigate = useNavigate()
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -187,6 +187,7 @@ export default function ListaOrdenes() {
           esAdmin={esAdmin}
           esComercial={esComercial}
           puedeEditarOF={puedeEditarOF}
+          puedeDespacharOF={puedeDespacharOF}
           filtroEstado={filtroEstado}
           onEditar={id => navigate(`/of/nueva?editar=${id}`)}
           onRegistrarEntrega={(orden, itemId) => setModalEnt({ orden, items: orden.items_of, itemInicialId: itemId })}
@@ -281,7 +282,7 @@ function coincideEstado(orden, filtroEstado) {
   return orden.items_of.some(it => estadoClase(it) === filtroEstado)
 }
 
-function VistaComercial({ ordenes, vista, esAdmin, esComercial, puedeEditarOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar }) {
+function VistaComercial({ ordenes, vista, esAdmin, esComercial, puedeEditarOF, puedeDespacharOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar }) {
   // OF abierta desde la vista "Por estado" (se muestra la tarjeta completa con sus botones en un modal)
   const [abiertaId, setAbiertaId] = useState(null)
   const ordenadas = ordenes // ya vienen ordenadas por número descendente (más nuevas primero)
@@ -294,7 +295,7 @@ function VistaComercial({ ordenes, vista, esAdmin, esComercial, puedeEditarOF, f
   // Al usar un botón desde el modal, se cierra para que el modal de la acción quede al frente
   const cerrarY = fn => (...args) => { setAbiertaId(null); fn(...args) }
   const acciones = {
-    esAdmin, esComercial, puedeEditarOF, filtroEstado,
+    esAdmin, esComercial, puedeEditarOF, puedeDespacharOF, filtroEstado,
     onEditar: cerrarY(onEditar), onRegistrarEntrega: cerrarY(onRegistrarEntrega), onRegistrarFabricacion: cerrarY(onRegistrarFabricacion),
     onReversarFabricacion: cerrarY(onReversarFabricacion), onReversarEntrega: cerrarY(onReversarEntrega), onVerDetalle: cerrarY(onVerDetalle),
     onCancelar: cerrarY(onCancelar), onReactivar: cerrarY(onReactivar),
@@ -345,9 +346,9 @@ function TituloSeccion({ texto, cantidad }) {
   )
 }
 
-function TarjetaOF({ orden, esAdmin, puedeEditarOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar, completada, sinMarco }) {
+function TarjetaOF({ orden, esAdmin, puedeEditarOF, puedeDespacharOF, filtroEstado, onEditar, onRegistrarEntrega, onRegistrarFabricacion, onReversarFabricacion, onReversarEntrega, onVerDetalle, onCancelar, onReactivar, completada, sinMarco }) {
   const cancelada = orden.cancelada
-  // Con nivel Registra solo se modifican las OF propias; las demás se ven sin botones
+  // Con nivel Registra solo se modifican las OF propias; las entregas sí se registran en todas
   const puedeEditar = puedeEditarOF(orden)
   const itemsAMostrar = filtroEstado ? orden.items_of.filter(it => estadoClase(it) === filtroEstado) : orden.items_of
   return (
@@ -417,7 +418,7 @@ function TarjetaOF({ orden, esAdmin, puedeEditarOF, filtroEstado, onEditar, onRe
                       Registrar fabricación
                     </button>
                   )}
-                  {puedeEditar && disponibleDespacho(item) > 0 && (
+                  {puedeDespacharOF && disponibleDespacho(item) > 0 && (
                     <button onClick={() => onRegistrarEntrega(orden, item.id)}
                       className="text-xs bg-white border border-feisen-rojo text-feisen-rojo hover:bg-feisen-rojo-suave px-3 py-2 rounded-lg font-semibold transition-colors">
                       Registrar entrega
@@ -429,7 +430,7 @@ function TarjetaOF({ orden, esAdmin, puedeEditarOF, filtroEstado, onEditar, onRe
                       ↩ Reversar fabricación
                     </button>
                   )}
-                  {puedeEditar && item.entregado > 0 && (
+                  {puedeDespacharOF && item.entregado > 0 && (
                     <button onClick={() => onReversarEntrega(orden, item.id)}
                       className="text-[11px] text-feisen-gris-medio hover:text-feisen-rojo sm:text-right">
                       ↩ Reversar despacho
@@ -469,7 +470,7 @@ function TarjetaOF({ orden, esAdmin, puedeEditarOF, filtroEstado, onEditar, onRe
 }
 
 // Tarjeta compacta para la columna de OF ya despachadas
-function TarjetaDespachada({ orden, puedeEditarOF, onVerDetalle, onReversarEntrega, onEditar }) {
+function TarjetaDespachada({ orden, puedeEditarOF, puedeDespacharOF, onVerDetalle, onReversarEntrega, onEditar }) {
   let ultima = null
   orden.items_of.forEach(it => it.entregas?.forEach(e => { if (e.tipo !== 'reversion' && (!ultima || e.fecha > ultima)) ultima = e.fecha }))
   const aTiempo = ultima && ultima <= orden.fecha_promesa
@@ -495,7 +496,7 @@ function TarjetaDespachada({ orden, puedeEditarOF, onVerDetalle, onReversarEntre
         {puedeEditarOF(orden) && (
           <button onClick={() => onEditar(orden.id)} className="text-feisen-azul font-medium hover:underline">Editar</button>
         )}
-        {puedeEditarOF(orden) && (
+        {puedeDespacharOF && (
           <button onClick={() => onReversarEntrega(orden, orden.items_of.find(it => it.entregado > 0)?.id)}
             className="text-feisen-gris-medio hover:text-feisen-rojo ml-auto">↩ Reversar despacho</button>
         )}

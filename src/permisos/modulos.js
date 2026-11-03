@@ -54,7 +54,7 @@ export const MODULOS = [
   { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'], usaBodega: true,
     rutas: ['/mantenimiento'] },
 
-  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
+  { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas, despacha todas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
     rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
 

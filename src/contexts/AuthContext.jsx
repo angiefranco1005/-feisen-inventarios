@@ -99,13 +99,15 @@ export function AuthProvider({ children }) {
   const esJefeArea         = !esAdmin && nivelOF === 've' && !!centroCosto
   const ofDespacho         = !esAdmin && nivelOF === 've' && !centroCosto
   const puedeEditarOF      = orden => esAdmin || nivelOF === 'todo' || (nivelOF === 'registra' && orden?.creado_por === perfil?.id)
+  // Despachos: con Registra o Todo se registran y reversan entregas de cualquier OF (Fabián despacha las de todos)
+  const puedeDespacharOF   = esAdmin || esComercial
 
   return (
     <AuthContext.Provider value={{
       session, perfil, cargando,
       login, logout,
       esAdmin, esLogistica, esAlmacenista, esOperario, esConsultor, esJefeFundicion, esJefeMecanizados, esJefeEnsamble, esRRHH,
-      esComercial, ofDespacho, esJefeArea, centroCosto, puedeEditarOF,
+      esComercial, ofDespacho, esJefeArea, centroCosto, puedeEditarOF, puedeDespacharOF,
       esAdminReal, rolPreview, setRolPreview, rolEfectivo,
       bodegasPermitidas,
       bodegasOperacion,
