@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Check, X, Boxes } from '../shared/iconos'
 import { BODEGA_MECANIZADOS_ID, BODEGA_ALMACEN_ID, CAT_PRODUCTO_MECANIZADO_ID } from '../../utils/bodegasCatalogo'
 import { fetchAllPages } from '../../utils/fetchAllPages'
@@ -91,7 +92,11 @@ function SelectorItem({ items, excluir = [], onSeleccionar, ayuda }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function GestionPaquetes() {
-  const [bodegaId,     setBodegaId]     = useState(BODEGA_MECANIZADOS_ID)
+  // ADMIN arma paquetes de todas; los demás (ej. Almacén) solo los de sus bodegas.
+  // La base de datos lo exige igual (RLS por bodega, ver 2026-11-03_paquetes_por_bodega.sql).
+  const { bodegasOperacion } = useAuth()
+  const bodegasVisibles = BODEGAS_PAQUETES.filter(b => !bodegasOperacion || bodegasOperacion.includes(b.id))
+  const [bodegaId,     setBodegaId]     = useState(bodegasVisibles[0]?.id || BODEGA_MECANIZADOS_ID)
   const bodegaCfg = BODEGAS_PAQUETES.find(b => b.id === bodegaId)
   const [paquetes,     setPaquetes]     = useState([])
   const [items,        setItems]        = useState([])  // catálogo de la bodega elegida
@@ -227,15 +232,15 @@ export default function GestionPaquetes() {
       </div>
 
       {/* Bodega dueña de los paquetes */}
-      <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 max-w-md">
-        {BODEGAS_PAQUETES.map(b => (
+      {bodegasVisibles.length > 1 && <div className="flex gap-2 bg-gray-100 p-1 rounded-xl mb-6 max-w-md">
+        {bodegasVisibles.map(b => (
           <button key={b.id} type="button" onClick={() => setBodegaId(b.id)}
             className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors
               ${bodegaId === b.id ? 'bg-white shadow text-feisen-azul' : 'text-gray-500 hover:text-gray-700'}`}>
             {b.nombre}
           </button>
         ))}
-      </div>
+      </div>}
 
       {error && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">

@@ -2010,3 +2010,8 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Ficha: aviso «Falta comprar N de M productos» y botón «Otra OC» junto a Recibir. Detalle: lo mismo + «Compra directa», y por línea «en OC · compra directa · sin comprar». Menú ⋯: «Compra directa de lo que falta».
 - Compra directa: ahora pide qué líneas (todas marcadas); guarda la cantidad en cada línea, suma «Compra directa · quién» a `numero_oc` en vez de reemplazarlo y deja historial `compra_directa`. Desde pendiente sigue pasando a En camino.
 - «Generar OC» descuenta también lo comprado directo y, si el pedido ya tiene algo cubierto, viene con las líneas que faltan ya marcadas.
+
+## 2026-11-03 · Almacén (Mateo Giraldo) edita los paquetes de su bodega
+- Pedido de Angie. `rol_permisos`: ALMACENISTA · paquetes = todo (Mateo es el único almacenista activo; se quita en Configuración › Permisos). El menú lo agrega solo (módulos dados que no estaban en NAV_ALMACENISTA).
+- RLS nuevas `paquetes_manage_bodega` y `paquete_items_manage_bodega`: con `mi_nivel('paquetes') = 'todo'` se crea/edita/borra solo en las bodegas de `profile_bodegas`. ADMIN conserva su política. Migración `supabase/migraciones/2026-11-03_paquetes_por_bodega.sql` (OK de Angie). Probado simulando la sesión de Mateo: puede los 25 de ALMACEN, ninguno de MECANIZADOS. El módulo queda `rlsPorMatriz`.
+- GestionPaquetes.jsx: quien no es ADMIN solo ve las pestañas de sus bodegas (sin pestañas si es una sola).

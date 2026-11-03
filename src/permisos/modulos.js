@@ -31,7 +31,7 @@ export const MODULOS = [
     rutas: ['/movimientos'] },
   { clave: 'transferencias', grupo: 'Inventario', nombre: 'Transferencias', detalle: 'aprobar lo que llega a su bodega', niveles: ['registra'], usaBodega: true,
     rutas: ['/transferencias'] },
-  { clave: 'paquetes',       grupo: 'Inventario', nombre: 'Paquetes por máquina', detalle: 'kits para sacar de una vez', niveles: ['todo'], usaBodega: true,
+  { clave: 'paquetes',       grupo: 'Inventario', nombre: 'Paquetes por máquina', detalle: 'kits para sacar de una vez · solo los de su bodega', niveles: ['todo'], usaBodega: true, rlsPorMatriz: true,
     rutas: ['/mecanizados/paquetes'] },
   { clave: 'reportes',       grupo: 'Inventario', nombre: 'Inventario físico, kardex y corte', detalle: 'reportes de inventario', niveles: ['ve'], usaBodega: true,
     rutas: ['/reportes', '/reportes/corte', '/reportes/inventario-fisico', '/reportes/kardex'] },
