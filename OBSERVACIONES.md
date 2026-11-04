@@ -2059,3 +2059,6 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - «Por comprar · hace N días hábiles»; se pone en rojo a los **5 días hábiles** (una semana laboral; antes 6 días calendario). El «más viejo» de la tarjeta también.
 - Fecha estimada de llegada (`FechaLlegada.jsx`, en Generar OC, OC de varios pedidos y Compra directa): botones «Llega en 1 · 2 · 3 · 5 · 10 días hábiles» que calculan la fecha saltando fines de semana y festivos; debajo dice el día («Llega el lunes, 9 de nov · en 3 días hábiles») y avisa si la fecha escogida a mano es sábado, domingo o festivo, o si ya pasó.
 - No cambia: el lead time promedio del Inicio sigue en días calendario (es un promedio de cuánto tarda en llegar, no un atraso).
+
+## 2026-11-04 · Producto «ESMALTE» (ALMACEN · PINTURA) eliminado
+- Pedido de Angie, con OK al SQL. No tenía movimientos, pedidos, conteos, paquetes, BOM, costeo, nómina ni seriales; solo su renglón de stock en 0. `supabase/migraciones/2026-11-04_eliminar_item_esmalte.sql` (por id). Los otros 16 esmaltes siguen.
