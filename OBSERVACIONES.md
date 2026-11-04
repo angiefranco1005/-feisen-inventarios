@@ -2062,3 +2062,10 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 
 ## 2026-11-04 · Producto «ESMALTE» (ALMACEN · PINTURA) eliminado
 - Pedido de Angie, con OK al SQL. No tenía movimientos, pedidos, conteos, paquetes, BOM, costeo, nómina ni seriales; solo su renglón de stock en 0. `supabase/migraciones/2026-11-04_eliminar_item_esmalte.sql` (por id). Los otros 16 esmaltes siguen.
+
+## 2026-11-04 · Inicio de gerencia por pestañas
+
+- A pedido de Angie, el Inicio de ADMIN ya no apila todo: pestañas **Resumen · Ventas · Pedidos OF · Inventarios · Logística · Producción · Personas** (`src/components/admin/inicio/InicioGerencia.jsx`).
+- **Resumen** = «Requiere tu atención» + una cifra por módulo (toca la cifra y abre su pestaña). **Ventas** monta el dashboard de Odoo (`of/ventas/DashboardVentas`); **Pedidos OF** monta `of/Dashboard`. Producción agrupa Mecanizados, Fundición y Calidad; Personas es RR. HH.
+- La pestaña queda en la URL (`/dashboard?vista=ventas`) y se recuerda en el navegador (`inicio-vista`). El selector de periodo solo sale en Resumen, Producción y Personas (lo que lo usa). Las pestañas con un pendiente rojo/ámbar llevan un punto. «Ver rotación» cambia a Inventarios y baja hasta la rotación.
+- Probado en vista previa local (datos vacíos) en escritorio y 375 px.
