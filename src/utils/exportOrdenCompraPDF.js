@@ -42,8 +42,9 @@ function fechaLarga(fechaISO) {
  *
  * @param {object} orden - fila de `ordenes_compra` (numero, fecha, observaciones)
  * @param {object} proveedor - fila de `proveedores` (nombre, nit, contacto, telefono, email, direccion) o null
- * @param {Array}  items - filas de `orden_compra_items` (descripcion, unidad, cantidad, precio_unitario)
- * @param {object} pedido - { numero } del pedido de origen, o null
+ * @param {Array}  items - filas de `orden_compra_items` (descripcion, unidad, cantidad, precio_unitario);
+ *                         con `pedido_numero` en cada línea si la OC junta varios pedidos
+ * @param {object} pedido - { numero } del pedido de origen (o "PED-a, PED-b" si son varios), o null
  * @param {string} generadoPor - nombre de quien generó la orden
  */
 export function exportarOrdenCompraPDF(orden, proveedor, items, pedido, generadoPor) {
@@ -108,34 +109,43 @@ export function exportarOrdenCompraPDF(orden, proveedor, items, pedido, generado
     doc.text(proveedor.direccion, margin, y)
     y += 5
   }
-  if (pedido?.numero) {
+  // Una OC puede juntar líneas de varios pedidos: se listan todos y cada línea dice el suyo
+  const pedidosLineas = [...new Set(items.map(it => it.pedido_numero).filter(Boolean))].sort()
+  const textoPedidos = pedidosLineas.length ? pedidosLineas.join(', ') : (pedido?.numero || '')
+  const variosPedidos = pedidosLineas.length > 1 || textoPedidos.includes(',')
+  if (textoPedidos) {
     doc.setTextColor(...GRIS)
-    doc.text(`Pedido de origen: ${pedido.numero}`, margin, y)
-    y += 5
+    const lineasPed = doc.splitTextToSize(`${variosPedidos ? 'Pedidos de origen' : 'Pedido de origen'}: ${textoPedidos}`, pageWidth - margin * 2)
+    doc.text(lineasPed, margin, y)
+    y += 5 * lineasPed.length
   }
 
   // ── Tabla de productos ──
+  const conPedido = pedidosLineas.length > 1
   const filas = items.map((it, idx) => [
     String(idx + 1),
     it.descripcion,
+    ...(conPedido ? [it.pedido_numero || ''] : []),
     Number(it.cantidad).toLocaleString('es-CO'),
     it.unidad || '',
     copFmt(it.precio_unitario),
     copFmt(it.cantidad * it.precio_unitario),
   ])
+  const d = conPedido ? 1 : 0   // corrimiento de columnas cuando va la de "Pedido"
 
   autoTable(doc, {
     startY: y + 4,
-    head: [['#', 'Descripción', 'Cantidad', 'Unidad', 'Precio unitario', 'Subtotal']],
+    head: [['#', 'Descripción', ...(conPedido ? ['Pedido'] : []), 'Cantidad', 'Unidad', 'Precio unitario', 'Subtotal']],
     body: filas,
     margin: { left: margin, right: margin },
     styles: { font: 'helvetica', fontSize: 9, textColor: [30, 30, 30], lineColor: [225, 225, 225] },
     headStyles: { fillColor: AZUL, textColor: [255, 255, 255], fontStyle: 'bold' },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
-      2: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right' },
+      ...(conPedido ? { 2: { cellWidth: 20 } } : {}),
+      [2 + d]: { halign: 'right' },
+      [4 + d]: { halign: 'right' },
+      [5 + d]: { halign: 'right' },
     },
     alternateRowStyles: { fillColor: GRIS_CLARO },
   })

@@ -6,9 +6,10 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal } from '../shared/iconos'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal, FileText } from '../shared/iconos'
 import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
+import ModalOCVariosPedidos from './ModalOCVariosPedidos'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
@@ -322,7 +323,7 @@ function MenuAcciones({ opciones, onElegir, etiqueta }) {
 }
 
 // ── Panel de detalle del pedido ─────────────────────────────────────────────
-function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entradasDelPedido, historial, onCerrar, onAccion }) {
+function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, lineasConPedido, pedidosDeOC, entradasDelPedido, historial, onCerrar, onAccion }) {
   const est = estadoPedido(p)
   const principal = accionPrincipal(p, permisos)
   const compra = textoCompra(p, ordenesDelPedido)
@@ -431,8 +432,10 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
           {titulo('Órdenes de compra')}
           <div className="space-y-1.5">
             {ordenesDelPedido.map(oc => {
+              const otros = pedidosDeOC(oc).filter(n => n !== p.numero)
+              const junto = otros.length ? <span className="text-feisen-texto-2 font-sans"> · junto con {otros.join(', ')}</span> : null
               if (!permisos.verDetalleOC) {
-                return <div key={oc.id} className="text-sm border border-feisen-borde rounded-lg px-3 py-2 font-mono">{oc.numero}</div>
+                return <div key={oc.id} className="text-sm border border-feisen-borde rounded-lg px-3 py-2 font-mono">{oc.numero}{junto}</div>
               }
               const totalOC = calcularTotalesOC((oc.orden_compra_items || []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)).total
               return (
@@ -440,9 +443,10 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, entrad
                   <span className="min-w-0">
                     <span className="font-mono font-semibold text-feisen-texto">{oc.numero}</span>
                     <span className="text-feisen-texto-2"> · {oc.proveedores?.nombre || 'Sin proveedor'} · ${Math.round(totalOC).toLocaleString('es-CO')} IVA incl.</span>
+                    {junto}
                   </span>
                   <button type="button" title="Descargar PDF"
-                    onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: p.numero }, oc.profiles?.nombre || '')}
+                    onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, lineasConPedido(oc), { numero: p.numero }, oc.profiles?.nombre || '')}
                     className="shrink-0 inline-flex items-center gap-1 text-feisen-azul font-semibold text-xs px-2.5 py-2 rounded-md hover:bg-feisen-azul-suave">
                     <Download size={14} /> PDF
                   </button>
@@ -553,6 +557,7 @@ export default function ListaPedidos() {
   const [ordenesCompra, setOrdenesCompra] = useState([])
   const [entradas,       setEntradas]       = useState([]) // movimientos tipo entrada ligados a pedidos
   const [modalGenerarOC, setModalGenerarOC] = useState(null)
+  const [modalOCVarios, setModalOCVarios] = useState(null)   // pedidos con algo por comprar
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('curso') // 'curso' | etapa | 'atrasados' | 'todos'
   const [aviso, avisar] = useAviso()
@@ -1134,16 +1139,28 @@ export default function ListaPedidos() {
   // más el aviso naranja "Llegó incompleto" cuando se cerró sin que llegara todo.
   // Agrupar órdenes de compra por pedido, y sumar cuánta cantidad de cada línea del
   // pedido ya quedó cubierta por alguna orden (puede repartirse entre varias)
+  // Una OC puede juntar líneas de varios pedidos (ordenes_compra.pedido_id vacío): sale en
+  // cada pedido al que pertenece alguna de sus líneas.
+  const pedidoDeLinea = {}
+  for (const p of pedidos) for (const it of (p.pedido_items || [])) pedidoDeLinea[it.id] = p
   const ocPorPedido = {}
   const coberturaPorItem = {}
   for (const oc of ordenesCompra) {
-    if (!ocPorPedido[oc.pedido_id]) ocPorPedido[oc.pedido_id] = []
-    ocPorPedido[oc.pedido_id].push(oc)
+    const suyos = new Set(oc.pedido_id ? [oc.pedido_id] : [])
     for (const it of (oc.orden_compra_items || [])) {
       if (!it.pedido_item_id) continue
       coberturaPorItem[it.pedido_item_id] = (coberturaPorItem[it.pedido_item_id] || 0) + it.cantidad
+      if (pedidoDeLinea[it.pedido_item_id]) suyos.add(pedidoDeLinea[it.pedido_item_id].id)
     }
+    for (const id of suyos) (ocPorPedido[id] ||= []).push(oc)
   }
+  // Para el PDF y la ficha: cada línea con el N° de su pedido
+  const lineasConPedido = oc => (oc.orden_compra_items || []).map(it => ({ ...it, pedido_numero: pedidoDeLinea[it.pedido_item_id]?.numero }))
+  const pedidosDeOC = oc => [...new Set(lineasConPedido(oc).map(it => it.pedido_numero).filter(Boolean))].sort()
+  // Pedidos que todavía tienen algo por comprar (para la OC de varios pedidos)
+  const conAlgoPorComprar = () => pedidos.filter(p => p.estado === 'pendiente'
+    ? lineasSinComprar(p, coberturaPorItem).length > 0
+    : faltaComprar(p, ocPorPedido[p.id], coberturaPorItem).length > 0)
 
   // Entradas agrupadas por pedido y N° de movimiento
   const entradasPorPedido = {}
@@ -1193,6 +1210,13 @@ export default function ListaPedidos() {
             className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
             <RefreshCw size={17} className={cargando ? 'animate-spin' : ''} />
           </button>
+          {(esAdmin || esLogistica) && (
+            <button onClick={() => { setMsg(null); setModalOCVarios(conAlgoPorComprar()) }}
+              title="Una sola orden de compra con productos de varios pedidos"
+              className="flex items-center gap-2 border border-feisen-borde bg-white text-feisen-texto px-3 sm:px-4 py-2 rounded-xl font-medium hover:bg-gray-50">
+              <FileText size={18} /> <span className="hidden sm:inline">OC de varios pedidos</span><span className="sm:hidden">OC</span>
+            </button>
+          )}
           <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra(''); setModalNuevo(true) }}
             className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
             <Plus size={18} /> Nuevo pedido
@@ -1267,6 +1291,7 @@ export default function ListaPedidos() {
         return (
           <DetallePedido p={p} permisos={permisosDe(p)}
             ordenesDelPedido={ocPorPedido[p.id] || []} coberturaPorItem={coberturaPorItem}
+            lineasConPedido={lineasConPedido} pedidosDeOC={pedidosDeOC}
             entradasDelPedido={entradasPorPedido[p.id] || []} historial={historialData[p.id]}
             onCerrar={() => setDetalleId(null)} onAccion={ejecutarAccion} />
         )
@@ -1279,6 +1304,19 @@ export default function ListaPedidos() {
           onCerrar={() => setModalGenerarOC(null)}
           onGuardado={r => {
             setModalGenerarOC(null)
+            if (r?.tipo === 'exito') avisar(r.texto); else if (r) setMsg(r)
+            cargar()
+          }}
+        />
+      )}
+
+      {modalOCVarios && (
+        <ModalOCVariosPedidos
+          pedidos={modalOCVarios}
+          coberturaPorItem={coberturaPorItem}
+          onCerrar={() => setModalOCVarios(null)}
+          onGuardado={r => {
+            setModalOCVarios(null)
             if (r?.tipo === 'exito') avisar(r.texto); else if (r) setMsg(r)
             cargar()
           }}

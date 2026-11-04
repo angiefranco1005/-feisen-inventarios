@@ -6,6 +6,7 @@ import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
 import { FileDown, Loader2 } from '../shared/iconos'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import SelectorProveedorOC, { useProveedorOC, faltaProveedor, resolverProveedor } from './SelectorProveedorOC'
 
 const fmtCOP = n => '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -13,12 +14,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
   const { perfil } = useAuth()
 
   const [proveedores,   setProveedores]   = useState([])
-  const [proveedorId,   setProveedorId]   = useState('')
-  const [nuevoProveedor, setNuevoProveedor] = useState(false)
-  const [npNombre, setNpNombre] = useState('')
-  const [npNit,    setNpNit]    = useState('')
-  const [npContacto, setNpContacto] = useState('')
-  const [npTelefono, setNpTelefono] = useState('')
+  const prov = useProveedorOC()
 
   const [observaciones, setObservaciones] = useState('')
   // Al generar la OC el pedido pasa solo a "En camino" con esta fecha estimada de llegada
@@ -92,8 +88,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
   async function guardar() {
     setMsg(null)
     if (lineasIncluidas.length === 0) { setMsg({ tipo: 'error', texto: 'Selecciona al menos un producto para la orden.' }); return }
-    if (!nuevoProveedor && !proveedorId) { setMsg({ tipo: 'error', texto: 'Selecciona un proveedor o agrega uno nuevo.' }); return }
-    if (nuevoProveedor && !npNombre.trim()) { setMsg({ tipo: 'error', texto: 'Escribe el nombre del proveedor nuevo.' }); return }
+    const errProv = faltaProveedor(prov)
+    if (errProv) { setMsg({ tipo: 'error', texto: errProv }); return }
     for (const it of lineasIncluidas) {
       const cant = parseFloat(seleccion[it.id]?.cantidad)
       if (!cant || cant <= 0) { setMsg({ tipo: 'error', texto: `Cantidad inválida para "${it.descripcion}".` }); return }
@@ -107,18 +103,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
 
     setGuardando(true)
     try {
-      let provId = proveedorId
-      let provInfo = proveedores.find(p => p.id === proveedorId) || null
-
-      if (nuevoProveedor) {
-        const { data: nuevo, error: eProv } = await supabase.from('proveedores').insert({
-          nombre: npNombre.trim(), nit: npNit.trim() || null,
-          contacto: npContacto.trim() || null, telefono: npTelefono.trim() || null,
-        }).select().single()
-        if (eProv) throw eProv
-        provId = nuevo.id
-        provInfo = nuevo
-      }
+      const provInfo = await resolverProveedor(prov, proveedores)
+      const provId = provInfo?.id
 
       const numero = await siguienteNumero('ordenes_compra', 'OC')
 
@@ -189,7 +175,8 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
             <div className="space-y-2.5">
               {pedidoItems.map(it => {
                 const cubierto  = coberturaPorItem[it.id] || 0
-                const pendiente = Math.max(0, it.cantidad - cubierto)
+                const directa   = it.cantidad_compra_directa || 0
+                const pendiente = Math.max(0, it.cantidad - cubierto - directa)
                 const sel = seleccion[it.id] || {}
                 return (
                   <div key={it.id} className={`border rounded-xl p-3 ${sel.incluir ? 'border-feisen-azul bg-blue-50/40' : 'border-gray-200'}`}>
@@ -202,6 +189,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
                         <p className="text-xs text-gray-400">
                           Pedido: {it.cantidad} {it.unidad}
                           {cubierto > 0 && ` · Ya en otra OC: ${cubierto} ${it.unidad}`}
+                          {directa > 0 && ` · Compra directa: ${directa} ${it.unidad}`}
                           {' · '}Pendiente: {pendiente} {it.unidad}
                         </p>
                       </div>
@@ -228,36 +216,7 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
             </div>
           </div>
 
-          {/* Proveedor */}
-          <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Proveedor</p>
-            {!nuevoProveedor ? (
-              <div className="space-y-2">
-                <select value={proveedorId} onChange={e => setProveedorId(e.target.value)}
-                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm bg-white">
-                  <option value="">Selecciona un proveedor...</option>
-                  {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                </select>
-                <button type="button" onClick={() => setNuevoProveedor(true)}
-                  className="text-xs text-feisen-azul font-medium">+ Agregar proveedor nuevo</button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <input placeholder="Nombre del proveedor *" value={npNombre} onChange={e => setNpNombre(e.target.value)}
-                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
-                <div className="flex gap-2">
-                  <input placeholder="NIT" value={npNit} onChange={e => setNpNit(e.target.value)}
-                    className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
-                  <input placeholder="Teléfono" value={npTelefono} onChange={e => setNpTelefono(e.target.value)}
-                    className="flex-1 border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
-                </div>
-                <input placeholder="Contacto" value={npContacto} onChange={e => setNpContacto(e.target.value)}
-                  className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm" />
-                <button type="button" onClick={() => setNuevoProveedor(false)}
-                  className="text-xs text-gray-500 font-medium">Usar un proveedor ya guardado</button>
-              </div>
-            )}
-          </div>
+          <SelectorProveedorOC estado={prov} proveedores={proveedores} />
 
           <div>
             <label className="text-sm font-semibold text-gray-700 block mb-1">Fecha estimada de llegada</label>

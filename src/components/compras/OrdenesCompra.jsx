@@ -24,10 +24,15 @@ export default function OrdenesCompra() {
     setCargando(true)
     const { data, error } = await supabase
       .from('ordenes_compra')
-      .select('*, proveedores(nombre, nit, contacto, telefono, direccion), profiles(nombre), pedidos(numero), orden_compra_items(*)')
+      .select('*, proveedores(nombre, nit, contacto, telefono, direccion), profiles(nombre), pedidos(numero), orden_compra_items(*, pedido_items(pedidos(numero)))')
       .order('created_at', { ascending: false })
     if (error) setMsg({ tipo: 'error', texto: 'Error al cargar: ' + error.message })
-    setOrdenes(data || [])
+    // Una OC puede juntar líneas de varios pedidos: cada línea trae el N° del suyo
+    setOrdenes((data || []).map(oc => {
+      const items = (oc.orden_compra_items || []).map(({ pedido_items, ...it }) => ({ ...it, pedido_numero: pedido_items?.pedidos?.numero }))
+      const nums = [...new Set([oc.pedidos?.numero, ...items.map(it => it.pedido_numero)].filter(Boolean))].sort()
+      return { ...oc, orden_compra_items: items, pedidosTexto: nums.join(', ') }
+    }))
     setCargando(false)
   }
 
@@ -46,7 +51,7 @@ export default function OrdenesCompra() {
       const q = normalizar(busqueda)
       return normalizar(oc.numero).includes(q)
         || normalizar(oc.proveedores?.nombre).includes(q)
-        || normalizar(oc.pedidos?.numero).includes(q)
+        || normalizar(oc.pedidosTexto).includes(q)
     })
 
   if (cargando) return <div className="flex justify-center py-20"><Spinner /></div>
@@ -94,7 +99,7 @@ export default function OrdenesCompra() {
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {new Date(`${oc.fecha}T12:00:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
-                    {oc.pedidos?.numero && ` · Pedido ${oc.pedidos.numero}`}
+                    {oc.pedidosTexto && ` · ${oc.pedidosTexto.includes(',') ? 'Pedidos' : 'Pedido'} ${oc.pedidosTexto}`}
                     {oc.profiles?.nombre && ` · Generada por ${oc.profiles.nombre}`}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
@@ -112,7 +117,7 @@ export default function OrdenesCompra() {
                     </p>
                   </div>
                   <button
-                    onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, oc.pedidos, oc.profiles?.nombre || '')}
+                    onClick={() => exportarOrdenCompraPDF(oc, oc.proveedores, oc.orden_compra_items, { numero: oc.pedidosTexto }, oc.profiles?.nombre || '')}
                     title="Descargar PDF" className="p-2 text-feisen-azul hover:bg-blue-50 rounded-lg">
                     <Download size={16} />
                   </button>
