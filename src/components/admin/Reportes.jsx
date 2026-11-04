@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { COLUMNAS_MOVIMIENTO } from '../../utils/columnasMovimiento'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatCOP, formatNumero, formatFechaHora, TIPOS_MOVIMIENTO } from '../../utils/formatters'
 import { exportarStockExcel, exportarMovimientosExcel } from '../../utils/exportExcel'
@@ -63,7 +64,7 @@ export default function Reportes() {
 
     if (tab === 'movimientos') {
       let q = supabase.from('movimientos')
-        .select('*, items(nombre, unidad_medida), bodega_origen:bodega_origen_id(nombre), bodega_destino:bodega_destino_id(nombre), profiles(nombre)')
+        .select(`${COLUMNAS_MOVIMIENTO}, items(nombre, unidad_medida), bodega_origen:bodega_origen_id(nombre), bodega_destino:bodega_destino_id(nombre), profiles(nombre)`)
         .order('created_at', { ascending: false })
         .limit(200)
       if (filtroFecha.desde) q = q.gte('created_at', filtroFecha.desde)

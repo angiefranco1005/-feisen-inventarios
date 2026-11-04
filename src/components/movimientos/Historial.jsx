@@ -6,6 +6,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { COLUMNAS_MOVIMIENTO } from '../../utils/columnasMovimiento'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { useBodegasConsulta } from '../consultor/useBodegasConsulta'
 import { coincideBusqueda } from '../../utils/busqueda'
@@ -225,7 +226,7 @@ export default function Historial() {
     const armarQuery = (desde, hasta) => {
       let q = supabase
         .from('movimientos')
-        .select('*, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)')
+        .select(`${COLUMNAS_MOVIMIENTO}, items(nombre, unidad_medida), profiles(nombre), bodegas_origen:bodega_origen_id(nombre), bodegas_destino:bodega_destino_id(nombre), pedidos(numero)`)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
 
@@ -257,20 +258,18 @@ export default function Historial() {
       return q.range(desde, hasta)
     }
 
-    // Sin rango: los últimos 5.000 (5 páginas). Con rango: todos los del periodo.
+    // Sin rango: los últimos 5.000 (5 páginas pedidas a la vez, no una tras otra). Con rango: todos los del periodo.
     const [{ data: movs, error: errMovs }, { data: its }] = await Promise.all([
       conRango
         ? fetchAllPages(armarQuery)
-        : (async () => {
-            let todas = []
-            for (let p = 0; p < 5; p++) {
-              const { data, error } = await armarQuery(p * 1000, p * 1000 + 999)
-              if (error) return { data: todas, error }
-              todas = todas.concat(data || [])
-              if (!data || data.length < 1000) break
-            }
-            return { data: todas, error: null }
-          })(),
+        : Promise.all([0, 1, 2, 3, 4].map(p => armarQuery(p * 1000, p * 1000 + 999))).then(res => {
+            const error = res.find(r => r.error)?.error || null
+            // Las páginas van en orden; si una vino incompleta, las siguientes ya no traen nada.
+            // Sin repetidos: si alguien registra un movimiento mientras carga, las páginas se corren
+            // una fila y la del borde llegaría dos veces.
+            const vistos = new Set()
+            return { data: res.flatMap(r => r.data || []).filter(m => !vistos.has(m.id) && vistos.add(m.id)), error }
+          }),
       fetchAllPages((d, h) => {
         let q = supabase.from('items').select('id, nombre, bodega_id').order('nombre').range(d, h)
         // Ventas solo puede filtrar por los productos de sus bodegas
@@ -539,6 +538,15 @@ export default function Historial() {
 
   // Detalle abierto: todas las líneas del movimiento (sin filtros)
   const lineasDetalle = detalle ? movimientos.filter(m => (m.numero || m.id) === detalle) : []
+
+  // Firma y foto de la remisión: no vienen en la lista (pesan mucho), se piden al abrir el detalle
+  const [imagenes, setImagenes] = useState({})   // id de la primera línea -> { firma_receptor_url, foto_remision_url }
+  const idImagenes = lineasDetalle[0]?.id
+  useEffect(() => {
+    if (!idImagenes || imagenes[idImagenes]) return
+    supabase.from('movimientos').select('firma_receptor_url, foto_remision_url').eq('id', idImagenes).maybeSingle()
+      .then(({ data }) => setImagenes(prev => ({ ...prev, [idImagenes]: data || {} })))
+  }, [idImagenes])
 
   // Spinner solo en la primera carga: al refrescar (después de editar, revertir…) la lista y el panel se quedan
   if (cargando && movimientos.length === 0) return <Spinner texto="Cargando historial..." />
@@ -848,7 +856,7 @@ export default function Historial() {
 
   // ── Panel lateral con el detalle del movimiento ──────────────────────────
   function panelDetalle(lineas) {
-    const p = lineas[0]
+    const p = { ...lineas[0], ...(imagenes[lineas[0].id] || {}) }
     const esSalida = p.tipo === 'salida'
     const valorTotal = lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
     const bodegas = [p.bodegas_origen?.nombre, p.bodegas_destino?.nombre].filter(Boolean)

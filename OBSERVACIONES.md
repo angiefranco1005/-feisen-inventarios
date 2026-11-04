@@ -2118,3 +2118,9 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - **Resumen** = «Requiere tu atención» + una cifra por módulo (toca la cifra y abre su pestaña). **Ventas** monta el dashboard de Odoo (`of/ventas/DashboardVentas`); **Pedidos OF** monta `of/Dashboard`. Producción agrupa Mecanizados, Fundición y Calidad; Personas es RR. HH.
 - La pestaña queda en la URL (`/dashboard?vista=ventas`) y se recuerda en el navegador (`inicio-vista`). El selector de periodo solo sale en Resumen, Producción y Personas (lo que lo usa). Las pestañas con un pendiente rojo/ámbar llevan un punto. «Ver rotación» cambia a Inventarios y baja hasta la rotación.
 - Probado en vista previa local (datos vacíos) en escritorio y 375 px.
+
+## 2026-11-04 · Historial lento: las firmas y fotos se bajaban con la lista
+- Causa: `movimientos.firma_receptor_url` y `foto_remision_url` guardan la imagen como `data:image/…` dentro de la fila (~10 KB cada una, 1.482 firmas). Son ~30 de los 31 MB de la tabla. El Historial hacía `select('*')` de los últimos 5.000 movimientos → ~13 MB por carga, y en 5 pedidos uno tras otro.
+- Arreglo: `src/utils/columnasMovimiento.js` (`COLUMNAS_MOVIMIENTO`, todas menos esas dos). El Historial y Reportes las usan; el detalle del Historial pide la firma/foto solo del movimiento abierto. Las 5 páginas se piden a la vez y se quitan repetidos por id. Medido: ~13 MB → ~3,2 MB.
+- **Gotcha:** cualquier lista nueva de `movimientos` debe usar `COLUMNAS_MOVIMIENTO`, nunca `select('*')`. Los dashboards que traen 8–10 movimientos con `*` se dejaron igual (pesan poco).
+- Pendiente posible: pasar las firmas a Storage (archivo) en vez de guardarlas en la fila, como ya se hace con las fotos de remisión nuevas. No se hizo.
