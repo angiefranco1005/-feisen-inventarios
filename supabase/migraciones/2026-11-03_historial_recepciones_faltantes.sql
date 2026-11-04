@@ -2,9 +2,11 @@
 -- 3/11/2026 (bug del finally en confirmarRecibido, ver OBSERVACIONES.md). Solo INSERTA en el
 -- historial; no toca pedidos, cantidades ni movimientos. Re-ejecutable: no repite filas.
 
--- 1) Recepciones con entrada: una por N° de movimiento, con su fecha y su usuario
+-- 1) Recepciones con entrada: una por N° de movimiento, con su fecha y su usuario.
+--    movimientos.created_at guarda la hora de Colombia como si fuera UTC (5 h atrás);
+--    pedido_historial guarda UTC real, así que se suman 5 h (corregido el 4/11/2026).
 with rec as (
-  select m.pedido_id, m.numero, min(m.created_at) t, (array_agg(m.usuario_id order by m.created_at))[1] usuario_id
+  select m.pedido_id, m.numero, min(m.created_at) + interval '5 hours' t, (array_agg(m.usuario_id order by m.created_at))[1] usuario_id
   from public.movimientos m
   where m.tipo = 'entrada' and m.pedido_id is not null and m.created_at >= '2026-10-15 17:00+00'
   group by m.pedido_id, m.numero
