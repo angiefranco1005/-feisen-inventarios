@@ -59,8 +59,8 @@ import TarifasDestajo           from './components/rrhh/nomina/TarifasDestajo'
 import Desempeno                from './components/rrhh/desempeno/Desempeno'
 import CicloDesempeno           from './components/rrhh/desempeno/CicloDesempeno'
 import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPersona'
-import OrdenesEnsamble          from './components/ensamble/OrdenesEnsamble'
-import RecetasEnsamble          from './components/ensamble/RecetasEnsamble'
+import PlanillasProduccion      from './components/ensamble/PlanillasProduccion'
+import SerialesMaquina          from './components/ensamble/SerialesMaquina'
 import Mantenimiento            from './components/mantenimiento/Mantenimiento'
 import ResultadoCentros         from './components/finanzas/ResultadoCentros'
 import PendientesFinanzas       from './components/finanzas/Pendientes'
@@ -110,10 +110,10 @@ function AppRoutes() {
     '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
     '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
     '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeVentasInternasFundicion />,
-    '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <OrdenesEnsamble />, '/ensamble/recetas': <RecetasEnsamble />,
+    '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <PlanillasProduccion />, '/ensamble/seriales': <SerialesMaquina />,
     '/calidad': <NoConformidades />, '/mantenimiento': <Mantenimiento />,
     '/of/nueva': <NuevaOrdenOFConClave />, '/of/ordenes': <ListaOrdenesOF />, '/of/resumen': <ResumenPlaneacionOF />, '/of/calendario': <CalendarioOF />,
-    '/of/dashboard': <DashboardOF />, '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />,
+    '/of/dashboard': <DashboardOF />, '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />, '/of/seriales': <SerialesMaquina />,
     '/costeo': <CosteoFichas />, '/costeo/fichas/:id': <CosteoFicha />, '/costeo/etapas': <EtapasMaestro />, '/costeo/cif': <CifMaestro />, '/costeo/equipos': <EquiposMaestro />,
     '/rrhh/empleados': <ListaEmpleados />, '/rrhh/empleados/:id': <FichaEmpleado />, '/rrhh/organigrama': <Organigrama />, '/rrhh/organigrama/:id': <FichaCargo />,
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,

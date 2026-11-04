@@ -47,8 +47,8 @@ export const MODULOS = [
     rutas: ['/reportes/balance-hierro', '/reportes/ventas-internas-fundicion'] },
   { clave: 'mecanizados',    grupo: 'Producción', nombre: 'Mecanizados', detalle: 'registro de mecanizado', niveles: ['todo'], usaBodega: true,
     rutas: ['/mecanizados/registro'] },
-  { clave: 'ensamble',       grupo: 'Producción', nombre: 'Ensamble', detalle: 'órdenes y recetas', niveles: ['todo'], usaBodega: true,
-    rutas: ['/ensamble', '/ensamble/recetas'] },
+  { clave: 'ensamble',       grupo: 'Producción', nombre: 'Ensamble', detalle: 'planillas de producción y números de máquina', niveles: ['todo'], usaBodega: true, rlsPorMatriz: true,
+    rutas: ['/ensamble', '/ensamble/seriales'] },
   { clave: 'calidad',        grupo: 'Producción', nombre: 'Calidad', detalle: 'no conformidades', niveles: ['registra'], usaBodega: true,
     rutas: ['/calidad'] },
   { clave: 'mantenimiento',  grupo: 'Producción', nombre: 'Mantenimiento', detalle: 'equipos; reporta fallas de su área', niveles: ['registra'], usaBodega: true,
@@ -56,7 +56,7 @@ export const MODULOS = [
 
   { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas, despacha todas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
-    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
+    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes', '/of/seriales'] },
 
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: elabora borradores · Todo: revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/manuales'] },

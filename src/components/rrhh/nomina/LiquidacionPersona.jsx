@@ -74,6 +74,8 @@ export default function LiquidacionPersona() {
   const [piezas,    setPiezas]    = useState([])
   const [tarifas,   setTarifas]   = useState([])
   const [novedades, setNovedades] = useState([])
+  const [deplanilla, setDeplanilla] = useState([])  // tareas de planillas de producción aún sin cargar (Ensamble)
+  const [porMarcar,  setPorMarcar]  = useState([])  // ids de esas tareas ya traídas, se marcan al guardar
   const [orden,     setOrden]     = useState([])     // ids de liquidaciones en orden alfabético (anterior/siguiente)
   const [verDias,   setVerDias]   = useState(false)
   const [cargando,  setCargando]  = useState(true)
@@ -93,10 +95,13 @@ export default function LiquidacionPersona() {
       supabase.from('nomina_liquidaciones').select('id, empleado_id').eq('periodo_id', periodoId),
     ])
     if (error) { setMsg({ tipo: 'error', texto: error.message }); setCargando(false); return }
-    const [{ data: e }, { data: novs }, { data: nombres }] = await Promise.all([
+    const [{ data: e }, { data: novs }, { data: nombres }, { data: lineasPlanilla }] = await Promise.all([
       supabase.from('empleados').select(CAMPOS_PAGO_EMPLEADO).eq('id', l.empleado_id).single(),
       supabase.from('novedades').select('*').eq('empleado_id', l.empleado_id).lte('fecha_inicio', p.fecha_fin).gte('fecha_fin', p.fecha_inicio),
       supabase.from('empleados').select('id, nombres, apellidos').in('id', (todas || []).map(t => t.empleado_id)),
+      supabase.from('planilla_lineas').select('id, tarifa_id, descripcion, cantidad, planillas_produccion!inner(numero, fecha, empleado_id)')
+        .is('liquidacion_id', null).eq('planillas_produccion.empleado_id', l.empleado_id)
+        .gte('planillas_produccion.fecha', p.fecha_inicio).lte('planillas_produccion.fecha', p.fecha_fin),
     ])
     const nom = new Map((nombres || []).map(n => [n.id, nombreCompleto(n)]))
     setOrden((todas || []).sort((a, b) => (nom.get(a.empleado_id) || '').localeCompare(nom.get(b.empleado_id) || '')).map(t => t.id))
@@ -114,6 +119,8 @@ export default function LiquidacionPersona() {
     setEmp(e)
     setTarifas((tfs || []).map(t => ({ ...t, nombre: t.items?.nombre || t.descripcion })))
     setNovedades((novs || []).filter(n => n.fecha_fin >= p.fecha_inicio && n.fecha_inicio <= p.fecha_fin))
+    setDeplanilla(lineasPlanilla || [])
+    setPorMarcar([])
     setCargando(false)
   }
 
@@ -134,6 +141,24 @@ export default function LiquidacionPersona() {
   const setPieza = (i, cambiosPieza) => { setPiezas(ps => ps.map((p, j) => (j === i ? { ...p, ...cambiosPieza } : p))); setCambios(true) }
 
   // Al escribir una pieza que coincide con una tarifa, se toma su valor
+  // Suma lo de las planillas de producción por tarea y lo agrega como piezas, al valor de la tarifa
+  function traerDePlanillas() {
+    const porTarea = new Map()
+    for (const l of deplanilla) {
+      const k = l.tarifa_id || l.descripcion
+      const prev = porTarea.get(k)
+      porTarea.set(k, { ...l, cantidad: (prev?.cantidad || 0) + Number(l.cantidad) })
+    }
+    const nuevas = [...porTarea.values()].map(l => {
+      const t = tarifas.find(x => x.id === l.tarifa_id)
+      return { descripcion: t?.nombre || l.descripcion, item_id: t?.item_id || null, cantidad: String(l.cantidad), valor_unitario: t ? String(t.valor) : '', origen: 'planilla' }
+    })
+    setPiezas(ps => [...ps.filter(p => (p.descripcion || '').trim() || Number(p.cantidad)), ...nuevas])
+    setPorMarcar(deplanilla.map(l => l.id))
+    setDeplanilla([])
+    setCambios(true)
+  }
+
   function elegirPieza(i, texto) {
     const t = tarifas.find(x => x.nombre === texto)
     setPieza(i, t ? { descripcion: texto, item_id: t.item_id, valor_unitario: String(t.valor) } : { descripcion: texto, item_id: null })
@@ -166,6 +191,11 @@ export default function LiquidacionPersona() {
     setGuardando(true); setMsg(null)
     try {
       await guardarLiquidacion(liqId, liq, piezas)
+      if (porMarcar.length) {
+        const { error: errMarca } = await supabase.rpc('marcar_lineas_planilla', { p_lineas: porMarcar, p_liquidacion: liqId })
+        if (errMarca) throw new Error(`Liquidación guardada, pero las planillas no quedaron marcadas como cargadas: ${errMarca.message}`)
+        setPorMarcar([])
+      }
       setCambios(false)
       if (irA) navigate(irA)
       else setMsg({ tipo: 'exito', texto: 'Liquidación guardada.' })
@@ -239,8 +269,19 @@ export default function LiquidacionPersona() {
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         <div className="flex-1 min-w-0 w-full space-y-4">
           {/* Destajo: piezas */}
-          {(m === 'destajo' || piezas.length > 0) && (
+          {(m === 'destajo' || piezas.length > 0 || deplanilla.length > 0) && (
             <Tarjeta titulo="Piezas (destajo)" icon={Package}>
+              {!cerrada && deplanilla.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-feisen-azul-suave rounded-lg px-3 py-2.5 mb-3">
+                  <p className="text-sm text-feisen-texto">
+                    {deplanilla.length} tarea{deplanilla.length > 1 ? 's' : ''} en planillas de producción de esta quincena
+                    <span className="text-feisen-texto-2"> ({[...new Set(deplanilla.map(l => l.planillas_produccion.numero))].join(', ')})</span>
+                  </p>
+                  <button type="button" onClick={traerDePlanillas} className={E.btnTextoAzul}>
+                    <Plus size={14} strokeWidth={1.8} /> Traer a las piezas
+                  </button>
+                </div>
+              )}
               {piezas.length === 0 && <p className="text-xs text-feisen-gris-medio mb-2">Agrega las piezas de la quincena; al escribir una pieza con tarifa, su valor se llena solo.</p>}
               <datalist id="tarifas-destajo">{tarifas.map(t => <option key={t.id} value={t.nombre} />)}</datalist>
               {piezas.length > 0 && (

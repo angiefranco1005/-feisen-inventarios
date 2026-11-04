@@ -1553,6 +1553,48 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 - Se corrió `supabase/migraciones/2026-10-26_rrhh_acceso_zaray.sql`: su perfil (recursoshumanos@feisen.com.co) quedó con `rol = 'RRHH'`. El rol se lee al iniciar sesión: tiene que cerrar sesión y volver a entrar.
 - Si aun así ve la lista vacía, revisar `SELECT count(*) FROM empleados` (si es 0, no hay colaboradores cargados todavía).
 
+## Ensamble = planillas de producción y números de máquina (04/11/2026)
+
+**Reemplaza** las órdenes de ensamble (OE) y las recetas del 26/10 (sección de abajo, que queda como
+historia): Angie explicó el proceso real y las OE duplicaban las OF.
+
+**Proceso real:** el jefe de planta ve las OF y reparte el trabajo; cada contratista llena una planilla de
+papel (tarea + cantidad; en máquinas completas, el número de cada máquina) y el jefe la recibe y firma. A
+veces entregan solo una parte (pedal, cabina…). RRHH usa la planilla para el destajo; ventas usa el número
+de la máquina en la factura y para saber a quién se vendió y quién la hizo.
+
+**Decisiones de Angie (04/11):** William (JEFE_ENSAMBLE) pasa la planilla a la app (los contratistas no
+tienen usuario); la planilla **nunca** va contra una OF; las piezas sueltas **no** llevan número; el número
+de máquina es un **consecutivo único de la empresa**; por ahora **no** mueve inventario.
+
+- **Migración** `supabase/migraciones/2026-11-04_planillas_produccion.sql`: `planillas_produccion` (PP-0001,
+  contratista = `empleados.id`, fecha → quincena), `planilla_lineas` (tarea = `nomina_tarifas.id` + copia del
+  nombre, cantidad, `modelo` si es máquina completa, `liquidacion_id` cuando RRHH la carga) y
+  `seriales_maquina` (serial único sin importar mayúsculas/espacios, modelo, quién la armó + copia
+  `hecha_por`, estado disponible/despachada, `of_entrega_id` / `item_of_id`). Permisos con `mi_nivel`
+  (`ensamble_puede()`, `rrhh_puede()`, `of_puede_crear()`).
+- **William no lee `empleados` ni `nomina_tarifas`** (RLS de RRHH): usa `ensamble_contratistas()` y
+  `ensamble_tareas()` (SECURITY DEFINER), que dan solo nombres — **los valores de las tarifas no salen de
+  RRHH**. El valor se pone cuando RRHH carga las piezas.
+- **Bloqueos:** una planilla no se edita ni se borra si alguna tarea ya está en nómina o alguna máquina ya se
+  despachó (RLS; el borrado en cascada no pasa por RLS, por eso la política de la planilla lo revisa). Editar
+  = borrar líneas y volverlas a crear (los seriales se recrean con el mismo número).
+- **Nómina** (`LiquidacionPersona.jsx`): si el contratista tiene tareas de planillas de la quincena sin
+  cargar, sale "Traer a las piezas": suma por tarea, pone el valor de la tarifa y `origen = 'planilla'` (se
+  amplió el CHECK de `nomina_piezas.origen`). Al **guardar** la liquidación se marcan con
+  `marcar_lineas_planilla()`; si no se guarda, siguen pendientes. Sigue siendo un paso manual de RRHH, en
+  línea con la decisión del 26/10 de no sugerir piezas automáticamente.
+- **Ventas** (`of/ModalEntrega.jsx`): al registrar una entrega se escogen los números despachados (primero los
+  del mismo modelo que el producto de la OF; se puede buscar otros). Opcional y nunca más que la cantidad.
+  Va por `asignar_seriales_entrega()`. `ModalReversarEntrega.jsx` deja escoger cuáles vuelven a planta
+  (`liberar_seriales()`).
+- **Pantallas:** `/ensamble` (planillas) y `/ensamble/seriales`; ventas ve la misma trazabilidad en
+  `/of/seriales` ("Números de máquina"). El menú no la repite a quien la tiene en Ensamble.
+- **Pendiente / a revisar con Angie:** la salida de Mecanizados a "Soldadura y Armado" crea entrada en la
+  bodega ARMADO Y SOLDADURA (cambio del 26/10) pero ya nada la consume; al 04/11 no ha generado ninguna
+  entrada (las piezas no están catalogadas allá). El primer número de máquina lo escribe William; desde ahí la
+  app propone el siguiente.
+
 ## Módulo: Producción y Ensamble (26/10/2026)
 
 Decisiones de Angie: el módulo maneja órdenes + inventario; las piezas que Mecanizados manda a

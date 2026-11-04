@@ -48,8 +48,8 @@ const NAV_ADMIN = [
   { to: '/analitica/fundicion',               icon: ChartLine,        label: 'Analítica',          modulo: 'Fundición' },
   { to: '/reportes/balance-hierro',           icon: Scale,           label: 'Balance de hierro',  modulo: 'Fundición' },
   { to: '/reportes/ventas-internas-fundicion', icon: Invoice,        label: 'Ventas internas',    modulo: 'Fundición' },
-  { to: '/ensamble',                          icon: Factory,         label: 'Órdenes de ensamble', modulo: 'Producción y Ensamble' },
-  { to: '/ensamble/recetas',                  icon: BookOpenText,   label: 'Recetas',            modulo: 'Producción y Ensamble' },
+  { to: '/ensamble',                          icon: ClipboardList,   label: 'Planillas',          modulo: 'Producción y Ensamble' },
+  { to: '/ensamble/seriales',                 icon: Tag,             label: 'Números de máquina', modulo: 'Producción y Ensamble' },
   { to: '/of/dashboard',                      icon: BarChart2,       label: 'Dashboard',          modulo: 'Ventas' },
   { to: '/of/nueva',                          icon: FilePlus,        label: 'Nueva OF',           modulo: 'Ventas' },
   { to: '/of/ordenes',                        icon: Files,   label: 'Órdenes',            modulo: 'Ventas' },
@@ -57,6 +57,7 @@ const NAV_ADMIN = [
   { to: '/of/calendario',                     icon: CalendarDots,    label: 'Calendario',         modulo: 'Ventas' },
   { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
+  { to: '/of/seriales',                       icon: Tag,             label: 'Números de máquina', modulo: 'Ventas' },
   { to: '/costeo',                            icon: Calculator,      label: 'Fichas',             modulo: 'Costeo' },
   { to: '/costeo/etapas',                     icon: UserList,           label: 'Responsables por etapa', modulo: 'Costeo' },
   { to: '/costeo/cif',                        icon: Coins,           label: 'CIF de planta',      modulo: 'Costeo' },
@@ -127,8 +128,8 @@ const NAV_JEFE_MECANIZADOS = [
 
 const NAV_JEFE_ENSAMBLE = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
-  { to: '/ensamble/recetas',               icon: BookOpenText,    label: 'Recetas' },
+  { to: '/ensamble',                       icon: ClipboardList,    label: 'Planillas' },
+  { to: '/ensamble/seriales',              icon: Tag,              label: 'Máquinas' },
   { to: '/productos',                      icon: Package,         label: 'Productos' },
   { to: '/movimientos',                    icon: History,        label: 'Historial' },
   { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
@@ -169,7 +170,8 @@ const MOBILE_JEFE_MECANIZADOS = [
 ]
 const MOBILE_JEFE_ENSAMBLE = [
   { to: '/dashboard',                      icon: LayoutDashboard, label: 'Inicio' },
-  { to: '/ensamble',                       icon: Factory,          label: 'Ensamble' },
+  { to: '/ensamble',                       icon: ClipboardList,    label: 'Planillas' },
+  { to: '/ensamble/seriales',              icon: Tag,              label: 'Máquinas' },
   { to: '/movimientos/nuevo',              icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',                        icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/productos',                      icon: Package,          label: 'Productos' },
@@ -272,6 +274,8 @@ export default function Layout({ children }) {
   if (itemOF && !propios.some(i => i.to === itemOF.to)) propios.splice(propios[0]?.to === '/dashboard' ? 1 : 0, 0, itemOF)
   const extras = esAdmin ? [] : NAV_ADMIN
     .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))
+    // Números de máquina: es la misma pantalla en Ensamble y en Ventas; quien la tiene en Ensamble no la ve dos veces
+    .filter(i => !(i.to === '/of/seriales' && propios.some(p => p.to === '/ensamble/seriales')))
     .map(i => ({ to: i.to, icon: i.icon, label: i.label, grupo: i.modulo }))
   // Ventas: Inicio, luego el grupo Ventas y después Inventarios (solo su bodega de motores)
   if (esComercial) extras.sort((a, b) => (b.grupo === 'Ventas') - (a.grupo === 'Ventas'))
