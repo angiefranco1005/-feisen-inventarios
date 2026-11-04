@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Alerta from './shared/Alerta'
 import Modal from './shared/Modal'
-import { pendienteProducir, disponibleDespacho, CENTRO_NOMBRE, formatoOF, formatFecha } from './shared/formatters'
+import { pendienteProducir, disponibleDespacho, CENTRO_NOMBRE, formatoOF, formatFecha, ofTotalmenteDespachada } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
 import { RefreshCw } from '../shared/iconos'
 
@@ -54,12 +54,15 @@ export default function ResumenPlaneacion() {
 
   const titulo = 'Resumen de planeación — fabricación y despacho'
 
-  const vigentes = ordenes.filter(o => !o.cancelada)
+  // Solo OF activas (2026-11-04): ni canceladas ni ya despachadas completas, y de cada una solo los
+  // productos que todavía tienen algo por despachar. Lo que ya salió no aparece en el resumen.
+  const vigentes = ordenes.filter(o => !o.cancelada && !ofTotalmenteDespachada(o.items_of))
 
   vigentes.forEach(o => {
     if (fechaDesde && o.fecha_promesa < fechaDesde) return
     if (fechaHasta && o.fecha_promesa > fechaHasta) return
     o.items_of.forEach(it => {
+      if (it.entregado >= it.cantidad) return
       if (filtroCentro && it.centro_costo !== filtroCentro) return
       if (filtroProducto && !it.producto.toLowerCase().includes(filtroProducto.trim().toLowerCase())) return
       sumar(it.producto, o, it)
@@ -71,7 +74,10 @@ export default function ResumenPlaneacion() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-feisen-azul">{titulo}</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-feisen-azul">{titulo}</h1>
+          <p className="text-sm text-feisen-texto-2 mt-0.5">Solo OF activas: lo que todavía falta fabricar o despachar.</p>
+        </div>
         <button onClick={refrescarManual} disabled={actualizando}
           className="flex items-center gap-1.5 text-sm text-feisen-azul font-medium px-3 py-1.5 rounded-lg hover:bg-feisen-gris disabled:opacity-60">
           <RefreshCw size={14} className={actualizando ? 'animate-spin' : ''} />
@@ -118,7 +124,7 @@ export default function ResumenPlaneacion() {
           </thead>
           <tbody>
             {productos.length === 0 ? (
-              <tr><td colSpan={5} className="text-center text-feisen-gris-medio italic py-8">No hay datos para estos filtros.</td></tr>
+              <tr><td colSpan={5} className="text-center text-feisen-gris-medio italic py-8">No hay productos pendientes en OF activas con estos filtros.</td></tr>
             ) : productos.map(prod => {
               const g = grupos[prod]
               return (
