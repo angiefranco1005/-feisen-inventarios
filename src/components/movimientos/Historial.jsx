@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { esFirma } from '../../utils/firmas'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
@@ -862,7 +863,7 @@ export default function Historial() {
     const bodegas = [p.bodegas_origen?.nombre, p.bodegas_destino?.nombre].filter(Boolean)
     const dato = (t, v) => v ? <div key={t}><dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t}</dt><dd className="text-sm text-feisen-texto mt-0.5 break-words">{v}</dd></div> : null
     const firmas = [
-      p.foto_remision_url?.startsWith('data:image') && { t: 'Firma del responsable', src: p.foto_remision_url },
+      esFirma(p.foto_remision_url) && { t: 'Firma del responsable', src: p.foto_remision_url },
       p.firma_receptor_url && { t: 'Firma de quien recibe', src: p.firma_receptor_url },
     ].filter(Boolean)
     return (
@@ -953,7 +954,7 @@ export default function Historial() {
             </div>
           </section>
         ))}
-        {p.foto_remision_url && !p.foto_remision_url.startsWith('data:image') && (
+        {p.foto_remision_url && !esFirma(p.foto_remision_url) && (
           <a href={p.foto_remision_url} target="_blank" rel="noreferrer"
             className="inline-flex items-center gap-1.5 text-sm text-feisen-azul font-medium hover:underline">
             <FileText size={15} /> Ver remisión

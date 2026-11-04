@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { subirFirma } from '../../utils/firmas'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { useAuth } from '../../contexts/AuthContext'
 import { Search, Upload, FileImage, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from '../shared/iconos'
@@ -225,6 +226,7 @@ export default function RegistrarMovimiento() {
     const lastNum = lastMov?.numero ? parseInt(lastMov.numero.replace(prefix, ''), 10) || 0 : 0
     const numero = `${prefix}${String(lastNum + 1).padStart(4, '0')}`
 
+    const firma = await subirFirma(firmaDataUrl)
     const payload = {
       numero,
       tipo:                  form.tipo,
@@ -238,7 +240,7 @@ export default function RegistrarMovimiento() {
       // Entrada
       proveedor:             form.tipo === 'entrada' ? (form.proveedor || null) : null,
       pedido_id:             form.tipo === 'entrada' ? (form.pedido_id || null) : null,
-      foto_remision_url:     firmaDataUrl || (form.tipo === 'entrada' ? (form.foto_remision_url || null) : null),
+      foto_remision_url:     firma || (form.tipo === 'entrada' ? (form.foto_remision_url || null) : null),
       // Salida
       destino:               form.tipo === 'salida'  ? form.destino       : null,
       numero_of:             form.tipo === 'salida'  ? (form.numero_of    || null) : null,

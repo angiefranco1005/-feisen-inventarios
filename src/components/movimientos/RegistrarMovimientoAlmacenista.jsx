@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { subirFirma } from '../../utils/firmas'
 import { useAuth } from '../../contexts/AuthContext'
 import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { Plus, Trash2, Search, Check, Flame, ShoppingCart, Wrench, Factory, Settings, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from '../shared/iconos'
@@ -568,6 +569,7 @@ export default function RegistrarMovimientoAlmacenista() {
     setGuardando(true)
     try {
       const numero = await generarNumero('REC')
+      const firmaEntrada = await subirFirma(firmaEntradaUrl)
       const proveedorFinal  = esCompra ? proveedor.trim() : 'Producción interna'
       const referenciaFinal = (!esCompra && colada.trim()) ? colada.trim() : null
 
@@ -585,7 +587,7 @@ export default function RegistrarMovimientoAlmacenista() {
         pedido_id:             esCompra ? (pedidoId || null) : null,
         referencia:            referenciaFinal,
         fecha_movimiento:      fechaMov || null,
-        foto_remision_url: firmaEntradaUrl || null, destino: null,
+        foto_remision_url: firmaEntrada, destino: null,
         numero_of: null, serial_motor: null, motivo: null, cliente: null,
       }))
       const { error: err } = await supabase.from('movimientos').insert(payloads)
@@ -739,6 +741,11 @@ export default function RegistrarMovimientoAlmacenista() {
 
     try {
       const numero = await generarNumero('SAL')
+      const esProduccionMec = esMecanizados && tipoSalidaMec === 'produccion'
+      const [firmaResp, firmaRecibe] = await Promise.all([
+        subirFirma(firmaDataUrl),
+        esProduccionMec ? subirFirma(firmaReceptorUrl) : null,
+      ])
       const referenciaPar = notas.trim() || null
       const payloads = agrupados.map(p => ({
         numero,
@@ -757,8 +764,8 @@ export default function RegistrarMovimientoAlmacenista() {
         destino:               esMecanizados && tipoSalidaMec === 'produccion' ? destinoMec : destNombre,
         numero_of:             esExternaFundic ? numeroOF.trim()
                                  : (esMecanizados && tipoSalidaMec === 'externa' ? numeroOrden.trim() : null),
-        foto_remision_url:     firmaDataUrl,
-        firma_receptor_url:    (esMecanizados && tipoSalidaMec === 'produccion') ? firmaReceptorUrl : null,
+        foto_remision_url:     firmaResp,
+        firma_receptor_url:    firmaRecibe,
         fecha_movimiento:      fechaMov || null,
         proveedor: null, pedido_id: null, serial_motor: null, motivo: null,
       }))
