@@ -6,10 +6,11 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, Truck, CheckCircle, Search, Trash2, RefreshCw, Edit2, Clock, Upload, ImageIcon, X, PackageOpen, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal, FileText } from '../shared/iconos'
+import { Plus, ShoppingCart, Truck, CheckCircle, Search, RefreshCw, PackageOpen, Download, Lock, ClipboardList, PackageCheck, MoreHorizontal, FileText } from '../shared/iconos'
 import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import ModalOCVariosPedidos from './ModalOCVariosPedidos'
+import FormularioPedido from './FormularioPedido'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
@@ -21,12 +22,6 @@ const ESTADO_CONFIG = {
   recibido:                { label: 'Recibido',             color: 'bg-green-100 text-green-700',   icon: CheckCircle  },
   parcialmente_recibido:   { label: 'Llegó una parte',      color: 'bg-orange-100 text-orange-700', icon: PackageOpen  },
   cerrado:                 { label: 'Cerrado',              color: 'bg-gray-100 text-gray-500',     icon: CheckCircle  },
-}
-
-const PRIORIDAD_CONFIG = {
-  urgente:       { label: 'Urgente',       color: 'bg-red-100 text-red-700 border border-red-200'     },
-  normal:        { label: 'Normal',         color: 'bg-blue-50 text-blue-700 border border-blue-200'   },
-  puede_esperar: { label: 'Puede esperar',  color: 'bg-green-50 text-green-700 border border-green-200' },
 }
 
 const PRIORIDAD_ORDEN = { urgente: 0, normal: 1, puede_esperar: 2 }
@@ -41,8 +36,6 @@ const HISTORIAL_LABELS = {
   parcialmente_recibido:   'Recibido parcialmente',
   cerrado:                 'Pedido cerrado',
 }
-
-const UNIDADES = ['und', 'kg', 'g', 'lb', 'm', 'cm', 'L', 'ml', 'rollo', 'par', 'caja', 'bulto']
 
 const MOTIVOS_CIERRE = [
   'Ya no se necesita',
@@ -503,44 +496,6 @@ function DetallePedido({ p, permisos, ordenesDelPedido, coberturaPorItem, lineas
         </div>
       )}
     </PanelLateral>
-  )
-}
-
-function SelectorProducto({ value, onSelect, productos }) {
-  const [busqueda, setBusqueda] = useState(value || '')
-  const [abierto,  setAbierto]  = useState(false)
-
-  const filtrados = busqueda.trim()
-    ? productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-    : productos
-
-  return (
-    <div className="relative w-full">
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input required value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onSelect('', '', null) }}
-          onFocus={() => setAbierto(true)}
-          onBlur={() => setTimeout(() => {
-            setAbierto(false)
-            const coincide = productos.some(p => p.nombre === busqueda)
-            if (busqueda && !coincide) { setBusqueda(''); onSelect('', '', null) }
-          }, 150)}
-          placeholder="Buscar producto..."
-          className="w-full border border-feisen-borde rounded-xl pl-10 pr-3 py-3.5 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-      </div>
-      {abierto && filtrados.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
-          {filtrados.slice(0, 200).map(p => (
-            <button key={p.id} type="button" onMouseDown={() => { setBusqueda(p.nombre); setAbierto(false); onSelect(p.nombre, p.unidad_medida, p.id) }}
-              className="w-full text-left px-4 py-3.5 text-base hover:bg-blue-50 active:bg-blue-100 border-b last:border-0 flex justify-between items-center">
-              <span className="font-medium text-gray-800">{p.nombre}</span>
-              <span className="text-sm text-gray-400 ml-2 flex-shrink-0">{p.unidad_medida}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -1326,107 +1281,13 @@ export default function ListaPedidos() {
       {/* MODAL NUEVO PEDIDO */}
       {modalNuevo && (
         <Modal titulo="Nuevo pedido" onCerrar={() => { setModalNuevo(false); setPrioridad('normal') }}>
-          <form onSubmit={crearPedido} className="space-y-4">
-            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-            <p className="text-sm text-gray-500">Agrega los productos que necesitas solicitar.</p>
-
-            {items.map((it, idx) => (
-              <div key={idx} className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2.5 relative">
-                {/* Producto */}
-                <SelectorProducto value={it.descripcion} productos={productos}
-                  onSelect={(nombre, unidad, itemId) => {
-                    const copia = [...items]
-                    copia[idx] = { ...copia[idx], descripcion: nombre, unidad: unidad || copia[idx].unidad, item_id: itemId || null }
-                    setItems(copia)
-                  }} />
-
-                {/* Cantidad + Unidad */}
-                <div className="flex gap-2 items-center">
-                  {/* Botones +/− */}
-                  <div className="flex items-center flex-1 border border-feisen-borde rounded-xl overflow-hidden bg-white">
-                    <button type="button"
-                      onClick={() => { const c = [...items]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItems(c) }}
-                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
-                    <input type="number" min="0.001" step="0.001" value={it.cantidad}
-                      onChange={e => { const c = [...items]; c[idx].cantidad = e.target.value; setItems(c) }}
-                      className="flex-1 text-center py-3 text-lg font-semibold border-x border-gray-200 focus:outline-none bg-white min-w-0" />
-                    <button type="button"
-                      onClick={() => { const c = [...items]; c[idx].cantidad = String((parseFloat(c[idx].cantidad) || 0) + 1); setItems(c) }}
-                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">+</button>
-                  </div>
-                  {/* Unidad */}
-                  <select value={it.unidad} onChange={e => { const c = [...items]; c[idx].unidad = e.target.value; setItems(c) }}
-                    className="w-24 border border-feisen-borde rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
-                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-
-                {/* Quitar ítem */}
-                {items.length > 1 && (
-                  <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                    className="w-full text-sm text-feisen-rojo font-medium py-1 hover:bg-red-50 rounded-lg">
-                    ✕ Quitar este producto
-                  </button>
-                )}
-              </div>
-            ))}
-
-            <button type="button" onClick={() => setItems([...items, { ...ITEM0 }])}
-              className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl text-base font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 active:bg-blue-100">
-              <Plus size={18} /> Agregar otro producto
-            </button>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Prioridad</label>
-              <div className="flex gap-2">
-                {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
-                  <button key={val} type="button" onClick={() => setPrioridad(val)}
-                    className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold border-2 transition-colors
-                      ${prioridad === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
-                    {cfg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
-              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
-                placeholder="Especificaciones, referencias, etc." />
-            </div>
-
-            {/* Foto de muestra */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Foto de muestra (opcional)</label>
-              {fotoMuestra ? (
-                <div className="space-y-2">
-                  <img src={fotoMuestra} alt="Muestra" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
-                  <button type="button" onClick={() => setFotoMuestra('')}
-                    className="flex items-center gap-1 text-xs text-feisen-rojo hover:underline">
-                    <X size={12} /> Quitar foto
-                  </button>
-                </div>
-              ) : (
-                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
-                  ${subiendoFoto ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
-                  {subiendoFoto
-                    ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
-                    : <><Upload size={28} /><span>Adjuntar foto de la muestra o referencia</span></>
-                  }
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => subirFoto(e.target.files?.[0], setFotoMuestra, setSubiendoFoto)} disabled={subiendoFoto} />
-                </label>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModalNuevo(false)}
-                className="flex-1 border border-feisen-borde rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={subiendoFoto}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">Crear pedido</button>
-            </div>
-          </form>
+          <FormularioPedido
+            items={items} setItems={setItems} itemVacio={ITEM0} productos={productos}
+            prioridad={prioridad} setPrioridad={setPrioridad} obs={obs} setObs={setObs}
+            foto={fotoMuestra} setFoto={setFotoMuestra} subiendoFoto={subiendoFoto}
+            onSubirFoto={f => subirFoto(f, setFotoMuestra, setSubiendoFoto)}
+            msg={msg} onSubmit={crearPedido} onCancelar={() => { setModalNuevo(false); setPrioridad('normal') }}
+            textoGuardar="Crear pedido" />
         </Modal>
       )}
 
@@ -1561,101 +1422,13 @@ export default function ListaPedidos() {
       {/* MODAL EDITAR PEDIDO */}
       {modalEditar && (
         <Modal titulo={`Editar ${modalEditar.numero}`} onCerrar={() => setModalEditar(null)}>
-          <form onSubmit={guardarEdicion} className="space-y-4">
-            {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
-
-            {itemsEdit.map((it, idx) => (
-              <div key={idx} className="bg-gray-50 border border-gray-200 rounded-2xl p-3 space-y-2.5 relative">
-                <SelectorProducto value={it.descripcion} productos={productos}
-                  onSelect={(nombre, unidad, itemId) => {
-                    const c = [...itemsEdit]
-                    c[idx] = { ...c[idx], descripcion: nombre, unidad: unidad || c[idx].unidad, item_id: itemId || null }
-                    setItemsEdit(c)
-                  }} />
-                <div className="flex gap-2 items-center">
-                  <div className="flex items-center flex-1 border border-feisen-borde rounded-xl overflow-hidden bg-white">
-                    <button type="button"
-                      onClick={() => { const c = [...itemsEdit]; c[idx].cantidad = String(Math.max(1, Math.round((parseFloat(c[idx].cantidad) || 1) - 1))); setItemsEdit(c) }}
-                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">−</button>
-                    <input type="number" min="0.001" step="0.001" value={it.cantidad}
-                      onChange={e => { const c = [...itemsEdit]; c[idx].cantidad = e.target.value; setItemsEdit(c) }}
-                      className="flex-1 text-center py-3 text-lg font-semibold border-x border-gray-200 focus:outline-none bg-white min-w-0" />
-                    <button type="button"
-                      onClick={() => { const c = [...itemsEdit]; c[idx].cantidad = String((parseFloat(c[idx].cantidad) || 0) + 1); setItemsEdit(c) }}
-                      className="px-4 py-3 text-xl font-bold text-gray-600 hover:bg-gray-100 active:bg-gray-200 select-none">+</button>
-                  </div>
-                  <select value={it.unidad} onChange={e => { const c = [...itemsEdit]; c[idx].unidad = e.target.value; setItemsEdit(c) }}
-                    className="w-24 border border-feisen-borde rounded-xl px-2 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul flex-shrink-0">
-                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                {itemsEdit.length > 1 && (
-                  <button type="button" onClick={() => setItemsEdit(itemsEdit.filter((_, i) => i !== idx))}
-                    className="w-full text-sm text-feisen-rojo font-medium py-1 hover:bg-red-50 rounded-lg">
-                    ✕ Quitar este producto
-                  </button>
-                )}
-              </div>
-            ))}
-
-            <button type="button" onClick={() => setItemsEdit([...itemsEdit, { ...ITEM0 }])}
-              className="w-full py-3 border-2 border-dashed border-feisen-azul text-feisen-azul rounded-xl text-base font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 active:bg-blue-100">
-              <Plus size={18} /> Agregar otro producto
-            </button>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Prioridad</label>
-              <div className="flex gap-2">
-                {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
-                  <button key={val} type="button" onClick={() => setPrioridadEdit(val)}
-                    className={`flex-1 py-3 px-2 rounded-xl text-sm font-semibold border-2 transition-colors
-                      ${prioridadEdit === val ? cfg.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
-                    {cfg.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Observaciones (opcional)</label>
-              <textarea value={obsEdit} onChange={e => setObsEdit(e.target.value)} rows={3}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none"
-                placeholder="Especificaciones, referencias, etc." />
-            </div>
-
-            {/* Foto de muestra edición */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Foto de muestra (opcional)</label>
-              {fotoMuestraEdit ? (
-                <div className="space-y-2">
-                  <img src={fotoMuestraEdit} alt="Muestra" className="w-full max-h-48 object-contain rounded-xl border bg-gray-50" />
-                  <button type="button" onClick={() => setFotoMuestraEdit('')}
-                    className="flex items-center gap-1 text-xs text-feisen-rojo hover:underline">
-                    <X size={12} /> Quitar foto
-                  </button>
-                </div>
-              ) : (
-                <label className={`flex flex-col items-center gap-2 cursor-pointer border-2 border-dashed rounded-xl px-4 py-7 text-base text-gray-400 transition-colors
-                  ${subiendoFotoEdit ? 'border-gray-200 bg-gray-50' : 'border-feisen-borde hover:border-feisen-azul hover:text-feisen-azul'}`}>
-                  {subiendoFotoEdit
-                    ? <><Upload size={28} className="animate-pulse" /><span>Subiendo...</span></>
-                    : <><Upload size={28} /><span>Adjuntar foto de muestra o referencia</span></>
-                  }
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => subirFoto(e.target.files?.[0], setFotoMuestraEdit, setSubiendoFotoEdit)} disabled={subiendoFotoEdit} />
-                </label>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setModalEditar(null)}
-                className="flex-1 border border-feisen-borde rounded-xl py-4 text-base font-medium text-gray-600">Cancelar</button>
-              <button type="submit" disabled={guardandoEdit || subiendoFotoEdit}
-                className="flex-1 bg-feisen-azul text-white rounded-xl py-4 text-base font-bold hover:opacity-90 disabled:opacity-60">
-                {guardandoEdit ? 'Guardando...' : 'Guardar cambios'}
-              </button>
-            </div>
-          </form>
+          <FormularioPedido
+            items={itemsEdit} setItems={setItemsEdit} itemVacio={ITEM0} productos={productos}
+            prioridad={prioridadEdit} setPrioridad={setPrioridadEdit} obs={obsEdit} setObs={setObsEdit}
+            foto={fotoMuestraEdit} setFoto={setFotoMuestraEdit} subiendoFoto={subiendoFotoEdit}
+            onSubirFoto={f => subirFoto(f, setFotoMuestraEdit, setSubiendoFotoEdit)}
+            msg={msg} onSubmit={guardarEdicion} onCancelar={() => setModalEditar(null)}
+            textoGuardar={guardandoEdit ? 'Guardando…' : 'Guardar cambios'} guardando={guardandoEdit} />
         </Modal>
       )}
 

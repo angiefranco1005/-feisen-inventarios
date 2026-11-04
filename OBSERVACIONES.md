@@ -2046,3 +2046,9 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Pedido de Angie: la lista desplegable de proveedores era muy larga. `SelectorProveedorOC.jsx` ahora es un campo de texto: al escribir (nombre o NIT, sin importar tildes ni mayúsculas) salen hasta 8 coincidencias, primero las que empiezan por lo escrito. Al elegir una queda marcada en verde con su NIT. Si se escribe el nombre exacto de uno guardado, queda elegido solo.
 - Si no existe: «+ Agregar «X» como proveedor nuevo» abre el formulario de proveedor nuevo con el nombre ya puesto. Si se escribe algo que no está y no se elige ni se agrega, la OC no se genera y lo explica.
 - Aplica a las dos OC (la de un pedido y la de varios pedidos), que comparten el componente.
+
+## 2026-11-04 · Pedidos: formulario de nuevo / editar pedido rediseñado
+- Pedido de Angie («no se ve tan pulcro»). Los dos modales tenían el mismo formulario copiado; ahora es uno solo, `FormularioPedido.jsx` (también trae `SelectorProducto` y `UNIDADES`, que salieron de ListaPedidos).
+- Estilo ux-feisen: productos en una lista con divisiones de 1 px (número, buscador, papelera) en vez de cajas grises; cantidad con el `Contador` de ui.jsx (el mismo de Movimientos); «Agregar otro producto» como última fila de la lista y no como botón punteado gigante; prioridad como selector segmentado (Urgente en rojo suave, Normal azul, Puede esperar verde); etiquetas en mayúscula pequeña; foto como una fila compacta (miniatura + Quitar); botones de 44 px fijos abajo, a la derecha en escritorio.
+- Buscador de productos: ahora por palabras sueltas sin tildes («rodam 62» encuentra RODAMIENTO 6205) y dice cuando nada coincide.
+- Inputs con `text-base` en celular (16 px) para que el iPhone no haga zoom al tocar el campo; `sm:text-sm` en escritorio.
