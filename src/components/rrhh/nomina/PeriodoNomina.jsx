@@ -6,9 +6,9 @@ import { exportarNominaQuincena } from '../../../utils/exportExcel'
 import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
 import Modal from '../../shared/Modal'
-import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange, CheckCircle2, Mail, MailX, Send } from '../../shared/iconos'
+import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange, CheckCircle2, Mail, MailX, Send, WhatsApp } from '../../shared/iconos'
 import * as E from '../estilos'
-import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas } from '../catalogosRRHH'
+import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas, BUCKET_RRHH } from '../catalogosRRHH'
 import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
 import HuelleroQuincena from './HuelleroQuincena'
 import { generarDesprendibles, desprendibleBase64, nombreArchivoDesprendible } from '../../../utils/desprendiblePagoPDF'
@@ -69,6 +69,12 @@ export default function PeriodoNomina() {
   const cerrada = !!periodo && periodo.estado !== 'borrador'
   const aprobada = periodo?.estado === 'aprobada'
   const correoDe = (e) => (e?.email_corporativo || e?.email_personal || '').trim()
+  // Celular para wa.me: solo dígitos y con el indicativo 57 si viene como celular colombiano de 10 dígitos
+  const whatsappDe = (e) => {
+    const d = (e?.celular || '').replace(/\D/g, '')
+    if (/^3\d{9}$/.test(d)) return `57${d}`
+    return /^\d{11,15}$/.test(d) ? d : ''
+  }
   const fuera = empleados.filter(e => e.estado !== 'retirado' && !liqs.some(l => l.empleado_id === e.id))
 
   async function cambiarEstado() {
@@ -142,6 +148,44 @@ export default function PeriodoNomina() {
       ? { tipo: 'error', texto: `Se enviaron ${lista.length - errores.length} de ${lista.length}. Fallaron: ${errores.join(' · ')}` }
       : { tipo: 'exito', texto: `Se enviaron los ${lista.length} desprendibles por correo.` })
     await cargar()
+  }
+
+  // WhatsApp (pedido de Angie, 2026-11-04): se guarda el PDF en el bucket privado, se
+  // crea un enlace firmado de 30 días y se abre el chat de la persona con el mensaje
+  // listo; quien envía es RRHH desde el WhatsApp de la empresa. WhatsApp no deja
+  // adjuntar archivos desde un enlace, por eso va el enlace al PDF.
+  async function enviarWhatsApp(l) {
+    const emp = empPorId.get(l.empleado_id)
+    const numero = whatsappDe(emp)
+    if (!numero) { setMsg({ tipo: 'error', texto: `${nombreCompleto(emp)} no tiene un celular válido en la ficha.` }); return }
+    // La ventana se abre ya (dentro del clic) para que el navegador no la bloquee
+    const ventana = window.open('', '_blank')
+    setMsg(null)
+    try {
+      const { data: pzs } = await supabase.from('nomina_piezas').select('descripcion, cantidad, valor_unitario').eq('liquidacion_id', l.id)
+      const doc = {
+        ...l, nombre: nombreCompleto(emp), documento: `${emp?.tipo_documento || ''} ${emp?.numero_documento || ''}`.trim(),
+        cargo: emp?.cargo, area: emp?.area, tipo_contrato: emp?.tipo_contrato, piezas: pzs || [],
+      }
+      const b64 = desprendibleBase64(doc, nombreQuincena(periodo))
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+      const path = `nomina/${periodoId}/whatsapp/${l.id}-${crypto.randomUUID()}.pdf`
+      const { error: errUp } = await supabase.storage.from(BUCKET_RRHH).upload(path, new Blob([bytes], { type: 'application/pdf' }), { contentType: 'application/pdf' })
+      if (errUp) throw new Error(`No se pudo guardar el PDF: ${errUp.message}`)
+      const { data: firmado, error: errUrl } = await supabase.storage.from(BUCKET_RRHH).createSignedUrl(path, 60 * 60 * 24 * 30, { download: nombreArchivoDesprendible(doc, periodo) })
+      if (errUrl) throw new Error(errUrl.message)
+      const nombre = (emp?.nombres || '').split(' ')[0].toLowerCase().replace(/^\p{L}/u, c => c.toUpperCase())
+      const texto = `Hola ${nombre}, este es tu comprobante de pago de Feisen de la quincena ${nombreQuincena(periodo).toLowerCase()}. `
+        + `Total a pagar: ${formatoPesos(l.neto)}.\n\n${firmado.signedUrl}\n\nEl enlace funciona durante 30 días.`
+      const url = `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
+      if (ventana) ventana.location.href = url
+      else window.open(url, '_blank')
+      await supabase.from('nomina_liquidaciones').update({ whatsapp_enviado_en: new Date().toISOString(), whatsapp_enviado_a: numero }).eq('id', l.id)
+      setLiqs(ls => ls.map(x => (x.id === l.id ? { ...x, whatsapp_enviado_en: new Date().toISOString(), whatsapp_enviado_a: numero } : x)))
+    } catch (err) {
+      ventana?.close()
+      setMsg({ tipo: 'error', texto: err.message })
+    }
   }
 
   // Mover la quincena a otras fechas (solo en borrador)
@@ -380,6 +424,15 @@ export default function PeriodoNomina() {
                         : l.email_error
                         ? <MailX size={13} strokeWidth={1.8} className="text-feisen-rojo" title={l.email_error} />
                         : !correoDe(l.emp) && <MailX size={13} strokeWidth={1.8} className="text-feisen-gris-medio" title="Sin correo en la ficha" />)}
+                      {aprobada && (whatsappDe(l.emp) ? (
+                        <span role="button" tabIndex={0}
+                          onClick={e => { e.stopPropagation(); enviarWhatsApp(l) }}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); enviarWhatsApp(l) } }}
+                          title={l.whatsapp_enviado_en ? `Enviado por WhatsApp el ${new Date(l.whatsapp_enviado_en).toLocaleString('es-CO')}. Clic para enviarlo otra vez.` : 'Enviar comprobante por WhatsApp'}
+                          className={`p-1 -my-1 rounded-md hover:bg-green-50 ${l.whatsapp_enviado_en ? 'text-green-600' : 'text-feisen-gris-medio hover:text-green-600'}`}>
+                          <WhatsApp size={16} weight={l.whatsapp_enviado_en ? 'fill' : 'regular'} />
+                        </span>
+                      ) : <WhatsApp size={14} className="text-feisen-borde" title="Sin celular en la ficha" />)}
                       {formatoPesos(l.neto)}
                     </span>
                     <ChevronRight size={16} strokeWidth={1.8} className="hidden md:block text-feisen-gris-medio justify-self-end" />

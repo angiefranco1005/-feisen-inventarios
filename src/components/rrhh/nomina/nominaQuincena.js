@@ -8,7 +8,7 @@ import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
-export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_nocturna, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal'
+export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_nocturna, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal, celular'
 
 const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
 
