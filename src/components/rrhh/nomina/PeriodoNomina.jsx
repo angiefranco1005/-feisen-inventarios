@@ -248,6 +248,7 @@ export default function PeriodoNomina() {
   const pendientesEnvio = liqs.filter(l => !l.email_enviado_en && correoDe(empPorId.get(l.empleado_id)))
   // El huellero sugiere horas distintas a las que ya tiene la liquidación
   const huelleroPendiente = (l) => l.huellero && (Number(l.huellero.horas_extra || 0) !== Number(l.horas_extra || 0)
+    || Number(l.huellero.horas_nocturna || 0) !== Number(l.horas_extra_nocturna || 0)
     || Number(l.huellero.horas_recargo || 0) !== Number(l.horas_extra_recargo || 0))
   const columnas = 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.5fr)_8rem_8rem_8rem_1rem]'
 
@@ -368,7 +369,7 @@ export default function PeriodoNomina() {
                     </div>
                     <span className="hidden md:flex items-center gap-1.5 text-sm text-feisen-texto-2 truncate">
                       {detalle(l)}
-                      {huelleroPendiente(l) && <span title="El huellero sugiere horas adicionales distintas a las registradas" className="inline-flex items-center gap-0.5 text-xs text-feisen-azul"><Fingerprint size={12} strokeWidth={1.8} /> {(Number(l.huellero.horas_extra) + Number(l.huellero.horas_recargo)).toLocaleString('es-CO')} h</span>}
+                      {huelleroPendiente(l) && <span title="El huellero sugiere horas adicionales distintas a las registradas" className="inline-flex items-center gap-0.5 text-xs text-feisen-azul"><Fingerprint size={12} strokeWidth={1.8} /> {(Number(l.huellero.horas_extra) + Number(l.huellero.horas_nocturna || 0) + Number(l.huellero.horas_recargo)).toLocaleString('es-CO')} h</span>}
                       {sinValor(l) && <AlertTriangle size={13} strokeWidth={1.8} className="text-amber-500 flex-shrink-0" />}
                     </span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_devengado)}</span>

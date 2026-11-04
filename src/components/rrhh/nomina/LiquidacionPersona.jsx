@@ -6,7 +6,7 @@ import Alerta from '../../shared/Alerta'
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Lock, Trash2, CalendarClock, Package, Fingerprint, FileText, ChevronDown } from '../../shared/iconos'
 import * as E from '../estilos'
 import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD } from '../catalogosRRHH'
-import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, esContratista, etiquetasPago, valoresHora, valorDiaBase } from './nominaCalculo'
+import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, valorHorasNocturna, esContratista, etiquetasPago, valoresHora, valorDiaBase } from './nominaCalculo'
 import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
 
@@ -103,6 +103,7 @@ export default function LiquidacionPersona() {
     setLiq({
       ...l,
       dias: aTexto(l.dias), valor_dia: aTexto(l.valor_dia), horas_extra: aTexto(l.horas_extra), valor_hora_extra: aTexto(l.valor_hora_extra),
+      horas_extra_nocturna: aTexto(l.horas_extra_nocturna), valor_hora_nocturna: aTexto(l.valor_hora_nocturna),
       horas_extra_recargo: aTexto(l.horas_extra_recargo), valor_hora_recargo: aTexto(l.valor_hora_recargo),
       valor_fijo: aTexto(l.valor_fijo), auxilio: aTexto(l.auxilio), subsidio_ss: aTexto(l.subsidio_ss),
       descuento_tiempo_pieza: aTexto(l.descuento_tiempo_pieza), seguridad: aTexto(l.seguridad), anticipo: aTexto(l.anticipo),
@@ -118,13 +119,13 @@ export default function LiquidacionPersona() {
 
   const cerrada = !!periodo && periodo.estado !== 'borrador'   // cerrada o aprobada: solo lectura
   const totales = useMemo(() => (liq ? calcularTotales(liq, piezas) : null), [liq, piezas])
-  // Al cambiar el valor del día (o el fijo) se recalculan los valores hora: día ÷ 8,4 × 1,25 y × 2
+  // Al cambiar el valor del día (o el fijo) se recalculan los valores hora: día ÷ 8,4 × 1,25, × 1,75 y × 2
   const set = (k) => (v) => {
     setLiq(l => {
       const nl = { ...l, [k]: v }
       if (k === 'valor_dia' || k === 'valor_fijo' || k === 'modalidad') {
         const h = valoresHora(valorDiaBase(nl.modalidad, nl.valor_dia, nl.valor_fijo))
-        if (h.extra) { nl.valor_hora_extra = String(h.extra); nl.valor_hora_recargo = String(h.recargo) }
+        if (h.extra) { nl.valor_hora_extra = String(h.extra); nl.valor_hora_nocturna = String(h.nocturna); nl.valor_hora_recargo = String(h.recargo) }
       }
       return nl
     })
@@ -141,7 +142,11 @@ export default function LiquidacionPersona() {
   // Aplica lo que sugiere el huellero (RRHH ya verificó que la extra está autorizada)
   function aplicarHuellero(que) {
     const h = liq.huellero
-    if (que === 'horas') { set('horas_extra')(String(h.horas_extra || '')); set('horas_extra_recargo')(String(h.horas_recargo || '')) }
+    if (que === 'horas') {
+      set('horas_extra')(String(h.horas_extra || ''))
+      set('horas_extra_nocturna')(String(h.horas_nocturna || ''))
+      set('horas_extra_recargo')(String(h.horas_recargo || ''))
+    }
     if (que === 'dias') set('dias')(String(h.dias_trabajados))
   }
 
@@ -302,7 +307,8 @@ export default function LiquidacionPersona() {
               </button>
             }>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                <span><span className="text-feisen-gris-medio">{T.extra}:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_extra)} h</strong></span>
+                <span><span className="text-feisen-gris-medio">{T.corto.diurna}:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_extra)} h</strong></span>
+                <span><span className="text-feisen-gris-medio">{T.corto.nocturna}:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_nocturna)} h</strong></span>
                 <span><span className="text-feisen-gris-medio">Domingo/festivo:</span> <strong className="text-feisen-texto">{fmtH(liq.huellero.horas_recargo)} h</strong></span>
                 <span><span className="text-feisen-gris-medio">Días hábiles con marcación:</span> <strong className="text-feisen-texto">{liq.huellero.dias_trabajados}</strong></span>
                 {liq.huellero.incompletos > 0 && <span className="text-amber-600">{liq.huellero.incompletos} día{liq.huellero.incompletos === 1 ? '' : 's'} con una sola marcación</span>}
@@ -320,7 +326,8 @@ export default function LiquidacionPersona() {
                     <thead><tr className="text-left text-feisen-gris-medio border-b border-feisen-borde-suave">
                       <th className="font-medium px-3 py-1.5">Fecha</th><th className="font-medium px-3 py-1.5">Día</th>
                       <th className="font-medium px-3 py-1.5">Entrada</th><th className="font-medium px-3 py-1.5">Salida</th>
-                      <th className="font-medium px-3 py-1.5 text-right">{T.extra}</th><th className="font-medium px-3 py-1.5 text-right">Dom/fest</th>
+                      <th className="font-medium px-3 py-1.5 text-right">{T.corto.diurna}</th><th className="font-medium px-3 py-1.5 text-right">{T.corto.nocturna}</th>
+                      <th className="font-medium px-3 py-1.5 text-right">Dom/fest</th>
                     </tr></thead>
                     <tbody className="divide-y divide-feisen-borde-suave">
                       {liq.huellero.dias.map(d => (
@@ -330,6 +337,7 @@ export default function LiquidacionPersona() {
                           <td className="px-3 py-1.5 text-feisen-texto-2">{d.entrada || '—'}</td>
                           <td className="px-3 py-1.5 text-feisen-texto-2">{d.salida || '—'}{d.incompleto && <span className="text-amber-600"> · 1 marca</span>}</td>
                           <td className="px-3 py-1.5 text-right text-feisen-texto">{d.extra ? `${fmtH(d.extra)} h` : '—'}</td>
+                          <td className="px-3 py-1.5 text-right text-feisen-texto">{d.nocturna ? `${fmtH(d.nocturna)} h` : '—'}</td>
                           <td className="px-3 py-1.5 text-right text-feisen-texto">{d.recargo ? `${fmtH(d.recargo)} h` : '—'}</td>
                         </tr>
                       ))}
@@ -346,6 +354,9 @@ export default function LiquidacionPersona() {
               <div><L>{T.horas}</L><Numero value={liq.horas_extra} disabled={cerrada} onChange={set('horas_extra')} /></div>
               <div><L>{T.valorHora}</L><Dinero value={liq.valor_hora_extra} disabled={cerrada} onChange={set('valor_hora_extra')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos((Number(liq.horas_extra) || 0) * (Number(liq.valor_hora_extra) || 0))}</p></div>
+              <div><L>{T.nocturna}</L><Numero value={liq.horas_extra_nocturna} disabled={cerrada} onChange={set('horas_extra_nocturna')} /></div>
+              <div><L>{T.valorNocturna}</L><Dinero value={liq.valor_hora_nocturna} disabled={cerrada} onChange={set('valor_hora_nocturna')} placeholder="Diurna × 1,4" /></div>
+              <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos(valorHorasNocturna(liq))}</p></div>
               <div><L>{T.recargo}</L><Numero value={liq.horas_extra_recargo} disabled={cerrada} onChange={set('horas_extra_recargo')} /></div>
               <div><L>{T.valorRecargo}</L><Dinero value={liq.valor_hora_recargo} disabled={cerrada} onChange={set('valor_hora_recargo')} /></div>
               <div className="flex items-end"><p className="text-sm text-feisen-texto py-2">= {formatoPesos(valorHorasRecargo(liq))}</p></div>

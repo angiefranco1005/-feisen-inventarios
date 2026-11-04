@@ -8,7 +8,7 @@ import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
-export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal'
+export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_nocturna, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal'
 
 const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
 
@@ -38,8 +38,10 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     dias: modalidad === 'dia' ? Math.max(0, laborales - ausente) : null,
     valor_dia: modalidad === 'dia' ? valorNum(emp.valor_dia) : null,
     horas_extra: null,
+    horas_extra_nocturna: null,
     horas_extra_recargo: null,
     valor_hora_extra: valorNum(emp.valor_hora_extra) ?? horas.extra,
+    valor_hora_nocturna: valorNum(emp.valor_hora_nocturna) ?? horas.nocturna,
     valor_hora_recargo: valorNum(emp.valor_hora_recargo) ?? horas.recargo,
     valor_fijo: valorFijo,
     auxilio: valorNum(emp.auxilio_quincenal),
@@ -59,7 +61,7 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
 // Lo que se guarda en liquidacion.huellero: horas sugeridas (RRHH las aplica tras
 // verificar la autorización) y días hábiles con marcación.
 export const sugerenciaHuellero = (r, archivo) => ({
-  nombre_huellero: r.nombre, horas_extra: r.horas_extra, horas_recargo: r.horas_recargo,
+  nombre_huellero: r.nombre, horas_extra: r.horas_extra, horas_nocturna: r.horas_nocturna, horas_recargo: r.horas_recargo,
   dias_trabajados: r.dias_trabajados, incompletos: r.incompletos, dias: r.dias, archivo, calculado_en: new Date().toISOString(),
 })
 
@@ -175,6 +177,7 @@ export async function guardarLiquidacion(liqId, liq, piezas) {
     modalidad: liq.modalidad,
     dias: valorNum(liq.dias), valor_dia: valorNum(liq.valor_dia),
     horas_extra: valorNum(liq.horas_extra), valor_hora_extra: valorNum(liq.valor_hora_extra),
+    horas_extra_nocturna: valorNum(liq.horas_extra_nocturna), valor_hora_nocturna: valorNum(liq.valor_hora_nocturna),
     horas_extra_recargo: valorNum(liq.horas_extra_recargo), valor_hora_recargo: valorNum(liq.valor_hora_recargo),
     valor_fijo: valorNum(liq.valor_fijo), auxilio: valorNum(liq.auxilio), subsidio_ss: valorNum(liq.subsidio_ss),
     otros_devengos: (liq.otros_devengos || []).filter(o => o.concepto?.trim() || Number(o.valor)).map(o => ({ concepto: (o.concepto || '').trim(), valor: Number(o.valor) || 0 })),

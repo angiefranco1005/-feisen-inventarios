@@ -18,11 +18,15 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 export const esContratista = (emp, modalidad) => (emp ? emp.tipo_contrato === 'Contratista' : ['destajo', 'dia'].includes(modalidad))
 export function etiquetasPago(contratista) {
   return contratista ? {
-    extra: 'Servicios adicionales', horas: 'Horas de servicios adicionales', valorHora: 'Valor hora servicio adicional',
-    recargo: 'Servicios adicionales domingo/festivo', valorRecargo: 'Valor hora domingo/festivo', aplicar: 'Aplicar servicios adicionales',
+    extra: 'Servicios adicionales', horas: 'Servicios adicionales diurnos (h)', valorHora: 'Valor hora diurna',
+    nocturna: 'Servicios adicionales nocturnos (h)', valorNocturna: 'Valor hora nocturna',
+    recargo: 'Servicios adicionales domingo/festivo (h)', valorRecargo: 'Valor hora domingo/festivo', aplicar: 'Aplicar servicios adicionales',
+    corto: { diurna: 'Diurnos', nocturna: 'Nocturnos', festiva: 'Dom./festivo' },
   } : {
-    extra: 'Horas extra', horas: 'Horas extra', valorHora: 'Valor hora extra',
-    recargo: 'Horas domingo/festivo (recargo 100 %)', valorRecargo: 'Valor hora con recargo 100 %', aplicar: 'Aplicar horas extra',
+    extra: 'Horas extra', horas: 'Horas extra diurnas', valorHora: 'Valor hora extra diurna (+25 %)',
+    nocturna: 'Horas extra nocturnas', valorNocturna: 'Valor hora extra nocturna (+75 %)',
+    recargo: 'Horas extra domingo/festivo', valorRecargo: 'Valor hora con recargo 100 %', aplicar: 'Aplicar horas extra',
+    corto: { diurna: 'Diurnas', nocturna: 'Nocturnas', festiva: 'Dom./festivo' },
   }
 }
 
@@ -96,10 +100,11 @@ export const sumaLista = (lista) => (lista || []).reduce((t, x) => t + num(x?.va
 // Se trunca a $100, como en el Excel. Siempre editable en la ficha y la liquidación.
 export const HORAS_DIA = 8.4
 const a100 = (v) => Math.floor(v / 100) * 100
+// Extra nocturna = normal × 1,75 (recargo del 75 %, art. 168 CST; pedido de Angie 2026-11-04).
 export function valoresHora(valorDia) {
   const d = num(valorDia)
-  if (!d) return { extra: null, recargo: null }
-  return { extra: a100(d / HORAS_DIA * 1.25), recargo: a100(d / HORAS_DIA * 2) }
+  if (!d) return { extra: null, nocturna: null, recargo: null }
+  return { extra: a100(d / HORAS_DIA * 1.25), nocturna: a100(d / HORAS_DIA * 1.75), recargo: a100(d / HORAS_DIA * 2) }
 }
 // Valor de un día de trabajo según la forma de pago (fijo: quincena ÷ 15)
 export const valorDiaBase = (modalidad, valorDia, valorQuincena) =>
@@ -109,6 +114,10 @@ export const valorDiaBase = (modalidad, valorDia, valorQuincena) =>
 export const valorHoraRecargo = (liq) => (liq.valor_hora_recargo !== null && liq.valor_hora_recargo !== undefined && liq.valor_hora_recargo !== ''
   ? num(liq.valor_hora_recargo) : num(liq.valor_hora_extra) * 2)
 export const valorHorasRecargo = (liq) => num(liq.horas_extra_recargo) * valorHoraRecargo(liq)
+// Valor de la hora extra nocturna; sin valor guardado se deriva de la diurna (× 1,75 / 1,25)
+export const valorHoraNocturna = (liq) => (liq.valor_hora_nocturna !== null && liq.valor_hora_nocturna !== undefined && liq.valor_hora_nocturna !== ''
+  ? num(liq.valor_hora_nocturna) : a100(num(liq.valor_hora_extra) * 1.4))
+export const valorHorasNocturna = (liq) => num(liq.horas_extra_nocturna) * valorHoraNocturna(liq)
 
 // Totales de una liquidación. Todos los conceptos suman si tienen valor
 // (un destajo puede tener además horas extra u otros, como en el Excel).
@@ -117,6 +126,7 @@ export function calcularTotales(liq, piezas = []) {
   const total_devengado = total_piezas
     + num(liq.dias) * num(liq.valor_dia)
     + num(liq.horas_extra) * num(liq.valor_hora_extra)
+    + valorHorasNocturna(liq)  // extra nocturna: recargo del 75 %
     + valorHorasRecargo(liq)   // domingo/festivo: recargo del 100 %
     + num(liq.valor_fijo)
     + num(liq.auxilio)
@@ -136,9 +146,22 @@ export function calcularTotales(liq, piezas = []) {
 //     (15–44 min = 0,5 h; 45–74 min = 1 h; …). Se aplica a cada tramo (antes / después).
 //   • Sábado: todo lo trabajado es extra normal.
 //   • Domingo y festivo: todo lo trabajado es extra con recargo del 100 %.
+//   • Extra nocturna (2026-11-04): la parte de un tramo extra entre las 7:00 p. m.
+//     y las 6:00 a. m. (jornada nocturna de la Ley 2466 de 2025). Se redondea el
+//     tramo completo y de ese total se separan las horas nocturnas, así la suma
+//     no cambia por partir el tramo. Domingo y festivo no se parten (todo al 100 %).
 // Es SOLO una sugerencia: RRHH verifica si la extra estaba autorizada.
-export const HORARIO = { entrada: 7 * 60 + 30, salidaLJ: 17 * 60 + 30, salidaV: 16 * 60 }
+export const HORARIO = { entrada: 7 * 60 + 30, salidaLJ: 17 * 60 + 30, salidaV: 16 * 60, nocheDesde: 19 * 60, nocheHasta: 6 * 60 }
 export const horasDeMinutos = (min) => (min > 0 ? Math.floor((min + 15) / 30) / 2 : 0)
+const cruce = (a, b, c, d) => Math.max(0, Math.min(b, d) - Math.max(a, c))
+// Horas de un tramo extra [desde, hasta) en minutos del día → { diurna, nocturna }
+export function partirTramo(desde, hasta) {
+  if (desde === null || hasta === null || hasta <= desde) return { diurna: 0, nocturna: 0 }
+  const total = horasDeMinutos(hasta - desde)
+  const minNoche = cruce(desde, hasta, 0, HORARIO.nocheHasta) + cruce(desde, hasta, HORARIO.nocheDesde, 24 * 60)
+  const nocturna = Math.min(total, horasDeMinutos(minNoche))
+  return { diurna: total - nocturna, nocturna }
+}
 
 export const normalizarAlias = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
@@ -228,26 +251,30 @@ export function calcularHuellero(marcas, inicio, fin) {
       const dow = new Date(a, mm - 1, d).getDay()
       const festivo = festivosColombia(a).get(fecha)
       const completo = entrada !== null && salida !== null
-      const dia = { fecha, entrada: hhmm(entrada), salida: hhmm(salida), marcas: ms.length, incompleto: !completo, extra: 0, recargo: 0 }
+      const dia = { fecha, entrada: hhmm(entrada), salida: hhmm(salida), marcas: ms.length, incompleto: !completo, extra: 0, nocturna: 0, recargo: 0 }
       if (dow === 0 || festivo) {
         dia.tipo = festivo ? 'festivo' : 'domingo'
         if (festivo) dia.festivo = festivo
         if (completo) dia.recargo = horasDeMinutos(salida - entrada)
       } else if (dow === 6) {
         dia.tipo = 'sabado'
-        if (completo) dia.extra = horasDeMinutos(salida - entrada)
+        if (completo) { const h = partirTramo(entrada, salida); dia.extra = h.diurna; dia.nocturna = h.nocturna }
       } else {
         dia.tipo = 'habil'
         const salidaHorario = dow === 5 ? HORARIO.salidaV : HORARIO.salidaLJ
-        dia.temprano = entrada !== null ? horasDeMinutos(HORARIO.entrada - entrada) : 0
-        dia.tarde = salida !== null ? horasDeMinutos(salida - salidaHorario) : 0
-        dia.extra = dia.temprano + dia.tarde
+        const antes = entrada !== null ? partirTramo(entrada, HORARIO.entrada) : { diurna: 0, nocturna: 0 }
+        const despues = salida !== null ? partirTramo(salidaHorario, salida) : { diurna: 0, nocturna: 0 }
+        dia.temprano = antes.diurna + antes.nocturna
+        dia.tarde = despues.diurna + despues.nocturna
+        dia.extra = antes.diurna + despues.diurna
+        dia.nocturna = antes.nocturna + despues.nocturna
       }
       dias.push(dia)
     }
     resultado.push({
       alias: p.alias, nombre: p.nombre, dias,
       horas_extra: dias.reduce((t, x) => t + x.extra, 0),
+      horas_nocturna: dias.reduce((t, x) => t + (x.nocturna || 0), 0),
       horas_recargo: dias.reduce((t, x) => t + x.recargo, 0),
       dias_trabajados: dias.filter(x => x.tipo === 'habil').length,
       incompletos: dias.filter(x => x.incompleto).length,

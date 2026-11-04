@@ -1,5 +1,6 @@
 import XLSX from 'xlsx-js-style'
 import { formatFechaHora, TIPOS_MOVIMIENTO } from './formatters'
+import { valorHoraNocturna } from '../components/rrhh/nomina/nominaCalculo'
 
 // ─────────────────────────────────────────────────────────────
 //  PALETA DE COLORES FEISEN
@@ -735,8 +736,8 @@ export function exportarNominaQuincena({ titulo, filas }) {
     // A los contratistas (destajo / al día) no se les dice "horas extra" ni "recargo"
     const contratistas = h.k !== 'fijo'
     const cExtra = contratistas
-      ? ['Horas serv. adicionales', 'Valor serv. adicionales', 'Horas serv. adic. dom./fest.', 'Valor serv. adic. dom./fest.']
-      : ['Horas extra', 'Valor horas extra', 'Horas dom./fest.', 'Valor dom./fest. (100 %)']
+      ? ['Horas serv. adic. diurnos', 'Valor serv. adic. diurnos', 'Horas serv. adic. nocturnos', 'Valor serv. adic. nocturnos', 'Horas serv. adic. dom./fest.', 'Valor serv. adic. dom./fest.']
+      : ['Horas extra diurnas', 'Valor extra diurnas (25 %)', 'Horas extra nocturnas', 'Valor extra nocturnas (75 %)', 'Horas dom./fest.', 'Valor dom./fest. (100 %)']
     const headers = ['Nombre', 'Documento', ...base, ...cExtra, 'Auxilio', 'Otros',
       'Dto. tiempo o pieza dañada', 'Subsidio a SS', 'Total devengado', 'Seguridad', 'Anticipo', 'Dotación, herramienta',
       'Otras deducciones', 'Total deducciones', 'Total a pagar', 'Firma recibido']
@@ -747,7 +748,8 @@ export function exportarNominaQuincena({ titulo, filas }) {
         : h.k === 'dia' ? [n(f.dias), n(f.valor_dia), n(f.dias) * n(f.valor_dia)] : [n(f.valor_fijo)]
       const vRecargo = f.valor_hora_recargo !== null && f.valor_hora_recargo !== undefined && f.valor_hora_recargo !== '' ? n(f.valor_hora_recargo) : n(f.valor_hora_extra) * 2
       const recargo = n(f.horas_extra_recargo) * vRecargo
-      return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.horas_extra_recargo), recargo, n(f.auxilio), suma(f.otros_devengos),
+      const nocturna = n(f.horas_extra_nocturna) * valorHoraNocturna(f)
+      return [f.nombre, f.documento, ...cols, n(f.horas_extra), extra, n(f.horas_extra_nocturna), nocturna, n(f.horas_extra_recargo), recargo, n(f.auxilio), suma(f.otros_devengos),
         n(f.descuento_tiempo_pieza), n(f.subsidio_ss), n(f.total_devengado), n(f.seguridad), n(f.anticipo),
         n(f.dotacion_herramienta), suma(f.otras_deducciones), n(f.total_deducciones), n(f.neto), '']
     })
@@ -756,8 +758,9 @@ export function exportarNominaQuincena({ titulo, filas }) {
     for (let c = 2; c < headers.length - 1; c++) fmt[c] = PESOS
     if (h.k === 'destajo') fmt[2] = '#,##0'
     if (h.k === 'dia') fmt[2] = 'General'   // días (admite medios días, p. ej. 13,5)
-    fmt[2 + nBase] = 'General'              // horas extra
-    fmt[4 + nBase] = 'General'              // horas domingo/festivo
+    fmt[2 + nBase] = 'General'              // horas extra diurnas
+    fmt[4 + nBase] = 'General'              // horas extra nocturnas
+    fmt[6 + nBase] = 'General'              // horas domingo/festivo
     const total = headers.map((_, c) => {
       if (c === 0) return `Totales (${grupo.length})`
       if (c === 1 || c === headers.length - 1) return ''
@@ -765,7 +768,7 @@ export function exportarNominaQuincena({ titulo, filas }) {
     })
     if (h.k === 'dia') total[3] = ''   // sumar valores de día no tiene sentido
     hojaTabla(wb, h.nombre, `Planilla de pago — ${h.nombre}`, titulo, headers, datos, {
-      anchos: [28, 14, ...base.map(() => 13), 10, 14, 10, 14, 12, 12, 14, 13, 15, 12, 12, 13, 13, 15, 15, 22],
+      anchos: [28, 14, ...base.map(() => 13), 10, 14, 10, 14, 10, 14, 12, 12, 14, 13, 15, 12, 12, 13, 13, 15, 15, 22],
       fmt, total,
     })
   }

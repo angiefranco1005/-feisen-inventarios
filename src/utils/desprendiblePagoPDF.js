@@ -3,7 +3,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { FEISEN_LOGO_PNG, LOGO_ASPECT, NIT_FEISEN } from './exportOrdenCompraPDF'
-import { esContratista, etiquetasPago, valorHoraRecargo } from '../components/rrhh/nomina/nominaCalculo'
+import { esContratista, etiquetasPago, valorHoraRecargo, valorHoraNocturna } from '../components/rrhh/nomina/nominaCalculo'
 
 const AZUL = [6, 71, 148]
 const GRIS = [110, 110, 110]
@@ -21,6 +21,7 @@ export function conceptosLiquidacion(l) {
   if (n(l.dias)) dev.push(['Días trabajados', cant(l.dias), pesos(l.valor_dia), n(l.dias) * n(l.valor_dia)])
   if (n(l.valor_fijo)) dev.push(['Valor fijo de la quincena', '', '', n(l.valor_fijo)])
   if (n(l.horas_extra)) dev.push([T.horas, cant(l.horas_extra), pesos(l.valor_hora_extra), n(l.horas_extra) * n(l.valor_hora_extra)])
+  if (n(l.horas_extra_nocturna)) dev.push([T.nocturna, cant(l.horas_extra_nocturna), pesos(valorHoraNocturna(l)), n(l.horas_extra_nocturna) * valorHoraNocturna(l)])
   if (n(l.horas_extra_recargo)) dev.push([T.recargo, cant(l.horas_extra_recargo), pesos(valorHoraRecargo(l)), n(l.horas_extra_recargo) * valorHoraRecargo(l)])
   if (n(l.auxilio)) dev.push(['Auxilio', '', '', n(l.auxilio)])
   if (n(l.subsidio_ss)) dev.push(['Subsidio a seguridad social', '', '', n(l.subsidio_ss)])

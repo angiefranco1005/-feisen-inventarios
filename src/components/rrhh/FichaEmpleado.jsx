@@ -146,12 +146,13 @@ const SECCIONES = [
           if (k !== 'valor_dia' && k !== 'valor_quincena') return f
           const dia = Number(f.valor_dia) || (Number(f.valor_quincena) ? Number(f.valor_quincena) / 15 : 0)
           const v = valoresHora(dia)
-          return v.extra ? { ...f, valor_hora_extra: String(v.extra), valor_hora_recargo: String(v.recargo) } : f
+          return v.extra ? { ...f, valor_hora_extra: String(v.extra), valor_hora_nocturna: String(v.nocturna), valor_hora_recargo: String(v.recargo) } : f
         },
         campos: [
         { k: 'valor_dia', label: 'Valor del día', tipo: 'money', nota: 'Contratistas al día' },
         { k: 'valor_quincena', label: 'Valor por quincena', tipo: 'money', nota: 'Personal fijo (planta). Si está vacío se usa la mitad del salario base.' },
-        { k: 'valor_hora_extra', label: 'Valor hora adicional', tipo: 'money', nota: 'Día ÷ 8,4 × 1,25. Horas extra (planta) o servicios adicionales (contratistas)' },
+        { k: 'valor_hora_extra', label: 'Valor hora adicional diurna', tipo: 'money', nota: 'Día ÷ 8,4 × 1,25. Horas extra (planta) o servicios adicionales (contratistas)' },
+        { k: 'valor_hora_nocturna', label: 'Valor hora adicional nocturna', tipo: 'money', nota: 'Día ÷ 8,4 × 1,75. Entre 7:00 p. m. y 6:00 a. m.' },
         { k: 'valor_hora_recargo', label: 'Valor hora domingo/festivo', tipo: 'money', nota: 'Día ÷ 8,4 × 2' },
         { k: 'auxilio_quincenal', label: 'Auxilio por quincena', tipo: 'money' },
         { k: 'subsidio_ss', label: 'Subsidio a seguridad social', tipo: 'money', nota: 'Lo que Feisen le reconoce (p. ej. 270.500 o 150.000)' },
