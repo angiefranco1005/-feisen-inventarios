@@ -99,7 +99,7 @@ export default function ModalEntrega({ orden, items, itemInicialId, onCerrar, on
             </div>
             <div>
               <label className="text-sm font-medium text-feisen-gris-oscuro block mb-1">Referencia (opcional)</label>
-              <input value={referencia} onChange={e => setReferencia(e.target.value)} placeholder="Ej: seriales de las máquinas despachadas"
+              <input value={referencia} onChange={e => setReferencia(e.target.value)} placeholder="Ej: número de factura"
                 className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
             <div>
