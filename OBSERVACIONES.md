@@ -2041,3 +2041,8 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Al guardar, en cada pedido: suma el N° de OC a `numero_oc`, pasa a En camino si estaba pendiente, fecha de llegada si se escribió, y historial «OC-XXXX generada (junto con PED-…)». En la ficha la OC sale con «junto con PED-…».
 - PDF: «Pedidos de origen: PED-a, PED-b» y columna «Pedido» por línea cuando son varios.
 - El selector de proveedor quedó en `SelectorProveedorOC.jsx` (lo usan las dos OC). De paso, «Generar OC» de un pedido ahora muestra lo comprado directo y no lo cuenta como pendiente.
+
+## 2026-11-04 · OC: el proveedor se escribe, no se busca en la lista
+- Pedido de Angie: la lista desplegable de proveedores era muy larga. `SelectorProveedorOC.jsx` ahora es un campo de texto: al escribir (nombre o NIT, sin importar tildes ni mayúsculas) salen hasta 8 coincidencias, primero las que empiezan por lo escrito. Al elegir una queda marcada en verde con su NIT. Si se escribe el nombre exacto de uno guardado, queda elegido solo.
+- Si no existe: «+ Agregar «X» como proveedor nuevo» abre el formulario de proveedor nuevo con el nombre ya puesto. Si se escribe algo que no está y no se elige ni se agrega, la OC no se genera y lo explica.
+- Aplica a las dos OC (la de un pedido y la de varios pedidos), que comparten el componente.
