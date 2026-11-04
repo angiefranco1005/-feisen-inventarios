@@ -99,7 +99,7 @@ function SelectorProductoEdicion({ items, valorId, onElegir }) {
       <div className="flex items-center gap-2">
         <input autoFocus value={texto} onChange={e => setTexto(e.target.value)}
           placeholder="Escribe parte del nombre…"
-          className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+          className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
         <button type="button" onClick={() => setBuscando(false)}
           className="shrink-0 text-sm text-gray-500 px-2 py-2">Cancelar</button>
       </div>
@@ -138,7 +138,7 @@ async function buscarMovimientoPar(m, opts = {}) {
   if (!m.bodega_origen_id || !m.bodega_destino_id || m.bodega_origen_id === m.bodega_destino_id) return null
   const base = () => {
     let q = supabase.from('movimientos')
-      .select('id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, centro_costo, numero, referencia')
+      .select(COLS_VINCULO)
       .eq('cantidad', m.cantidad)
       .eq('bodega_origen_id', m.bodega_origen_id)
       .eq('bodega_destino_id', m.bodega_destino_id)
@@ -155,6 +155,119 @@ async function buscarMovimientoPar(m, opts = {}) {
   }
   const { data } = await base().eq('item_id', m.item_id).maybeSingle()
   return data
+}
+
+// Columnas de los movimientos "vinculados" (par de una transferencia, reversión, original).
+const COLS_VINCULO = 'id, tipo, item_id, cantidad, bodega_origen_id, bodega_destino_id, precio_costo_snapshot, ' +
+  'centro_costo, numero, referencia, revertido, revertido_en, pedido_id, items(nombre, unidad_medida)'
+
+// Una fila de REVERSIÓN es el contramovimiento que crea "Revertir": lleva revertido_en y la
+// referencia "REVERSIÓN <número>" (o "REVERSIÓN PAR <número>" para el otro lado de una transferencia).
+const esFilaReversion = m => !!m.revertido_en && !m.revertido && /^REVERSIÓN /.test(m.referencia || '')
+
+// La reversión que se creó para el movimiento `m` (ya revertido). `usados` evita tomar dos veces la
+// misma fila cuando un movimiento tiene dos líneas iguales (mismo producto y cantidad).
+async function buscarReversion(m, usados = new Set()) {
+  const clave = m.numero || m.id
+  const { data, error } = await supabase.from('movimientos').select(COLS_VINCULO)
+    .in('referencia', [`REVERSIÓN ${clave}`, `REVERSIÓN PAR ${clave}`])
+    .eq('item_id', m.item_id).eq('cantidad', m.cantidad).neq('tipo', m.tipo)
+    .not('revertido_en', 'is', null)
+    .order('created_at')
+  if (error) throw error
+  return (data || []).find(r => !usados.has(r.id)) || null
+}
+
+// El movimiento original (marcado revertido) de una fila de reversión.
+async function buscarOriginal(r, usados = new Set()) {
+  const clave = (r.referencia || '').replace(/^REVERSIÓN (PAR )?/, '').trim()
+  if (!clave) return null
+  let q = supabase.from('movimientos').select(COLS_VINCULO)
+    .eq('item_id', r.item_id).eq('cantidad', r.cantidad).neq('tipo', r.tipo).eq('revertido', true)
+  q = /^[0-9a-f-]{36}$/i.test(clave) ? q.eq('id', clave) : q.eq('numero', clave)
+  const { data, error } = await q.order('created_at')
+  if (error) throw error
+  return (data || []).find(o => !usados.has(o.id)) || null
+}
+
+// Revierte UNA fila: crea el contramovimiento (el trigger fn_actualizar_stock ajusta el stock al
+// insertarlo) y marca la original como revertida (el trigger fn_motor_seriales_sync libera/borra
+// sus seriales de motor). Si no se puede marcar, borra el contramovimiento recién creado (el
+// trigger fn_revertir_stock_on_delete deshace su stock) para no dejar el stock movido dos veces.
+// Devuelve un texto de error o null.
+async function revertirFila(m, { numero, usuarioId, esPar }) {
+  if (m.tipo !== 'entrada' && m.tipo !== 'salida') return `el tipo "${m.tipo}" no se puede revertir desde aquí`
+  const esEntrada = m.tipo === 'entrada'
+  const bodega = esEntrada ? m.bodega_destino_id : m.bodega_origen_id
+  if (!bodega) return 'no tiene bodega registrada, no se sabe de dónde devolver el stock'
+  const contra = {
+    tipo:                  esEntrada ? 'salida' : 'entrada',
+    item_id:               m.item_id,
+    bodega_origen_id:      esEntrada ? bodega : null,
+    bodega_destino_id:     esEntrada ? null : bodega,
+    cantidad:              m.cantidad,
+    precio_costo_snapshot: m.precio_costo_snapshot || 0,
+    centro_costo:          m.centro_costo || '',
+    usuario_id:            usuarioId,
+    referencia:            `REVERSIÓN ${esPar ? 'PAR ' : ''}${m.numero || m.id}`,
+    revertido:             false,
+    revertido_en:          new Date().toISOString(),
+    numero,
+  }
+  const { data: nuevo, error: e1 } = await supabase.from('movimientos').insert(contra).select('id').single()
+  if (e1) return `no se pudo crear la reversión: ${e1.message}`
+  const { data: marcados, error: e2 } = await supabase.from('movimientos')
+    .update({ revertido: true }).eq('id', m.id).eq('revertido', false).select('id')
+  if (e2 || !marcados?.length) {
+    await supabase.from('movimientos').delete().eq('id', nuevo.id)
+    return e2 ? `no se pudo marcar como revertido: ${e2.message}` : 'ya estaba revertido'
+  }
+  return null
+}
+
+// Qué filas hay que borrar para eliminar `m` sin dejar el stock descuadrado:
+// - si `m` ya está revertido, también su reversión (entre las dos el stock queda igual);
+// - si `m` ES una reversión, también el original que revirtió;
+// - si es una transferencia, también su movimiento en la otra bodega (y la reversión de ese).
+// Cada fila borrada la deshace el trigger fn_revertir_stock_on_delete. Devuelve
+// { filas: [{ fila, motivo }] } o { error }.
+async function planEliminacion(m, usados) {
+  const filas = []
+  const tomar = (fila, motivo) => { filas.push({ fila, motivo }); usados.add(fila.id) }
+  const etiqueta = f => `${f.items?.nombre || 'producto'} (${f.numero || 'sin número'})`
+  tomar(m, null)
+  let original = m
+  if (m.revertido) {
+    const r = await buscarReversion(m, usados)
+    if (!r) return { error: `${etiqueta(m)} ya está revertido y no se encontró su reversión. Eliminarlo movería el stock otra vez; déjalo como está.` }
+    tomar(r, 'su reversión')
+  } else if (esFilaReversion(m)) {
+    const o = await buscarOriginal(m, usados)
+    if (o) tomar(o, 'el movimiento que revirtió')
+    original = o
+  }
+  if (original) {
+    const par = await buscarMovimientoPar(original, {})
+    if (par && !usados.has(par.id)) {
+      tomar(par, 'su movimiento en la otra bodega')
+      if (par.revertido) {
+        const rp = await buscarReversion(par, usados)
+        if (!rp) return { error: `El movimiento en la otra bodega de ${etiqueta(m)} ya está revertido y no se encontró su reversión. No se elimina nada.` }
+        tomar(rp, 'la reversión del movimiento en la otra bodega')
+      }
+    }
+  }
+  return { filas }
+}
+
+// Deja constancia en el historial del pedido cuando se revierte, elimina o corrige una entrada
+// que llegó por un pedido (el estado del pedido no cambia solo).
+async function anotarEnPedidos(filas, accion, usuarioId, detalleDe) {
+  const porPedido = {}
+  for (const f of filas) if (f.pedido_id && f.tipo === 'entrada') (porPedido[f.pedido_id] ||= []).push(f)
+  for (const [pedido_id, fs] of Object.entries(porPedido)) {
+    await supabase.from('pedido_historial').insert({ pedido_id, usuario_id: usuarioId, accion, detalle: detalleDe(fs) })
+  }
 }
 
 export default function Historial() {
@@ -186,6 +299,7 @@ export default function Historial() {
   const [detalle,            setDetalle]            = useState(null) // número del movimiento abierto en el panel
   const [menuLinea,          setMenuLinea]          = useState(null) // línea con las acciones a la vista
   const buscarRef = useRef(null)
+  const planVez = useRef(0) // para descartar la revisión de "Eliminar" si el modal ya se cerró
   const [aviso, avisar] = useAviso()
   useAtajoBuscar(buscarRef)
 
@@ -339,8 +453,23 @@ export default function Historial() {
     }
     if (Object.keys(cambios).length === 0) { setEditGuardando(false); setEditModal(null); return }
 
+    // Un movimiento revertido (o una reversión) ya está compensado por su contrario: cambiarle la
+    // cantidad o el producto descuadraría el stock. Solo se corrigen los datos de texto/fecha/costo.
+    const bloqueado = m.revertido || !!m.revertido_en
+    if (bloqueado && (cambios.cantidad || cambiaProducto)) {
+      setMsg({ tipo: 'error', texto: 'Este movimiento ya está revertido: no se le puede cambiar la cantidad ni el producto.' })
+      setEditGuardando(false); setEditModal(null); return
+    }
+    if (cambios.cantidad && !(cambios.cantidad.a > 0)) {
+      setMsg({ tipo: 'error', texto: 'La cantidad debe ser mayor que cero. Para quitar la línea usa Eliminar.' })
+      setEditGuardando(false); setEditModal(null); return
+    }
+
     const updates = Object.fromEntries(Object.entries(cambios).map(([k, v]) => [k, v.a]))
     if (cambiaProducto) updates.item_id = editForm.item_id
+
+    // El otro lado de una transferencia se busca ANTES de guardar (la búsqueda usa la cantidad actual)
+    const par = (cambios.cantidad || cambiaProducto) ? await buscarMovimientoPar(m) : null
 
     const { error } = await supabase.from('movimientos').update(updates).eq('id', m.id)
     if (error) { setMsg({ tipo: 'error', texto: 'Error al guardar: ' + error.message }); setEditGuardando(false); return }
@@ -362,12 +491,28 @@ export default function Historial() {
 
     await supabase.from('movimientos_ediciones').insert({ movimiento_id: m.id, usuario_id: perfil.id, cambios })
 
+    // Transferencia: la cantidad del otro lado (en la otra bodega) se corrige igual, con su stock
+    if (par && cambios.cantidad && !par.revertido) {
+      const { error: errPar } = await supabase.from('movimientos').update({ cantidad: cantNueva }).eq('id', par.id)
+      if (errPar) fallosStock.push(`no se pudo corregir la cantidad del movimiento en la otra bodega (${par.numero || 'par'}): ${errPar.message}`)
+      else {
+        fallosStock.push(...await aplicarAjustesStock(par.item_id,
+          ajustesStockPorTipo(par.tipo, par.bodega_origen_id, par.bodega_destino_id, cantNueva - Number(par.cantidad ?? 0))))
+        await supabase.from('movimientos_ediciones').insert({ movimiento_id: par.id, usuario_id: perfil.id,
+          cambios: { cantidad: { de: Number(par.cantidad ?? 0), a: cantNueva, label: `Cantidad (igual que ${m.numero || 'su par'})` } } })
+      }
+    }
+
+    if (cambios.cantidad || cambiaProducto) {
+      await anotarEnPedidos([m], 'Entrada corregida', perfil.id, () =>
+        `${m.numero || ''} · ${[cambiaProducto && `producto ${cambios.item_id.de} → ${cambios.item_id.a}`, cambios.cantidad && `cantidad ${cant(cambios.cantidad.de)} → ${cant(cambios.cantidad.a)}`].filter(Boolean).join(', ')}`)
+    }
+
     if (fallosStock.length > 0) {
       setMsg({ tipo: 'error', texto: `El movimiento se editó, pero el stock no se pudo ajustar automáticamente (${fallosStock.join('; ')}). Corrígelo manualmente.` })
     } else if (cambiaProducto) {
       // Una transferencia tiene su otro lado en la bodega destino/origen, con su propio
       // renglón de catálogo: ese no se cambia solo, hay que editarlo también.
-      const par = await buscarMovimientoPar(m)
       setMsg(par
         ? { tipo: 'alerta', texto: `Producto corregido. Este movimiento es parte de una transferencia: edita también ${par.numero || 'el movimiento par'} para cambiar el producto en la otra bodega.` }
         : { tipo: 'exito', texto: `Producto corregido: ${cambios.item_id.de} → ${cambios.item_id.a}. El stock se movió al producto correcto.` })
@@ -387,103 +532,95 @@ export default function Historial() {
     return siguienteNumero('movimientos', 'MOV')
   }
 
-  async function revertir(m) {
+  // ── revertir (solo admin) ────────────────────────────────────────────────
+  // `lineas`: una línea (desde su menú ···) o todas las del movimiento. Las reversiones de un
+  // mismo movimiento comparten un número nuevo, así se ven como un solo movimiento contrario.
+  async function revertir(lineas) {
     setRevirtiendo(true)
     setMsg(null)
-
-    let numero
-    try { numero = await generarNumero() }
-    catch (e) { setMsg({ tipo: 'error', texto: 'No se pudo generar el número: ' + e.message }); setRevirtiendo(false); return }
-
-    // Crear movimiento contrario
-    const contramov = {
-      tipo:                  m.tipo === 'entrada' ? 'salida' : 'entrada',
-      item_id:               m.item_id,
-      bodega_origen_id:      m.tipo === 'entrada' ? m.bodega_destino_id : null,
-      bodega_destino_id:     m.tipo === 'salida'  ? m.bodega_origen_id  : null,
-      cantidad:              m.cantidad,
-      precio_costo_snapshot: m.precio_costo_snapshot || 0,
-      centro_costo:          m.centro_costo || '',
-      usuario_id:            perfil.id,
-      referencia:            `REVERSIÓN ${m.numero || m.id}`,
-      revertido:             false,
-      revertido_en:          new Date().toISOString(),
-      numero,
-    }
-
-    const { error: e1 } = await supabase.from('movimientos').insert(contramov)
-    if (e1) { setMsg({ tipo: 'error', texto: 'Error al crear reversión: ' + e1.message }); setRevirtiendo(false); return }
-
-    // Marcar original como revertido
-    const { error: e2 } = await supabase.from('movimientos').update({ revertido: true }).eq('id', m.id)
-    if (e2) { setMsg({ tipo: 'error', texto: 'Error al marcar revertido: ' + e2.message }); setRevirtiendo(false); return }
-
-    // El trigger fn_actualizar_stock ajusta el stock automáticamente al insertar el contramovimiento
-
-    // ── Si es transferencia interna, revertir también el movimiento par ──
-    const parMov = await buscarMovimientoPar(m, { soloNoRevertidos: true })
-    if (parMov && m.bodega_destino_id) {
-      const numeroPar = await generarNumero().catch(() => null)
-      const contrapar = {
-        tipo:                  parMov.tipo === 'entrada' ? 'salida' : 'entrada',
-        item_id:               parMov.item_id,
-        bodega_origen_id:      parMov.tipo === 'entrada' ? parMov.bodega_destino_id : null,
-        bodega_destino_id:     parMov.tipo === 'salida'  ? parMov.bodega_origen_id  : null,
-        cantidad:              parMov.cantidad,
-        precio_costo_snapshot: parMov.precio_costo_snapshot || 0,
-        centro_costo:          parMov.centro_costo || '',
-        usuario_id:            perfil.id,
-        referencia:            `REVERSIÓN PAR ${parMov.numero || parMov.id}`,
-        numero:                numeroPar,
-      }
-      const { error: e3 } = await supabase.from('movimientos').insert(contrapar)
-      if (e3) {
-        setMsg({ tipo: 'error', texto: `Reversión principal creada, pero falló la del par: ${e3.message}. Corrígelo manualmente.` })
-      } else {
-        const { error: e4 } = await supabase.from('movimientos').update({ revertido: true }).eq('id', parMov.id)
-        if (e4) setMsg({ tipo: 'error', texto: `Reversión del par creada, pero no se pudo marcar como revertido: ${e4.message}` })
+    const errores = []
+    const hechos = new Set()
+    const revertidas = []
+    let numero = null, numeroPar = null
+    for (const m of lineas) {
+      if (hechos.has(m.id) || m.revertido || m.revertido_en) continue
+      hechos.add(m.id)
+      const nombre = m.items?.nombre || 'Producto'
+      try { numero ||= await generarNumero() }
+      catch (e) { errores.push('No se pudo generar el número: ' + e.message); break }
+      // El par se busca ANTES de marcar el original (la búsqueda filtra los no revertidos)
+      const par = await buscarMovimientoPar(m, { soloNoRevertidos: true })
+      const err = await revertirFila(m, { numero, usuarioId: perfil.id, esPar: false })
+      if (err) { errores.push(`${nombre}: ${err}`); continue }
+      revertidas.push(m)
+      if (par && !hechos.has(par.id)) {
+        hechos.add(par.id)
+        let errPar
+        try {
+          numeroPar ||= await generarNumero()
+          errPar = await revertirFila(par, { numero: numeroPar, usuarioId: perfil.id, esPar: true })
+        } catch (e) { errPar = e.message }
+        if (errPar) errores.push(`${nombre} se revirtió, pero no su movimiento en la otra bodega (${par.numero || 'par'}): ${errPar}. Corrígelo a mano.`)
+        else revertidas.push(par)
       }
     }
+    await anotarEnPedidos(revertidas, 'Entrada revertida', perfil.id,
+      fs => `${[...new Set(fs.map(f => f.numero))].join(', ')} · ${fs.map(f => `${f.items?.nombre || 'producto'} (${cant(f.cantidad)})`).join(', ')} · reversión ${numero}`)
 
-    setMsg(prev => prev?.tipo === 'error' ? prev : { tipo: 'exito', texto: `${m.items?.nombre || 'Movimiento'} revertido (${numero})` })
+    if (errores.length) setMsg({ tipo: 'error', texto: (revertidas.length ? `Se revirtió una parte (${numero}). ` : 'No se revirtió. ') + errores.join(' · ') })
+    else if (revertidas.length) setMsg({ tipo: 'exito', texto: `${lineas.length === 1 ? (lineas[0].items?.nombre || 'Movimiento') : `${detalle || 'Movimiento'}`} revertido (${numero})` })
     setRevirtiendo(false)
     setConfirmRevert(null)
     cargar()
   }
 
-  async function eliminarMovimiento(m) {
+  // ── eliminar (solo admin) ────────────────────────────────────────────────
+  // Antes de confirmar se arma el plan (qué filas se borran y por qué) para mostrarlo en el modal.
+  async function abrirEliminar(lineas) {
+    const vez = ++planVez.current
+    // Si se cerró el modal (o se abrió otro) mientras se revisaba, no se vuelve a abrir
+    const mostrar = estado => setConfirmDelete(prev => (prev && planVez.current === vez) ? estado : prev)
+    setConfirmDelete({ lineas, cargando: true })
+    const usados = new Set()
+    const filas = []
+    try {
+      for (const m of lineas) {
+        if (usados.has(m.id)) continue
+        const plan = await planEliminacion(m, usados)
+        if (plan.error) { mostrar({ lineas, error: plan.error }); return }
+        filas.push(...plan.filas)
+      }
+      mostrar({ lineas, filas })
+    } catch (e) {
+      mostrar({ lineas, error: 'No se pudo revisar el movimiento: ' + e.message })
+    }
+  }
+
+  async function eliminarMovimiento({ lineas, filas }) {
     setEliminando(true)
     setMsg(null)
-
-    // Eliminar. El stock lo revierte el trigger fn_revertir_stock_on_delete con las
-    // bodegas reales del movimiento — la pantalla no lo ajusta (sería doble).
-    let fallosStock = []
-    const { error } = await supabase.from('movimientos').delete().eq('id', m.id)
+    const ids = filas.map(f => f.fila.id)
+    // Un solo DELETE: se borran todas o ninguna. El stock lo devuelve el trigger
+    // fn_revertir_stock_on_delete con las bodegas reales de cada fila (la pantalla no lo toca).
+    const { data: borradas, error } = await supabase.from('movimientos').delete().in('id', ids).select('id')
     if (error) {
-      setMsg({ tipo: 'error', texto: 'Error al eliminar: ' + error.message })
+      setMsg({ tipo: 'error', texto: 'No se eliminó: ' + error.message })
       setEliminando(false)
+      setConfirmDelete(null)
       return
     }
-
-    // 4. Si es transferencia interna, también eliminar el movimiento par y revertir su stock
-    if (m.bodega_destino_id && m.bodega_origen_id) {
-      const parMov = await buscarMovimientoPar(m, {})
-      if (parMov) {
-        const { error: errPar } = await supabase.from('movimientos').delete().eq('id', parMov.id)
-        if (errPar) {
-          fallosStock = [...fallosStock, `no se pudo eliminar el movimiento par (${parMov.numero || parMov.id}): ${errPar.message}`]
-        } else {
-          setMovimientos(prev => prev.filter(mov => mov.id !== parMov.id))
-        }
-      }
-    }
-
-    setMovimientos(prev => prev.filter(mov => mov.id !== m.id))
-    if (fallosStock.length > 0) {
-      setMsg({ tipo: 'error', texto: `El movimiento se eliminó, pero: ${fallosStock.join('; ')}.` })
+    await anotarEnPedidos(filas.map(f => f.fila).filter(f => !f.revertido && !f.revertido_en), 'Entrada eliminada', perfil.id,
+      fs => `${[...new Set(fs.map(f => f.numero))].join(', ')} · ${fs.map(f => `${f.items?.nombre || 'producto'} (${cant(f.cantidad)})`).join(', ')} · eliminada desde el historial de movimientos`)
+    const fuera = new Set(ids)
+    setMovimientos(prev => prev.filter(mov => !fuera.has(mov.id)))
+    if ((borradas?.length ?? ids.length) < ids.length) {
+      setMsg({ tipo: 'alerta', texto: `Se eliminaron ${borradas.length} de ${ids.length} filas (las demás ya no existían). Revisa el stock.` })
     } else {
-      setMsg({ tipo: 'exito', texto: `${m.items?.nombre || 'Producto'} eliminado de ${m.numero || 'el movimiento'}` })
+      setMsg({ tipo: 'exito', texto: lineas.length === 1
+        ? `${lineas[0].items?.nombre || 'Producto'} eliminado de ${lineas[0].numero || 'el movimiento'}`
+        : `${lineas[0].numero || 'Movimiento'} eliminado` })
     }
+    if (lineasDetalle.every(l => fuera.has(l.id))) setDetalle(null)
     setConfirmDelete(null)
     setEliminando(false)
   }
@@ -669,27 +806,56 @@ export default function Historial() {
       {/* Panel de detalle */}
       {detalle && lineasDetalle.length > 0 && panelDetalle(lineasDetalle)}
 
-      {/* Modal confirmación eliminación */}
+      {/* Modal confirmación eliminación (muestra todo lo que se va a borrar) */}
       {confirmDelete && (
-        <Modal titulo="Eliminar del movimiento" onCerrar={() => setConfirmDelete(null)}>
+        <Modal titulo={confirmDelete.lineas.length > 1 ? `Eliminar ${confirmDelete.lineas[0].numero || 'movimiento'}` : 'Eliminar del movimiento'}
+          onCerrar={() => { if (!eliminando) setConfirmDelete(null) }}>
           <div className="space-y-4">
-            <p className="text-sm text-feisen-texto">
-              Se elimina <b>{confirmDelete.items?.nombre}</b> ({cant(confirmDelete.cantidad)} {confirmDelete.items?.unidad_medida}) de {confirmDelete.numero || 'este movimiento'}.
-              {' '}{confirmDelete.tipo === 'salida' ? 'Esa cantidad vuelve al stock de la bodega.' : 'Esa cantidad se descuenta del stock de la bodega.'}
-            </p>
-            {confirmDelete.bodega_origen_id && confirmDelete.bodega_destino_id && confirmDelete.bodega_origen_id !== confirmDelete.bodega_destino_id && (
-              <Alerta tipo="alerta" mensaje="Es una transferencia entre bodegas: también se elimina su movimiento en la otra bodega." />
+            {confirmDelete.cargando && <Spinner texto="Revisando qué se elimina…" />}
+            {confirmDelete.error && <Alerta tipo="error" mensaje={confirmDelete.error} />}
+            {confirmDelete.filas && (
+              <>
+                <p className="text-sm text-feisen-texto">
+                  {confirmDelete.filas.length === 1 ? 'Se elimina esta línea:' : `Se eliminan estas ${confirmDelete.filas.length} líneas:`}
+                </p>
+                <ul className="border border-feisen-borde-suave rounded-lg divide-y divide-feisen-borde-suave max-h-60 overflow-y-auto">
+                  {confirmDelete.filas.map(({ fila, motivo }) => (
+                    <li key={fila.id} className="px-3 py-2 text-sm flex items-start gap-2">
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-feisen-texto break-words">{fila.items?.nombre || 'Producto'}</span>
+                        <span className="block text-xs text-feisen-texto-2">
+                          {[fila.numero, fila.tipo === 'salida' ? 'Salida' : 'Entrada', motivo].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <span className="tabular-nums font-medium text-feisen-texto whitespace-nowrap">
+                        {fila.tipo === 'salida' ? '−' : '+'}{cant(fila.cantidad)} {fila.items?.unidad_medida}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-feisen-texto-2">
+                  {confirmDelete.filas.some(f => f.motivo === 'su reversión' || f.motivo === 'el movimiento que revirtió')
+                    ? 'El movimiento y su reversión se eliminan juntos, así que ese stock no cambia. '
+                    : ''}
+                  El stock de cada bodega queda como si estas líneas nunca se hubieran registrado.
+                </p>
+                {confirmDelete.filas.some(f => f.fila.pedido_id && f.fila.tipo === 'entrada' && !f.fila.revertido) && (
+                  <Alerta tipo="alerta" mensaje="Esta entrada llegó por un pedido: queda anotado en el historial del pedido, pero el pedido no cambia de estado." />
+                )}
+                <p className="text-xs text-feisen-texto-2">Esto no se puede deshacer. Si solo quieres anular el efecto y dejar rastro, usa Revertir.</p>
+              </>
             )}
-            <p className="text-xs text-feisen-texto-2">Esto no se puede deshacer.</p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(null)}
+              <button onClick={() => setConfirmDelete(null)} disabled={eliminando}
                 className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Cancelar
               </button>
-              <button onClick={() => eliminarMovimiento(confirmDelete)} disabled={eliminando}
-                className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
-                {eliminando ? 'Eliminando…' : 'Eliminar'}
-              </button>
+              {confirmDelete.filas && (
+                <button onClick={() => eliminarMovimiento(confirmDelete)} disabled={eliminando}
+                  className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                  {eliminando ? 'Eliminando…' : 'Eliminar'}
+                </button>
+              )}
             </div>
           </div>
         </Modal>
@@ -705,7 +871,11 @@ export default function Historial() {
             </div>
             <div>
               <label className="text-xs text-feisen-texto-2 font-medium block mb-1">Producto</label>
-              <SelectorProductoEdicion
+              {(editModal.revertido || editModal.revertido_en) ? (
+                <p className="text-xs text-feisen-texto-2 bg-feisen-fondo rounded-lg px-3 py-2">
+                  Ya está revertido: el producto y la cantidad no se pueden cambiar (descuadraría el stock). Puedes corregir los demás datos.
+                </p>
+              ) : <SelectorProductoEdicion
                 items={items.filter(i => i.bodega_id === bodegaDelMovimiento(editModal))}
                 valorId={editForm.item_id}
                 onElegir={async (it) => {
@@ -715,7 +885,7 @@ export default function Historial() {
                     const { data } = await supabase.from('items').select('precio_costo').eq('id', it.id).maybeSingle()
                     if (data?.precio_costo != null) setEditForm(p => ({ ...p, precio_costo_snapshot: String(data.precio_costo) }))
                   }
-                }} />
+                }} />}
               {editForm.item_id && editForm.item_id !== editModal.item_id && (
                 <p className="text-xs text-amber-700 mt-1">
                   Al guardar, el stock se devuelve a "{editModal.items?.nombre}" y se descuenta/suma del producto nuevo.
@@ -734,9 +904,10 @@ export default function Historial() {
                 <div key={key}>
                   <label className="text-xs text-feisen-texto-2 font-medium block mb-1">{label}</label>
                   <input type={type} step={type === 'number' ? '0.001' : undefined}
+                    disabled={key === 'cantidad' && !!(editModal.revertido || editModal.revertido_en)}
                     value={editForm[key] ?? ''}
                     onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
-                    className="w-full border border-feisen-borde rounded-lg px-3 py-2 focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+                    className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave disabled:bg-feisen-fondo disabled:text-gray-400" />
                 </div>
               ))}
             </div>
@@ -748,7 +919,7 @@ export default function Historial() {
                 <label className="text-xs text-feisen-texto-2 font-medium block mb-1">{label}</label>
                 <input type="text" value={editForm[key] ?? ''}
                   onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full border border-feisen-borde rounded-lg px-3 py-2 focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
+                  className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-base sm:text-sm focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave disabled:bg-feisen-fondo disabled:text-gray-400" />
               </div>
             ))}
             <div className="flex gap-3 pt-1">
@@ -789,26 +960,40 @@ export default function Historial() {
       )}
 
       {/* Modal confirmación reversión */}
-      {confirmRevert && (
-        <Modal titulo="Revertir" onCerrar={() => setConfirmRevert(null)}>
-          <div className="space-y-4">
-            <p className="text-sm text-feisen-texto">
-              Se crea un movimiento contrario para <b>{confirmRevert.items?.nombre}</b> ({cant(confirmRevert.cantidad)} {confirmRevert.items?.unidad_medida}) y el stock vuelve a como estaba.
-              El movimiento original queda en el historial marcado como revertido.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setConfirmRevert(null)}
-                className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
-                Cancelar
-              </button>
-              <button onClick={() => revertir(confirmRevert)} disabled={revirtiendo}
-                className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
-                {revirtiendo ? 'Revirtiendo…' : 'Revertir'}
-              </button>
+      {confirmRevert && (() => {
+        const aRevertir = confirmRevert.filter(l => !l.revertido && !l.revertido_en)
+        const hayTransferencia = aRevertir.some(l => l.bodega_origen_id && l.bodega_destino_id && l.bodega_origen_id !== l.bodega_destino_id)
+        const pedido = aRevertir.find(l => l.pedido_id && l.tipo === 'entrada')?.pedidos?.numero
+        return (
+          <Modal titulo={confirmRevert.length > 1 ? `Revertir ${confirmRevert[0].numero || 'movimiento'}` : 'Revertir'}
+            onCerrar={() => { if (!revirtiendo) setConfirmRevert(null) }}>
+            <div className="space-y-4">
+              <p className="text-sm text-feisen-texto">
+                {aRevertir.length === 1
+                  ? <>Se crea un movimiento contrario para <b>{aRevertir[0].items?.nombre}</b> ({cant(aRevertir[0].cantidad)} {aRevertir[0].items?.unidad_medida})</>
+                  : <>Se crea un movimiento contrario para las <b>{aRevertir.length} líneas</b></>}
+                {' '}y el stock vuelve a como estaba ({aRevertir[0]?.tipo === 'salida' ? 'la cantidad regresa a la bodega' : 'la cantidad se descuenta de la bodega'}).
+                {' '}El movimiento original queda en el historial marcado como revertido.
+              </p>
+              {aRevertir.length < confirmRevert.length && (
+                <p className="text-xs text-feisen-texto-2">{confirmRevert.length - aRevertir.length} {confirmRevert.length - aRevertir.length === 1 ? 'línea ya estaba revertida y no se toca' : 'líneas ya estaban revertidas y no se tocan'}.</p>
+              )}
+              {hayTransferencia && <Alerta tipo="alerta" mensaje="Es una transferencia entre bodegas: también se revierte su movimiento en la otra bodega." />}
+              {pedido && <Alerta tipo="alerta" mensaje={`Esta entrada llegó por el pedido ${pedido}: queda anotado en el historial del pedido, pero el pedido no cambia de estado.`} />}
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmRevert(null)} disabled={revirtiendo}
+                  className="flex-1 border border-feisen-borde rounded-lg py-2.5 text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
+                  Cancelar
+                </button>
+                <button onClick={() => revertir(aRevertir)} disabled={revirtiendo || aRevertir.length === 0}
+                  className="flex-1 bg-feisen-rojo text-white rounded-lg py-2.5 text-sm font-semibold disabled:opacity-60 active:scale-[.98] transition">
+                  {revirtiendo ? 'Revirtiendo…' : 'Revertir'}
+                </button>
+              </div>
             </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        )
+      })()}
     </div>
   )
 
@@ -861,6 +1046,8 @@ export default function Historial() {
     const esSalida = p.tipo === 'salida'
     const valorTotal = lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
     const bodegas = [p.bodegas_origen?.nombre, p.bodegas_destino?.nombre].filter(Boolean)
+    const revertibles = lineas.filter(l => !l.revertido && !l.revertido_en)
+    const menuPorLinea = esAdmin && lineas.length > 1 // con una sola línea bastan los botones de arriba
     const dato = (t, v) => v ? <div key={t}><dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t}</dt><dd className="text-sm text-feisen-texto mt-0.5 break-words">{v}</dd></div> : null
     const firmas = [
       esFirma(p.foto_remision_url) && { t: 'Firma del responsable', src: p.foto_remision_url },
@@ -892,6 +1079,32 @@ export default function Historial() {
           {esAdmin && valorTotal > 0 && dato('Valor', cop(valorTotal))}
         </dl>
 
+        {esAdmin && (
+          <section aria-label="Acciones del movimiento" className="space-y-1.5">
+            <div className="flex flex-wrap gap-2">
+              {lineas.length === 1 && (
+                <button type="button" onClick={() => abrirEdicion(lineas[0])}
+                  className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+                  <Pencil size={16} /> Editar
+                </button>
+              )}
+              {revertibles.length > 0 && (
+                <button type="button" onClick={() => setConfirmRevert(lineas)}
+                  className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+                  <RotateCcw size={16} /> {lineas.length > 1 ? 'Revertir todo' : 'Revertir'}
+                </button>
+              )}
+              <button type="button" onClick={() => abrirEliminar(lineas)}
+                className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-rojo hover:bg-feisen-rojo-suave">
+                <Trash2 size={16} /> {lineas.length > 1 ? 'Eliminar todo' : 'Eliminar'}
+              </button>
+            </div>
+            {lineas.length > 1 && (
+              <p className="text-xs text-feisen-texto-2">Para editar, revertir o quitar un solo producto, usa <MoreHorizontal size={14} weight="bold" className="inline -mt-0.5" /> en su línea.</p>
+            )}
+          </section>
+        )}
+
         <section>
           <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1 flex justify-between">
             <span>Productos · {lineas.length}</span><span>Cantidad</span>
@@ -914,27 +1127,27 @@ export default function Historial() {
                     <span className="text-sm font-semibold text-feisen-texto tabular-nums whitespace-nowrap pt-px">
                       {esSalida ? '−' : '+'}{cant(m.cantidad)} {m.items?.unidad_medida}
                     </span>
-                    {esAdmin && (
+                    {menuPorLinea && (
                       <button type="button" onClick={() => setMenuLinea(abiertoMenu ? null : m.id)}
                         aria-label={`Acciones de ${m.items?.nombre || 'la línea'}`} aria-expanded={abiertoMenu}
-                        className={`-my-1 p-2 rounded-lg text-gray-400 hover:text-feisen-texto hover:bg-feisen-fondo ${abiertoMenu ? 'bg-feisen-fondo text-feisen-texto' : ''}`}>
-                        <MoreHorizontal size={18} />
+                        className={`-my-1 p-2 rounded-lg text-feisen-texto-2 hover:text-feisen-texto hover:bg-feisen-fondo ${abiertoMenu ? 'bg-feisen-fondo text-feisen-texto' : ''}`}>
+                        <MoreHorizontal size={20} weight="bold" />
                       </button>
                     )}
                   </div>
-                  {esAdmin && abiertoMenu && (
+                  {menuPorLinea && abiertoMenu && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       <button type="button" onClick={() => { setMenuLinea(null); abrirEdicion(m) }}
                         className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
                         <Pencil size={14} /> Editar
                       </button>
                       {!m.revertido && !esReversion && (
-                        <button type="button" onClick={() => { setMenuLinea(null); setConfirmRevert(m) }}
+                        <button type="button" onClick={() => { setMenuLinea(null); setConfirmRevert([m]) }}
                           className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
                           <RotateCcw size={14} /> Revertir
                         </button>
                       )}
-                      <button type="button" onClick={() => { setMenuLinea(null); setConfirmDelete(m) }}
+                      <button type="button" onClick={() => { setMenuLinea(null); abrirEliminar([m]) }}
                         className="inline-flex items-center gap-1.5 border border-feisen-borde rounded-lg px-3 py-2 text-sm font-medium text-feisen-rojo hover:bg-feisen-rojo-suave">
                         <Trash2 size={14} /> Eliminar
                       </button>
