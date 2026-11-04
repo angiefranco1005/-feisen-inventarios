@@ -106,50 +106,13 @@ CREATE POLICY "ordenes_ensamble_manage" ON public.ordenes_ensamble FOR ALL
 CREATE POLICY "ordenes_ensamble_avances_insert" ON public.ordenes_ensamble_avances FOR INSERT
   WITH CHECK (public.get_my_rol() IN ('ADMIN', 'JEFE_ENSAMBLE') AND usuario_id = auth.uid());
 
--- 6. Jefe Ensamble puede crear/editar productos de SU bodega -----------------
--- Mismas políticas de 2026-10-14_items_permisos_por_bodega.sql + JEFE_ENSAMBLE.
-DROP POLICY IF EXISTS "items_insert_roles_bodega" ON public.items;
-DROP POLICY IF EXISTS "items_update_roles_bodega" ON public.items;
-DROP POLICY IF EXISTS "items_delete_roles_bodega" ON public.items;
-
-CREATE POLICY "items_insert_roles_bodega" ON public.items FOR INSERT
-  WITH CHECK (
-    public.get_my_rol() = 'LOGISTICA'
-    OR (
-      public.get_my_rol() IN ('ALMACENISTA','OPERARIO','JEFE_FUNDICION','JEFE_MECANIZADOS','JEFE_ENSAMBLE')
-      AND bodega_id IN (SELECT pb.bodega_id FROM public.profile_bodegas pb WHERE pb.profile_id = auth.uid())
-    )
-  );
-
-CREATE POLICY "items_update_roles_bodega" ON public.items FOR UPDATE
-  USING (
-    public.get_my_rol() = 'LOGISTICA'
-    OR (
-      public.get_my_rol() IN ('ALMACENISTA','OPERARIO','JEFE_FUNDICION','JEFE_MECANIZADOS','JEFE_ENSAMBLE')
-      AND bodega_id IN (SELECT pb.bodega_id FROM public.profile_bodegas pb WHERE pb.profile_id = auth.uid())
-    )
-  )
-  WITH CHECK (
-    public.get_my_rol() = 'LOGISTICA'
-    OR (
-      public.get_my_rol() IN ('ALMACENISTA','OPERARIO','JEFE_FUNDICION','JEFE_MECANIZADOS','JEFE_ENSAMBLE')
-      AND bodega_id IN (SELECT pb.bodega_id FROM public.profile_bodegas pb WHERE pb.profile_id = auth.uid())
-    )
-  );
-
-CREATE POLICY "items_delete_roles_bodega" ON public.items FOR DELETE
-  USING (
-    public.get_my_rol() = 'LOGISTICA'
-    OR (
-      public.get_my_rol() IN ('ALMACENISTA','OPERARIO','JEFE_FUNDICION','JEFE_MECANIZADOS','JEFE_ENSAMBLE')
-      AND bodega_id IN (SELECT pb.bodega_id FROM public.profile_bodegas pb WHERE pb.profile_id = auth.uid())
-    )
-  );
+-- 6. Permisos de productos (items) para JEFE_ENSAMBLE --------------------------
+-- No se tocan aquí: las políticas items_*_roles_bodega ya incluyen JEFE_ENSAMBLE
+-- (y también RRHH, agregado después). Re-crearlas desde este archivo le quitaría
+-- el permiso a RRHH — verificado en la base el 04/11/2026.
 
 -- 7. Verificación ------------------------------------------------------------
 -- La bodega de Ensamble que usa la app (bodegasCatalogo.js → BODEGA_ENSAMBLE_ID):
 SELECT id, nombre, activo FROM public.bodegas WHERE id = '7f0e4d7e-8c85-40d3-84c5-7857e26f624a';
--- Esperado: 1 fila ("Producción y Ensamble"). Si sale vacío, avisar: hay que corregir el ID en la app.
+-- Esperado: 1 fila (hoy se llama "ARMADO Y SOLDADURA"). Si sale vacío, avisar: hay que corregir el ID en la app.
 --
--- Después: Configuración → Usuarios → crear (o cambiar) el usuario del jefe de Soldadura y Armado
--- con rol JEFE_ENSAMBLE y asignarle la bodega "Producción y Ensamble".

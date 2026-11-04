@@ -1565,7 +1565,9 @@ el avance se registra a diario y la orden se cierra a mano.
   `ordenes_ensamble` (OE-0001, estado abierta/cerrada/anulada) y `ordenes_ensamble_avances`
   (fecha, cantidad, `numero_salida`/`numero_entrada` de los movimientos que generó). RLS: todos leen;
   ADMIN y JEFE_ENSAMBLE administran; los avances solo se insertan (no se editan ni se borran porque ya
-  movieron inventario). También re-crea las políticas de `items` por bodega agregando JEFE_ENSAMBLE.
+  movieron inventario). **Aplicada el 04/11/2026** con el conector de Supabase (la corrida manual no
+  había quedado). Se le quitó la sección que re-creaba las políticas de `items`: en la base ya incluían
+  JEFE_ENSAMBLE y además RRHH, y re-crearlas desde este archivo le habría quitado el permiso a RRHH.
 - **Bodega de Ensamble**: `BODEGA_ENSAMBLE_ID = '7f0e4d7e-8c85-40d3-84c5-7857e26f624a'`
   ("Producción y Ensamble") en `utils/bodegasCatalogo.js`. El ID salió de este mismo archivo (sección de
   stock invisible); la migración trae un SELECT para confirmarlo.
@@ -1585,8 +1587,10 @@ el avance se registra a diario y la orden se cierra a mano.
 - **Pantallas**: `/ensamble` (órdenes + avance) y `/ensamble/recetas`; ADMIN las ve en el menú
   "Producción y Ensamble". JEFE_ENSAMBLE: Inicio, Ensamble, Recetas, Productos, Historial, Movimiento,
   Pedidos (área `PRODUCCION`, igual que OPERARIO) y Calidad.
-- **Pendientes**: (1) correr la migración; (2) crear el usuario del jefe de Soldadura y Armado con rol
-  JEFE_ENSAMBLE y bodega "Producción y Ensamble"; (3) catalogar en Ensamble las piezas que llegan de
+- **Usuario**: William Roa tiene rol JEFE_ENSAMBLE y la bodega ARMADO Y SOLDADURA (así se llama hoy la
+  bodega `7f0e4d7e…`). No existe bodega de "Producto Terminado": las máquinas entran a la bodega del renglón
+  que se elija como máquina en la receta.
+- **Pendientes**: (3) catalogar en Ensamble las piezas que llegan de
   Mecanizados y las máquinas terminadas; (4) cargar las recetas reales. Sin reversa de avances por ahora:
   un avance equivocado se corrige con un movimiento manual de ajuste.
 - **Demo local** sin tocar la base: `vite.ensamble-demo.config.mjs` (fuera de git, en
