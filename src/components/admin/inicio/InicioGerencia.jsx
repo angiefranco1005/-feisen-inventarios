@@ -124,7 +124,7 @@ export default function InicioGerencia() {
     logistica.atrasados > 0 && {
       id: `pedidos-atrasados-${logistica.atrasados}`, tono: 'rojo', mod: 'Logística',
       titulo: `${logistica.atrasados} pedido${logistica.atrasados === 1 ? '' : 's'} en tránsito pasaron su fecha de llegada`,
-      detalle: logistica.peorAtraso ? `El más atrasado es ${logistica.peorAtraso.numero}, con ${logistica.peorAtraso.dias} días de retraso.` : '',
+      detalle: logistica.peorAtraso ? `El más atrasado es ${logistica.peorAtraso.numero}, con ${logistica.peorAtraso.dias} ${logistica.peorAtraso.dias === 1 ? 'día hábil' : 'días hábiles'} de retraso.` : '',
       boton: 'Ver pedidos', ir: '/pedidos',
     },
     (inv.agotados > 0 || inv.bajo > 0) && {

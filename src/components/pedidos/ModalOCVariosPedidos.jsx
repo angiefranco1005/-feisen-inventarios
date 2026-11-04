@@ -6,6 +6,7 @@ import Alerta from '../shared/Alerta'
 import { exportarOrdenCompraPDF, calcularTotalesOC, IVA_TARIFA } from '../../utils/exportOrdenCompraPDF'
 import { FileDown, Loader2, Search } from '../shared/iconos'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import FechaLlegada from './FechaLlegada'
 import SelectorProveedorOC, { useProveedorOC, faltaProveedor, resolverProveedor } from './SelectorProveedorOC'
 
 const fmtCOP = n => '$' + Number(n || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -234,9 +235,7 @@ export default function ModalOCVariosPedidos({ pedidos, coberturaPorItem, onCerr
           <SelectorProveedorOC estado={prov} proveedores={proveedores} />
 
           <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1">Fecha estimada de llegada</label>
-            <input type="date" value={fechaLlegada} onChange={e => setFechaLlegada(e.target.value)}
-              className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 bg-white" />
+            <FechaLlegada valor={fechaLlegada} onCambiar={setFechaLlegada} />
             <p className="text-xs text-feisen-azul bg-feisen-azul-suave rounded-lg px-3 py-2 mt-2">
               {pedidosIncluidos.length
                 ? <>La orden queda en <b>{pedidosIncluidos.map(p => p.numero).join(', ')}</b>. Los que estaban por comprar pasan solos a <b>En camino</b>.</>

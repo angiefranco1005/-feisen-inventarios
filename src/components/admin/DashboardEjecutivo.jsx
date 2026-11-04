@@ -11,6 +11,7 @@ import {
 } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import { fetchAllPages } from '../../utils/fetchAllPages'
+import { habilesEntre, hoyColombia } from '../../utils/diasHabiles'
 
 // ── Colores ──────────────────────────────────────────────────────────────────
 const AZ = '#064794'
@@ -220,7 +221,7 @@ function procesarDatos(stocks, movimientos, allMovFechas, pedidos, filtros, bode
   const pedidosRetrasados = (pedidos || []).filter(p =>
     p.fecha_estimada_llegada &&
     !['recibido', 'anulado', 'cerrado'].includes(p.estado) &&
-    new Date(p.fecha_estimada_llegada) < hoy
+    habilesEntre(p.fecha_estimada_llegada, hoyColombia()) > 0   // atraso en días hábiles, como en Pedidos
   )
   // 'cerrado' = pedido marcado como completado manualmente (llegó incompleto, ya no se
   // necesita, cambio de proveedor, etc.) — ya no está "pendiente" de nada, no debe
@@ -679,7 +680,7 @@ function SeccionLeadTime({ d }) {
                 </thead>
                 <tbody className="divide-y divide-red-50">
                   {d.pedidosRetrasados.map((p, i) => {
-                    const dias = Math.round((new Date() - new Date(p.fecha_estimada_llegada)) / 86400000)
+                    const dias = habilesEntre(p.fecha_estimada_llegada, hoyColombia())
                     return (
                       <tr key={i} className="hover:bg-red-50">
                         <td className="px-4 py-2.5 font-medium text-gray-800">{p.numero}</td>
@@ -690,7 +691,7 @@ function SeccionLeadTime({ d }) {
                         <td className="px-4 py-2.5 text-gray-600">
                           {new Date(p.fecha_estimada_llegada + 'T12:00').toLocaleDateString('es-CO')}
                         </td>
-                        <td className="px-4 py-2.5 font-bold text-feisen-rojo">{dias} días</td>
+                        <td className="px-4 py-2.5 font-bold text-feisen-rojo">{dias} {dias === 1 ? 'día hábil' : 'días hábiles'}</td>
                       </tr>
                     )
                   })}

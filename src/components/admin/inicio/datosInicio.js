@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase'
 import { fetchAllPages } from '../../../utils/fetchAllPages'
 import { BODEGA_FUNDICION_ID } from '../../../utils/bodegasCatalogo'
 import { crearIdentificador } from './operarios'
+import { habilesEntre, hoyColombia } from '../../../utils/diasHabiles'
 
 // Datos del Inicio de gerencia (solo ADMIN). Dos cargas:
 //  · cargarFoto(): lo que es "a hoy" (stock, valor, pareto, rotación, pedidos, personas, calidad)
@@ -118,7 +119,8 @@ export async function cargarFoto() {
   // Logística
   const h = hoy0(), hoyIso = isoDia(h)
   const enCurso = (pedidos.data || []).filter(p => ['pendiente', 'en_transito', 'parcialmente_recibido'].includes(p.estado))
-  const atrasados = enCurso.filter(p => p.estado === 'en_transito' && p.fecha_estimada_llegada && p.fecha_estimada_llegada < hoyIso)
+  // Atraso en días hábiles (sin fines de semana ni festivos), igual que en Pedidos
+  const atrasados = enCurso.filter(p => p.estado === 'en_transito' && p.fecha_estimada_llegada && habilesEntre(p.fecha_estimada_llegada, hoyColombia()) > 0)
     .sort((a, b) => a.fecha_estimada_llegada.localeCompare(b.fecha_estimada_llegada))
   const recibidos60 = (pedidos.data || []).filter(p => p.fecha_recibido && diasDesde(p.created_at) <= 60)
   const porArea = {}
@@ -129,7 +131,7 @@ export async function cargarFoto() {
     transito: enCurso.filter(p => p.estado === 'en_transito').length,
     parcial: enCurso.filter(p => p.estado === 'parcialmente_recibido').length,
     atrasados: atrasados.length,
-    peorAtraso: atrasados[0] ? { numero: atrasados[0].numero, dias: diasDesde(atrasados[0].fecha_estimada_llegada + 'T00:00:00') } : null,
+    peorAtraso: atrasados[0] ? { numero: atrasados[0].numero, dias: habilesEntre(atrasados[0].fecha_estimada_llegada, hoyColombia()) } : null,
     leadTime: recibidos60.length ? recibidos60.reduce((t, p) => t + (new Date(p.fecha_recibido) - new Date(p.created_at)) / DIA, 0) / recibidos60.length : null,
     porArea: Object.entries(porArea).sort((a, b) => b[1] - a[1]),
   }

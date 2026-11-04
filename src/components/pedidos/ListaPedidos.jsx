@@ -11,6 +11,8 @@ import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import ModalOCVariosPedidos from './ModalOCVariosPedidos'
 import FormularioPedido from './FormularioPedido'
+import FechaLlegada from './FechaLlegada'
+import { habilesEntre, hoyColombia, diaColombia } from '../../utils/diasHabiles'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
@@ -43,14 +45,16 @@ const MOTIVOS_CIERRE = [
   'Se creó otra orden para cambiar de proveedor',
 ]
 
-// Días de atraso de un pedido en camino: la fecha estimada de llegada ya pasó y no ha llegado todo
-const HOY_ISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+// Días de atraso de un pedido en camino: la fecha estimada de llegada ya pasó y no ha llegado
+// todo. Se cuentan solo días hábiles (sin sábados, domingos ni festivos): si debía llegar el
+// viernes, el lunes lleva 1 día de atraso, no 3 (pedido de Angie, 4/11/2026).
+const HOY_ISO = hoyColombia
 function diasDeAtraso(p) {
   if (!(p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') || !p.fecha_estimada_llegada) return 0
-  const eta = p.fecha_estimada_llegada.slice(0, 10), hoy = HOY_ISO()
-  if (eta >= hoy) return 0
-  return Math.round((new Date(hoy + 'T12:00:00') - new Date(eta + 'T12:00:00')) / 86400000)
+  return habilesEntre(p.fecha_estimada_llegada.slice(0, 10), HOY_ISO())
 }
+// Días hábiles desde que se hizo el pedido
+const habilesDesde = p => habilesEntre(diaColombia(p.created_at), HOY_ISO())
 function etiquetaLlegada(f) {
   const eta = f.slice(0, 10), hoy = HOY_ISO()
   const dias = Math.round((new Date(eta + 'T12:00:00') - new Date(hoy + 'T12:00:00')) / 86400000)
@@ -81,9 +85,8 @@ function EtapasPedidos({ pedidos, filtro, onFiltro }) {
   const deEtapa = clave => pedidos.filter(p => clave === 'cerrado' ? (p.estado === 'cerrado' || p.estado === 'recibido') : p.estado === clave)
   const atrasados = pedidos.filter(p => diasDeAtraso(p) > 0)
   const enCaminoAtrasados = deEtapa('en_transito').filter(p => diasDeAtraso(p) > 0).length
-  const diasDesde = p => Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400000)
   const porComprar = deEtapa('pendiente')
-  const masViejo = porComprar.length ? Math.max(...porComprar.map(diasDesde)) : 0
+  const masViejo = porComprar.length ? Math.max(...porComprar.map(habilesDesde)) : 0
   // Reparto: a tiempo y atrasados por separado para que el rojo se vea en la barra
   const tramos = [
     { n: porComprar.length, color: 'bg-gray-300', t: 'Por comprar' },
@@ -93,7 +96,7 @@ function EtapasPedidos({ pedidos, filtro, onFiltro }) {
     { n: deEtapa('cerrado').length, color: 'bg-emerald-500', t: 'Recibidos y cerrados' },
   ].filter(x => x.n > 0)
   const detalle = clave => {
-    if (clave === 'pendiente') return porComprar.length ? `el más viejo: hace ${masViejo} ${masViejo === 1 ? 'día' : 'días'}` : 'nada por comprar'
+    if (clave === 'pendiente') return porComprar.length ? `el más viejo: hace ${masViejo} ${masViejo === 1 ? 'día hábil' : 'días hábiles'}` : 'nada por comprar'
     if (clave === 'en_transito') return enCaminoAtrasados ? null : 'todos a tiempo'
     if (clave === 'parcialmente_recibido') return 'falta que llegue algo'
     return 'incluye los cerrados'
@@ -160,7 +163,7 @@ const CAJA_ETAPA  = {
   parcialmente_recibido: 'bg-amber-50 text-amber-700', recibido: 'bg-emerald-50 text-emerald-700', cerrado: 'bg-gray-100 text-gray-400',
 }
 const fechaCorta = f => new Date(f.length === 10 ? f + 'T12:00:00' : f).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }).replace('.', '')
-const dias = n => `${n} ${n === 1 ? 'día' : 'días'}`
+const dias = n => `${n} ${n === 1 ? 'día hábil' : 'días hábiles'}`
 
 // Cómo va el pedido, en palabras (lo que se lee a la derecha de la ficha y arriba del panel)
 function estadoPedido(p) {
@@ -172,8 +175,10 @@ function estadoPedido(p) {
   if (atraso) return { tono: 'rojo', titulo: `Atrasado ${dias(atraso)}`, detalle: p.estado === 'parcialmente_recibido' ? `llegó ${completos} de ${its.length}` : `debía llegar el ${fechaCorta(p.fecha_estimada_llegada)}` }
   if (p.estado === 'parcialmente_recibido') return { tono: '', titulo: `Llegó ${completos} de ${its.length}`, detalle: p.fecha_estimada_llegada ? `el resto llega ${etiquetaLlegada(p.fecha_estimada_llegada)}` : 'falta que llegue algo' }
   if (p.estado === 'en_transito') return { tono: '', titulo: 'En camino', detalle: p.fecha_estimada_llegada ? `llega ${etiquetaLlegada(p.fecha_estimada_llegada)}` : 'sin fecha de llegada' }
-  const d = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400000)
-  return { tono: d >= 6 ? 'rojo' : '', titulo: 'Por comprar', detalle: d === 0 ? 'pedido hoy' : `hace ${dias(d)}` }
+  // En rojo cuando lleva una semana laboral (5 días hábiles) sin comprarse
+  const d = habilesDesde(p)
+  const pedidoHoy = diaColombia(p.created_at) === HOY_ISO()
+  return { tono: d >= 5 ? 'rojo' : '', titulo: 'Por comprar', detalle: pedidoHoy ? 'pedido hoy' : d === 0 ? `pedido el ${new Date(p.created_at).toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })}` : `hace ${dias(d)}` }
 }
 const TONO_TEXTO = { rojo: 'text-feisen-rojo', verde: 'text-emerald-700', '': 'text-feisen-texto' }
 
@@ -1404,11 +1409,7 @@ export default function ListaPedidos() {
                 placeholder="Ej: Efraín, Samir, don Alfonso"
                 className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Fecha estimada de llegada</label>
-              <input type="date" value={formTransito.fecha_estimada} onChange={e => setFormTransito(f => ({ ...f, fecha_estimada: e.target.value }))}
-                className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
-            </div>
+            <FechaLlegada valor={formTransito.fecha_estimada} onCambiar={v => setFormTransito(f => ({ ...f, fecha_estimada: v }))} />
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setModalTransito(null)}
                 className="flex-1 border border-feisen-borde rounded-xl py-2.5 text-sm font-medium text-gray-600">Cancelar</button>
