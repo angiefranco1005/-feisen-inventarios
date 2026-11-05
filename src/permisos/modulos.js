@@ -29,6 +29,8 @@ export const MODULOS = [
     rutas: ['/movimientos/nuevo'] },
   { clave: 'historial',      grupo: 'Inventario', nombre: 'Historial', detalle: 'movimientos registrados', niveles: ['ve'], usaBodega: true,
     rutas: ['/movimientos'] },
+  { clave: 'motores',        grupo: 'Inventario', nombre: 'Motores por serial', detalle: 'cuándo entró y salió cada motor, OF y cliente', niveles: ['ve'],
+    rutas: ['/motores'] },
   { clave: 'transferencias', grupo: 'Inventario', nombre: 'Transferencias', detalle: 'aprobar lo que llega a su bodega', niveles: ['registra'], usaBodega: true,
     rutas: ['/transferencias'] },
   { clave: 'paquetes',       grupo: 'Inventario', nombre: 'Paquetes por máquina', detalle: 'kits para sacar de una vez · solo los de su bodega', niveles: ['todo'], usaBodega: true, rlsPorMatriz: true,

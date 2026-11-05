@@ -33,6 +33,7 @@ const NAV_ADMIN = [
   { to: '/movimientos/nuevo',                 icon: ArrowsLeftRight,     label: 'Movimiento',         modulo: 'Inventarios' },
   { to: '/mecanizados/paquetes',              icon: Boxes,           label: 'Paquetes',           modulo: 'Inventarios' },
   { to: '/movimientos',                       icon: History,       label: 'Historial',          modulo: 'Inventarios' },
+  { to: '/motores',                           icon: Engine,          label: 'Motores por serial', modulo: 'Inventarios' },
   { to: '/reportes/inventario-fisico',        icon: ClipboardCheck,  label: 'Inventario físico',  modulo: 'Inventarios' },
   { to: '/reportes/kardex',                   icon: Table, label: 'Kardex',             modulo: 'Inventarios' },
   { to: '/reportes/corte',                    icon: CalendarCheck,    label: 'Corte de inventario', modulo: 'Inventarios' },

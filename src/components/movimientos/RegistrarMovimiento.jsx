@@ -10,7 +10,7 @@ import Spinner from '../shared/Spinner'
 import FirmaCanvas from '../shared/FirmaCanvas'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
-import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, registrarSerialesEntrada, CamposSerial, MAX_SERIALES } from '../shared/seriales'
+import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial, MAX_SERIALES } from '../shared/seriales'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
@@ -254,22 +254,11 @@ export default function RegistrarMovimiento() {
     const filas = esMotor
       ? seriales.map(s => ({ ...payload, cantidad: 1, serial_motor: s.trim() }))
       : [payload]
-    const { data: movs, error: err } = await supabase.from('movimientos').insert(filas)
-      .select('id, item_id, serial_motor, bodega_destino_id')
+    const { error: err } = await supabase.from('movimientos').insert(filas)
     setGuardando(false)
     if (err) { setError('Error: ' + err.message); return }
 
-    let errSeriales = null
-    if (esMotor && form.tipo === 'entrada') errSeriales = await registrarSerialesEntrada(movs || [])
-    if (esMotor && form.tipo === 'salida' && elegidos.length) {
-      const movPorSerial = Object.fromEntries((movs || []).map(m => [m.serial_motor, m.id]))
-      const res = await Promise.all(elegidos.map(s => supabase.from('motor_seriales').update({
-        estado: 'despachado', salida_mov_id: movPorSerial[s.serial.trim()] || null,
-        numero_of: form.numero_of.trim(), despachado_en: new Date().toISOString(),
-      }).eq('id', s.id)))
-      errSeriales = res.find(r => r.error)?.error || null
-    }
-    if (errSeriales) setError(`El movimiento ${numero} quedó registrado, pero no se pudo actualizar la lista de seriales (${errSeriales.message}). Avisa a administración.`)
+    // Los seriales de motor (entrada y salida) los registra la base: trigger trg_motor_seriales_insert
 
     // Si la entrada tiene pedido asociado, marcarlo como recibido
     if (form.tipo === 'entrada' && form.pedido_id) {

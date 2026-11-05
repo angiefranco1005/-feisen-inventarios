@@ -35,15 +35,8 @@ export async function serialesYaEnBodega(itemId, lista) {
   return lista.map(s => s.trim()).filter(s => enBodega.has(s.toUpperCase()))
 }
 
-// Después de insertar las entradas (una por motor), registra cada serial como disponible
-export async function registrarSerialesEntrada(movs) {
-  const filas = movs.filter(m => m.serial_motor?.trim()).map(m => ({
-    item_id: m.item_id, bodega_id: m.bodega_destino_id, serial: m.serial_motor.trim(), entrada_mov_id: m.id,
-  }))
-  if (filas.length === 0) return null
-  const { error } = await supabase.from('motor_seriales').insert(filas)
-  return error
-}
+// La lista de seriales (motor_seriales) la mantiene la base desde el 5/11/2026: el trigger
+// trg_motor_seriales_insert registra cada entrada y salida de MOTORES con serial. La app solo valida.
 
 // Un campo por unidad: "Serial unidad 1", "Serial unidad 2"…
 export function CamposSerial({ valores, onCambiar, claseInput }) {

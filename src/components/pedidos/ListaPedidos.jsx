@@ -16,7 +16,7 @@ import { habilesEntre, hoyColombia, diaColombia } from '../../utils/diasHabiles'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
-import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, registrarSerialesEntrada, CamposSerial } from '../shared/seriales'
+import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial } from '../shared/seriales'
 
 const ESTADO_CONFIG = {
   pendiente:               { label: 'Pendiente',            color: 'bg-amber-100 text-amber-700',   icon: ShoppingCart },
@@ -892,11 +892,9 @@ export default function ListaPedidos() {
           else payloads.push(base)
         }
         if (payloads.length > 0) {
-          const { data: movs, error } = await supabase.from('movimientos').insert(payloads)
-            .select('id, item_id, serial_motor, bodega_destino_id')
-          const errSeriales = error ? null : await registrarSerialesEntrada(movs || [])
+          const { error } = await supabase.from('movimientos').insert(payloads)
+          // Los seriales de motor los registra la base (trigger trg_motor_seriales_insert)
           if (error) setMsg({ tipo: 'error', texto: 'Pedido recibido, pero error al registrar entradas: ' + error.message })
-          else if (errSeriales) setMsg({ tipo: 'error', texto: `Entrada ${numeroMov} registrada, pero no se pudo guardar la lista de seriales (${errSeriales.message}). Avisa a administración.` })
           else {
             numeroEntrada = numeroMov
             const filas = payloads.map(() => ({ numero: numeroMov, pedido_id: pedido.id, fecha_movimiento: fechaRecepcion || hoyCol(), created_at: new Date().toISOString() }))

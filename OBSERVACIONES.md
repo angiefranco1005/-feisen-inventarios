@@ -2166,3 +2166,15 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - «Sin rotación» = igual que antes: con existencia y sin movimiento en esa bodega en más de 30 días (o nunca). Entrada = movimiento con esa bodega como destino; salida = como origen; no cuentan revertidos. Fechas por `created_at`.
 - `datosInicio.js`: la consulta de stock trae también `categorias(nombre)`; cada fila guarda costo, categoría, última entrada y última salida. Sin cambios en la base.
 - El `DashboardEjecutivo.jsx` (con su tabla de «inventario parado») no tiene ruta en la app; no se tocó.
+
+## 2026-11-05 · Motores por serial (pantalla + la base lleva la lista sola)
+- Pantalla `/motores` («Motores por serial», menú Inventarios, `src/components/movimientos/MotoresSerial.jsx`): buscar por serial, modelo, OF, cliente o N° de movimiento; cada motor muestra entrada (fecha, mov, pedido/proveedor), salida (fecha, mov, OF) y cliente/ciudad. Módulo de permisos `motores` (solo 've'); por defecto solo ADMIN. El cliente sale de `ordenes_fabricacion` interpretando `numero_of` («253», «OF 253», «055», «OC 202» → OF 202); lo que no se interpreta (8453/8465 de la numeración vieja, «DEVOLUCION PRESTAMO EQUIPMASTER», «0000») se muestra como texto. Sin permiso de OF se ve solo el número.
+- Migración `supabase/migraciones/2026-11-05_motores_rastreo_serial.sql` (aplicada como `motores_rastreo_serial`, con OK de Angie):
+  - `motor_seriales_de_texto()` parte el texto libre (« - », «,», «/»); pedazos de < 6 caracteres se pegan al anterior (EX260421-3338).
+  - `fn_motor_serial_registrar()` + trigger `trg_motor_seriales_insert` (after insert): toda entrada/salida de MOTORES con serial actualiza `motor_seriales`. Salida sin fila previa → fila 'despachado' sin entrada. Entrada de un serial despachado → vuelve a 'disponible' (devolución).
+  - `fn_motor_seriales_sync` ampliada: corregir el serial o la OF de una salida en el Historial corrige la tabla.
+  - La app YA NO escribe en `motor_seriales` (se quitó `registrarSerialesEntrada` y el update de la salida): solo valida. Si se agrega otra pantalla que registre motores, basta con poner `serial_motor` (uno por fila).
+  - Carga del historial: 126 seriales de 83 salidas (jul–nov). Tabla: 146 motores (126 despachados, 20 en bodega).
+- Casos que quedaron como estaban, para revisar: 26060013 (POWER 7 HP) salió dos veces (MOV-EP-0100 y -0108, OF 457; solo cuenta la primera); mismo serial en dos productos: 1061680 (Honda 9/13 HP), 251031415 (Company 5HP 1800/3600), 270325010226 (GY 9/15 HP), 420325010090 (GY 10 diésel/15 HP); 215326050 (MOV-EP-0109) incompleto. 215326050064 figuraba en bodega pero había salido (MOV-EP-0119): quedó despachado.
+- Pendiente: ~56 motores en bodega sin serial registrado (stock 77). Hasta que se registren, sus salidas se escriben a mano (igual quedan en la lista por el trigger, pero sin entrada).
+- Hallazgo: la tabla `seriales_maquina` (Números de máquina, migración 2026-11-04_planillas_produccion.sql) NO existe en la base: la migración no se aplicó y /ensamble/seriales y /of/seriales deben fallar.

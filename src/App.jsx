@@ -13,6 +13,7 @@ import GestionProductos   from './components/productos/GestionProductos'
 import RegistrarMovimiento           from './components/movimientos/RegistrarMovimiento'
 import RegistrarMovimientoAlmacenista from './components/movimientos/RegistrarMovimientoAlmacenista'
 import Historial          from './components/movimientos/Historial'
+import MotoresSerial      from './components/movimientos/MotoresSerial'
 import ListaPedidos       from './components/pedidos/ListaPedidos'
 import GestionConfig      from './components/config/GestionConfig'
 import HubReportes        from './components/reportes/HubReportes'
@@ -103,7 +104,7 @@ function AppRoutes() {
   // Permisos (tabla rol_permisos, catálogo en src/permisos/modulos.js); ADMIN abre todo.
   const registrarMov = rolEfectivo === 'ADMIN' || rolEfectivo === 'LOGISTICA' ? <RegistrarMovimiento /> : <RegistrarMovimientoAlmacenista />
   const PANTALLAS = {
-    '/productos': <GestionProductos />, '/movimientos/nuevo': registrarMov, '/movimientos': <Historial />,
+    '/productos': <GestionProductos />, '/movimientos/nuevo': registrarMov, '/movimientos': <Historial />, '/motores': <MotoresSerial />,
     '/transferencias': <TransferenciasPendientes />, '/mecanizados/paquetes': <GestionPaquetes />,
     '/reportes': <HubReportes />, '/reportes/corte': <CorteInventario />, '/reportes/inventario-fisico': <InventarioFisico />, '/reportes/kardex': <InformeKardex />,
     '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />,
