@@ -2148,3 +2148,8 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - El hueco real en la numeración es el PED-0213: lo eliminó Mateo el 24/10 estando pendiente (queda en `pedidos_eliminados`).
 - 5/11/2026: PED-0209 reabierto con OK de Angie (`supabase/migraciones/2026-11-05_reabrir_ped_0209.sql`, aplicada como `reabrir_ped_0209`): estado `parcialmente_recibido`, sin motivo de cierre, nota «Reabierto: falta ARANDELA BALDE (100 und)…» en su historial. Sus 11 entradas (MOV-MG-0408) no se tocaron.
 - Hallazgo: MOV-MG-0408 está repetido: 11 líneas del PED-0209 (3/11 8:31) y el THINNER del PED-0226 (8:33), ambos de Mateo. Es el único número de movimiento usado en dos recepciones distintas. El Historial agrupa por número y los muestra como uno solo de 12 líneas. El Historial tampoco busca por número de pedido.
+
+## 2026-11-05 · Historial: buscar por pedido y separar recepciones con el mismo número
+- El buscador del Historial ahora también busca en el número del pedido (`pedidos(numero)`, que ya venía en la consulta): «209» o «PED-0209» encuentra sus entradas. Las entradas de pedidos muestran el número del pedido en la fila; el detalle ya lo mostraba.
+- Agrupación: `claveGrupo(m)` = N° de movimiento + pedido (solo entradas con pedido). Así el MOV-MG-0408 sale como dos filas (PED-0209 y PED-0226) en vez de una de 12 líneas. El estado `detalle` guarda esa clave; el título del panel usa `numeroDetalle` (la parte antes de `|`). «Revertir todo»/«Eliminar todo» actúan solo sobre las líneas de ese grupo.
+- Pendiente posible: entender cómo se repitió el número (en `confirmarRecibido` se calcula como el último MOV-<iniciales> + 1, sin bloqueo; dos recepciones casi seguidas pueden chocar). Es el único caso en la base.

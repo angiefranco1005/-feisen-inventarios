@@ -270,6 +270,11 @@ async function anotarEnPedidos(filas, accion, usuarioId, detalleDe) {
   }
 }
 
+// Clave de agrupación del Historial: el N° de movimiento y, en entradas de pedidos, también el
+// pedido. Así dos recepciones que por error quedaron con el mismo número salen separadas
+// (5/11/2026: MOV-MG-0408 se usó para el PED-0209 y para el PED-0226 y se veía como uno solo).
+const claveGrupo = m => (m.numero || m.id) + (m.tipo === 'entrada' && m.pedido_id ? `|${m.pedido_id}` : '')
+
 export default function Historial() {
   const { perfil, esAdmin, esLogistica, esAlmacenista, esConsultor, bodegasOperacion } = useAuth()
   // Consultor (Ventas): solo lectura de sus bodegas (MOTORES); undefined mientras se resuelven
@@ -568,7 +573,7 @@ export default function Historial() {
       fs => `${[...new Set(fs.map(f => f.numero))].join(', ')} · ${fs.map(f => `${f.items?.nombre || 'producto'} (${cant(f.cantidad)})`).join(', ')} · reversión ${numero}`)
 
     if (errores.length) setMsg({ tipo: 'error', texto: (revertidas.length ? `Se revirtió una parte (${numero}). ` : 'No se revirtió. ') + errores.join(' · ') })
-    else if (revertidas.length) setMsg({ tipo: 'exito', texto: `${lineas.length === 1 ? (lineas[0].items?.nombre || 'Movimiento') : `${detalle || 'Movimiento'}`} revertido (${numero})` })
+    else if (revertidas.length) setMsg({ tipo: 'exito', texto: `${lineas.length === 1 ? (lineas[0].items?.nombre || 'Movimiento') : `${numeroDetalle || 'Movimiento'}`} revertido (${numero})` })
     setRevirtiendo(false)
     setConfirmRevert(null)
     cargar()
@@ -637,8 +642,8 @@ export default function Historial() {
       ).sort((a, b) => a.nombre.localeCompare(b.nombre))
     : []
 
-  // Búsqueda por palabras sueltas, sin tildes, en número, producto, proveedor, quién recibe, OF…
-  const textoBusqueda = m => [m.numero, m.items?.nombre, m.referencia, m.serial_motor, m.numero_of, m.proveedor, m.cliente, m.destino].filter(Boolean).join(' ')
+  // Búsqueda por palabras sueltas, sin tildes, en número, pedido (PED-0209), producto, proveedor, quién recibe, OF…
+  const textoBusqueda = m => [m.numero, m.pedidos?.numero, m.items?.nombre, m.referencia, m.serial_motor, m.numero_of, m.proveedor, m.cliente, m.destino].filter(Boolean).join(' ')
   const filtradosBase = movimientos.filter(m =>
     (!filtroItem || m.item_id === filtroItem) &&
     (!filtroUsuario || m.usuario_id === filtroUsuario) &&
@@ -648,8 +653,8 @@ export default function Historial() {
   // Agrupar por número de movimiento: un movimiento con 12 productos es una sola fila
   const gruposBase = Object.values(
     filtradosBase.reduce((acc, m) => {
-      const key = m.numero || m.id
-      if (!acc[key]) acc[key] = { numero: key, lineas: [], tipo: m.tipo, created_at: m.created_at, revertido: m.revertido }
+      const key = claveGrupo(m)
+      if (!acc[key]) acc[key] = { clave: key, numero: m.numero || m.id, pedido: m.tipo === 'entrada' ? m.pedidos?.numero : null, lineas: [], tipo: m.tipo, created_at: m.created_at, revertido: m.revertido }
       acc[key].lineas.push(m)
       return acc
     }, {})
@@ -675,7 +680,8 @@ export default function Historial() {
   porDia.sort((a, b) => b.clave.localeCompare(a.clave))
 
   // Detalle abierto: todas las líneas del movimiento (sin filtros)
-  const lineasDetalle = detalle ? movimientos.filter(m => (m.numero || m.id) === detalle) : []
+  const numeroDetalle = detalle ? detalle.split('|')[0] : null
+  const lineasDetalle = detalle ? movimientos.filter(m => claveGrupo(m) === detalle) : []
 
   // Firma y foto de la remisión: no vienen en la lista (pesan mucho), se piden al abrir el detalle
   const [imagenes, setImagenes] = useState({})   // id de la primera línea -> { firma_receptor_url, foto_remision_url }
@@ -715,7 +721,7 @@ export default function Historial() {
         <div className="relative">
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input ref={buscarRef} type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por número, producto, proveedor, OF, quién recibe…"
+            placeholder="Buscar por número, pedido, producto, proveedor, OF, quién recibe…"
             className="w-full border border-feisen-borde rounded-lg pl-10 pr-10 py-2.5 bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave" />
           <kbd className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 border border-feisen-borde rounded px-1.5">/</kbd>
         </div>
@@ -1007,14 +1013,15 @@ export default function Historial() {
     const contraparte = contraparteDe(primera)
     const valorTotal = esAdmin ? g.lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0) : 0
     return (
-      <button key={g.numero} type="button" onClick={() => setDetalle(g.numero)} aria-current={detalle === g.numero}
+      <button key={g.clave} type="button" onClick={() => setDetalle(g.clave)} aria-current={detalle === g.clave}
         className={`w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3 min-h-[64px] transition-colors
-          ${detalle === g.numero ? 'bg-feisen-azul-suave' : 'hover:bg-feisen-fondo'} ${g.revertido ? 'opacity-60' : ''}`}>
+          ${detalle === g.clave ? 'bg-feisen-azul-suave' : 'hover:bg-feisen-fondo'} ${g.revertido ? 'opacity-60' : ''}`}>
         <IconoTipo tipo={g.tipo} />
         <span className="min-w-0">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="font-mono text-xs text-feisen-texto">{g.numero}</span>
             <BadgeTipo tipo={g.tipo} />
+            {g.pedido && <span className="text-[11px] font-mono px-1.5 py-px rounded-md bg-feisen-fondo text-feisen-texto-2">{g.pedido}</span>}
             {esEditado(g) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
             {g.revertido && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-gray-100 text-gray-500">Revertido</span>}
             {g.lineas.some(l => l.revertido_en) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-feisen-rojo-suave text-feisen-rojo">Reversión</span>}
@@ -1054,9 +1061,9 @@ export default function Historial() {
       p.firma_receptor_url && { t: 'Firma de quien recibe', src: p.firma_receptor_url },
     ].filter(Boolean)
     return (
-      <PanelLateral etiqueta={`Detalle de ${detalle}`} onCerrar={cerrarDetalle} encabezado={
+      <PanelLateral etiqueta={`Detalle de ${numeroDetalle}`} onCerrar={cerrarDetalle} encabezado={
         <div className="space-y-1.5">
-          <h3 className="font-mono text-base font-semibold text-feisen-texto">{detalle}</h3>
+          <h3 className="font-mono text-base font-semibold text-feisen-texto">{numeroDetalle}</h3>
           <div className="flex flex-wrap gap-1.5">
             <BadgeTipo tipo={p.tipo} />
             {lineas.some(l => editados.has(l.id)) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
