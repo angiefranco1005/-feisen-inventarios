@@ -1133,9 +1133,14 @@ export default function ListaPedidos() {
   }
 
   const hayBusqueda = busqueda.trim() || fechaDesde || fechaHasta
+  // Buscar por texto busca en TODOS los pedidos, sin importar la tarjeta/etapa escogida
+  // (5/11/2026: el PED-0209 estaba cerrado y, desde "En curso", buscar "209" no lo encontraba).
+  const buscaEnTodos = !!busqueda.trim()
+  const filtroActivo = buscaEnTodos ? 'todos' : filtro
 
   const pedidosFiltrados = pedidos
     .filter(p => {
+      const filtro = filtroActivo
       if (filtro === 'curso') { if (p.estado === 'cerrado' || p.estado === 'recibido') return false }
       else if (filtro === 'atrasados') { if (!diasDeAtraso(p)) return false }
       else if (filtro === 'cerrado') { if (!(p.estado === 'cerrado' || p.estado === 'recibido')) return false }
@@ -1186,7 +1191,7 @@ export default function ListaPedidos() {
 
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
-      <EtapasPedidos pedidos={pedidos} filtro={filtro} onFiltro={setFiltro} />
+      <EtapasPedidos pedidos={pedidos} filtro={buscaEnTodos ? null : filtro} onFiltro={f => { setBusqueda(''); setFiltro(f) }} />
 
       {/* Búsqueda: número de pedido, producto o quién lo hizo, y rango de fechas */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
@@ -1217,8 +1222,8 @@ export default function ListaPedidos() {
       </div>
 
       <div className="flex items-center justify-between gap-2 text-sm text-feisen-texto-2 px-0.5">
-        <span><b className="text-feisen-texto">{NOMBRE_FILTRO[filtro] || ESTADO_CONFIG[filtro]?.label}</b> · {pedidosFiltrados.length} {pedidosFiltrados.length === 1 ? 'pedido' : 'pedidos'}</span>
-        {filtro === 'curso'
+        <span><b className="text-feisen-texto">{buscaEnTodos ? 'Búsqueda en todos los pedidos' : (NOMBRE_FILTRO[filtro] || ESTADO_CONFIG[filtro]?.label)}</b> · {pedidosFiltrados.length} {pedidosFiltrados.length === 1 ? 'pedido' : 'pedidos'}</span>
+        {buscaEnTodos ? null : filtro === 'curso'
           ? <button onClick={() => setFiltro('todos')} className="text-feisen-azul font-semibold">Ver todos</button>
           : <button onClick={() => setFiltro('curso')} className="text-feisen-azul font-semibold">Ver los que están en curso</button>}
       </div>

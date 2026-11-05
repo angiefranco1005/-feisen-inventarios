@@ -2140,3 +2140,9 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - **Editar**: a un movimiento revertido (o a una reversión) ya no se le puede cambiar cantidad ni producto (descuadraba el stock). En transferencias, cambiar la cantidad corrige también el otro lado y su stock. Cantidad 0 o vacía no se acepta.
 - Entradas de un pedido (`pedido_id`): revertir/eliminar/corregir deja nota en `pedido_historial`; el estado del pedido no cambia solo. Sin cambios en la base (RLS: UPDATE/DELETE de `movimientos` ya eran solo ADMIN).
 - `src/components/admin/Reportes.jsx` (con su `fn_revertir_movimiento`) no está enlazado en el menú; esa función no ajusta stock para los tipos `entrada`/`salida` actuales, no usarla.
+
+## 2026-11-05 · Pedidos: el buscador busca en todos los estados
+- Caso: «el PED-0209 no aparece». No estaba borrado: estaba `cerrado` (Mateo lo cerró el 3/11 «se creó otra orden para cambiar de proveedor» y Angie lo volvió a cerrar «Ya no se necesita», que pisó el motivo). La lista abre en «En curso» y el buscador filtraba dentro de esa vista, así que buscar «209» no daba nada. Le falta la ARANDELA BALDE (0 de 100).
+- Arreglo (`ListaPedidos.jsx`): si hay texto en el buscador se ignora la tarjeta/etapa escogida (`buscaEnTodos` → `filtroActivo = 'todos'`); el encabezado dice «Búsqueda en todos los pedidos» y ninguna tarjeta queda marcada. Tocar una tarjeta borra el texto y filtra por ella. El rango de fechas solo (sin texto) sigue respetando la tarjeta.
+- Pendiente posible: no dejar cerrar un pedido ya cerrado (el segundo cierre borra el motivo del primero).
+- El hueco real en la numeración es el PED-0213: lo eliminó Mateo el 24/10 estando pendiente (queda en `pedidos_eliminados`).
