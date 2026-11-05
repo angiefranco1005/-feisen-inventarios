@@ -7,6 +7,7 @@ import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses } from './datosI
 import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw } from '../../shared/iconos'
 import DashboardVentas from '../../of/ventas/DashboardVentas'
 import DashboardOF from '../../of/Dashboard'
+import InformeSinRotacion from './InformeSinRotacion'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica, por pestañas para no llenar la
 // pantalla (2026-11-04). Resumen = lo que requiere decisión + una cifra por módulo; cada
@@ -94,12 +95,19 @@ export default function InicioGerencia() {
   const [ocultas, setOcultas]     = useState(() => new Set(leer('inicio-ocultas', [])))
   const [vistaValor, setVistaValor] = useState(() => leer('inicio-vista-valor', 'barras'))
   const [bodPareto, setBodPareto] = useState(() => leer('inicio-pareto', ''))
-  const [bodRot, setBodRot]       = useState('')
+  const [bodRot, setBodRotEstado] = useState(() => leer('inicio-rotacion-bodega', ''))
+  const setBodRot = v => setBodRotEstado(prev => { const n = typeof v === 'function' ? v(prev) : v; guardar('inicio-rotacion-bodega', n); return n })
   const [params, setParams]       = useSearchParams()
   const vista = VISTAS.some(v => v.id === params.get('vista')) ? params.get('vista') : leer('inicio-vista', 'resumen')
+  // Informe completo de productos sin rotación (dentro de la pestaña Inventarios, en la URL)
+  const informe = vista === 'inventarios' && params.get('informe') === 'sin-rotacion'
+  function abrirInforme(abrir) {
+    setParams(prev => { const n = new URLSearchParams(prev); n.set('vista', 'inventarios'); if (abrir) n.set('informe', 'sin-rotacion'); else n.delete('informe'); return n })
+    window.scrollTo({ top: 0 })
+  }
   function elegirVista(v) {
     guardar('inicio-vista', v)
-    setParams(prev => { const n = new URLSearchParams(prev); n.set('vista', v); return n }, { replace: true })
+    setParams(prev => { const n = new URLSearchParams(prev); n.set('vista', v); n.delete('informe'); return n }, { replace: true })
   }
 
   async function recargar() {
@@ -199,10 +207,17 @@ export default function InicioGerencia() {
   const maxValor = Math.max(1, ...bodegas.map(b => b.valor))
   const bodP = bodegas.find(b => b.id === bodPareto) || bodegas.find(b => b.pareto.length) || bodegas[0]
   const tiles = mosaico(bodegas.filter(b => b.valor > 0).map((b, i) => ({ ...b, color: TONOS[i] || TONOS[6] })), 0, 0, 100, 100)
-  const quietosLista = bodRot
-    ? (bodegas.find(b => b.id === bodRot)?.quietos || []).slice(0, 12).map(f => ({ ...f, bodega: '' }))
-    : bodegas.flatMap(b => b.quietos.map(f => ({ ...f, bodega: cap(b.nombre) }))).sort((x, y) => y.valor - x.valor).slice(0, 8)
+  // Filtro de bodega de la rotación (si la bodega guardada ya no tiene existencias, se ven todas)
   const bodRotObj = bodegas.find(b => b.id === bodRot)
+  const bodRotSel = bodRotObj ? bodRot : ''
+  const bodegasRot = bodRotObj ? [bodRotObj] : bodegas
+  const quietosLista = bodRotObj
+    ? bodRotObj.quietos.slice(0, 12).map(f => ({ ...f, bodega: '' }))
+    : bodegas.flatMap(b => b.quietos.map(f => ({ ...f, bodega: cap(b.nombre) }))).sort((x, y) => y.valor - x.valor).slice(0, 8)
+  const rotTot = bodegasRot.reduce((t, b) => ({
+    valor: t.valor + b.valor, quieto: t.quieto + b.rot.r60 + b.rot.r90 + b.rot.nunca, n: t.n + b.quietos.length,
+    nunca: t.nunca + b.quietos.filter(f => f.dias === null).length,
+  }), { valor: 0, quieto: 0, n: 0, nunca: 0 })
 
   // ── Periodo ──
   const mec = datosP?.mecanizado, fun = datosP?.fundicion, aus = datosP?.ausencias
@@ -319,7 +334,9 @@ export default function InicioGerencia() {
       {vista === 'ventas' && <DashboardVentas />}
       {vista === 'of' && <DashboardOF />}
 
-      {vista === 'inventarios' && <>
+      {informe && <InformeSinRotacion bodegas={bodegas} bodega={bodRotSel} onBodega={setBodRot} onVolver={() => abrirInforme(false)} />}
+
+      {vista === 'inventarios' && !informe && <>
         {/* Inventarios */}
         <section className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-feisen-borde-suave">
@@ -414,8 +431,20 @@ export default function InicioGerencia() {
               <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                 <div>
                   <h4 className="text-[13px] font-semibold">Rotación: ¿qué se está moviendo? <Etiqueta /></h4>
-                  <p className="text-xs text-gray-400">Valor de cada bodega según el último movimiento de cada producto · toca una bodega para ver sus productos quietos</p>
+                  <p className="text-xs text-gray-400">Valor de cada bodega según el último movimiento de cada producto · filtra por bodega o toca una barra</p>
                 </div>
+                <select value={bodRotSel} onChange={e => setBodRot(e.target.value)} aria-label="Bodega de la rotación"
+                  className={`border rounded-md px-2 py-1 text-[12.5px] ${bodRotSel ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul font-semibold' : 'border-feisen-borde bg-white'}`}>
+                  <option value="">Todas las bodegas</option>
+                  {bodegas.map(b => <option key={b.id} value={b.id}>{cap(b.nombre)}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
+                <p className="text-[13px] text-feisen-texto-2">
+                  {rotTot.n
+                    ? <>Sin rotación{bodRotObj ? ` en ${cap(bodRotObj.nombre)}` : ''}: <b className="text-feisen-texto tabular-nums">{fmt(rotTot.n)} productos · {millones(rotTot.quieto)}</b>{rotTot.valor ? ` (${fmt((rotTot.quieto / rotTot.valor) * 100)}% del valor)` : ''}{rotTot.nunca ? <> · <span className="text-feisen-rojo">{fmt(rotTot.nunca)} nunca movidos</span></> : ''}</>
+                    : `Todo${bodRotObj ? ` lo de ${cap(bodRotObj.nombre)}` : ''} se movió en los últimos 30 días.`}
+                </p>
                 <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-feisen-texto-2">
                   <span><i className="inline-block w-2 h-2 rounded-sm mr-1 bg-feisen-azul" />Últimos 30 días</span>
                   <span><i className="inline-block w-2 h-2 rounded-sm mr-1 bg-[#9DB5D6]" />31–60 días</span>
@@ -425,7 +454,7 @@ export default function InicioGerencia() {
               </div>
               <div className="grid lg:grid-cols-2 gap-6">
                 <div>
-                  {bodegas.map(b => {
+                  {bodegasRot.map(b => {
                     const t = b.valor || 1, quieto = b.rot.r60 + b.rot.r90 + b.rot.nunca
                     return (
                       <button key={b.id} onClick={() => setBodRot(v => v === b.id ? '' : b.id)} aria-pressed={bodRot === b.id}
@@ -460,7 +489,12 @@ export default function InicioGerencia() {
                       ))}
                     </div>
                   )}
-                  {bodRotObj && bodRotObj.quietos.length > 12 && <p className="text-xs text-gray-400 mt-2">Los 12 de más valor de {bodRotObj.quietos.length}.</p>}
+                  {rotTot.n > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-feisen-borde-suave">
+                      <span className="text-xs text-gray-400">{rotTot.n > quietosLista.length ? `Los ${quietosLista.length} de más valor de ${fmt(rotTot.n)}.` : ''}</span>
+                      <button onClick={() => abrirInforme(true)} className="text-sm font-medium text-feisen-azul hover:underline">Ver informe completo →</button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

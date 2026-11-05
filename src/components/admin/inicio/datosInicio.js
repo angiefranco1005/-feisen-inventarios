@@ -46,7 +46,7 @@ export async function cargarFoto() {
   const hoyIsoQ = isoDia(hoy0())
   const [items, stock, movs, bods, pedidos, empleados, ncs, nomina, fundidas30, moldeoNc, fundSemanas, ausHoy] = await Promise.all([
     fetchAllPages((d, h) => supabase.from('items').select('id, nombre, activo, stock_minimo, bodega_id').order('id').range(d, h)),
-    fetchAllPages((d, h) => supabase.from('stock').select('item_id, bodega_id, cantidad_actual, items(nombre, precio_costo, activo, unidad_medida)').order('item_id').order('bodega_id').range(d, h)),
+    fetchAllPages((d, h) => supabase.from('stock').select('item_id, bodega_id, cantidad_actual, items(nombre, precio_costo, activo, unidad_medida, categorias(nombre))').order('item_id').order('bodega_id').range(d, h)),
     // Para rotación: último movimiento de cada producto en cada bodega
     fetchAllPages((d, h) => supabase.from('movimientos').select('item_id, bodega_origen_id, bodega_destino_id, created_at').eq('revertido', false).order('id').range(d, h)),
     supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
@@ -62,16 +62,15 @@ export async function cargarFoto() {
 
   const nombreBod = Object.fromEntries((bods.data || []).map(b => [b.id, b.nombre]))
 
-  // Último movimiento por producto+bodega
-  const ultimo = {}
+  // Último movimiento por producto+bodega (cualquiera), y por separado la última
+  // entrada (llegó a la bodega: destino) y la última salida (salió de ella: origen)
+  const ultimo = {}, ultEntrada = {}, ultSalida = {}
+  const marcar = (mapa, k, f) => { if (!mapa[k] || f > mapa[k]) mapa[k] = f }
   let primerMov = null
   for (const m of movs.data || []) {
     if (!primerMov || m.created_at < primerMov) primerMov = m.created_at
-    for (const b of [m.bodega_origen_id, m.bodega_destino_id]) {
-      if (!b) continue
-      const k = `${m.item_id}|${b}`
-      if (!ultimo[k] || m.created_at > ultimo[k]) ultimo[k] = m.created_at
-    }
+    if (m.bodega_destino_id) { const k = `${m.item_id}|${m.bodega_destino_id}`; marcar(ultimo, k, m.created_at); marcar(ultEntrada, k, m.created_at) }
+    if (m.bodega_origen_id)  { const k = `${m.item_id}|${m.bodega_origen_id}`;  marcar(ultimo, k, m.created_at); marcar(ultSalida, k, m.created_at) }
   }
 
   // Existencias por producto (todas las bodegas) para agotados / bajo mínimo / sin mínimo
@@ -93,10 +92,14 @@ export async function cargarFoto() {
     if (!s.items?.activo || q <= 0) continue
     const b = porBodega[s.bodega_id] ||= { id: s.bodega_id, nombre: nombreBod[s.bodega_id] || '—', valor: 0, filas: [] }
     const valor = q * (Number(s.items.precio_costo) || 0)
-    const ult = ultimo[`${s.item_id}|${s.bodega_id}`]
+    const k = `${s.item_id}|${s.bodega_id}`, ult = ultimo[k]
     const dias = ult ? diasDesde(ult) : null // null = nunca se ha movido
     b.valor += valor
-    b.filas.push({ item_id: s.item_id, nombre: s.items.nombre, unidad: s.items.unidad_medida, q, valor, dias })
+    b.filas.push({
+      item_id: s.item_id, nombre: s.items.nombre, unidad: s.items.unidad_medida, q, valor, dias,
+      costo: Number(s.items.precio_costo) || 0, categoria: s.items.categorias?.nombre || 'Sin categoría',
+      ultEntrada: ultEntrada[k] || null, ultSalida: ultSalida[k] || null,
+    })
   }
   const bodegas = Object.values(porBodega).map(b => {
     const conValor = b.filas.filter(f => f.valor > 0).sort((x, y) => y.valor - x.valor)
