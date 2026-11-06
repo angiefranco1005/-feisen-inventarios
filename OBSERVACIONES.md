@@ -2234,3 +2234,8 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Al crear un proceso, si `costeo_etapas_maestro.puesto` coincide (sin importar mayúsculas) con el nombre de un cargo, la primera persona queda enlazada.
 - **Ojo permisos**: `cargos` solo la leen ADMIN y RRHH (política `cargos_rrhh_admin`). Si algún día se abre Costeo a usuarios con `acceso_costeo`, hay que darles lectura de `cargos` o no verán la lista.
 - Banda "El costo está incompleto": botón ✕ para cerrarla; queda "N avisos de costo incompleto · Ver". Se recuerda por ficha en localStorage (`costeo-avisos-cerrados-<fichaId>`) con la firma de los avisos: si aparece un aviso distinto, la banda se vuelve a abrir sola.
+
+## 2026-11-06 · Generar OC: «Seleccionar todo»
+- Pedido de Angie. `ModalGenerarOC.jsx` (OC de un pedido): botón «Seleccionar todo / Quitar todo» y contador «N de M». Marca solo las líneas que aún tienen algo por comprar (las ya cubiertas por otra OC o compra directa quedan sin marcar); si ninguna tiene pendiente, marca todas.
+- `ModalOCVariosPedidos.jsx`: «Seleccionar todo» general sobre lo que se ve (con búsqueda dice «Seleccionar lo encontrado») y «Todo este pedido» en el encabezado de cada pedido con más de una línea. Contador «N marcados».
+- Probado en el demo (`/pedidos?rol=ADMIN`): PED-0185 marcó 11 de 14 (las 3 cubiertas no) y «Quitar todo» desmarca; varios pedidos marcó los 3. El botón por pedido no se probó (en el demo cada pedido tiene una sola línea).

@@ -96,6 +96,17 @@ export default function ModalOCVariosPedidos({ pedidos, coberturaPorItem, onCerr
     return [...g.values()]
   }, [lineas, busqueda, seleccion])
 
+  // «Seleccionar todo»: lo que se ve (respeta la búsqueda), en general o por pedido
+  const visibles = useMemo(() => grupos.flatMap(g => g.lineas), [grupos])
+  const todasMarcadas = ls => ls.length > 0 && ls.every(l => seleccion[l.it.id]?.incluir)
+  function marcar(ls, incluir) {
+    setSeleccion(prev => {
+      const sig = { ...prev }
+      for (const l of ls) sig[l.it.id] = { ...sig[l.it.id], incluir }
+      return sig
+    })
+  }
+
   async function guardar() {
     setMsg(null)
     if (incluidas.length === 0) { setMsg({ tipo: 'error', texto: 'Marca al menos un producto para la orden.' }); return }
@@ -174,7 +185,18 @@ export default function ModalOCVariosPedidos({ pedidos, coberturaPorItem, onCerr
           {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
           <div>
-            <p className="text-sm font-semibold text-gray-700">Productos por comprar</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-700">
+                Productos por comprar
+                <span className="font-normal text-feisen-texto-2"> · {incluidas.length} marcados</span>
+              </p>
+              {visibles.length > 1 && (
+                <button type="button" onClick={() => marcar(visibles, !todasMarcadas(visibles))}
+                  className="shrink-0 text-sm font-medium text-feisen-azul hover:underline min-h-[36px] px-1">
+                  {todasMarcadas(visibles) ? 'Quitar todo' : busqueda.trim() ? 'Seleccionar lo encontrado' : 'Seleccionar todo'}
+                </button>
+              )}
+            </div>
             <p className="text-xs text-feisen-texto-2 mb-2">Marca lo que le vas a pedir a este proveedor, de uno o de varios pedidos.</p>
             <div className="relative mb-2.5">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -191,6 +213,12 @@ export default function ModalOCVariosPedidos({ pedidos, coberturaPorItem, onCerr
                     <span>· {p.profiles?.nombre || p.solicitante_nombre || '—'}</span>
                     <span>· {ESTADO[p.estado] || p.estado}</span>
                     {p.prioridad === 'urgente' && <span className="text-feisen-rojo font-semibold">· Urgente</span>}
+                    {ls.length > 1 && (
+                      <button type="button" onClick={() => marcar(ls, !todasMarcadas(ls))}
+                        className="ml-auto font-medium text-feisen-azul hover:underline">
+                        {todasMarcadas(ls) ? 'Quitar este pedido' : 'Todo este pedido'}
+                      </button>
+                    )}
                   </div>
                   <div className="divide-y divide-feisen-borde-suave">
                     {ls.map(({ it, falta }) => {

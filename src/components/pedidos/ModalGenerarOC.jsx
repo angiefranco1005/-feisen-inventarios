@@ -74,6 +74,21 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
     setSeleccion(prev => ({ ...prev, [itemId]: { ...prev[itemId], [campo]: valor } }))
   }
 
+  // «Seleccionar todo»: marca las líneas que aún tienen algo por comprar (si ninguna tiene, todas)
+  const marcables = useMemo(() => {
+    const conPendiente = pedidoItems.filter(it =>
+      it.cantidad - (coberturaPorItem[it.id] || 0) - (it.cantidad_compra_directa || 0) > 0)
+    return conPendiente.length ? conPendiente : pedidoItems
+  }, [pedidoItems, coberturaPorItem])
+  const todasMarcadas = marcables.length > 0 && marcables.every(it => seleccion[it.id]?.incluir)
+  function marcarTodas(incluir) {
+    setSeleccion(prev => {
+      const sig = { ...prev }
+      for (const it of (incluir ? marcables : pedidoItems)) sig[it.id] = { ...sig[it.id], incluir }
+      return sig
+    })
+  }
+
   const lineasIncluidas = useMemo(
     () => pedidoItems.filter(it => seleccion[it.id]?.incluir),
     [pedidoItems, seleccion]
@@ -172,7 +187,18 @@ export default function ModalGenerarOC({ pedido, coberturaPorItem, onCerrar, onG
 
           {/* Productos */}
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Productos a incluir en esta orden</p>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-sm font-semibold text-gray-700">
+                Productos a incluir en esta orden
+                <span className="font-normal text-feisen-texto-2"> · {lineasIncluidas.length} de {pedidoItems.length}</span>
+              </p>
+              {pedidoItems.length > 1 && (
+                <button type="button" onClick={() => marcarTodas(!todasMarcadas)}
+                  className="shrink-0 text-sm font-medium text-feisen-azul hover:underline min-h-[36px] px-1">
+                  {todasMarcadas ? 'Quitar todo' : 'Seleccionar todo'}
+                </button>
+              )}
+            </div>
             <div className="space-y-2.5">
               {pedidoItems.map(it => {
                 const cubierto  = coberturaPorItem[it.id] || 0
