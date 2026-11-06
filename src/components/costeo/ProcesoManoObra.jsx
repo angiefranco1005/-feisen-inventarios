@@ -1,25 +1,64 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pencil, Plus, Users, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCOP, formatNumber } from './utils/format'
+import { tipoTitulo } from './utils/nombres'
 
 // Líneas de mano de obra de un proceso (costeo_proceso_mano_obra, costos en costeo_mano_obra_resumen).
 // Cada persona o puesto con su forma de pago:
 //   por hora → h-h por unidad de SUS mediciones × tarifa (sin mediciones, no suma: costo incompleto)
 //   valor fijo por unidad (destajo) → el valor que se escribe, ej. $ 17.000 por embombar
+// La persona se escoge de los cargos del organigrama (tabla cargos de RRHH) o se escribe a mano.
+// Al escoger un cargo que ya se usó en otro proceso, se proponen su forma de pago y su tarifa.
 export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
-  const [form, setForm] = useState(null) // null = cerrado; { id?, nombre, tipo_pago, tarifa_hora, precio_destajo }
+  const [form, setForm] = useState(null) // null = cerrado; { id?, cargo_id ('' | id | 'otro'), nombre, tipo_pago, tarifa_hora, precio_destajo }
   const [error, setError] = useState('')
+  const [cargos, setCargos] = useState(null)
+
+  useEffect(() => {
+    if (!form || cargos) return
+    supabase
+      .from('cargos')
+      .select('id, nombre, area')
+      .order('area')
+      .order('nombre')
+      .then(({ data }) => setCargos(data || []))
+  }, [form, cargos])
 
   function nueva() {
     setError('')
-    setForm({ nombre: `Operario ${lineas.length + 1}`, tipo_pago: 'hora', tarifa_hora: '', precio_destajo: '' })
+    setForm({ cargo_id: '', nombre: '', tipo_pago: 'hora', tarifa_hora: '', precio_destajo: '' })
+  }
+
+  async function escogerCargo(valor) {
+    if (valor === 'otro' || valor === '') {
+      setForm((f) => ({ ...f, cargo_id: valor, nombre: valor === 'otro' ? '' : f.nombre }))
+      return
+    }
+    const cargo = (cargos || []).find((c) => c.id === valor)
+    setForm((f) => ({ ...f, cargo_id: valor, nombre: cargo?.nombre || '' }))
+    // Última forma de pago y tarifa usadas para ese cargo en cualquier proceso.
+    const { data } = await supabase
+      .from('costeo_proceso_mano_obra')
+      .select('tipo_pago, tarifa_hora, precio_destajo')
+      .eq('cargo_id', valor)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const ult = data?.[0]
+    if (ult)
+      setForm((f) => ({
+        ...f,
+        tipo_pago: ult.tipo_pago,
+        tarifa_hora: Number(ult.tarifa_hora) > 0 ? String(ult.tarifa_hora) : f.tarifa_hora,
+        precio_destajo: Number(ult.precio_destajo) > 0 ? String(ult.precio_destajo) : f.precio_destajo,
+      }))
   }
 
   function editar(l) {
     setError('')
     setForm({
       id: l.mano_obra_id,
+      cargo_id: l.cargo_id || 'otro',
       nombre: l.nombre,
       tipo_pago: l.tipo_pago,
       tarifa_hora: String(l.tarifa_hora ?? ''),
@@ -30,10 +69,12 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
   async function guardar(e) {
     e.preventDefault()
     setError('')
+    if (!form.cargo_id) return setError('Escoge el cargo del organigrama (u "Otro" para escribirlo).')
     if (!form.nombre.trim()) return setError('Ponle un nombre (ej. Operario 1, Ayudante).')
     const valor = Number(form.tipo_pago === 'hora' ? form.tarifa_hora : form.precio_destajo)
     if (!(valor > 0)) return setError(form.tipo_pago === 'hora' ? 'Pon la tarifa por hora.' : 'Pon el valor por unidad.')
     const datos = {
+      cargo_id: form.cargo_id && form.cargo_id !== 'otro' ? form.cargo_id : null,
       nombre: form.nombre.trim(),
       tipo_pago: form.tipo_pago,
       tarifa_hora: Number(form.tarifa_hora || 0),
@@ -59,16 +100,37 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   const formulario = form && (
-    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid sm:grid-cols-3 gap-3">
-      <div>
-        <label className="block text-xs text-feisen-texto-2 mb-1">Persona o puesto</label>
-        <input autoFocus value={form.nombre} onChange={set('nombre')} placeholder="Operario 1" className={campo} />
+    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 gap-3">
+      <div className="col-span-2">
+        <label className="block text-xs text-feisen-texto-2 mb-1">Cargo (del organigrama)</label>
+        <select autoFocus value={form.cargo_id} onChange={(e) => escogerCargo(e.target.value)} className={campo}>
+          <option value="">{cargos ? 'Escoge un cargo…' : 'Cargando cargos…'}</option>
+          {Object.entries(
+            (cargos || []).reduce((g, c) => {
+              ;(g[c.area || 'Sin área'] ||= []).push(c)
+              return g
+            }, {})
+          ).map(([area, lista]) => (
+            <optgroup key={area} label={area}>
+              {lista.map((c) => (
+                <option key={c.id} value={c.id}>{tipoTitulo(c.nombre)}</option>
+              ))}
+            </optgroup>
+          ))}
+          <option value="otro">Otro (escribir el nombre)</option>
+        </select>
       </div>
+      {form.cargo_id === 'otro' && (
+        <div className="col-span-2">
+          <label className="block text-xs text-feisen-texto-2 mb-1">Nombre</label>
+          <input autoFocus value={form.nombre} onChange={set('nombre')} placeholder="Operario 1" className={campo} />
+        </div>
+      )}
       <div>
         <label className="block text-xs text-feisen-texto-2 mb-1">Se paga</label>
         <select value={form.tipo_pago} onChange={set('tipo_pago')} className={campo}>
-          <option value="hora">Por hora (con tiempo medido)</option>
-          <option value="destajo">Valor fijo por unidad</option>
+          <option value="hora">Por hora</option>
+          <option value="destajo">Valor fijo</option>
         </select>
       </div>
       {form.tipo_pago === 'hora' ? (
@@ -82,8 +144,8 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
           <input type="number" step="any" value={form.precio_destajo} onChange={set('precio_destajo')} placeholder="17000" className={campo} />
         </div>
       )}
-      {error && <p className="text-feisen-rojo text-xs sm:col-span-3">{error}</p>}
-      <div className="sm:col-span-3 flex gap-3">
+      {error && <p className="text-feisen-rojo text-xs col-span-2">{error}</p>}
+      <div className="col-span-2 flex gap-3">
         <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
           {form.id ? 'Guardar' : 'Agregar'}
         </button>
@@ -110,7 +172,7 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
             ) : (
               <li key={l.mano_obra_id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0">
-                  <span className="text-feisen-texto">{l.nombre}</span>
+                  <span className="text-feisen-texto">{tipoTitulo(l.nombre)}</span>
                   <span className="block text-xs text-feisen-texto-2 tabular-nums">
                     {l.tipo_pago === 'destajo' ? (
                       <>Valor fijo · {formatCOP(l.precio_destajo)} por unidad</>

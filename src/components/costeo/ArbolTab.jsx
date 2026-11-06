@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowLeft, ChevronRight, Component } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronRight, Component, X } from 'lucide-react'
 import { formatCOP, formatNumber } from './utils/format'
 import { cargarArbol } from './utils/arbolCosteo'
 import { nombreCorto } from './utils/nombres'
@@ -91,6 +91,29 @@ export default function ArbolTab({ fichaId }) {
 
   const idx = useMemo(() => (arbol ? indexar(arbol) : null), [arbol])
 
+  // Aviso de costo incompleto cerrado: se recuerda por ficha con la firma de los avisos que había.
+  const claveAvisos = `costeo-avisos-cerrados-${fichaId}`
+  const [firmaCerrada, setFirmaCerrada] = useState(null)
+  useEffect(() => {
+    let f = null
+    try {
+      f = window.localStorage.getItem(claveAvisos)
+    } catch {
+      // En modo privado puede fallar: simplemente no se recuerda.
+    }
+    setFirmaCerrada(f)
+  }, [claveAvisos])
+
+  function guardarCierre(firma) {
+    setFirmaCerrada(firma)
+    try {
+      if (firma == null) window.localStorage.removeItem(claveAvisos)
+      else window.localStorage.setItem(claveAvisos, firma)
+    } catch {
+      // Si no se puede guardar, solo queda cerrado mientras no se recargue.
+    }
+  }
+
   // Si lo seleccionado ya no existe (se quitó), vuelve a la máquina.
   useEffect(() => {
     if (!idx) return
@@ -137,6 +160,17 @@ export default function ArbolTab({ fichaId }) {
       vacias.push({ texto: n.ruta.slice(1).join(' › '), sel: { tipo: 'pieza', id } })
     }
   }
+  const totalAvisos = sinTiempos.length + sinTarifa.length + sinCentro.length + vacias.length
+  // Firma: si aparecen avisos distintos, la banda vuelve a abrirse sola.
+  const firmaAvisos = [
+    ...sinTiempos.map((a) => `tiempo:${a.texto}`),
+    ...sinTarifa.map((a) => `tarifa:${a.texto}`),
+    ...sinCentro.map((a) => `centro:${a.texto}`),
+    ...vacias.map((a) => `vacia:${a.texto}`),
+  ]
+    .sort()
+    .join('\n')
+  const avisosCerrados = totalAvisos > 0 && firmaCerrada === firmaAvisos
 
   const panel = (
     <Panel
@@ -178,8 +212,26 @@ export default function ArbolTab({ fichaId }) {
       </section>
 
       {/* Avisos: lo que deja el costo incompleto va primero, con botones que llevan al sitio */}
-      {(sinTiempos.length > 0 || sinTarifa.length > 0 || sinCentro.length > 0 || vacias.length > 0) && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 sm:px-5 py-4">
+      {totalAvisos > 0 && avisosCerrados && (
+        <button
+          type="button"
+          onClick={() => guardarCierre(null)}
+          className="inline-flex items-center gap-1.5 min-h-[44px] px-1 text-xs text-amber-800 hover:underline"
+        >
+          <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+          {totalAvisos === 1 ? '1 aviso' : `${totalAvisos} avisos`} de costo incompleto · Ver
+        </button>
+      )}
+      {totalAvisos > 0 && !avisosCerrados && (
+        <section className="relative rounded-2xl border border-amber-200 bg-amber-50 px-4 sm:px-5 py-4 pr-12 sm:pr-14">
+          <button
+            type="button"
+            aria-label="Cerrar aviso"
+            onClick={() => guardarCierre(firmaAvisos)}
+            className="absolute top-1 right-1 w-11 h-11 flex items-center justify-center rounded-lg text-amber-700 hover:bg-amber-100"
+          >
+            <X size={18} />
+          </button>
           <div className="flex gap-3">
             <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
             <div className="min-w-0 flex-1 space-y-3 text-sm text-amber-900">

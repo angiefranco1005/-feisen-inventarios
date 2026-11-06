@@ -344,9 +344,14 @@ function AgregarAqui({ fichaId, nombreFicha, procesos, enCamino, onAgregado }) {
       .select()
       .single()
     if (error) return setError('No se pudo agregar: ' + error.message)
-    // La primera persona del proceso sale de "Responsables por etapa" (puesto, forma de pago y tarifa).
+    // La primera persona del proceso sale de "Responsables por etapa" (puesto, forma de pago y tarifa);
+    // si el puesto se llama igual que un cargo del organigrama, queda enlazada a ese cargo.
+    const { data: cargo } = m?.puesto
+      ? await supabase.from('cargos').select('id').ilike('nombre', m.puesto.trim()).limit(1).maybeSingle()
+      : { data: null }
     await supabase.from('costeo_proceso_mano_obra').insert({
       proceso_id: data.id,
+      cargo_id: cargo?.id ?? null,
       nombre: m?.puesto || 'Operario 1',
       tipo_pago: m?.tipo_pago_sugerido || 'hora',
       tarifa_hora: Number(m?.tarifa_hora_sugerida || 0),

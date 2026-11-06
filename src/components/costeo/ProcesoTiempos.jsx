@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Clock, Pencil, Play, Plus, Square, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatNumber } from './utils/format'
+import { tipoTitulo } from './utils/nombres'
 import { hoy, horaActual, horasEntre, transcurrido } from './utils/tiempos'
 
 // Toma de tiempos de un proceso. Cada medición: operarios × horas trabajadas para N unidades
@@ -154,14 +155,14 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
     onCambio()
   }
 
-  const nombreLinea = Object.fromEntries(lineas.map((l) => [l.mano_obra_id, l.nombre]))
+  const nombreLinea = Object.fromEntries(lineas.map((l) => [l.mano_obra_id, tipoTitulo(l.nombre)]))
   const totalHH = filas.reduce((s, f) => s + Number(f.num_operarios) * Number(f.horas), 0)
   const totalU = filas.reduce((s, f) => s + Number(f.unidades), 0)
   const campo = 'w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm outline-none focus:border-feisen-azul bg-white'
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
 
   const formulario = form && (
-    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 gap-3">
       <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
       <Campo label="Orden / lote"><input value={form.orden} onChange={set('orden')} placeholder="OF-125" className={campo} /></Campo>
       {lineas.length > 0 && (
@@ -170,7 +171,7 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
             <option value="">{lineas.length > 1 ? 'Escoge…' : 'Sin asignar'}</option>
             {lineas.map((l) => (
               <option key={l.mano_obra_id} value={l.mano_obra_id}>
-                {l.nombre} ({l.tipo_pago === 'destajo' ? 'valor fijo' : 'por hora'})
+                {tipoTitulo(l.nombre)} ({l.tipo_pago === 'destajo' ? 'valor fijo' : 'por hora'})
               </option>
             ))}
           </select>
@@ -189,11 +190,11 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
       </Campo>
       <Campo label="N° operarios"><input type="number" min="1" step="any" value={form.num_operarios} onChange={set('num_operarios')} className={campo} /></Campo>
       <Campo label="Unidades buenas"><input type="number" min="0" step="any" value={form.unidades} onChange={set('unidades')} className={campo} /></Campo>
-      <div className="col-span-2 sm:col-span-3">
+      <div className="col-span-2">
         <Campo label="Notas (opcional)"><input value={form.notas} onChange={set('notas')} className={campo} /></Campo>
       </div>
-      {error && <p className="text-feisen-rojo text-xs col-span-2 sm:col-span-3">{error}</p>}
-      <div className="col-span-2 sm:col-span-3 flex gap-3">
+      {error && <p className="text-feisen-rojo text-xs col-span-2">{error}</p>}
+      <div className="col-span-2 flex gap-3">
         <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
           {form.id ? 'Guardar cambios' : 'Guardar medición'}
         </button>

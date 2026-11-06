@@ -2225,3 +2225,11 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Nombres: `utils/nombres.js` muestra en tipo título y quita el nombre de la máquina al final ("FONDO MEZCLADORA 1 1/2" → "Fondo"); palabras con números (1/8, 350L) y siglas (CNC, MIG) se dejan como vienen. El nombre completo sale en el tooltip y en el panel.
 - `formatCOP` de costeo pasó a pesos sin decimales (guía ux-feisen). El PDF tiene su propio formato (ya sin decimales).
 - La página de la ficha pasó de `max-w-4xl` a `max-w-6xl` para que quepan árbol y panel.
+
+## 2026-11-06 · Costeo: personas desde los cargos del organigrama + aviso que se puede cerrar
+
+- SQL aplicado (`supabase/migraciones/2026-11-06_costeo_mano_obra_cargo.sql`): `costeo_proceso_mano_obra.cargo_id` → `cargos(id)` (on delete set null; el nombre queda guardado en la línea) y `cargo_id` al final de `costeo_mano_obra_resumen`.
+- "+ Agregar persona" escoge el cargo de la tabla `cargos` (agrupado por área) u "Otro (escribir el nombre)". Al escoger un cargo ya usado en otro proceso se proponen su última forma de pago y tarifa. Al 2026-11-06 ningún cargo tiene salario cargado, así que no se calcula tarifa desde el salario.
+- Al crear un proceso, si `costeo_etapas_maestro.puesto` coincide (sin importar mayúsculas) con el nombre de un cargo, la primera persona queda enlazada.
+- **Ojo permisos**: `cargos` solo la leen ADMIN y RRHH (política `cargos_rrhh_admin`). Si algún día se abre Costeo a usuarios con `acceso_costeo`, hay que darles lectura de `cargos` o no verán la lista.
+- Banda "El costo está incompleto": botón ✕ para cerrarla; queda "N avisos de costo incompleto · Ver". Se recuerda por ficha en localStorage (`costeo-avisos-cerrados-<fichaId>`) con la firma de los avisos: si aparece un aviso distinto, la banda se vuelve a abrir sola.
