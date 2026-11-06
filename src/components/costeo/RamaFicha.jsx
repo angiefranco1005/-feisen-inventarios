@@ -230,7 +230,11 @@ function AgregarEnRama({ fichaId, nombreFicha, procesos, enCamino, raiz, onAgreg
     const cant = Number(cantidad)
     if (!n) return setError('Ponle nombre a la pieza (ej. Fondo).')
     if (!(cant > 0)) return setError('La cantidad debe ser mayor a 0.')
-    let pieza = catalogo.find((c) => c.nombre.trim().toLowerCase() === n.toLowerCase())
+    // Se busca en la base (no en la lista del datalist, que puede no haber cargado aún) para no
+    // crear dos piezas con el mismo nombre.
+    const { data: existentes, error: e0 } = await supabase.from('costeo_fichas').select('id, nombre').eq('tipo', 'pieza').ilike('nombre', n)
+    if (e0) return setError('No se pudo revisar el catálogo: ' + e0.message)
+    let pieza = (existentes || []).find((c) => c.nombre.trim().toLowerCase() === n.toLowerCase())
     if (pieza && enCamino.has(pieza.id)) return setError(`"${pieza.nombre}" ya contiene a esta pieza; no puede ir dentro de sí misma.`)
     if (!pieza) {
       const { data, error } = await supabase.from('costeo_fichas').insert({ nombre: n, tipo: 'pieza' }).select('id, nombre').single()
