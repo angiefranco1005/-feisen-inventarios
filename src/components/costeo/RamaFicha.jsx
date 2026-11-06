@@ -45,6 +45,7 @@ export default function RamaFicha({ arbol, fichaId, enCamino, abiertos, alternar
           key={p.id}
           proceso={p}
           costo={arbol.costos[p.id]}
+          lineas={arbol.manoObra[p.id] || []}
           abierto={abiertos.has(p.id)}
           onAlternar={() => alternar(p.id)}
           onCambio={recargar}
@@ -220,6 +221,15 @@ function AgregarEnRama({ fichaId, nombreFicha, procesos, enCamino, raiz, onAgreg
       .select()
       .single()
     if (error) return setError('No se pudo agregar: ' + error.message)
+    // La primera persona del proceso sale de "Responsables por etapa" (puesto, forma de pago y tarifa).
+    await supabase.from('costeo_proceso_mano_obra').insert({
+      proceso_id: data.id,
+      nombre: m?.puesto || 'Operario 1',
+      tipo_pago: m?.tipo_pago_sugerido || 'hora',
+      tarifa_hora: Number(m?.tarifa_hora_sugerida || 0),
+      precio_destajo: Number(m?.precio_destajo_sugerido || 0),
+      orden: 1,
+    })
     cerrar()
     onAgregado(data.id)
   }

@@ -26,7 +26,9 @@ function guardarCrono(id, valor) {
   }
 }
 
-const vacio = () => ({
+// Si el proceso tiene una sola persona por hora, la medición se le asigna sola.
+const vacio = (lineas = []) => ({
+  mano_obra_id: lineas.length === 1 ? lineas[0].mano_obra_id : (lineas.filter((l) => l.tipo_pago === 'hora').length === 1 ? lineas.find((l) => l.tipo_pago === 'hora').mano_obra_id : ''),
   fecha: hoy(),
   orden: '',
   responsable: '',
@@ -39,7 +41,7 @@ const vacio = () => ({
   notas: '',
 })
 
-export default function ProcesoTiempos({ proceso, onCambio }) {
+export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
   const [filas, setFilas] = useState([])
   const [form, setForm] = useState(null) // null = cerrado
   const [crono, setCrono] = useState(() => leerCrono(proceso.id))
@@ -75,7 +77,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
   }
 
   function terminar() {
-    setForm({ ...vacio(), fecha: crono.fecha, hora_inicio: crono.hora_inicio, hora_fin: horaActual() })
+    setForm({ ...vacio(lineas), fecha: crono.fecha, hora_inicio: crono.hora_inicio, hora_fin: horaActual() })
   }
 
   const horasCalculadas = form ? horasEntre(form.hora_inicio, form.hora_fin, form.pausa_min) : null
@@ -92,6 +94,10 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       setError('Operarios y unidades deben ser mayores a 0.')
       return
     }
+    if (lineas.length > 1 && !form.mano_obra_id) {
+      setError('Escoge a quién se le tomó el tiempo.')
+      return
+    }
     const datos = {
       fecha: form.fecha,
       orden: form.orden.trim() || null,
@@ -103,6 +109,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       horas,
       unidades: Number(form.unidades),
       notas: form.notas.trim() || null,
+      mano_obra_id: form.mano_obra_id || null,
     }
     const { error } = form.id
       ? await supabase.from('costeo_tiempos_reales').update(datos).eq('id', form.id)
@@ -136,6 +143,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       horas: String(f.horas),
       unidades: String(f.unidades),
       notas: f.notas || '',
+      mano_obra_id: f.mano_obra_id || '',
     })
   }
 
@@ -146,6 +154,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
     onCambio()
   }
 
+  const nombreLinea = Object.fromEntries(lineas.map((l) => [l.mano_obra_id, l.nombre]))
   const totalHH = filas.reduce((s, f) => s + Number(f.num_operarios) * Number(f.horas), 0)
   const totalU = filas.reduce((s, f) => s + Number(f.unidades), 0)
   const campo = 'w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm outline-none focus:border-feisen-azul bg-white'
@@ -155,6 +164,18 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
     <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 sm:grid-cols-3 gap-3">
       <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
       <Campo label="Orden / lote"><input value={form.orden} onChange={set('orden')} placeholder="OF-125" className={campo} /></Campo>
+      {lineas.length > 0 && (
+        <Campo label="¿A quién se le tomó?">
+          <select value={form.mano_obra_id} onChange={set('mano_obra_id')} className={campo}>
+            <option value="">{lineas.length > 1 ? 'Escoge…' : 'Sin asignar'}</option>
+            {lineas.map((l) => (
+              <option key={l.mano_obra_id} value={l.mano_obra_id}>
+                {l.nombre} ({l.tipo_pago === 'destajo' ? 'valor fijo' : 'por hora'})
+              </option>
+            ))}
+          </select>
+        </Campo>
+      )}
       <Campo label="Responsable"><input value={form.responsable} onChange={set('responsable')} className={campo} /></Campo>
       <Campo label="Hora inicio"><input type="time" value={form.hora_inicio} onChange={set('hora_inicio')} className={campo} /></Campo>
       <Campo label="Hora fin"><input type="time" value={form.hora_fin} onChange={set('hora_fin')} className={campo} /></Campo>
@@ -187,7 +208,8 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
     <section>
       <h4 className="flex items-center gap-2 text-xs uppercase tracking-wide text-feisen-texto-2 mb-2">
         <Clock size={14} /> Toma de tiempos
-        {totalU > 0 && (
+        {/* Con varias personas, cada una tiene su promedio en Mano de obra */}
+        {totalU > 0 && lineas.length <= 1 && (
           <span className="normal-case tracking-normal text-feisen-texto font-medium ml-auto tabular-nums">
             Promedio: {formatNumber(totalHH / totalU, 2)} h-h por unidad
           </span>
@@ -209,6 +231,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
                 <span className="text-feisen-texto tabular-nums">
                   {f.fecha}
                   {f.orden ? ` · ${f.orden}` : ''}
+                  {f.mano_obra_id && nombreLinea[f.mano_obra_id] ? ` · ${nombreLinea[f.mano_obra_id]}` : ''}
                   {f.responsable ? ` · ${f.responsable}` : ''}
                 </span>
                 <span className="block text-xs text-feisen-texto-2 tabular-nums">
@@ -256,7 +279,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
               <button onClick={empezar} className="flex items-center gap-1 border border-feisen-azul text-feisen-azul text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] hover:bg-feisen-azul-suave">
                 <Play size={14} /> Empezar ahora
               </button>
-              <button onClick={() => setForm(vacio())} className="flex items-center gap-1 text-sm text-feisen-azul hover:underline">
+              <button onClick={() => setForm(vacio(lineas))} className="flex items-center gap-1 text-sm text-feisen-azul hover:underline">
                 <Plus size={14} /> Registrar tiempo
               </button>
             </>

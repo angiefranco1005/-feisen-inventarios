@@ -117,25 +117,24 @@ export function exportarFichaCosteoPDF(d) {
   const pendientes = []
   for (const b of d.bloques)
     for (const p of b.procesos)
-      if (p.tipo_pago === 'hora' && !(Number(p.costo?.mediciones) > 0)) pendientes.push([...b.ruta, p.nombre].join(' > '))
+      if (Number(p.costo?.lineas_sin_tiempo) > 0) pendientes.push([...b.ruta, p.nombre].join(' > '))
   titulo(`3. Costo por proceso${d.estructura.length ? ' (procesos propios; las sub-piezas van en el punto 4)' : ''}`)
   autoTable(doc, {
     ...tablaBase,
     startY: y,
-    head: [['#', 'Proceso', 'Pago', 'h-h / und', 'Materia prima', 'Mano de obra', 'CIF', 'Total']],
+    head: [['#', 'Proceso', 'h-h / und', 'Materia prima', 'Mano de obra', 'CIF', 'Total']],
     body: raiz.procesos.length
       ? raiz.procesos.map((p, i) => [
           String(i + 1),
           p.nombre,
-          p.tipo_pago === 'destajo' ? 'Destajo' : 'Por hora',
           num(p.costo?.horas_hombre_unidad),
           cop(p.costo?.total_mp),
           cop(p.costo?.total_mod),
           cop(p.costo?.cif),
           cop(p.costo?.costo_total),
         ])
-      : [[{ content: 'Sin procesos propios.', colSpan: 8, styles: { textColor: GRIS } }]],
-    columnStyles: { 0: { cellWidth: 7 }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right', fontStyle: 'bold' } },
+      : [[{ content: 'Sin procesos propios.', colSpan: 7, styles: { textColor: GRIS } }]],
+    columnStyles: { 0: { cellWidth: 7 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' } },
   })
   despues()
 
@@ -219,7 +218,7 @@ export function exportarFichaCosteoPDF(d) {
       doc.setFontSize(8)
       doc.setTextColor(...GRIS)
       doc.text(
-        `${p.tipo_pago === 'destajo' ? `A destajo: ${cop(p.precio_destajo)} por unidad` : `Por hora: ${cop(p.tarifa_hora)}/h`}  ·  Centro de costo: ${c.centro_costo_usado || '-'}  ·  Total del proceso: ${cop(c.costo_total)}`,
+        `Centro de costo: ${c.centro_costo_usado || '-'}  ·  Total del proceso: ${cop(c.costo_total)}`,
         MARGEN,
         y + 4.5
       )
@@ -244,16 +243,36 @@ export function exportarFichaCosteoPDF(d) {
       })
       y = doc.lastAutoTable.finalY + 2
 
+      const lineas = p.lineas || []
+      const nombreLinea = Object.fromEntries(lineas.map((l) => [l.mano_obra_id, l.nombre]))
+      autoTable(doc, {
+        ...tablaBase,
+        startY: y,
+        head: [['Mano de obra', 'Forma de pago', 'h-h / und medidas', 'Tarifa o valor', 'Costo / und']],
+        body: lineas.length
+          ? lineas.map((l) => [
+              l.nombre,
+              l.tipo_pago === 'destajo' ? 'Valor fijo por unidad' : 'Por hora (tiempo medido)',
+              Number(l.mediciones) > 0 ? num(l.horas_hombre_unidad) : l.tipo_pago === 'destajo' ? '-' : 'sin medir',
+              l.tipo_pago === 'destajo' ? cop(l.precio_destajo) : `${cop(l.tarifa_hora)}/h`,
+              cop(l.costo),
+            ])
+          : [[{ content: 'Sin mano de obra asignada.', colSpan: 5, styles: { textColor: GRIS } }]],
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+        headStyles: { ...tablaBase.headStyles, fillColor: [90, 110, 140] },
+      })
+      y = doc.lastAutoTable.finalY + 2
+
       const ts = p.tiempos || []
       autoTable(doc, {
         ...tablaBase,
         startY: y,
-        head: [['Fecha', 'Orden', 'Responsable', 'Horario', 'Operarios', 'Horas', 'Unidades', 'h-h / und']],
+        head: [['Fecha', 'Orden', 'Persona', 'Horario', 'Operarios', 'Horas', 'Unidades', 'h-h / und']],
         body: ts.length
           ? ts.map((t) => [
               t.fecha,
               t.orden || '',
-              t.responsable || '',
+              [nombreLinea[t.mano_obra_id], t.responsable].filter(Boolean).join(' - '),
               t.hora_inicio && t.hora_fin
                 ? `${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}${Number(t.pausa_min) > 0 ? ` (pausa ${num(t.pausa_min, 0)} min)` : ''}`
                 : '',
@@ -264,7 +283,7 @@ export function exportarFichaCosteoPDF(d) {
             ])
           : [[{ content: 'Sin mediciones de tiempo registradas.', colSpan: 8, styles: { textColor: ROJO } }]],
         foot: ts.length
-          ? [[{ content: `Promedio ponderado (${ts.length} ${ts.length === 1 ? 'medición' : 'mediciones'}, ${num(c.unidades_medidas, 0)} ${Number(c.unidades_medidas) === 1 ? 'unidad' : 'unidades'})`, colSpan: 7 }, num(c.horas_hombre_unidad)]]
+          ? [[{ content: `h-h por unidad del proceso (${ts.length} ${ts.length === 1 ? 'medición' : 'mediciones'}; cada persona promediada aparte y sumadas)`, colSpan: 7 }, num(c.horas_hombre_unidad)]]
           : undefined,
         footStyles: { fillColor: FONDO, textColor: TEXTO, fontStyle: 'bold', halign: 'right' },
         columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' } },
@@ -273,10 +292,7 @@ export function exportarFichaCosteoPDF(d) {
       y = doc.lastAutoTable.finalY + 3.5
       doc.setFontSize(8)
       doc.setTextColor(...GRIS)
-      const mo =
-        p.tipo_pago === 'destajo'
-          ? `Mano de obra = precio a destajo ${cop(p.precio_destajo)}`
-          : `Mano de obra = ${num(c.horas_hombre_unidad)} h-h × ${cop(p.tarifa_hora)} = ${cop(c.total_mod)}`
+      const mo = `Mano de obra = ${cop(c.total_mod)}${lineas.length > 1 ? ` (suma de ${lineas.length} personas)` : ''}`
       doc.text(`${mo}   ·   CIF = ${num(c.horas_hombre_unidad)} h-h × ${cop(c.tasa_cif_hora)}/h = ${cop(c.cif)}`, MARGEN, y)
       y += 8
     })
@@ -304,7 +320,7 @@ export function exportarFichaCosteoPDF(d) {
   doc.setTextColor(...TEXTO)
   const metodo = [
     '• Materia prima: cantidad por unidad × precio de costo vigente en el inventario de Feisen a la fecha de corte.',
-    '• Mano de obra por hora: promedio ponderado de los tiempos reales medidos en planta, (suma de operarios × horas) ÷ (suma de unidades buenas), multiplicado por la tarifa por hora del proceso. A destajo: precio pactado por unidad.',
+    '• Mano de obra: cada proceso tiene una línea por persona. Por hora: promedio ponderado de los tiempos reales medidos en planta, (suma de operarios × horas) ÷ (suma de unidades buenas), multiplicado por su tarifa por hora. Valor fijo (destajo): valor pactado por unidad. El costo del proceso es la suma de sus personas.',
     '• CIF: horas-hombre por unidad del proceso × tasa del centro de costo (CIF del período ÷ horas de mano de obra del centro en el período).',
     '• Sub-piezas: cada pieza se costea con sus propios procesos y se suma por niveles según la cantidad usada (una pieza puede llevar otras más pequeñas adentro). Equipos de planta: horas × valor hora-máquina (depreciación + mantenimiento + energía ÷ horas disponibles al año).',
   ]

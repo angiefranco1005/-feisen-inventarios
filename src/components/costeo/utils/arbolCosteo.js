@@ -1,7 +1,7 @@
 import { supabase } from '../../../lib/supabase'
 
 // Carga de una vez una ficha y todas sus sub-piezas a cualquier profundidad (costeo_ficha_piezas),
-// con sus procesos y costos. Lo usan el árbol de la pantalla y el PDF.
+// con sus procesos, líneas de mano de obra y costos. Lo usan el árbol de la pantalla y el PDF.
 // Una misma pieza puede aparecer en varias ramas (ej. el mismo "Aro" en dos lugares); se carga una
 // vez y se pinta donde esté. Si alguien arma un ciclo (A dentro de B dentro de A), se corta.
 export async function cargarArbol(raizId, { conDetalle = false } = {}) {
@@ -42,6 +42,11 @@ export async function cargarArbol(raizId, { conDetalle = false } = {}) {
   const res = await Promise.all(consultas)
   for (const r of res) if (r.error) throw r.error
   const [fi, rs, pr, cr, mt, tr] = res
+  const procesoIds = (pr.data || []).map((p) => p.id)
+  const mo = procesoIds.length
+    ? await supabase.from('costeo_mano_obra_resumen').select('*').in('proceso_id', procesoIds)
+    : { data: [] }
+  if (mo.error) throw mo.error
 
   const porId = (filas, k) => Object.fromEntries((filas || []).map((x) => [x[k], x]))
   const agrupar = (filas, k, orden) => {
@@ -59,6 +64,7 @@ export async function cargarArbol(raizId, { conDetalle = false } = {}) {
     procesos: agrupar(pr.data, 'ficha_id', (a, b) => a.orden - b.orden || porFecha(a, b)),
     costos: porId(cr.data, 'proceso_id'),
     hijos: agrupar(enlaces, 'contenedor_id', porFecha),
+    manoObra: agrupar(mo.data, 'proceso_id', (a, b) => a.orden - b.orden || porFecha(a, b)),
     materiales: conDetalle ? agrupar(mt.data, 'proceso_id', porFecha) : {},
     tiempos: conDetalle
       ? agrupar(tr.data, 'proceso_id', (a, b) => String(a.fecha).localeCompare(String(b.fecha)) || porFecha(a, b))

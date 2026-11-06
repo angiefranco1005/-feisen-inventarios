@@ -206,6 +206,7 @@ async function cargarDatos(fichaId) {
         costo: arbol.costos[p.id],
         materiales: arbol.materiales[p.id] || [],
         tiempos: arbol.tiempos[p.id] || [],
+        lineas: arbol.manoObra[p.id] || [],
       })),
     })
     if (ruta.length) {

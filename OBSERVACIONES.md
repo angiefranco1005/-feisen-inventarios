@@ -2208,3 +2208,11 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Avisos del árbol (sin tiempos / sin tarifa / sin centro) recorren todos los niveles y muestran la ruta ("Olla › Fondo › Rolado").
 - Materia prima y mediciones de tiempo ahora se editan (lápiz en cada línea; el formulario abre en su lugar). Antes solo se podían agregar y borrar.
 - PDF: punto "Estructura del producto" (sub-piezas con cantidad por unidad, costo propio y aporte; suma = sub-piezas incluidas) y la evidencia de cada sub-pieza bajo "Sub-pieza: Olla > Fondo".
+
+## 2026-11-06 · Costeo: mano de obra por personas dentro de cada proceso
+
+- Pedido de Angie: en un mismo proceso puede haber una persona por hora (a la que se le mide el tiempo) y otra con valor fijo por unidad (ej. Embombe: $ 17.000 por embombar).
+- SQL aplicado (`supabase/migraciones/2026-11-06_costeo_mano_obra_lineas.sql`): tabla `costeo_proceso_mano_obra` (persona/puesto, tipo_pago hora|destajo, tarifa_hora, precio_destajo, orden) con la RLS de costeo; `costeo_tiempos_reales.mano_obra_id` (a quién se le tomó el tiempo); vista `costeo_mano_obra_resumen` (costo por persona); `costeo_procesos_resumen` reescrita: MO = suma de personas, CIF = suma de las h-h/und de cada persona (y de mediciones sin persona) × tasa, + columnas `lineas_mano_obra`, `lineas_sin_tiempo`, `lineas_sin_tarifa`.
+- Migración: cada proceso existente quedó con una persona con su forma de pago (nombre = puesto de "Responsables por etapa"); sus mediciones se le asignaron. Las columnas `tipo_pago / tarifa_hora / precio_destajo` de `costeo_procesos` quedan **en desuso** (no se leen para el costo).
+- Verificado con ensayo en transacción deshecha: 1 op × 4 h × 5 und (por hora $ 14.285) + $ 17.000 fijo → MO $ 28.428.
+- Pantalla: `ProcesoManoObra.jsx` (lista con Editar / ✕ / "+ Agregar persona"); "Editar proceso" quedó solo con nombre y centro de costo; al crear un proceso se crea su primera persona desde el maestro; en la toma de tiempos se escoge "¿A quién se le tomó?" (sola si hay una persona por hora); avisos por persona sin tiempo o sin tarifa; PDF con tabla de personas por proceso y columna "Persona" en las mediciones.

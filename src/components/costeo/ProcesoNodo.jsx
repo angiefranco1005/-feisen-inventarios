@@ -5,13 +5,14 @@ import { formatCOP, formatNumber } from './utils/format'
 import { CENTROS_COSTO } from './utils/centrosCosto'
 import ProcesoMateriales from './ProcesoMateriales'
 import ProcesoTiempos from './ProcesoTiempos'
+import ProcesoManoObra from './ProcesoManoObra'
 
-// Una rama del árbol: el proceso con su total; abierto muestra materia prima, toma de tiempos
-// y de dónde sale el costo de mano de obra y CIF.
-export default function ProcesoNodo({ proceso, costo, abierto, onAlternar, onCambio, onSubir, onBajar, numero }) {
+// Una rama del árbol: el proceso con su total; abierto muestra materia prima, mano de obra (una
+// línea por persona: por hora con tiempo medido o valor fijo por unidad), toma de tiempos y de
+// dónde sale el costo.
+export default function ProcesoNodo({ proceso, costo, lineas = [], abierto, onAlternar, onCambio, onSubir, onBajar, numero }) {
   const [editando, setEditando] = useState(false)
-  const medido = Number(costo?.mediciones) > 0
-  const porHora = proceso.tipo_pago === 'hora'
+  const sinTiempo = Number(costo?.lineas_sin_tiempo) > 0
 
   return (
     <div>
@@ -31,7 +32,7 @@ export default function ProcesoNodo({ proceso, costo, abierto, onAlternar, onCam
             MP {formatCOP(costo?.total_mp)} · MO {formatCOP(costo?.total_mod)} · CIF {formatCOP(costo?.cif)}
           </span>
         </span>
-        {porHora && !medido && (
+        {sinTiempo && (
           <span className="shrink-0 bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 text-xs font-medium">
             Sin tiempos
           </span>
@@ -42,11 +43,6 @@ export default function ProcesoNodo({ proceso, costo, abierto, onAlternar, onCam
       {abierto && (
         <div className="ml-6 border-l border-feisen-borde pl-4 pr-4 pb-4 space-y-5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-feisen-texto-2">
-            <span>
-              {porHora
-                ? `Por hora · ${formatCOP(proceso.tarifa_hora)}/h`
-                : `A destajo · ${formatCOP(proceso.precio_destajo)} por unidad`}
-            </span>
             <span>Centro de costo: {costo?.centro_costo_usado || '—'}</span>
             <span className="ml-auto flex items-center gap-3">
               {onSubir && (
@@ -76,17 +72,14 @@ export default function ProcesoNodo({ proceso, costo, abierto, onAlternar, onCam
           )}
 
           <ProcesoMateriales proceso={proceso} onCambio={onCambio} />
-          <ProcesoTiempos proceso={proceso} onCambio={onCambio} />
+          <ProcesoManoObra proceso={proceso} lineas={lineas} onCambio={onCambio} />
+          <ProcesoTiempos proceso={proceso} lineas={lineas} onCambio={onCambio} />
 
           {/* De dónde sale el costo de este proceso */}
           <div className="bg-feisen-fondo rounded-lg p-3 text-sm space-y-1 tabular-nums">
             <Linea label="Materia prima" valor={costo?.total_mp} />
             <Linea
-              label={
-                porHora
-                  ? `Mano de obra: ${formatNumber(costo?.horas_hombre_unidad, 2)} h-h por unidad × ${formatCOP(proceso.tarifa_hora)}`
-                  : 'Mano de obra: precio a destajo por unidad'
-              }
+              label={`Mano de obra${lineas.length > 1 ? ` (${lineas.length} personas)` : lineas.length === 1 ? ` (${lineas[0].nombre})` : ''}`}
               valor={costo?.total_mod}
             />
             <Linea
@@ -115,9 +108,6 @@ function Linea({ label, valor, fuerte }) {
 function EditarProceso({ proceso, onListo }) {
   const [f, setF] = useState({
     nombre: proceso.nombre,
-    tipo_pago: proceso.tipo_pago,
-    tarifa_hora: String(proceso.tarifa_hora ?? ''),
-    precio_destajo: String(proceso.precio_destajo ?? ''),
     centro_costo: proceso.centro_costo || '',
   })
   const [error, setError] = useState('')
@@ -133,9 +123,6 @@ function EditarProceso({ proceso, onListo }) {
       .from('costeo_procesos')
       .update({
         nombre: f.nombre.trim(),
-        tipo_pago: f.tipo_pago,
-        tarifa_hora: Number(f.tarifa_hora || 0),
-        precio_destajo: Number(f.precio_destajo || 0),
         centro_costo: f.centro_costo || null,
       })
       .eq('id', proceso.id)
@@ -147,7 +134,7 @@ function EditarProceso({ proceso, onListo }) {
   }
 
   async function eliminar() {
-    if (!window.confirm(`¿Quitar "${proceso.nombre}"? Se borran también su materia prima y sus tiempos medidos.`)) return
+    if (!window.confirm(`¿Quitar "${proceso.nombre}"? Se borran también su materia prima, su mano de obra y sus tiempos medidos.`)) return
     const { error } = await supabase.from('costeo_procesos').delete().eq('id', proceso.id)
     if (error) {
       setError('No se pudo quitar: ' + error.message)
@@ -162,24 +149,6 @@ function EditarProceso({ proceso, onListo }) {
         <label className="block text-xs text-feisen-texto-2 mb-1">Proceso</label>
         <input value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} className={campo} />
       </div>
-      <div>
-        <label className="block text-xs text-feisen-texto-2 mb-1">Se paga</label>
-        <select value={f.tipo_pago} onChange={(e) => setF({ ...f, tipo_pago: e.target.value })} className={campo}>
-          <option value="hora">Por hora</option>
-          <option value="destajo">A destajo (por unidad)</option>
-        </select>
-      </div>
-      {f.tipo_pago === 'hora' ? (
-        <div>
-          <label className="block text-xs text-feisen-texto-2 mb-1">Tarifa por hora (COP)</label>
-          <input type="number" step="any" value={f.tarifa_hora} onChange={(e) => setF({ ...f, tarifa_hora: e.target.value })} className={campo} />
-        </div>
-      ) : (
-        <div>
-          <label className="block text-xs text-feisen-texto-2 mb-1">Precio por unidad (COP)</label>
-          <input type="number" step="any" value={f.precio_destajo} onChange={(e) => setF({ ...f, precio_destajo: e.target.value })} className={campo} />
-        </div>
-      )}
       <div>
         <label className="block text-xs text-feisen-texto-2 mb-1">Centro de costo (para el CIF)</label>
         <select value={f.centro_costo} onChange={(e) => setF({ ...f, centro_costo: e.target.value })} className={campo}>

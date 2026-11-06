@@ -50,8 +50,9 @@ export default function ArbolTab({ fichaId }) {
     for (const p of arbol.procesos[id] || []) {
       const etiqueta = [...ruta, p.nombre].join(' › ')
       const c = arbol.costos[p.id]
-      if (p.tipo_pago === 'hora' && !(Number(c?.mediciones) > 0)) sinTiempos.push(etiqueta)
-      if (p.tipo_pago === 'hora' ? !(Number(p.tarifa_hora) > 0) : !(Number(p.precio_destajo) > 0)) sinTarifa.push(etiqueta)
+      // Por persona (línea de mano de obra): por hora sin mediciones, o sin tarifa / valor
+      if (Number(c?.lineas_sin_tiempo) > 0) sinTiempos.push(etiqueta)
+      if (Number(c?.lineas_sin_tarifa) > 0) sinTarifa.push(etiqueta)
       if (c?.centro_costo_usado === 'Sin centro') sinCentro.push(etiqueta)
     }
   })
@@ -87,7 +88,7 @@ export default function ArbolTab({ fichaId }) {
             </Aviso>
           )}
           {sinTarifa.length > 0 && (
-            <Aviso>Sin tarifa: {unicos(sinTarifa).join(', ')}. Ábrelo y ponle la tarifa en "Editar proceso".</Aviso>
+            <Aviso>Sin tarifa: {unicos(sinTarifa).join(', ')}. Ábrelo y ponle la tarifa o el valor a cada persona en "Mano de obra".</Aviso>
           )}
           {sinCentro.length > 0 && (
             <Aviso>
