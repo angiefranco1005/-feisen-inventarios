@@ -5,6 +5,7 @@ import ArbolTab from './ArbolTab'
 import EquiposTab from './EquiposTab'
 import PiezasTab from './PiezasTab'
 import ResumenTab from './ResumenTab'
+import DescargarPDF from './DescargarPDF'
 
 const TABS = [
   { id: 'arbol', label: 'Procesos' },
@@ -23,14 +24,19 @@ export default function CosteoFicha() {
   // Cada clic en una pestaña la vuelve a montar para que lea datos frescos (igual que en la app de costeo).
   const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => {
-    setFicha(undefined)
-    supabase
+  function cargarFicha() {
+    return supabase
       .from('costeo_fichas')
-      .select('id, nombre, tipo')
+      .select('*')
       .eq('id', id)
       .maybeSingle()
       .then(({ data }) => setFicha(data || null))
+  }
+
+  useEffect(() => {
+    setFicha(undefined)
+    cargarFicha()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   async function renombrar() {
@@ -66,13 +72,18 @@ export default function CosteoFicha() {
       <Link to={esPieza ? '/costeo?catalogo=pieza' : '/costeo'} className="text-xs text-feisen-azul hover:underline">
         ← {esPieza ? 'Catálogo de piezas' : 'Mis máquinas'}
       </Link>
-      <h1 className="text-2xl font-bold text-feisen-azul mt-1">
-        {ficha.nombre}
-        {esPieza && <span className="text-sm font-normal text-feisen-texto-2 ml-2">(pieza)</span>}
-      </h1>
-      <button onClick={renombrar} className="text-xs text-feisen-azul hover:underline">
-        Editar nombre
-      </button>
+      <div className="flex flex-wrap items-start justify-between gap-3 mt-1">
+        <div>
+          <h1 className="text-2xl font-bold text-feisen-azul">
+            {ficha.nombre}
+            {esPieza && <span className="text-sm font-normal text-feisen-texto-2 ml-2">(pieza)</span>}
+          </h1>
+          <button onClick={renombrar} className="text-xs text-feisen-azul hover:underline">
+            Editar nombre
+          </button>
+        </div>
+        <DescargarPDF ficha={ficha} onFichaCambio={cargarFicha} />
+      </div>
 
       <nav className="pt-4 flex gap-2 flex-wrap">
         {TABS.map((t) => (

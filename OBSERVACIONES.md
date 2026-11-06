@@ -2189,3 +2189,11 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Pantallas: `costeo/ArbolTab.jsx` (total, avisos, árbol, agregar proceso), `ProcesoNodo.jsx` (rama + editar proceso), `ProcesoMateriales.jsx`, `ProcesoTiempos.jsx` (cronómetro en localStorage `costeo-crono-<proceso>` + formulario con hora inicio/fin/pausas).
 - Verificado en la base con un ensayo dentro de una transacción deshecha: 2 mediciones (2 op × 4 h × 1 und, 1 op × 6 h × 2 und) → 4,667 h-h/und × $12.000 = $56.000.
 - Pendientes que Angie puede pedir: planilla imprimible de toma de tiempos, selector de período de CIF por ficha (hoy se usa el más reciente), permiso "solo registrar tiempos" para jefes de área.
+
+## 2026-11-06 · Costeo: PDF de la ficha como documento controlado (ISO y certificación de producto)
+
+- Botón "Descargar PDF" en cada ficha (`costeo/DescargarPDF.jsx`); el PDF lo arma `costeo/utils/fichaCosteoPDF.js` (jsPDF + autotable, logo y NIT de `utils/exportOrdenCompraPDF.js`).
+- Contenido: encabezado en cada página con código / versión / fecha / página X de Y; identificación del producto (nombre, tipo, referencia, fecha de corte de precios, período CIF); costo por unidad; costo por proceso; evidencia por proceso (materia prima, cada medición de tiempo, promedio ponderado, cuenta de MO y CIF); sub-piezas y equipos; método de cálculo; control de cambios; firmas Elaboró / Revisó / Aprobó; pie "copia impresa = copia no controlada".
+- SQL aplicado (`supabase/migraciones/2026-11-06_costeo_documento_controlado.sql`): `costeo_fichas.doc_codigo, referencia, doc_reviso, doc_aprobo` y tabla `costeo_fichas_versiones` (ficha, versión única por ficha, fecha, descripción, costo_total de ese momento, elaboró/revisó/aprobó) con la RLS de costeo.
+- "Volver a descargar la versión vigente" no crea fila (sale con los costos de hoy y la fecha de esa versión); "Emitir versión nueva" sí. Si los costos cambian de verdad, lo correcto para ISO es emitir versión nueva.
+- **Gotcha**: la fuente del PDF (helvetica) no trae guion largo, raya, signo menos ni Σ: salen con letras separadas. Usar "-", "a", "suma de".
