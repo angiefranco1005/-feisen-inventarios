@@ -6,6 +6,7 @@ import Modal from '../shared/Modal'
 import { hoy } from './utils/tiempos'
 import { exportarFichaCosteoPDF } from './utils/fichaCosteoPDF'
 import { calcularCostosEquipo } from './utils/equipoCosto'
+import { cargarArbol, recorrerArbol } from './utils/arbolCosteo'
 
 // Botón + diálogo para descargar la ficha de costeo como documento controlado. Se puede volver a
 // descargar la versión vigente o emitir una versión nueva (queda en costeo_fichas_versiones con
@@ -190,62 +191,40 @@ export default function DescargarPDF({ ficha, onFichaCambio }) {
   )
 }
 
-// Todo lo que lleva el PDF, leído en el momento de generarlo (precios y tiempos al día).
+// Todo lo que lleva el PDF, leído en el momento de generarlo (precios y tiempos al día):
+// la ficha y todas sus sub-piezas a cualquier profundidad, con su evidencia.
 async function cargarDatos(fichaId) {
-  const [fi, rs, pr, cr, mt, tr, fp, fe] = await Promise.all([
-    supabase.from('costeo_fichas').select('*').eq('id', fichaId).maybeSingle(),
-    supabase.from('costeo_resumen').select('*').eq('ficha_id', fichaId).maybeSingle(),
-    supabase.from('costeo_procesos').select('*').eq('ficha_id', fichaId).order('orden').order('created_at'),
-    supabase.from('costeo_procesos_resumen').select('*').eq('ficha_id', fichaId),
-    supabase
-      .from('costeo_materiales')
-      .select('id, proceso_id, item_id, item_nombre_libre, cantidad, rendimiento, created_at, items(nombre, precio_costo, unidad_medida)')
-      .eq('ficha_id', fichaId)
-      .order('created_at'),
-    supabase.from('costeo_tiempos_reales').select('*').eq('ficha_id', fichaId).order('fecha').order('created_at'),
-    supabase.from('costeo_ficha_piezas').select('pieza_id, cantidad').eq('contenedor_id', fichaId),
-    supabase.from('costeo_ficha_equipos').select('equipo_id, horas').eq('ficha_id', fichaId),
-  ])
-  for (const r of [fi, rs, pr, cr, mt, tr, fp, fe]) if (r.error) throw r.error
+  const arbol = await cargarArbol(fichaId, { conDetalle: true })
+  const bloques = []
+  const estructura = []
+  recorrerArbol(arbol, (id, ruta, cantidad) => {
+    bloques.push({
+      ruta,
+      cantidad,
+      procesos: (arbol.procesos[id] || []).map((p) => ({
+        ...p,
+        costo: arbol.costos[p.id],
+        materiales: arbol.materiales[p.id] || [],
+        tiempos: arbol.tiempos[p.id] || [],
+      })),
+    })
+    if (ruta.length) {
+      const r = arbol.resumen[id]
+      estructura.push({ ruta, cantidad, costo_propio: Number(r?.costo_propio || 0), costo_total: Number(r?.costo_total || 0) })
+    }
+  })
 
-  const agrupar = (filas) =>
-    (filas || []).reduce((acc, x) => {
-      if (x.proceso_id) (acc[x.proceso_id] ||= []).push(x)
-      return acc
-    }, {})
-  const costos = Object.fromEntries((cr.data || []).map((c) => [c.proceso_id, c]))
-
-  let piezas = []
-  if (fp.data?.length) {
-    const { data } = await supabase
-      .from('costeo_resumen')
-      .select('ficha_id, nombre, costo_total')
-      .in('ficha_id', fp.data.map((x) => x.pieza_id))
-    const porId = Object.fromEntries((data || []).map((x) => [x.ficha_id, x]))
-    piezas = fp.data.map((x) => ({
-      nombre: porId[x.pieza_id]?.nombre || 'Pieza',
-      cantidad: Number(x.cantidad),
-      costo_unitario: Number(porId[x.pieza_id]?.costo_total || 0),
-    }))
-  }
-
+  const { data: fe, error } = await supabase.from('costeo_ficha_equipos').select('equipo_id, horas').eq('ficha_id', fichaId)
+  if (error) throw error
   let equipos = []
-  if (fe.data?.length) {
-    const { data } = await supabase.from('costeo_equipos_planta').select('*').in('id', fe.data.map((x) => x.equipo_id))
+  if (fe?.length) {
+    const { data } = await supabase.from('costeo_equipos_planta').select('*').in('id', fe.map((x) => x.equipo_id))
     const porId = Object.fromEntries((data || []).map((x) => [x.id, x]))
-    equipos = fe.data.map((x) => {
+    equipos = fe.map((x) => {
       const eq = porId[x.equipo_id]
       return { nombre: eq?.nombre || 'Equipo', horas: Number(x.horas), valor_hora: Number(calcularCostosEquipo(eq).valorHora || 0) }
     })
   }
 
-  return {
-    ficha: fi.data,
-    resumen: rs.data,
-    procesos: (pr.data || []).map((p) => ({ ...p, costo: costos[p.id] })),
-    materiales: agrupar(mt.data),
-    tiempos: agrupar(tr.data),
-    piezas,
-    equipos,
-  }
+  return { ficha: arbol.fichas[fichaId], resumen: arbol.resumen[fichaId], bloques, estructura, equipos }
 }

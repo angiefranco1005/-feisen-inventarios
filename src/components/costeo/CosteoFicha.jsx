@@ -3,19 +3,17 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import ArbolTab from './ArbolTab'
 import EquiposTab from './EquiposTab'
-import PiezasTab from './PiezasTab'
 import ResumenTab from './ResumenTab'
 import DescargarPDF from './DescargarPDF'
 
 const TABS = [
   { id: 'arbol', label: 'Procesos' },
-  { id: 'piezas', label: 'Sub-piezas' },
   { id: 'equipos', label: 'Equipos' },
   { id: 'resumen', label: 'Precio y margen' },
 ]
 
 // Una ficha de costeo con sus pestañas. La principal es el árbol de procesos (materia prima y
-// toma de tiempos de cada proceso). La pestaña va en la URL (?tab=piezas).
+// toma de tiempos de cada proceso). La pestaña va en la URL (?tab=equipos).
 export default function CosteoFicha() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
@@ -107,7 +105,6 @@ export default function CosteoFicha() {
       <main className="py-6">
         {tab === 'arbol' && <ArbolTab key={`a-${id}-${refreshKey}`} fichaId={id} />}
         {tab === 'equipos' && <EquiposTab key={`e-${id}-${refreshKey}`} fichaId={id} />}
-        {tab === 'piezas' && <PiezasTab key={`p-${id}-${refreshKey}`} fichaId={id} />}
         {tab === 'resumen' && <ResumenTab key={`r-${id}-${refreshKey}`} fichaId={id} />}
       </main>
     </div>

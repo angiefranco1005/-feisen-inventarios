@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Clock, Play, Plus, Square, X } from 'lucide-react'
+import { Clock, Pencil, Play, Plus, Square, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatNumber } from './utils/format'
 import { hoy, horaActual, horasEntre, transcurrido } from './utils/tiempos'
@@ -92,10 +92,7 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       setError('Operarios y unidades deben ser mayores a 0.')
       return
     }
-    const { error } = await supabase.from('costeo_tiempos_reales').insert({
-      ficha_id: proceso.ficha_id,
-      proceso_id: proceso.id,
-      etapa: proceso.nombre,
+    const datos = {
       fecha: form.fecha,
       orden: form.orden.trim() || null,
       responsable: form.responsable.trim() || null,
@@ -106,16 +103,40 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       horas,
       unidades: Number(form.unidades),
       notas: form.notas.trim() || null,
-    })
+    }
+    const { error } = form.id
+      ? await supabase.from('costeo_tiempos_reales').update(datos).eq('id', form.id)
+      : await supabase
+          .from('costeo_tiempos_reales')
+          .insert({ ficha_id: proceso.ficha_id, proceso_id: proceso.id, etapa: proceso.nombre, ...datos })
     if (error) {
       setError('No se pudo guardar: ' + error.message)
       return
     }
-    guardarCrono(proceso.id, null)
-    setCrono(null)
+    if (!form.id) {
+      guardarCrono(proceso.id, null)
+      setCrono(null)
+    }
     setForm(null)
     cargar()
     onCambio()
+  }
+
+  function editar(f) {
+    setError('')
+    setForm({
+      id: f.id,
+      fecha: f.fecha,
+      orden: f.orden || '',
+      responsable: f.responsable || '',
+      num_operarios: String(f.num_operarios),
+      hora_inicio: f.hora_inicio ? f.hora_inicio.slice(0, 5) : '',
+      hora_fin: f.hora_fin ? f.hora_fin.slice(0, 5) : '',
+      pausa_min: f.pausa_min != null ? String(f.pausa_min) : '',
+      horas: String(f.horas),
+      unidades: String(f.unidades),
+      notas: f.notas || '',
+    })
   }
 
   async function borrar(id) {
@@ -129,6 +150,38 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
   const totalU = filas.reduce((s, f) => s + Number(f.unidades), 0)
   const campo = 'w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm outline-none focus:border-feisen-azul bg-white'
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
+
+  const formulario = form && (
+    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
+      <Campo label="Orden / lote"><input value={form.orden} onChange={set('orden')} placeholder="OF-125" className={campo} /></Campo>
+      <Campo label="Responsable"><input value={form.responsable} onChange={set('responsable')} className={campo} /></Campo>
+      <Campo label="Hora inicio"><input type="time" value={form.hora_inicio} onChange={set('hora_inicio')} className={campo} /></Campo>
+      <Campo label="Hora fin"><input type="time" value={form.hora_fin} onChange={set('hora_fin')} className={campo} /></Campo>
+      <Campo label="Pausas (min)"><input type="number" min="0" value={form.pausa_min} onChange={set('pausa_min')} placeholder="0" className={campo} /></Campo>
+      <Campo label="Horas trabajadas">
+        {horasCalculadas != null ? (
+          <p className="px-3 py-2 text-sm tabular-nums">{formatNumber(horasCalculadas, 2)} h</p>
+        ) : (
+          <input type="number" step="any" value={form.horas} onChange={set('horas')} placeholder="sin horario" className={campo} />
+        )}
+      </Campo>
+      <Campo label="N° operarios"><input type="number" min="1" step="any" value={form.num_operarios} onChange={set('num_operarios')} className={campo} /></Campo>
+      <Campo label="Unidades buenas"><input type="number" min="0" step="any" value={form.unidades} onChange={set('unidades')} className={campo} /></Campo>
+      <div className="col-span-2 sm:col-span-3">
+        <Campo label="Notas (opcional)"><input value={form.notas} onChange={set('notas')} className={campo} /></Campo>
+      </div>
+      {error && <p className="text-feisen-rojo text-xs col-span-2 sm:col-span-3">{error}</p>}
+      <div className="col-span-2 sm:col-span-3 flex gap-3">
+        <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
+          {form.id ? 'Guardar cambios' : 'Guardar medición'}
+        </button>
+        <button type="button" onClick={() => { setForm(null); setError('') }} className="text-sm text-feisen-texto-2 hover:underline">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
 
   return (
     <section>
@@ -148,7 +201,9 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
       )}
       {filas.length > 0 && (
         <ul className="divide-y divide-feisen-borde-suave border border-feisen-borde rounded-lg bg-white">
-          {filas.map((f) => (
+          {filas.map((f) => form?.id === f.id ? (
+            <li key={f.id} className="p-2">{formulario}</li>
+          ) : (
             <li key={f.id} className="flex items-center gap-3 px-3 py-2 text-sm">
               <span className="min-w-0">
                 <span className="text-feisen-texto tabular-nums">
@@ -166,6 +221,9 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
               <span className="ml-auto tabular-nums whitespace-nowrap text-feisen-texto">
                 {formatNumber((Number(f.num_operarios) * Number(f.horas)) / Number(f.unidades || 1), 2)} h-h/und
               </span>
+              <button onClick={() => editar(f)} title="Editar" className="text-feisen-texto-2 hover:text-feisen-azul">
+                <Pencil size={14} />
+              </button>
               <button onClick={() => borrar(f.id)} title="Borrar" className="text-feisen-texto-2 hover:text-feisen-rojo">
                 <X size={14} />
               </button>
@@ -174,36 +232,8 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
         </ul>
       )}
 
-      {form ? (
-        <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
-          <Campo label="Orden / lote"><input value={form.orden} onChange={set('orden')} placeholder="OF-125" className={campo} /></Campo>
-          <Campo label="Responsable"><input value={form.responsable} onChange={set('responsable')} className={campo} /></Campo>
-          <Campo label="Hora inicio"><input type="time" value={form.hora_inicio} onChange={set('hora_inicio')} className={campo} /></Campo>
-          <Campo label="Hora fin"><input type="time" value={form.hora_fin} onChange={set('hora_fin')} className={campo} /></Campo>
-          <Campo label="Pausas (min)"><input type="number" min="0" value={form.pausa_min} onChange={set('pausa_min')} placeholder="0" className={campo} /></Campo>
-          <Campo label="Horas trabajadas">
-            {horasCalculadas != null ? (
-              <p className="px-3 py-2 text-sm tabular-nums">{formatNumber(horasCalculadas, 2)} h</p>
-            ) : (
-              <input type="number" step="any" value={form.horas} onChange={set('horas')} placeholder="sin horario" className={campo} />
-            )}
-          </Campo>
-          <Campo label="N° operarios"><input type="number" min="1" step="any" value={form.num_operarios} onChange={set('num_operarios')} className={campo} /></Campo>
-          <Campo label="Unidades buenas"><input type="number" min="0" step="any" value={form.unidades} onChange={set('unidades')} className={campo} /></Campo>
-          <div className="col-span-2 sm:col-span-3">
-            <Campo label="Notas (opcional)"><input value={form.notas} onChange={set('notas')} className={campo} /></Campo>
-          </div>
-          {error && <p className="text-feisen-rojo text-xs col-span-2 sm:col-span-3">{error}</p>}
-          <div className="col-span-2 sm:col-span-3 flex gap-3">
-            <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
-              Guardar medición
-            </button>
-            <button type="button" onClick={() => { setForm(null); setError('') }} className="text-sm text-feisen-texto-2 hover:underline">
-              Cancelar
-            </button>
-          </div>
-        </form>
+      {form && !form.id ? (
+        formulario
       ) : (
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {crono ? (

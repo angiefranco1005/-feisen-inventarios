@@ -2197,3 +2197,14 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - SQL aplicado (`supabase/migraciones/2026-11-06_costeo_documento_controlado.sql`): `costeo_fichas.doc_codigo, referencia, doc_reviso, doc_aprobo` y tabla `costeo_fichas_versiones` (ficha, versión única por ficha, fecha, descripción, costo_total de ese momento, elaboró/revisó/aprobó) con la RLS de costeo.
 - "Volver a descargar la versión vigente" no crea fila (sale con los costos de hoy y la fecha de esa versión); "Emitir versión nueva" sí. Si los costos cambian de verdad, lo correcto para ISO es emitir versión nueva.
 - **Gotcha**: la fuente del PDF (helvetica) no trae guion largo, raya, signo menos ni Σ: salen con letras separadas. Usar "-", "a", "suma de".
+
+## 2026-11-06 · Costeo: sub-piezas por niveles dentro del árbol y edición de materia prima / tiempos
+
+- Angie: "no puedo editar la materia prima" y "las sub-piezas tienen otras piezas más pequeñas con nombre". Decisión: las piezas pequeñas son **sub-piezas con sus propios procesos** (Máquina → Olla → Fondo / Aro ×2 → sus procesos), y el catálogo de piezas se alimenta desde la máquina misma.
+- Sin SQL: ya existían `costeo_ficha_piezas` y el CTE recursivo de `costeo_resumen`. Cada sub-pieza sigue siendo una ficha `tipo = 'pieza'`.
+- `utils/arbolCosteo.js`: `cargarArbol(raiz, {conDetalle})` trae por niveles todas las fichas, procesos, costos (y materia prima y tiempos para el PDF); `recorrerArbol` las visita con su ruta y cantidad acumulada. Corta ciclos (una pieza dentro de sí misma).
+- `RamaFicha.jsx`: procesos + sub-piezas de una ficha, recursivo. Al pie de cada rama: "+ Proceso" y "+ Sub-pieza" (si el nombre ya existe en el catálogo de piezas se reutiliza, si no se crea). En una sub-pieza abierta: cantidad editable, Renombrar (cambia en todas las máquinas donde se use), Abrir su ficha, Quitar de aquí (solo quita el enlace; la pieza queda en el catálogo).
+- Se quitó la pestaña "Sub-piezas" (`PiezasTab.jsx`): todo se hace en el árbol. Ficha: Procesos · Equipos · Precio y margen.
+- Avisos del árbol (sin tiempos / sin tarifa / sin centro) recorren todos los niveles y muestran la ruta ("Olla › Fondo › Rolado").
+- Materia prima y mediciones de tiempo ahora se editan (lápiz en cada línea; el formulario abre en su lugar). Antes solo se podían agregar y borrar.
+- PDF: punto "Estructura del producto" (sub-piezas con cantidad por unidad, costo propio y aporte; suma = sub-piezas incluidas) y la evidencia de cada sub-pieza bajo "Sub-pieza: Olla > Fondo".

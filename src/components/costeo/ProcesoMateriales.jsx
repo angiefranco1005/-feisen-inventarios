@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Box, Plus, X } from 'lucide-react'
+import { Box, Pencil, Plus, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCOP, formatNumber } from './utils/format'
 
 // Materia prima que consume un proceso, por unidad de la ficha. El precio sale en vivo del
 // catálogo de inventario (items.precio_costo). "Rinde" es opcional: si 1 lámina da 4 piezas,
 // la cantidad queda en 0,25 (se guarda ya dividida, como en la app de costeo original).
+// El mismo formulario sirve para agregar (abajo) y para editar (en el lugar de la línea).
 export default function ProcesoMateriales({ proceso, onCambio }) {
   const [filas, setFilas] = useState([])
   const [form, setForm] = useState(false)
+  const [editandoId, setEditandoId] = useState(null)
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState([])
   const [item, setItem] = useState(null)
@@ -50,11 +52,21 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
 
   function limpiar() {
     setForm(false)
+    setEditandoId(null)
     setQuery('')
     setItem(null)
     setCantidad('')
     setRinde('')
     setError('')
+  }
+
+  function editar(m) {
+    limpiar()
+    setEditandoId(m.id)
+    setItem(m.item_id ? { id: m.item_id, ...m.items } : null)
+    setQuery(m.item_id ? '' : m.item_nombre_libre || '')
+    if (m.rendimiento) setRinde(String(m.rendimiento))
+    else setCantidad(String(m.cantidad))
   }
 
   async function guardar(e) {
@@ -69,15 +81,17 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
       setError('La cantidad debe ser mayor a 0.')
       return
     }
-    const { error } = await supabase.from('costeo_materiales').insert({
-      ficha_id: proceso.ficha_id,
-      proceso_id: proceso.id,
-      etapa: proceso.nombre,
+    const datos = {
       item_id: item?.id ?? null,
       item_nombre_libre: item ? null : query.trim(),
       cantidad: cant,
       rendimiento: Number(rinde) > 0 ? Number(rinde) : null,
-    })
+    }
+    const { error } = editandoId
+      ? await supabase.from('costeo_materiales').update(datos).eq('id', editandoId)
+      : await supabase
+          .from('costeo_materiales')
+          .insert({ ficha_id: proceso.ficha_id, proceso_id: proceso.id, etapa: proceso.nombre, ...datos })
     if (error) {
       setError('No se pudo guardar: ' + error.message)
       return
@@ -87,13 +101,91 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
     onCambio()
   }
 
-  async function quitar(id) {
-    await supabase.from('costeo_materiales').delete().eq('id', id)
+  async function quitar(m) {
+    if (!window.confirm(`¿Quitar ${m.items?.nombre ?? m.item_nombre_libre} de este proceso?`)) return
+    await supabase.from('costeo_materiales').delete().eq('id', m.id)
     cargar()
     onCambio()
   }
 
   const campo = 'w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm outline-none focus:border-feisen-azul bg-white'
+
+  const formulario = (
+    <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white space-y-3">
+      <div className="relative">
+        <label className="block text-xs text-feisen-texto-2 mb-1">Insumo del catálogo de inventario</label>
+        {item ? (
+          <div className="flex items-center justify-between border border-feisen-borde rounded-lg px-3 py-2 text-sm">
+            <span>
+              {item.nombre} <span className="text-feisen-texto-2">· {formatCOP(item.precio_costo)} / {item.unidad_medida}</span>
+            </span>
+            <button type="button" onClick={() => setItem(null)} className="text-feisen-texto-2 hover:text-feisen-rojo">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Lámina HR 3/16" className={campo} />
+        )}
+        {resultados.length > 0 && (
+          <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-feisen-borde rounded-lg shadow-sm max-h-60 overflow-auto">
+            {resultados.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => setItem(r)}
+                  className="w-full flex justify-between gap-3 px-3 py-2 text-sm text-left hover:bg-feisen-fondo"
+                >
+                  <span>{r.nombre}</span>
+                  <span className="text-feisen-texto-2 tabular-nums whitespace-nowrap">{formatCOP(r.precio_costo)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!item && query.trim().length >= 2 && (
+          <p className="text-xs text-feisen-texto-2 mt-1">Si no aparece, se guarda con este nombre y sin precio hasta que lo crees en inventario.</p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-feisen-texto-2 mb-1">Cantidad por unidad {item ? `(${item.unidad_medida})` : ''}</label>
+          <input
+            type="number"
+            step="any"
+            value={cantidad}
+            onChange={(e) => {
+              setCantidad(e.target.value)
+              setRinde('')
+            }}
+            className={campo}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-feisen-texto-2 mb-1">o: 1 unidad rinde para… (opcional)</label>
+          <input
+            type="number"
+            step="any"
+            value={rinde}
+            onChange={(e) => {
+              setRinde(e.target.value)
+              setCantidad('')
+            }}
+            placeholder="4"
+            className={campo}
+          />
+        </div>
+      </div>
+      {error && <p className="text-feisen-rojo text-xs">{error}</p>}
+      <div className="flex gap-3">
+        <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
+          {editandoId ? 'Guardar' : 'Agregar'}
+        </button>
+        <button type="button" onClick={limpiar} className="text-sm text-feisen-texto-2 hover:underline">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
 
   return (
     <section>
@@ -107,6 +199,7 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
         <ul className="divide-y divide-feisen-borde-suave border border-feisen-borde rounded-lg bg-white">
           {filas.map((m) => {
             const precio = Number(m.items?.precio_costo ?? 0)
+            if (m.id === editandoId) return <li key={m.id} className="p-2">{formulario}</li>
             return (
               <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0">
@@ -118,7 +211,10 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
                   </span>
                 </span>
                 <span className="ml-auto tabular-nums whitespace-nowrap">{formatCOP(Number(m.cantidad) * precio)}</span>
-                <button onClick={() => quitar(m.id)} title="Quitar" className="text-feisen-texto-2 hover:text-feisen-rojo">
+                <button onClick={() => editar(m)} title="Editar" className="text-feisen-texto-2 hover:text-feisen-azul">
+                  <Pencil size={14} />
+                </button>
+                <button onClick={() => quitar(m)} title="Quitar" className="text-feisen-texto-2 hover:text-feisen-rojo">
                   <X size={14} />
                 </button>
               </li>
@@ -127,83 +223,10 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
         </ul>
       )}
 
-      {form ? (
-        <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white space-y-3">
-          <div className="relative">
-            <label className="block text-xs text-feisen-texto-2 mb-1">Insumo del catálogo de inventario</label>
-            {item ? (
-              <div className="flex items-center justify-between border border-feisen-borde rounded-lg px-3 py-2 text-sm">
-                <span>
-                  {item.nombre} <span className="text-feisen-texto-2">· {formatCOP(item.precio_costo)} / {item.unidad_medida}</span>
-                </span>
-                <button type="button" onClick={() => setItem(null)} className="text-feisen-texto-2 hover:text-feisen-rojo">
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Lámina HR 3/16" className={campo} />
-            )}
-            {resultados.length > 0 && (
-              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-feisen-borde rounded-lg shadow-sm max-h-60 overflow-auto">
-                {resultados.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onClick={() => setItem(r)}
-                      className="w-full flex justify-between gap-3 px-3 py-2 text-sm text-left hover:bg-feisen-fondo"
-                    >
-                      <span>{r.nombre}</span>
-                      <span className="text-feisen-texto-2 tabular-nums whitespace-nowrap">{formatCOP(r.precio_costo)}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {!item && query.trim().length >= 2 && (
-              <p className="text-xs text-feisen-texto-2 mt-1">Si no aparece, se guarda con este nombre y sin precio hasta que lo crees en inventario.</p>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-feisen-texto-2 mb-1">Cantidad por unidad {item ? `(${item.unidad_medida})` : ''}</label>
-              <input
-                type="number"
-                step="any"
-                value={cantidad}
-                onChange={(e) => {
-                  setCantidad(e.target.value)
-                  setRinde('')
-                }}
-                className={campo}
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-feisen-texto-2 mb-1">o: 1 unidad rinde para… (opcional)</label>
-              <input
-                type="number"
-                step="any"
-                value={rinde}
-                onChange={(e) => {
-                  setRinde(e.target.value)
-                  setCantidad('')
-                }}
-                placeholder="4"
-                className={campo}
-              />
-            </div>
-          </div>
-          {error && <p className="text-feisen-rojo text-xs">{error}</p>}
-          <div className="flex gap-3">
-            <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
-              Agregar
-            </button>
-            <button type="button" onClick={limpiar} className="text-sm text-feisen-texto-2 hover:underline">
-              Cancelar
-            </button>
-          </div>
-        </form>
+      {form && !editandoId ? (
+        formulario
       ) : (
-        <button onClick={() => setForm(true)} className="mt-2 flex items-center gap-1 text-sm text-feisen-azul hover:underline">
+        <button onClick={() => { limpiar(); setForm(true) }} className="mt-2 flex items-center gap-1 text-sm text-feisen-azul hover:underline">
           <Plus size={14} /> Agregar materia prima
         </button>
       )}
