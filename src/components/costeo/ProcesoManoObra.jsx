@@ -8,7 +8,8 @@ import { tipoTitulo } from './utils/nombres'
 // Cada persona o puesto con su forma de pago:
 //   por hora → h-h por unidad de SUS mediciones × tarifa (sin mediciones, no suma: costo incompleto)
 //   valor fijo por unidad (destajo) → el valor que se escribe, ej. $ 17.000 por embombar
-// La persona se escoge de los cargos del organigrama (tabla cargos de RRHH) o se escribe a mano.
+// La persona se escoge de los puestos de trabajo del organigrama (tabla cargos de RRHH, agrupados
+// por Área › Sub-área) o se escribe a mano.
 // Al escoger un cargo que ya se usó en otro proceso, se proponen su forma de pago y su tarifa.
 export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
   const [form, setForm] = useState(null) // null = cerrado; { id?, cargo_id ('' | id | 'otro'), nombre, tipo_pago, tarifa_hora, precio_destajo }
@@ -19,8 +20,9 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
     if (!form || cargos) return
     supabase
       .from('cargos')
-      .select('id, nombre, area')
+      .select('id, nombre, area, subarea')
       .order('area')
+      .order('subarea', { nullsFirst: true })
       .order('nombre')
       .then(({ data }) => setCargos(data || []))
   }, [form, cargos])
@@ -69,7 +71,7 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
   async function guardar(e) {
     e.preventDefault()
     setError('')
-    if (!form.cargo_id) return setError('Escoge el cargo del organigrama (u "Otro" para escribirlo).')
+    if (!form.cargo_id) return setError('Escoge el puesto de trabajo del organigrama (u "Otro" para escribirlo).')
     if (!form.nombre.trim()) return setError('Ponle un nombre (ej. Operario 1, Ayudante).')
     const valor = Number(form.tipo_pago === 'hora' ? form.tarifa_hora : form.precio_destajo)
     if (!(valor > 0)) return setError(form.tipo_pago === 'hora' ? 'Pon la tarifa por hora.' : 'Pon el valor por unidad.')
@@ -102,12 +104,12 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
   const formulario = form && (
     <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 gap-3">
       <div className="col-span-2">
-        <label className="block text-xs text-feisen-texto-2 mb-1">Cargo (del organigrama)</label>
+        <label className="block text-xs text-feisen-texto-2 mb-1">Puesto de trabajo (del organigrama)</label>
         <select autoFocus value={form.cargo_id} onChange={(e) => escogerCargo(e.target.value)} className={campo}>
-          <option value="">{cargos ? 'Escoge un cargo…' : 'Cargando cargos…'}</option>
+          <option value="">{cargos ? 'Escoge un puesto…' : 'Cargando puestos…'}</option>
           {Object.entries(
             (cargos || []).reduce((g, c) => {
-              ;(g[c.area || 'Sin área'] ||= []).push(c)
+              ;(g[(c.area || 'Sin área') + (c.subarea ? ` › ${c.subarea}` : '')] ||= []).push(c)
               return g
             }, {})
           ).map(([area, lista]) => (
