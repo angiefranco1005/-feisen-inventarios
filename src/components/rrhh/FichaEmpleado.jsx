@@ -14,7 +14,7 @@ import {
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato, preavisoDe, hoyISO,
-} from './catalogosRRHH'
+ etiquetaCargo } from './catalogosRRHH'
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import NovedadesEmpleado from './NovedadesEmpleado'
@@ -80,7 +80,7 @@ const SECCIONES = [
         campos: [
         // El cargo sale del catálogo del organigrama; al guardar se copia su nombre a `cargo` (texto)
         { k: 'cargo_id', label: 'Cargo', tipo: 'select', req: true,
-          opciones: (ctx) => (ctx?.cargos || []).map(c => ({ value: c.id, label: c.area ? `${c.nombre} · ${c.area}` : c.nombre })),
+          opciones: (ctx) => (ctx?.cargos || []).map(c => ({ value: c.id, label: etiquetaCargo(c) })),
           mostrar: (e, ctx) => ctx?.cargos?.find(c => c.id === e.cargo_id)?.nombre || e.cargo || null,
           nota: (f) => f && !f.cargo_id ? 'Los cargos se crean en el Organigrama.' : null },
         { k: 'area', label: 'Área', tipo: 'select', opciones: AREAS, req: true },
@@ -199,7 +199,7 @@ export default function FichaEmpleado() {
     const [{ data, error }, { data: lista }, { data: cats }] = await Promise.all([
       supabase.from('empleados').select('*').eq('id', id).single(),
       supabase.from('empleados').select('id, nombres, apellidos, cargo, estado').neq('id', id).order('nombres'),
-      supabase.from('cargos').select('id, nombre, area').order('nombre'),
+      supabase.from('cargos').select('id, nombre, area, subarea').order('nombre'),
     ])
     if (error) { setErrorCarga(error.message); setCargando(false); return }
     setEmp(data)

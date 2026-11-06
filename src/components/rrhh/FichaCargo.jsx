@@ -25,6 +25,8 @@ const SECCIONES = [
       { id: 'datos', titulo: 'Datos del cargo', icon: Briefcase, campos: [
         { k: 'nombre', label: 'Nombre del cargo', req: true },
         { k: 'area', label: 'Área', tipo: 'select', opciones: AREAS },
+        { k: 'subarea', label: 'Sub-área',
+          nota: (f) => f ? 'Opcional. Agrupa los puestos de trabajo dentro del área (p. ej. Corte y embombe dentro de Soldadura y Armado).' : null },
         { k: 'cargo_padre_id', label: 'Reporta a', tipo: 'select', vacio: '— Ninguno (cargo de más arriba) —',
           opciones: (ctx) => ctx.posiblesPadres.map(c => ({ value: c.id, label: c.area ? `${c.nombre} · ${c.area}` : c.nombre })),
           mostrar: (r, ctx) => ctx.padre?.nombre || null },
@@ -268,7 +270,7 @@ export default function FichaCargo() {
           <div className="flex-1 min-w-0">
             <h1 className={E.tituloPagina}>{cargo.nombre}</h1>
             <p className="text-sm text-feisen-texto-2 mt-0.5">
-              {cargo.area || 'Sin área'}
+              {cargo.area || 'Sin área'}{cargo.subarea && ` › ${cargo.subarea}`}
               {ctx.padre && <> · Reporta a <button onClick={() => navigate(`/rrhh/organigrama/${ctx.padre.id}`)} className="text-feisen-azul hover:underline">{ctx.padre.nombre}</button></>}
             </p>
             <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-sm text-feisen-texto-2">

@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from '../shared/iconos'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, etiquetaCargo, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -54,7 +54,7 @@ export default function ListaEmpleados() {
       supabase.from('empleados')
         .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento, preaviso_fecha_entrega, preaviso_para_fin, preaviso_documento_id')
         .order('nombres'),
-      supabase.from('cargos').select('id, nombre, area').order('nombre'),
+      supabase.from('cargos').select('id, nombre, area, subarea').order('nombre'),
     ])
     if (error) setMsg({ tipo: 'error', texto: error.message })
     setCargos(cats || [])
@@ -367,7 +367,7 @@ export default function ListaEmpleados() {
                 <label className={E.labelForm}>Cargo *</label>
                 <select required value={form.cargo_id} onChange={set('cargo_id')} className={E.input}>
                   <option value="">{cargos.length ? 'Seleccionar…' : 'Primero crea cargos en el Organigrama'}</option>
-                  {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.area ? ` · ${c.area}` : ''}</option>)}
+                  {cargos.map(c => <option key={c.id} value={c.id}>{etiquetaCargo(c)}</option>)}
                 </select>
               </div>
               <div>

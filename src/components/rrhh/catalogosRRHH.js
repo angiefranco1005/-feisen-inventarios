@@ -204,6 +204,9 @@ export async function subirFotoEmpleado(empleadoId, file, pathAnterior = null) {
 // ─── Organigrama ─────────────────────────────────────────────────────────────
 // Agrupa los cargos por su cargo superior. Un cargo cuyo superior no existe se
 // trata como raíz (no se pierde del árbol).
+// Nombre de un cargo para listas: "Embombador · Corte y embombe" (sub-área si tiene; si no, área)
+export const etiquetaCargo = (c) => (c ? (c.subarea || c.area ? `${c.nombre} · ${c.subarea || c.area}` : c.nombre) : '')
+
 export function hijosPorPadre(cargos) {
   const ids = new Set(cargos.map(c => c.id))
   const mapa = new Map()

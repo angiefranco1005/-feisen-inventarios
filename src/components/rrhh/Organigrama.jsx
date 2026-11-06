@@ -4,21 +4,23 @@ import { supabase } from '../../lib/supabase'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
-import { Plus, Network, ListTree, AlertTriangle, ChevronRight } from '../shared/iconos'
+import { Plus, Network, ListTree, AlertTriangle, ChevronRight, LayoutGrid } from '../shared/iconos'
 import * as E from './estilos'
-import { AREAS, nombreCompleto, iniciales, urlsFirmadas, hijosPorPadre } from './catalogosRRHH'
+import { AREAS, nombreCompleto, iniciales, urlsFirmadas, hijosPorPadre, etiquetaCargo } from './catalogosRRHH'
 
-const FORM_VACIO = { nombre: '', area: '', cargo_padre_id: '', plazas: '1' }
+const FORM_VACIO = { nombre: '', area: '', subarea: '', cargo_padre_id: '', plazas: '1' }
 
 // Organigrama por cargos (puestos de trabajo): cada tarjeta es un cargo con
 // las personas que lo ocupan y sus vacantes; clic abre la ficha del cargo.
+// Vistas: por áreas (área → sub-área → puestos, pedido de Angie 2026-11-06),
+// árbol de a quién reporta cada cargo, y lista.
 export default function Organigrama() {
   const navigate = useNavigate()
   const [cargos,    setCargos]    = useState([])
   const [personas,  setPersonas]  = useState([])
   const [fotos,     setFotos]     = useState({})
   const [cargando,  setCargando]  = useState(true)
-  const [vista,     setVista]     = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'lista' : 'arbol'))
+  const [vista,     setVista]     = useState('areas')
   const [modal,     setModal]     = useState(false)
   const [form,      setForm]      = useState(FORM_VACIO)
   const [guardando, setGuardando] = useState(false)
@@ -29,7 +31,7 @@ export default function Organigrama() {
   async function cargar() {
     setCargando(true)
     const [{ data: cs, error }, { data: ps }] = await Promise.all([
-      supabase.from('cargos').select('id, nombre, area, cargo_padre_id, plazas, orden').order('nombre'),
+      supabase.from('cargos').select('id, nombre, area, subarea, cargo_padre_id, plazas, orden').order('nombre'),
       supabase.from('empleados').select('id, nombres, apellidos, cargo_id, foto_path, estado').neq('estado', 'retirado').order('nombres'),
     ])
     if (error) setMsg({ tipo: 'error', texto: error.message })
@@ -48,9 +50,30 @@ export default function Organigrama() {
   const sinCargo = personas.filter(p => !p.cargo_id || !cargos.some(c => c.id === p.cargo_id))
   const vacantes = cargos.reduce((t, c) => t + Math.max(0, (c.plazas || 0) - (porCargo.get(c.id)?.length || 0)), 0)
 
-  function abrirNuevo(padreId = '') {
+  // Área → sub-área → puestos. Los cargos sin sub-área van directo en su área.
+  const porArea = useMemo(() => {
+    const areas = new Map()
+    for (const c of cargos) {
+      const a = c.area || 'Sin área'
+      if (!areas.has(a)) areas.set(a, new Map())
+      const s = (c.subarea || '').trim()
+      const subs = areas.get(a)
+      if (!subs.has(s)) subs.set(s, [])
+      subs.get(s).push(c)
+    }
+    const orden = (a) => (AREAS.indexOf(a) === -1 ? 99 : AREAS.indexOf(a))
+    return [...areas.entries()].sort((x, y) => orden(x[0]) - orden(y[0]) || x[0].localeCompare(y[0]))
+      .map(([area, subs]) => ({
+        area,
+        grupos: [...subs.entries()].sort((x, y) => (x[0] === '') - (y[0] === '') || x[0].localeCompare(y[0]))
+          .map(([subarea, lista]) => ({ subarea, cargos: lista.sort((a, b) => a.nombre.localeCompare(b.nombre)) })),
+      }))
+  }, [cargos])
+  const subareasDe = (area) => [...new Set(cargos.filter(c => c.area === area && c.subarea).map(c => c.subarea.trim()))].sort()
+
+  function abrirNuevo(padreId = '', extra = {}) {
     const padre = cargos.find(c => c.id === padreId)
-    setForm({ ...FORM_VACIO, cargo_padre_id: padreId, area: padre?.area || '' })
+    setForm({ ...FORM_VACIO, cargo_padre_id: padreId, area: padre?.area || '', ...extra })
     setMsg(null); setModal(true)
   }
 
@@ -59,6 +82,7 @@ export default function Organigrama() {
     const { data, error } = await supabase.from('cargos').insert({
       nombre: form.nombre.trim(),
       area: form.area || null,
+      subarea: form.subarea.trim() || null,
       cargo_padre_id: form.cargo_padre_id || null,
       plazas: Number(form.plazas || 0),
     }).select('id').single()
@@ -87,7 +111,7 @@ export default function Organigrama() {
         <button onClick={() => navigate(`/rrhh/organigrama/${c.id}`)}
           className={`${E.tarjeta} w-52 px-3.5 py-3 text-left hover:border-feisen-azul/40 hover:shadow-sm transition`}>
           <p className="text-sm font-medium text-feisen-texto leading-snug">{c.nombre}</p>
-          {c.area && <p className="text-xs text-feisen-gris-medio mt-0.5">{c.area}</p>}
+          {c.area && <p className="text-xs text-feisen-gris-medio mt-0.5">{c.area}{c.subarea && ` › ${c.subarea}`}</p>}
           <div className="flex items-center justify-between gap-2 mt-2.5">
             <div className="flex -space-x-1.5">
               {ocupantes.slice(0, 4).map(p => <Avatar key={p.id} p={p} />)}
@@ -132,7 +156,7 @@ export default function Organigrama() {
             <p className="text-sm font-medium text-feisen-texto truncate">{c.nombre}</p>
             <p className="text-xs text-feisen-texto-2 truncate">
               {ocupantes.length ? ocupantes.map(nombreCompleto).join(', ') : 'Sin asignar'}
-              {c.area && <span className="text-feisen-gris-medio"> · {c.area}</span>}
+              {c.area && <span className="text-feisen-gris-medio"> · {c.area}{c.subarea && ` › ${c.subarea}`}</span>}
             </p>
           </div>
           {libres > 0 && <span className="text-[11px] text-amber-600 whitespace-nowrap">{libres} vacante{libres > 1 ? 's' : ''}</span>}
@@ -157,7 +181,7 @@ export default function Organigrama() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex border border-feisen-borde rounded-lg p-0.5 bg-white">
-            {[{ id: 'arbol', icon: Network, label: 'Árbol' }, { id: 'lista', icon: ListTree, label: 'Lista' }].map(v => (
+            {[{ id: 'areas', icon: LayoutGrid, label: 'Áreas' }, { id: 'arbol', icon: Network, label: 'Árbol' }, { id: 'lista', icon: ListTree, label: 'Lista' }].map(v => (
               <button key={v.id} onClick={() => setVista(v.id)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm transition-colors
                   ${vista === v.id ? 'bg-feisen-azul-suave text-feisen-azul font-medium' : 'text-feisen-texto-2 hover:text-feisen-texto'}`}>
@@ -196,6 +220,50 @@ export default function Organigrama() {
           <p className="text-sm text-feisen-texto-2">Aún no hay cargos. Empieza por el cargo de más arriba (por ejemplo, Gerente General).</p>
           <button onClick={() => abrirNuevo('')} className="mt-3 text-sm font-medium text-feisen-azul hover:underline">Crear el primer cargo</button>
         </div>
+      ) : vista === 'areas' ? (
+        <div className="max-w-6xl mx-auto grid gap-4 md:grid-cols-2 items-start">
+          {porArea.map(({ area, grupos }) => {
+            const total = grupos.reduce((t, g) => t + g.cargos.reduce((s, c) => s + (porCargo.get(c.id)?.length || 0), 0), 0)
+            return (
+              <div key={area} className={E.tarjeta}>
+                <div className={E.cabTarjeta}>
+                  <h2 className={E.tituloTarj}>{area}</h2>
+                  <span className={E.etiqueta}>{total} persona{total === 1 ? '' : 's'}</span>
+                </div>
+                <div className="divide-y divide-feisen-borde-suave">
+                  {grupos.map(({ subarea, cargos: lista }) => (
+                    <div key={subarea || '_'} className="py-2">
+                      {subarea && (
+                        <div className="px-5 pt-1 pb-1.5 flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">{subarea}</p>
+                          <button onClick={() => abrirNuevo(lista[0]?.cargo_padre_id || '', { area, subarea })}
+                            className="text-xs text-feisen-azul hover:underline inline-flex items-center gap-0.5"><Plus size={12} /> Puesto</button>
+                        </div>
+                      )}
+                      {lista.map(c => {
+                        const ocupantes = porCargo.get(c.id) || []
+                        const libres = Math.max(0, (c.plazas || 0) - ocupantes.length)
+                        return (
+                          <button key={c.id} onClick={() => navigate(`/rrhh/organigrama/${c.id}`)}
+                            className={`w-full flex items-center gap-3 py-2 pr-4 hover:bg-feisen-fondo text-left ${subarea ? 'pl-8' : 'pl-5'}`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-feisen-texto truncate">{c.nombre}</p>
+                              <p className="text-xs text-feisen-texto-2 truncate">{ocupantes.length ? ocupantes.map(nombreCompleto).join(', ') : 'Sin asignar'}</p>
+                            </div>
+                            {libres > 0
+                              ? <span className="text-[11px] text-amber-600 whitespace-nowrap">{libres} vacante{libres > 1 ? 's' : ''}</span>
+                              : <span className="text-[11px] text-feisen-gris-medio whitespace-nowrap">{ocupantes.length}/{c.plazas}</span>}
+                            <ChevronRight size={15} className="text-feisen-gris-medio flex-shrink-0" />
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : vista === 'arbol' ? (
         <div className={`${E.tarjeta} overflow-auto`}>
           <div className="organigrama min-w-max p-8 mx-auto">
@@ -230,10 +298,15 @@ export default function Organigrama() {
               </div>
             </div>
             <div>
+              <label className={E.labelForm}>Sub-área</label>
+              <input list="subareas-org" value={form.subarea} onChange={set('subarea')} placeholder="Opcional. Ej: Corte y embombe" className={E.input} />
+              <datalist id="subareas-org">{subareasDe(form.area).map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div>
               <label className={E.labelForm}>Reporta a</label>
               <select value={form.cargo_padre_id} onChange={set('cargo_padre_id')} className={E.input}>
                 <option value="">— Ninguno (cargo de más arriba) —</option>
-                {cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.area ? ` · ${c.area}` : ''}</option>)}
+                {cargos.map(c => <option key={c.id} value={c.id}>{etiquetaCargo(c)}</option>)}
               </select>
             </div>
             <p className="text-xs text-feisen-gris-medio">Después de crearlo completas el perfil, salario, funciones, evaluación, EPP, capacitación y herramientas.</p>
