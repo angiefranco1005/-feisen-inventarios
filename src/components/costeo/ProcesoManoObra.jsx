@@ -83,12 +83,20 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
       tarifa_hora: Number(form.tarifa_hora || 0),
       precio_destajo: Number(form.precio_destajo || 0),
     }
-    const { error } = form.id
-      ? await supabase.from('costeo_proceso_mano_obra').update(datos).eq('id', form.id)
+    const { data: guardada, error } = form.id
+      ? await supabase.from('costeo_proceso_mano_obra').update(datos).eq('id', form.id).select('id').single()
       : await supabase
           .from('costeo_proceso_mano_obra')
           .insert({ ...datos, proceso_id: proceso.id, orden: lineas.length ? Math.max(...lineas.map((l) => l.orden)) + 1 : 1 })
+          .select('id')
+          .single()
     if (error) return setError('No se pudo guardar: ' + error.message)
+    // Si el tiempo se tomó antes de agregar a la persona, las mediciones quedaron sin dueño. Cuando
+    // el proceso queda con una sola persona por hora, esas mediciones son de ella: se le asignan.
+    const otrasPorHora = lineas.filter((l) => l.tipo_pago === 'hora' && l.mano_obra_id !== form.id)
+    if (!form.id && guardada?.id && datos.tipo_pago === 'hora' && otrasPorHora.length === 0) {
+      await supabase.from('costeo_tiempos_reales').update({ mano_obra_id: guardada.id }).eq('proceso_id', proceso.id).is('mano_obra_id', null)
+    }
     setForm(null)
     onCambio()
   }

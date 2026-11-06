@@ -62,10 +62,22 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
     setFilas(data || [])
   }
 
+  // Se recarga también cuando cambian las personas (al agregar una se le asignan las mediciones sueltas).
+  const firmaLineas = lineas.map((l) => l.mano_obra_id).join(',')
   useEffect(() => {
     cargar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proceso.id])
+  }, [proceso.id, firmaLineas])
+
+  // Mediciones sin persona: no cuentan en el costo de nadie. Se pueden pasar a una persona por hora.
+  const porHora = lineas.filter((l) => l.tipo_pago === 'hora')
+  const sueltas = lineas.length > 0 ? filas.filter((f) => !f.mano_obra_id) : []
+
+  async function asignarSueltas(manoObraId) {
+    await supabase.from('costeo_tiempos_reales').update({ mano_obra_id: manoObraId }).in('id', sueltas.map((f) => f.id))
+    cargar()
+    onCambio()
+  }
 
   // El reloj del cronómetro avanza cada segundo.
   useEffect(() => {
@@ -170,6 +182,11 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
         <input type="number" min="0" step="any" inputMode="decimal" value={form.unidades} onChange={set('unidades')} placeholder="0" className={campo} />
       </Campo>
       <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
+      {lineas.length === 0 && (
+        <p className="col-span-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Este proceso todavía no tiene persona en Mano de obra. Puedes guardar el tiempo; cuando agregues a la persona se le asigna solo.
+        </p>
+      )}
       {lineas.length > 0 && (
         <div className="col-span-2">
           <Campo label="¿A quién se le tomó?">
@@ -224,6 +241,26 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
         )}
       </h4>
 
+      {sueltas.length > 0 && (
+        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {sueltas.length === 1 ? 'Hay 1 medición' : `Hay ${sueltas.length} mediciones`} sin persona: no {sueltas.length === 1 ? 'cuenta' : 'cuentan'} en la mano de obra.
+          {porHora.length > 0 ? (
+            <span className="flex flex-wrap gap-2 mt-1.5">
+              {porHora.map((l) => (
+                <button
+                  key={l.mano_obra_id}
+                  onClick={() => asignarSueltas(l.mano_obra_id)}
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 min-h-[36px] text-sm font-medium text-feisen-azul hover:bg-feisen-azul-suave"
+                >
+                  Asignar a {tipoTitulo(l.nombre)}
+                </button>
+              ))}
+            </span>
+          ) : (
+            <span className="block mt-1">Las personas de este proceso son de valor fijo, así que el tiempo no cambia su costo.</span>
+          )}
+        </div>
+      )}
       {filas.length === 0 && !form && (
         <p className="text-sm text-feisen-texto-2">
           Todavía no hay mediciones. Toma el tiempo con el cronómetro y anota cuántas piezas salieron.
@@ -243,6 +280,7 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
                 <span className="block text-xs text-feisen-texto-2 tabular-nums">
                   {f.fecha}
                   {f.mano_obra_id && nombreLinea[f.mano_obra_id] ? ` · ${nombreLinea[f.mano_obra_id]}` : ''}
+                  {!f.mano_obra_id && lineas.length > 0 && <span className="text-amber-700"> · sin persona</span>}
                   {f.orden ? ` · ${f.orden}` : ''}
                 </span>
                 {f.notas && <span className="block text-xs text-feisen-texto-2 whitespace-pre-line mt-0.5">{f.notas}</span>}
