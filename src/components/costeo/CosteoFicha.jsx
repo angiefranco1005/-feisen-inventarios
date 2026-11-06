@@ -56,7 +56,7 @@ export default function CosteoFicha() {
   if (ficha === undefined) return <p className="text-sm text-feisen-texto-2">Cargando…</p>
   if (ficha === null) {
     return (
-      <div className="max-w-4xl mx-auto text-sm text-feisen-texto-2">
+      <div className="max-w-6xl mx-auto text-sm text-feisen-texto-2">
         No se encontró esta ficha.{' '}
         <Link to="/costeo" className="text-feisen-azul hover:underline">Volver a Costeo</Link>
       </div>
@@ -66,7 +66,7 @@ export default function CosteoFicha() {
   const esPieza = ficha.tipo === 'pieza'
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Link to={esPieza ? '/costeo?catalogo=pieza' : '/costeo'} className="text-xs text-feisen-azul hover:underline">
         ← {esPieza ? 'Catálogo de piezas' : 'Mis máquinas'}
       </Link>

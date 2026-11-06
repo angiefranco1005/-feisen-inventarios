@@ -3,8 +3,9 @@ export function formatCOP(value) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    // Pesos sin decimales, como en el resto del ERP (guía ux-feisen)
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(n)
 }
 

@@ -2216,3 +2216,12 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Migración: cada proceso existente quedó con una persona con su forma de pago (nombre = puesto de "Responsables por etapa"); sus mediciones se le asignaron. Las columnas `tipo_pago / tarifa_hora / precio_destajo` de `costeo_procesos` quedan **en desuso** (no se leen para el costo).
 - Verificado con ensayo en transacción deshecha: 1 op × 4 h × 5 und (por hora $ 14.285) + $ 17.000 fijo → MO $ 28.428.
 - Pantalla: `ProcesoManoObra.jsx` (lista con Editar / ✕ / "+ Agregar persona"); "Editar proceso" quedó solo con nombre y centro de costo; al crear un proceso se crea su primera persona desde el maestro; en la toma de tiempos se escoge "¿A quién se le tomó?" (sola si hay una persona por hora); avisos por persona sin tiempo o sin tarifa; PDF con tabla de personas por proceso y columna "Persona" en las mediciones.
+
+## 2026-11-06 · Costeo: rediseño del árbol (opción B, árbol + panel lateral)
+
+- Angie pidió el árbol "más pulido y delicado" (se veía apeñuzcado). Un agente hizo 3 maquetas (A lista con guías, B árbol + panel, C tabla BOM); Angie eligió la **B**.
+- `ArbolTab.jsx`: total arriba (MP / MO / CIF sumados por niveles), banda ámbar "El costo está incompleto" con botones que llevan al proceso o pieza (sin tiempos, sin tarifa, sin centro, piezas vacías), árbol compacto (nombre, cantidad, total, punto ámbar; líneas guía finas por nivel; fila seleccionada en azul suave). Panel a la derecha desde 1180 px de ancho (`useAncho`); más angosto, el panel abre a pantalla completa con "← Árbol".
+- `PanelCosteo.jsx`: `PanelProceso` (ruta, total, Editar proceso = nombre + centro + quitar, ↑↓, mano de obra, materia prima, tiempos, "De dónde sale el costo") y `PanelPieza` (cantidad, contenido clicable, + Proceso / + Sub-pieza, Renombrar, Abrir su ficha, Quitar de aquí). Se eliminaron `RamaFicha.jsx` y `ProcesoNodo.jsx`.
+- Nombres: `utils/nombres.js` muestra en tipo título y quita el nombre de la máquina al final ("FONDO MEZCLADORA 1 1/2" → "Fondo"); palabras con números (1/8, 350L) y siglas (CNC, MIG) se dejan como vienen. El nombre completo sale en el tooltip y en el panel.
+- `formatCOP` de costeo pasó a pesos sin decimales (guía ux-feisen). El PDF tiene su propio formato (ya sin decimales).
+- La página de la ficha pasó de `max-w-4xl` a `max-w-6xl` para que quepan árbol y panel.
