@@ -3,11 +3,12 @@ import { Clock, Pencil, Play, Plus, Square, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatNumber } from './utils/format'
 import { tipoTitulo } from './utils/nombres'
-import { hoy, horaActual, horasEntre, transcurrido } from './utils/tiempos'
+import { aHoras, duracionTexto, hoy, partirHoras, porPiezaTexto, relojDesde } from './utils/tiempos'
 
-// Toma de tiempos de un proceso. Cada medición: operarios × horas trabajadas para N unidades
-// buenas. El costo usa el promedio ponderado: Σ(operarios × horas) ÷ Σ unidades = horas-hombre
-// por unidad. El cronómetro vive en este navegador (localStorage) hasta que se guarda.
+// Toma de tiempos de un proceso, con cronómetro: cada medición es "este tiempo, estas piezas",
+// más notas de cómo se tomó. El costo usa el promedio ponderado: Σ tiempo ÷ Σ piezas = horas por
+// pieza (las mediciones viejas con varios operarios cuentan operarios × horas). El cronómetro de
+// la app vive en este navegador (localStorage) hasta que se guarda.
 const claveCrono = (id) => `costeo-crono-${id}`
 
 function leerCrono(id) {
@@ -27,18 +28,20 @@ function guardarCrono(id, valor) {
   }
 }
 
-// Si el proceso tiene una sola persona por hora, la medición se le asigna sola.
+// Si el proceso tiene una sola persona (o una sola por hora), la medición se le asigna sola.
+function personaPorDefecto(lineas) {
+  if (lineas.length === 1) return lineas[0].mano_obra_id
+  const porHora = lineas.filter((l) => l.tipo_pago === 'hora')
+  return porHora.length === 1 ? porHora[0].mano_obra_id : ''
+}
+
 const vacio = (lineas = []) => ({
-  mano_obra_id: lineas.length === 1 ? lineas[0].mano_obra_id : (lineas.filter((l) => l.tipo_pago === 'hora').length === 1 ? lineas.find((l) => l.tipo_pago === 'hora').mano_obra_id : ''),
+  mano_obra_id: personaPorDefecto(lineas),
   fecha: hoy(),
-  orden: '',
-  responsable: '',
-  num_operarios: '1',
-  hora_inicio: '',
-  hora_fin: '',
-  pausa_min: '',
-  horas: '',
-  unidades: '1',
+  h: '',
+  m: '',
+  s: '',
+  unidades: '',
   notas: '',
 })
 
@@ -64,35 +67,36 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proceso.id])
 
-  // Refresca el "lleva X min" del cronómetro cada 30 s.
+  // El reloj del cronómetro avanza cada segundo.
   useEffect(() => {
     if (!crono) return
-    const t = setInterval(() => setTick((n) => n + 1), 30000)
+    const t = setInterval(() => setTick((n) => n + 1), 1000)
     return () => clearInterval(t)
   }, [crono])
 
   function empezar() {
-    const c = { desde: Date.now(), hora_inicio: horaActual(), fecha: hoy() }
+    const c = { desde: Date.now(), fecha: hoy() }
     guardarCrono(proceso.id, c)
     setCrono(c)
   }
 
   function terminar() {
-    setForm({ ...vacio(lineas), fecha: crono.fecha, hora_inicio: crono.hora_inicio, hora_fin: horaActual() })
+    const { h, m, s } = partirHoras((Date.now() - crono.desde) / 3600000)
+    setError('')
+    setForm({ ...vacio(lineas), fecha: crono.fecha, h: h ? String(h) : '', m: String(m), s: String(s) })
   }
 
-  const horasCalculadas = form ? horasEntre(form.hora_inicio, form.hora_fin, form.pausa_min) : null
+  const horasForm = form ? aHoras(form.h, form.m, form.s) : 0
 
   async function guardar(e) {
     e.preventDefault()
     setError('')
-    const horas = horasCalculadas ?? Number(form.horas)
-    if (!(horas > 0)) {
-      setError('Pon la hora de inicio y de fin, o las horas trabajadas.')
+    if (!(horasForm > 0)) {
+      setError('Escribe el tiempo que marcó el cronómetro.')
       return
     }
-    if (!(Number(form.num_operarios) > 0) || !(Number(form.unidades) > 0)) {
-      setError('Operarios y unidades deben ser mayores a 0.')
+    if (!(Number(form.unidades) > 0)) {
+      setError('Escribe cuántas piezas salieron en ese tiempo.')
       return
     }
     if (lineas.length > 1 && !form.mano_obra_id) {
@@ -101,13 +105,7 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
     }
     const datos = {
       fecha: form.fecha,
-      orden: form.orden.trim() || null,
-      responsable: form.responsable.trim() || null,
-      num_operarios: Number(form.num_operarios),
-      hora_inicio: form.hora_inicio || null,
-      hora_fin: form.hora_fin || null,
-      pausa_min: form.pausa_min ? Number(form.pausa_min) : null,
-      horas,
+      horas: horasForm,
       unidades: Number(form.unidades),
       notas: form.notas.trim() || null,
       mano_obra_id: form.mano_obra_id || null,
@@ -116,7 +114,7 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
       ? await supabase.from('costeo_tiempos_reales').update(datos).eq('id', form.id)
       : await supabase
           .from('costeo_tiempos_reales')
-          .insert({ ficha_id: proceso.ficha_id, proceso_id: proceso.id, etapa: proceso.nombre, ...datos })
+          .insert({ ficha_id: proceso.ficha_id, proceso_id: proceso.id, etapa: proceso.nombre, num_operarios: 1, ...datos })
     if (error) {
       setError('No se pudo guardar: ' + error.message)
       return
@@ -132,16 +130,13 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
 
   function editar(f) {
     setError('')
+    const { h, m, s } = partirHoras(f.horas)
     setForm({
       id: f.id,
       fecha: f.fecha,
-      orden: f.orden || '',
-      responsable: f.responsable || '',
-      num_operarios: String(f.num_operarios),
-      hora_inicio: f.hora_inicio ? f.hora_inicio.slice(0, 5) : '',
-      hora_fin: f.hora_fin ? f.hora_fin.slice(0, 5) : '',
-      pausa_min: f.pausa_min != null ? String(f.pausa_min) : '',
-      horas: String(f.horas),
+      h: h ? String(h) : '',
+      m: String(m),
+      s: String(s),
       unidades: String(f.unidades),
       notas: f.notas || '',
       mano_obra_id: f.mano_obra_id || '',
@@ -163,39 +158,51 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
 
   const formulario = form && (
     <form onSubmit={guardar} className="mt-2 border border-feisen-borde rounded-lg p-3 bg-white grid grid-cols-2 gap-3">
-      <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
-      <Campo label="Orden / lote"><input value={form.orden} onChange={set('orden')} placeholder="OF-125" className={campo} /></Campo>
-      {lineas.length > 0 && (
-        <Campo label="¿A quién se le tomó?">
-          <select value={form.mano_obra_id} onChange={set('mano_obra_id')} className={campo}>
-            <option value="">{lineas.length > 1 ? 'Escoge…' : 'Sin asignar'}</option>
-            {lineas.map((l) => (
-              <option key={l.mano_obra_id} value={l.mano_obra_id}>
-                {tipoTitulo(l.nombre)} ({l.tipo_pago === 'destajo' ? 'valor fijo' : 'por hora'})
-              </option>
-            ))}
-          </select>
-        </Campo>
-      )}
-      <Campo label="Responsable"><input value={form.responsable} onChange={set('responsable')} className={campo} /></Campo>
-      <Campo label="Hora inicio"><input type="time" value={form.hora_inicio} onChange={set('hora_inicio')} className={campo} /></Campo>
-      <Campo label="Hora fin"><input type="time" value={form.hora_fin} onChange={set('hora_fin')} className={campo} /></Campo>
-      <Campo label="Pausas (min)"><input type="number" min="0" value={form.pausa_min} onChange={set('pausa_min')} placeholder="0" className={campo} /></Campo>
-      <Campo label="Horas trabajadas">
-        {horasCalculadas != null ? (
-          <p className="px-3 py-2 text-sm tabular-nums">{formatNumber(horasCalculadas, 2)} h</p>
-        ) : (
-          <input type="number" step="any" value={form.horas} onChange={set('horas')} placeholder="sin horario" className={campo} />
-        )}
-      </Campo>
-      <Campo label="N° operarios"><input type="number" min="1" step="any" value={form.num_operarios} onChange={set('num_operarios')} className={campo} /></Campo>
-      <Campo label="Unidades buenas"><input type="number" min="0" step="any" value={form.unidades} onChange={set('unidades')} className={campo} /></Campo>
       <div className="col-span-2">
-        <Campo label="Notas (opcional)"><input value={form.notas} onChange={set('notas')} className={campo} /></Campo>
+        <label className="block text-xs text-feisen-texto-2 mb-1">Tiempo del cronómetro</label>
+        <div className="flex items-center gap-2">
+          <Unidad valor={form.h} onChange={set('h')} sufijo="h" campo={campo} />
+          <Unidad valor={form.m} onChange={set('m')} sufijo="min" campo={campo} max={59} />
+          <Unidad valor={form.s} onChange={set('s')} sufijo="s" campo={campo} max={59} />
+        </div>
       </div>
+      <Campo label="Piezas que salieron">
+        <input type="number" min="0" step="any" inputMode="decimal" value={form.unidades} onChange={set('unidades')} placeholder="0" className={campo} />
+      </Campo>
+      <Campo label="Fecha"><input type="date" value={form.fecha} onChange={set('fecha')} className={campo} /></Campo>
+      {lineas.length > 0 && (
+        <div className="col-span-2">
+          <Campo label="¿A quién se le tomó?">
+            <select value={form.mano_obra_id} onChange={set('mano_obra_id')} className={campo}>
+              <option value="">{lineas.length > 1 ? 'Escoge…' : 'Sin asignar'}</option>
+              {lineas.map((l) => (
+                <option key={l.mano_obra_id} value={l.mano_obra_id}>
+                  {tipoTitulo(l.nombre)} ({l.tipo_pago === 'destajo' ? 'valor fijo' : 'por hora'})
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+      )}
+      <div className="col-span-2">
+        <Campo label="Notas: cómo se tomó y qué se tuvo en cuenta">
+          <textarea
+            rows={3}
+            value={form.notas}
+            onChange={set('notas')}
+            placeholder="Ej.: desde que toma la lámina hasta que deja la pieza en la estiba; sin contar el alistamiento de la máquina"
+            className={campo}
+          />
+        </Campo>
+      </div>
+      {horasForm > 0 && Number(form.unidades) > 0 && (
+        <p className="col-span-2 text-sm text-feisen-texto tabular-nums">
+          Sale a <span className="font-medium">{porPiezaTexto(horasForm, form.unidades)}</span> por pieza.
+        </p>
+      )}
       {error && <p className="text-feisen-rojo text-xs col-span-2">{error}</p>}
       <div className="col-span-2 flex gap-3">
-        <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 hover:bg-feisen-azul-claro">
+        <button type="submit" className="bg-feisen-azul text-white text-sm font-medium rounded-lg px-4 py-2 min-h-[44px] hover:bg-feisen-azul-claro">
           {form.id ? 'Guardar cambios' : 'Guardar medición'}
         </button>
         <button type="button" onClick={() => { setForm(null); setError('') }} className="text-sm text-feisen-texto-2 hover:underline">
@@ -212,14 +219,14 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
         {/* Con varias personas, cada una tiene su promedio en Mano de obra */}
         {totalU > 0 && lineas.length <= 1 && (
           <span className="normal-case tracking-normal text-feisen-texto font-medium ml-auto tabular-nums">
-            Promedio: {formatNumber(totalHH / totalU, 2)} h-h por unidad
+            Promedio: {porPiezaTexto(totalHH, totalU)} por pieza
           </span>
         )}
       </h4>
 
       {filas.length === 0 && !form && (
         <p className="text-sm text-feisen-texto-2">
-          Todavía no hay mediciones. Toma el tiempo en planta con el cronómetro o pasa una medición de la planilla.
+          Todavía no hay mediciones. Toma el tiempo con el cronómetro y anota cuántas piezas salieron.
         </p>
       )}
       {filas.length > 0 && (
@@ -227,28 +234,26 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
           {filas.map((f) => form?.id === f.id ? (
             <li key={f.id} className="p-2">{formulario}</li>
           ) : (
-            <li key={f.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+            <li key={f.id} className="flex items-start gap-3 px-3 py-2 text-sm">
               <span className="min-w-0">
                 <span className="text-feisen-texto tabular-nums">
-                  {f.fecha}
-                  {f.orden ? ` · ${f.orden}` : ''}
-                  {f.mano_obra_id && nombreLinea[f.mano_obra_id] ? ` · ${nombreLinea[f.mano_obra_id]}` : ''}
-                  {f.responsable ? ` · ${f.responsable}` : ''}
+                  {duracionTexto(f.horas)} · {formatNumber(f.unidades, 0)} {Number(f.unidades) === 1 ? 'pieza' : 'piezas'}
+                  {Number(f.num_operarios) > 1 ? ` · ${formatNumber(f.num_operarios, 0)} operarios` : ''}
                 </span>
                 <span className="block text-xs text-feisen-texto-2 tabular-nums">
-                  {formatNumber(f.num_operarios, 0)} op × {formatNumber(f.horas, 2)} h
-                  {f.hora_inicio && f.hora_fin ? ` (${f.hora_inicio.slice(0, 5)}–${f.hora_fin.slice(0, 5)}${Number(f.pausa_min) > 0 ? `, pausa ${formatNumber(f.pausa_min, 0)} min` : ''})` : ''}
-                  {' · '}
-                  {formatNumber(f.unidades, 0)} und{f.notas ? ` · ${f.notas}` : ''}
+                  {f.fecha}
+                  {f.mano_obra_id && nombreLinea[f.mano_obra_id] ? ` · ${nombreLinea[f.mano_obra_id]}` : ''}
+                  {f.orden ? ` · ${f.orden}` : ''}
                 </span>
+                {f.notas && <span className="block text-xs text-feisen-texto-2 whitespace-pre-line mt-0.5">{f.notas}</span>}
               </span>
               <span className="ml-auto tabular-nums whitespace-nowrap text-feisen-texto">
-                {formatNumber((Number(f.num_operarios) * Number(f.horas)) / Number(f.unidades || 1), 2)} h-h/und
+                {porPiezaTexto(Number(f.num_operarios) * Number(f.horas), f.unidades)}/pieza
               </span>
               <button onClick={() => editar(f)} className="flex items-center gap-1 text-xs font-medium text-feisen-azul hover:underline px-1 py-1">
                 <Pencil size={13} /> Editar
               </button>
-              <button onClick={() => borrar(f.id)} title="Borrar" className="text-feisen-texto-2 hover:text-feisen-rojo">
+              <button onClick={() => borrar(f.id)} title="Borrar" aria-label="Borrar medición" className="text-feisen-texto-2 hover:text-feisen-rojo py-1">
                 <X size={14} />
               </button>
             </li>
@@ -262,11 +267,9 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
         <div className="mt-2 flex flex-wrap items-center gap-3">
           {crono ? (
             <>
-              <span className="text-sm text-feisen-texto tabular-nums">
-                Midiendo desde las {crono.hora_inicio} · lleva {transcurrido(crono.desde)}
-              </span>
+              <span className="text-lg font-semibold text-feisen-texto tabular-nums">{relojDesde(crono.desde)}</span>
               <button onClick={terminar} className="flex items-center gap-1 bg-feisen-rojo text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px]">
-                <Square size={14} /> Terminar
+                <Square size={14} /> Parar
               </button>
               <button
                 onClick={() => { if (window.confirm('¿Descartar esta medición? No se guarda nada.')) { guardarCrono(proceso.id, null); setCrono(null) } }}
@@ -277,11 +280,11 @@ export default function ProcesoTiempos({ proceso, lineas = [], onCambio }) {
             </>
           ) : (
             <>
-              <button onClick={empezar} className="flex items-center gap-1 border border-feisen-azul text-feisen-azul text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] hover:bg-feisen-azul-suave">
-                <Play size={14} /> Empezar ahora
-              </button>
-              <button onClick={() => setForm(vacio(lineas))} className="flex items-center gap-1 text-sm text-feisen-azul hover:underline">
+              <button onClick={() => { setError(''); setForm(vacio(lineas)) }} className="flex items-center gap-1 bg-feisen-azul text-white text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] hover:bg-feisen-azul-claro">
                 <Plus size={14} /> Registrar tiempo
+              </button>
+              <button onClick={empezar} className="flex items-center gap-1 border border-feisen-azul text-feisen-azul text-sm font-medium rounded-lg px-3 py-2 min-h-[44px] hover:bg-feisen-azul-suave">
+                <Play size={14} /> Usar el cronómetro de la app
               </button>
             </>
           )}
@@ -297,5 +300,14 @@ function Campo({ label, children }) {
       <label className="block text-xs text-feisen-texto-2 mb-1">{label}</label>
       {children}
     </div>
+  )
+}
+
+function Unidad({ valor, onChange, sufijo, campo, max }) {
+  return (
+    <label className="flex items-center gap-1 flex-1 min-w-0">
+      <input type="number" min="0" max={max} step="1" inputMode="numeric" value={valor} onChange={onChange} placeholder="0" className={`${campo} text-right tabular-nums`} />
+      <span className="text-sm text-feisen-texto-2 shrink-0">{sufijo}</span>
+    </label>
   )
 }

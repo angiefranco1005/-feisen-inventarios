@@ -3,6 +3,7 @@ import { Pencil, Plus, Users, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCOP, formatNumber } from './utils/format'
 import { tipoTitulo } from './utils/nombres'
+import { duracionTexto } from './utils/tiempos'
 
 // Líneas de mano de obra de un proceso (costeo_proceso_mano_obra, costos en costeo_mano_obra_resumen).
 // Cada persona o puesto con su forma de pago:
@@ -180,7 +181,7 @@ export default function ProcesoManoObra({ proceso, lineas, onCambio }) {
                       <>Valor fijo · {formatCOP(l.precio_destajo)} por unidad</>
                     ) : Number(l.mediciones) > 0 ? (
                       <>
-                        Por hora · {formatNumber(l.horas_hombre_unidad, 2)} h-h/und × {formatCOP(l.tarifa_hora)} ·{' '}
+                        Por hora · {duracionTexto(l.horas_hombre_unidad)} por pieza × {formatCOP(l.tarifa_hora)}/h ·{' '}
                         {formatNumber(l.mediciones, 0)} {Number(l.mediciones) === 1 ? 'medición' : 'mediciones'}
                       </>
                     ) : (

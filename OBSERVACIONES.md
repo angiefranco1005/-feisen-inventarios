@@ -2239,3 +2239,10 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Pedido de Angie. `ModalGenerarOC.jsx` (OC de un pedido): botón «Seleccionar todo / Quitar todo» y contador «N de M». Marca solo las líneas que aún tienen algo por comprar (las ya cubiertas por otra OC o compra directa quedan sin marcar); si ninguna tiene pendiente, marca todas.
 - `ModalOCVariosPedidos.jsx`: «Seleccionar todo» general sobre lo que se ve (con búsqueda dice «Seleccionar lo encontrado») y «Todo este pedido» en el encabezado de cada pedido con más de una línea. Contador «N marcados».
 - Probado en el demo (`/pedidos?rol=ADMIN`): PED-0185 marcó 11 de 14 (las 3 cubiertas no) y «Quitar todo» desmarca; varios pedidos marcó los 3. El botón por pedido no se probó (en el demo cada pedido tiene una sola línea).
+
+## 2026-11-06 · Costeo: toma de tiempos por cronómetro (tiempo + piezas + notas)
+- Pedido de Angie: los tiempos se toman con cronómetro, sin hora de inicio y fin. El formulario de `ProcesoTiempos.jsx` quedó así: **Tiempo del cronómetro** (h · min · s), **Piezas que salieron**, Fecha, ¿A quién se le tomó? y **Notas: cómo se tomó y qué se tuvo en cuenta** (área de texto). Muestra en vivo "Sale a X por pieza".
+- Sin cambios en la base: se guarda `horas` = segundos ÷ 3600 sin redondear (la columna es numeric libre), `unidades` = piezas, `num_operarios` = 1. Las columnas `orden`, `responsable`, `hora_inicio`, `hora_fin` y `pausa_min` quedan para los registros viejos; editar una medición vieja conserva sus operarios.
+- El cronómetro de la app sigue como opción ("Usar el cronómetro de la app"): muestra 00:12:30 en vivo y al "Parar" llena h/min/s.
+- Pantalla y PDF muestran el tiempo como "12 min 30 s" y "2 min 30 s por pieza" en lugar de "h-h/und" (helpers `aHoras`, `partirHoras`, `duracionTexto`, `porPiezaTexto`, `relojDesde` en `utils/tiempos.js`). La tabla de evidencia del PDF: Fecha, Persona, Tiempo, Piezas, Tiempo/pieza, Cómo se tomó (notas).
+- Probado en el demo (5181): Parar llenó 5 h 3 min 59 s; 12 min 30 s con 5 piezas dio 2 min 30 s por pieza y guardó. El PDF no se descargó en la prueba.

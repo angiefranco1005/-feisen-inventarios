@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { duracionTexto, porPiezaTexto } from './tiempos'
 import { FEISEN_LOGO_PNG, LOGO_ASPECT, NIT_FEISEN } from '../../../utils/exportOrdenCompraPDF'
 
 // PDF de la ficha de costeo como documento controlado (ISO 9001 y certificación de producto):
@@ -267,26 +268,22 @@ export function exportarFichaCosteoPDF(d) {
       autoTable(doc, {
         ...tablaBase,
         startY: y,
-        head: [['Fecha', 'Orden', 'Persona', 'Horario', 'Operarios', 'Horas', 'Unidades', 'h-h / und']],
+        head: [['Fecha', 'Persona', 'Tiempo', 'Piezas', 'Tiempo / pieza', 'Cómo se tomó (notas)']],
         body: ts.length
           ? ts.map((t) => [
               t.fecha,
-              t.orden || '',
               [nombreLinea[t.mano_obra_id], t.responsable].filter(Boolean).join(' - '),
-              t.hora_inicio && t.hora_fin
-                ? `${t.hora_inicio.slice(0, 5)} a ${t.hora_fin.slice(0, 5)}${Number(t.pausa_min) > 0 ? ` (pausa ${num(t.pausa_min, 0)} min)` : ''}`
-                : '',
-              num(t.num_operarios, 0),
-              num(t.horas),
+              duracionTexto(t.horas) + (Number(t.num_operarios) > 1 ? ` x ${num(t.num_operarios, 0)} op.` : ''),
               num(t.unidades, 0),
-              num((Number(t.num_operarios) * Number(t.horas)) / Number(t.unidades || 1)),
+              porPiezaTexto(Number(t.num_operarios) * Number(t.horas), t.unidades),
+              [t.orden, t.notas].filter(Boolean).join(' - '),
             ])
-          : [[{ content: 'Sin mediciones de tiempo registradas.', colSpan: 8, styles: { textColor: ROJO } }]],
+          : [[{ content: 'Sin mediciones de tiempo registradas.', colSpan: 6, styles: { textColor: ROJO } }]],
         foot: ts.length
-          ? [[{ content: `h-h por unidad del proceso (${ts.length} ${ts.length === 1 ? 'medición' : 'mediciones'}; cada persona promediada aparte y sumadas)`, colSpan: 7 }, num(c.horas_hombre_unidad)]]
+          ? [[{ content: `Tiempo por pieza del proceso (${ts.length} ${ts.length === 1 ? 'medición' : 'mediciones'}; cada persona promediada aparte y sumadas)`, colSpan: 5 }, `${porPiezaTexto(c.horas_hombre_unidad, 1)} (${num(c.horas_hombre_unidad, 4)} h)`]]
           : undefined,
         footStyles: { fillColor: FONDO, textColor: TEXTO, fontStyle: 'bold', halign: 'right' },
-        columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' }, 7: { halign: 'right' } },
+        columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { cellWidth: 62 } },
         headStyles: { ...tablaBase.headStyles, fillColor: [90, 110, 140] },
       })
       y = doc.lastAutoTable.finalY + 3.5
@@ -320,7 +317,7 @@ export function exportarFichaCosteoPDF(d) {
   doc.setTextColor(...TEXTO)
   const metodo = [
     '• Materia prima: cantidad por unidad × precio de costo vigente en el inventario de Feisen a la fecha de corte.',
-    '• Mano de obra: cada proceso tiene una línea por persona. Por hora: promedio ponderado de los tiempos reales medidos en planta, (suma de operarios × horas) ÷ (suma de unidades buenas), multiplicado por su tarifa por hora. Valor fijo (destajo): valor pactado por unidad. El costo del proceso es la suma de sus personas.',
+    '• Mano de obra: cada proceso tiene una línea por persona. Por hora: promedio ponderado de los tiempos medidos en planta con cronómetro (suma de tiempos ÷ suma de piezas que salieron en ese tiempo), multiplicado por su tarifa por hora. Valor fijo (destajo): valor pactado por unidad. El costo del proceso es la suma de sus personas.',
     '• CIF: horas-hombre por unidad del proceso × tasa del centro de costo (CIF del período ÷ horas de mano de obra del centro en el período).',
     '• Sub-piezas: cada pieza se costea con sus propios procesos y se suma por niveles según la cantidad usada (una pieza puede llevar otras más pequeñas adentro). Equipos de planta: horas × valor hora-máquina (depreciación + mantenimiento + energía ÷ horas disponibles al año).',
   ]

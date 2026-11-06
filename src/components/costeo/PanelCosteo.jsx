@@ -6,6 +6,7 @@ import { formatCOP, formatNumber } from './utils/format'
 import { ETAPAS } from './utils/etapas'
 import { CENTROS_COSTO } from './utils/centrosCosto'
 import { nombreCorto } from './utils/nombres'
+import { duracionTexto } from './utils/tiempos'
 import ProcesoMateriales from './ProcesoMateriales'
 import ProcesoManoObra from './ProcesoManoObra'
 import ProcesoTiempos from './ProcesoTiempos'
@@ -54,7 +55,7 @@ export function PanelProceso({ arbol, proceso, ruta, hermanos, onCambio, onQuita
   }
 
   const moDet = lineas.length > 1 ? `${lineas.length} personas` : pago
-  const cifDet = Number(c.horas_hombre_unidad) > 0 ? `${formatNumber(c.horas_hombre_unidad, 2)} h-h × ${cop(c.tasa_cif_hora)}/h` : 'Sin tiempos'
+  const cifDet = Number(c.horas_hombre_unidad) > 0 ? `${duracionTexto(c.horas_hombre_unidad)} por pieza × ${cop(c.tasa_cif_hora)}/h` : 'Sin tiempos'
 
   return (
     <div>
