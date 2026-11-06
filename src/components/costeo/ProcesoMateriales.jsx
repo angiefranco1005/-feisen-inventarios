@@ -211,8 +211,8 @@ export default function ProcesoMateriales({ proceso, onCambio }) {
                   </span>
                 </span>
                 <span className="ml-auto tabular-nums whitespace-nowrap">{formatCOP(Number(m.cantidad) * precio)}</span>
-                <button onClick={() => editar(m)} title="Editar" className="text-feisen-texto-2 hover:text-feisen-azul">
-                  <Pencil size={14} />
+                <button onClick={() => editar(m)} className="flex items-center gap-1 text-xs font-medium text-feisen-azul hover:underline px-1 py-1">
+                  <Pencil size={13} /> Editar
                 </button>
                 <button onClick={() => quitar(m)} title="Quitar" className="text-feisen-texto-2 hover:text-feisen-rojo">
                   <X size={14} />

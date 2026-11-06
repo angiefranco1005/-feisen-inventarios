@@ -221,8 +221,8 @@ export default function ProcesoTiempos({ proceso, onCambio }) {
               <span className="ml-auto tabular-nums whitespace-nowrap text-feisen-texto">
                 {formatNumber((Number(f.num_operarios) * Number(f.horas)) / Number(f.unidades || 1), 2)} h-h/und
               </span>
-              <button onClick={() => editar(f)} title="Editar" className="text-feisen-texto-2 hover:text-feisen-azul">
-                <Pencil size={14} />
+              <button onClick={() => editar(f)} className="flex items-center gap-1 text-xs font-medium text-feisen-azul hover:underline px-1 py-1">
+                <Pencil size={13} /> Editar
               </button>
               <button onClick={() => borrar(f.id)} title="Borrar" className="text-feisen-texto-2 hover:text-feisen-rojo">
                 <X size={14} />
