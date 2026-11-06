@@ -132,12 +132,37 @@ export default function Organigrama() {
     )
   }
 
+  // Los cargos que le reportan a uno se agrupan por área (si es otra) y sub-área,
+  // así p. ej. Pintor y Pulidor quedan juntos bajo "Pintura" (pedido de Angie, 2026-11-06)
+  function gruposDe(padre, subs) {
+    const grupos = []
+    for (const h of subs) {
+      const otraArea = h.area && h.area !== padre.area
+      const titulo = h.subarea ? (otraArea ? `${h.area} › ${h.subarea}` : h.subarea) : (otraArea ? h.area : '')
+      let g = grupos.find(x => x.titulo === titulo)
+      if (!g) { g = { titulo, cargos: [] }; grupos.push(g) }
+      g.cargos.push(h)
+    }
+    return grupos
+  }
+
   function Rama({ c }) {
     const subs = hijos.get(c.id) || []
     return (
       <li>
         <Tarjeta c={c} />
-        {subs.length > 0 && <ul>{subs.map(h => <Rama key={h.id} c={h} />)}</ul>}
+        {subs.length > 0 && (
+          <ul>
+            {gruposDe(c, subs).map(g => g.titulo ? (
+              <li key={g.titulo}>
+                <span className="px-3 py-1 rounded-full border border-dashed border-feisen-borde bg-feisen-fondo text-xs font-semibold uppercase tracking-wide text-feisen-texto-2 whitespace-nowrap">
+                  {g.titulo}
+                </span>
+                <ul>{g.cargos.map(h => <Rama key={h.id} c={h} />)}</ul>
+              </li>
+            ) : g.cargos.map(h => <Rama key={h.id} c={h} />))}
+          </ul>
+        )}
       </li>
     )
   }
