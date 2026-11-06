@@ -1,4 +1,4 @@
-// Utilidades de la toma de tiempos (planilla impresa y registro desde el celular).
+// Utilidades de la toma de tiempos de cada proceso.
 
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -48,6 +48,3 @@ export function transcurrido(desdeMs) {
   return h > 0 ? `${h} h ${min % 60} min` : `${min} min`
 }
 
-export function enlaceCelular(fichaId) {
-  return `${window.location.origin}/costeo/fichas/${fichaId}?tab=tiempos`
-}

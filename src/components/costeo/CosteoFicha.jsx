@@ -1,30 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import MaterialesTab from './MaterialesTab'
-import ManoDeObraTab from './ManoDeObraTab'
-import CifTab from './CifTab'
+import ArbolTab from './ArbolTab'
 import EquiposTab from './EquiposTab'
 import PiezasTab from './PiezasTab'
-import TiemposTab from './TiemposTab'
 import ResumenTab from './ResumenTab'
 
 const TABS = [
-  { id: 'materiales', label: 'Materiales (MP)' },
-  { id: 'mano_obra', label: 'Mano de Obra (MOD)' },
-  { id: 'cif', label: 'CIF' },
+  { id: 'arbol', label: 'Procesos' },
+  { id: 'piezas', label: 'Sub-piezas' },
   { id: 'equipos', label: 'Equipos' },
-  { id: 'piezas', label: 'Piezas' },
-  { id: 'tiempos', label: 'Tiempos reales' },
-  { id: 'resumen', label: 'Resumen' },
+  { id: 'resumen', label: 'Precio y margen' },
 ]
 
-// Una ficha de costeo con sus pestañas. La pestaña va en la URL (?tab=tiempos), así el
-// enlace para celular de "Tiempos reales" abre directo ahí.
+// Una ficha de costeo con sus pestañas. La principal es el árbol de procesos (materia prima y
+// toma de tiempos de cada proceso). La pestaña va en la URL (?tab=piezas).
 export default function CosteoFicha() {
   const { id } = useParams()
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'materiales'
+  const tab = TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'arbol'
   const [ficha, setFicha] = useState(undefined) // undefined = cargando, null = no existe
   // Cada clic en una pestaña la vuelve a montar para que lea datos frescos (igual que en la app de costeo).
   const [refreshKey, setRefreshKey] = useState(0)
@@ -85,7 +79,7 @@ export default function CosteoFicha() {
           <button
             key={t.id}
             onClick={() => {
-              setParams(t.id === 'materiales' ? {} : { tab: t.id }, { replace: true })
+              setParams(t.id === 'arbol' ? {} : { tab: t.id }, { replace: true })
               setRefreshKey((k) => k + 1)
             }}
             className={`text-sm font-medium rounded-full px-4 py-1.5 border ${
@@ -100,12 +94,9 @@ export default function CosteoFicha() {
       </nav>
 
       <main className="py-6">
-        {tab === 'materiales' && <MaterialesTab key={`m-${id}-${refreshKey}`} fichaId={id} />}
-        {tab === 'mano_obra' && <ManoDeObraTab key={`mo-${id}-${refreshKey}`} fichaId={id} />}
-        {tab === 'cif' && <CifTab key={`c-${id}-${refreshKey}`} fichaId={id} />}
+        {tab === 'arbol' && <ArbolTab key={`a-${id}-${refreshKey}`} fichaId={id} />}
         {tab === 'equipos' && <EquiposTab key={`e-${id}-${refreshKey}`} fichaId={id} />}
         {tab === 'piezas' && <PiezasTab key={`p-${id}-${refreshKey}`} fichaId={id} />}
-        {tab === 'tiempos' && <TiemposTab key={`t-${id}-${refreshKey}`} fichaId={id} fichaNombre={ficha.nombre} />}
         {tab === 'resumen' && <ResumenTab key={`r-${id}-${refreshKey}`} fichaId={id} />}
       </main>
     </div>

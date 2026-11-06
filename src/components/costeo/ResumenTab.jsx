@@ -94,7 +94,7 @@ export default function ResumenTab({ fichaId }) {
 
       <div className="bg-white border border-feisen-borde rounded-lg divide-y divide-feisen-borde mb-6">
         <Fila label="Total Materiales (MP)" value={formatCOP(resumen.total_mp)} />
-        <Fila label="Total Mano de Obra (MOD)" value={formatCOP(resumen.total_mod)} />
+        <Fila label="Mano de obra (tiempos reales)" value={formatCOP(resumen.total_mod)} />
         <Fila label="Total CIF asignado" value={formatCOP(resumen.cif_asignado)} />
         {Number(resumen.total_equipos) > 0 && (
           <Fila label="Costo de equipos de planta" value={formatCOP(resumen.total_equipos)} />
