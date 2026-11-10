@@ -58,6 +58,8 @@ export const MODULOS = [
 
   { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas, despacha todas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
+    // Dashboard de Ventas: solo la gerente de ventas (y ADMIN), sin importar el nivel (2026-11-10, pedido de Angie)
+    rutasRoles: { '/of/dashboard': ['JEFE_VENTAS'] },
     rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes', '/of/seriales'] },
 
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: elabora borradores · Todo: revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
@@ -110,6 +112,13 @@ export function moduloDeRuta(ruta) {
 export function rolUsaBodega(mapa, rol) {
   if (rol === 'ADMIN') return false
   return MODULOS.some(m => m.usaBodega && nivelDe(mapa, rol, m.clave) !== 'no')
+}
+
+// ¿Este rol puede abrir la ruta? Algunas rutas son solo de ciertos roles (ver `rutasRoles`); ADMIN siempre
+export function rolAbreRuta(modulo, ruta, rol) {
+  if (rol === 'ADMIN') return true
+  const roles = MODULO_POR_CLAVE[modulo]?.rutasRoles?.[ruta]
+  return !roles || roles.includes(rol)
 }
 
 // ¿Este nivel alcanza para abrir la ruta? (ver `rutasNivel`)

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { PERMISOS_INICIALES, nivelDe, moduloDeRuta, nivelAbreRuta } from '../permisos/modulos'
+import { PERMISOS_INICIALES, nivelDe, moduloDeRuta, nivelAbreRuta, rolAbreRuta } from '../permisos/modulos'
 
 const AuthContext = createContext(null)
 
@@ -88,7 +88,7 @@ export function AuthProvider({ children }) {
   // Nivel del rol efectivo en un módulo: 'no' | 've' | 'registra' | 'todo'
   const nivel              = modulo => nivelDe(permisos, rolEfectivo, modulo)
   const puede              = modulo => nivel(modulo) !== 'no'
-  const puedeRuta          = ruta => { const m = moduloDeRuta(ruta); return !!m && nivelAbreRuta(m, ruta, nivel(m)) }
+  const puedeRuta          = ruta => { const m = moduloDeRuta(ruta); return !!m && nivelAbreRuta(m, ruta, nivel(m)) && rolAbreRuta(m, ruta, rolEfectivo) }
   // Órdenes de fabricación: quien tiene el módulo (Registra o Todo) usa la vista comercial y ve
   // todas las OF; con Registra solo modifica las que creó. Con Ve (despachos) ve lo que está en
   // producción y por despachar, sin el cliente y sin botones; si además la persona tiene un área
