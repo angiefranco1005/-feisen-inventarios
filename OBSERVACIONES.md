@@ -2272,5 +2272,12 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 
 ## 2026-11-11 · Finanzas › EEFF (en construcción, paso a paso con Angie)
 - Pantalla nueva `/finanzas/eeff` (`src/components/finanzas/Eeff.jsx`), primera del menú Finanzas, solo ADMIN. Por ahora es el esqueleto del P&G consolidado (estructura de la hoja "P&G CONSOLIDADO" del Excel EEFF 2026) con columnas Feisen / FC / Total y el mes en octubre 2026; todos los renglones "por definir".
-- Contexto de Angie: Feisen = contabilidad con IVA (facturas); FC = ventas y compras sin IVA (remisiones / caja). Por eso son prácticamente dos contabilidades que se suman en los EEFF.
+- Los EEFF suman las dos contabilidades (Feisen y FC), por separado y en total.
 - Método: se arma octubre 2026 renglón por renglón según cómo lo hace Angie; cada renglón anota de dónde sale (cuenta de Odoo de cada empresa o dato a mano). Después: repartición por centro y balance.
+- **Paso 1 — Ingresos (11/11, definido con Angie, cuadra con su Excel de octubre 2026 al peso):**
+  - Ventas por centro = cuenta 412000 de cada Odoo por cuenta analítica (nueva acción `pyg` de `finanzas-odoo`: líneas de clases 4–7 del mes por cuenta y centro). Construequipos separa Repuestos y Mantenimientos.
+  - Las demás cuentas de ingreso (421000 intereses, 429500 ajuste al peso, 425502 no operacionales) van **dentro de las ventas de Construequipos** (decisión de Angie).
+  - Devoluciones = descuentos comerciales 530508 (+ 4175xx). **Ojo al armar gastos no operacionales: no volver a sumar la 530508.**
+  - En su Excel de octubre los Repuestos estaban cruzados entre Feisen y FC; Angie confirmó que manda Odoo (Feisen $4.969.065, FC $1.675.760).
+  - Transferencias internas a Construequipos: **Hierro desde el ERP** = salidas de bodega Fundición a otra bodega, solo categoría "MATERIAL FUNDIDO HIERRO", kg (peso_unitario) × $5.500 (oct 2026: 2.333 piezas, 11.429 kg, $62.861.975). La materia prima (hierro colado, carbón coke, arenas) que en octubre aparece saliendo de Fundición a "Armado y Soldadura" se excluye: parece mal registrada (debería ser consumo de Fundición). **Aluminio a mano** (aún no registra salidas en el ERP), en la tabla nueva `eeff_manual` (migración `2026-11-11_eeff_manual.sql`, aplicada con OK de Angie; solo ADMIN), concepto `transferencia_aluminio`.
+  - Las hojas OCT–DIC de los Excel de control de Hierro y Aluminio todavía tienen datos de 2025.

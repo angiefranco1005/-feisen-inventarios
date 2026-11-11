@@ -4,6 +4,7 @@
 //                proveedor menos notas crédito, sin IVA), no las cuentas contables. Lo que no trae centro
 //                queda en 'Sin centro' y la pantalla lo reparte según las ventas.
 //   'pendientes' (empresa): facturas por cobrar y por pagar sin saldar y el saldo de bancos y caja.
+//   'pyg'        (empresa, mes): estado de resultados del mes por cuenta y centro (pantalla EEFF).
 //   'cuentas'    (empresa, mes = año 'YYYY'): plan de cuentas con saldo y movimiento, para homologar las dos empresas.
 // Usa la API JSON-2 de Odoo 19 con los mismos secretos que ventas-odoo.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -172,6 +173,37 @@ async function cuentas(cfg: Cfg, clave: string, anio: string) {
   }
 }
 
+// Estado de resultados del mes: todas las líneas publicadas en cuentas de ingreso, costo y gasto
+// (clases 4, 5, 6 y 7), sumadas por cuenta y centro (cuenta analítica). Base de la pantalla EEFF.
+// valor = débito − crédito (los ingresos salen negativos, como en Odoo).
+async function pyg(cfg: Cfg, clave: string, mes: string) {
+  const [y, m] = mes.split('-').map(Number)
+  const hasta = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  const centros: Record<string, string> = {}
+  for (const a of await odoo(cfg, clave, 'account.analytic.account', 'search_read', { domain: [], fields: ['name'], context: { active_test: false } })) {
+    centros[String(a.id)] = a.name
+  }
+  const lineas = await todos(cfg, clave, 'account.move.line', [
+    ['parent_state', '=', 'posted'], ['date', '>=', `${mes}-01`], ['date', '<', hasta],
+    ['account_type', 'in', ['income', 'income_other', 'expense', 'expense_other', 'expense_direct_cost', 'expense_depreciation']],
+  ], ['account_id', 'balance', 'analytic_distribution'])
+  const codigos: Record<number, string> = {}
+  for (const c of await odoo(cfg, clave, 'account.account', 'search_read', { domain: [], fields: ['code'], context: { active_test: false } })) {
+    codigos[c.id] = c.code
+  }
+  const grupos: Record<string, { codigo: string; cuenta: string; centro: string; valor: number }> = {}
+  for (const l of lineas) {
+    const id = Array.isArray(l.account_id) ? l.account_id[0] : 0
+    const codigo = codigos[id] || ''
+    const cuenta = (nombre(l.account_id) || '').replace(new RegExp(`^${codigo}\\s*`), '') || 'Sin cuenta'
+    for (const [centro, v] of repartir(l, Number(l.balance) || 0, centros)) {
+      const g = grupos[[codigo, centro].join('\u0001')] ??= { codigo, cuenta, centro, valor: 0 }
+      g.valor += v
+    }
+  }
+  return { mes, filas: Object.values(grupos).map(g => ({ ...g, valor: r2(g.valor) })).filter(g => g.valor).sort((a, b) => a.codigo.localeCompare(b.codigo)) }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -193,6 +225,10 @@ serve(async (req) => {
     if (accion === 'resultado') {
       if (typeof mes !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return responder({ error: 'Mes inválido.' }, 400)
       return responder(await resultado(cfg, clave, mes))
+    }
+    if (accion === 'pyg') {
+      if (typeof mes !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) return responder({ error: 'Mes inválido.' }, 400)
+      return responder(await pyg(cfg, clave, mes))
     }
     if (accion === 'pendientes') return responder(await pendientes(cfg, clave))
     if (accion === 'cuentas') return responder(await cuentas(cfg, clave, /^\d{4}$/.test(mes || '') ? mes : String(new Date().getFullYear())))
