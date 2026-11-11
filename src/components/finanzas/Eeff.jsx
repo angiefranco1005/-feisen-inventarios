@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
-import { EncabezadoPagina, useAviso } from '../shared/ui'
+import { EncabezadoPagina, Segmentado, useAviso } from '../shared/ui'
 import { ChevronDown, ChevronRight, RefreshCw } from '../shared/iconos'
 import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, hoyCol } from './comun'
 
@@ -21,15 +21,35 @@ import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, hoyCol } from './comun
 const PRECIO_KG_HIERRO = 5500
 const DESCUENTOS = c => c === '530508' || c.startsWith('4175')
 
-// Renglones de ventas: centro de Odoo → renglón
+// Renglones de ventas: centro de Odoo → renglón (el nombre es el que se ve dentro de su centro)
 const VENTAS = [
-  { id: 'construequipos', nombre: 'Construequipos', centros: ['CONSTRUEQUIPOS', 'Sin centro'] },
-  { id: 'no_operacionales', nombre: 'Ventas no operacionales (Construequipos)', noOperacional: true },
-  { id: 'repuestos', nombre: 'Repuestos (Construequipos)', centros: ['REPUESTOS'] },
-  { id: 'mantenimientos', nombre: 'Mantenimientos (Construequipos)', centros: ['MANTENIMIENTOS'] },
-  { id: 'hierro', nombre: 'Fundición Hierro', centros: ['HIERRO'] },
-  { id: 'aluminio', nombre: 'Aluminio', centros: ['ALUMINIO'] },
+  { id: 'construequipos', nombre: 'Máquinas', centros: ['CONSTRUEQUIPOS', 'Sin centro'] },
+  { id: 'no_operacionales', nombre: 'Ventas no operacionales', noOperacional: true },
+  { id: 'repuestos', nombre: 'Repuestos', centros: ['REPUESTOS'] },
+  { id: 'mantenimientos', nombre: 'Mantenimientos', centros: ['MANTENIMIENTOS'] },
+  { id: 'hierro', nombre: 'Ventas', centros: ['HIERRO'] },
+  { id: 'aluminio', nombre: 'Ventas', centros: ['ALUMINIO'] },
 ]
+
+// Centros de costo del P&G y sus renglones de ventas. Las devoluciones y descuentos (530508) hoy son todas
+// de Construequipos, por eso solo ese centro las resta.
+const CENTROS = [
+  { id: 'construequipos', nombre: 'Construequipos', renglones: ['construequipos', 'no_operacionales', 'repuestos', 'mantenimientos'], devoluciones: true },
+  { id: 'hierro', nombre: 'Fundición Hierro', renglones: ['hierro'] },
+  { id: 'aluminio', nombre: 'Aluminio', renglones: ['aluminio'] },
+]
+
+// Filtro de vista: consolidado o un centro de costo (se recuerda en este equipo)
+const CLAVE_VISTA = 'feisen-eeff-vista'
+const VISTAS = [
+  { valor: 'consolidado', texto: <Corto largo="Consolidado" corto="Consolid." />, titulo: 'consolidado' },
+  { valor: 'construequipos', texto: <Corto largo="Construequipos" corto="Constru" />, titulo: 'Construequipos' },
+  { valor: 'hierro', texto: <Corto largo="Fundición Hierro" corto="Hierro" />, titulo: 'Fundición Hierro' },
+  { valor: 'aluminio', texto: 'Aluminio', titulo: 'Aluminio' },
+]
+
+// Columnas de cada renglón: concepto + Feisen / FC / Total (en celular solo concepto + Total)
+const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3'
 
 // Lo que todavía falta definir con Angie (estructura del Excel)
 const PENDIENTE = [
@@ -61,6 +81,10 @@ export default function Eeff() {
   const [aviso, avisar] = useAviso()
   const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes })
   const [abierto, setAbierto] = useState(null)
+  const [vista, setVista] = useState(() => {
+    try { const v = localStorage.getItem(CLAVE_VISTA); return VISTAS.some(o => o.valor === v) ? v : 'consolidado' } catch { return 'consolidado' }
+  })
+  const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
 
   // Transferencia de Hierro desde el ERP y valores a mano del mes
   const [erp, setErp] = useState({ cargando: true, hierro: null, error: '' })
@@ -94,6 +118,7 @@ export default function Eeff() {
 
   const ing = useMemo(() => datos && { feisen: ingresosDe(datos.feisen?.filas), fc: ingresosDe(datos.fc?.filas) }, [datos])
   const val = (emp, id) => ing?.[emp]?.[id]?.valor || 0
+  const suma = (emp, ids) => ids.reduce((s, id) => s + val(emp, id), 0)
   const totalVentas = emp => VENTAS.reduce((s, v) => s + val(emp, v.id), 0)
   const neto = emp => totalVentas(emp) - val(emp, 'devoluciones')
 
@@ -109,7 +134,55 @@ export default function Eeff() {
   const nombreMes = new Date(y, m - 1, 15).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
   const Titulo = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)
   const transfAluminio = manual['transferencia_aluminio|total']
+  const transfHierro = erp.hierro?.valor || 0
   const totalPendiente = PENDIENTE.reduce((s, b) => s + b.filas.length, 0)
+  const centro = CENTROS.find(c => c.id === vista)
+  const tituloVista = VISTAS.find(v => v.valor === vista)?.titulo || 'consolidado'
+
+  const alternar = id => setAbierto(a => (a === id ? null : id))
+  // Mientras Odoo carga, `ing` es null: los renglones se arman igual (filaDevoluciones es un elemento ya creado)
+  const detalleDe = id => ing ? [...ing.feisen[id].detalle.map(d => ({ ...d, emp: 'Feisen' })), ...ing.fc[id].detalle.map(d => ({ ...d, emp: 'FC' }))] : []
+  const filaVenta = (id, sangria) => (
+    <Fila key={id} nombre={VENTAS.find(v => v.id === id).nombre} feisen={val('feisen', id)} fc={val('fc', id)} sangria={sangria}
+      abierto={abierto === id} onClick={() => alternar(id)} detalle={detalleDe(id)} />
+  )
+  const filaDevoluciones = (
+    <Fila nombre="(−) Devoluciones y descuentos comerciales" feisen={val('feisen', 'devoluciones')} fc={val('fc', 'devoluciones')}
+      abierto={abierto === 'dev'} onClick={() => alternar('dev')} detalle={detalleDe('devoluciones')} />
+  )
+  const notaHierro = erp.cargando ? 'Leyendo salidas de Fundición…' : erp.error ? `Error: ${erp.error}`
+    : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}`
+  const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', t)} />
+
+  // Secciones que faltan por definir; en Construequipos, debajo de "Materia prima" van las transferencias recibidas
+  const pendientes = PENDIENTE.map(b => (
+    <div key={b.seccion}>
+      <Seccion titulo={b.seccion} />
+      <div className="divide-y divide-feisen-borde-suave">
+        {b.filas.map(f => (
+          <div key={f}>
+            <div className={`${GRID} px-4 py-2 text-sm items-center`}>
+              <span className="text-feisen-texto-2 pl-3">{f}</span>
+              <span className="sm:hidden text-xs text-gray-400">por definir</span>
+              {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
+            </div>
+            {vista === 'construequipos' && f === 'Materia prima' && (<>
+              <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
+              <SoloTotal nombre="Transferencia recibida — Aluminio"
+                nota={transfAluminio == null ? 'Sin valor: escríbelo en la vista Aluminio o Consolidado' : 'a mano'} valor={transfAluminio} sangria />
+            </>)}
+          </div>
+        ))}
+      </div>
+      {b.total && (
+        <div className={`${GRID} px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm font-semibold`}>
+          <span className="text-feisen-texto-2">{b.total}</span>
+          <span className="sm:hidden text-gray-300">—</span>
+          {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
+        </div>
+      )}
+    </div>
+  ))
 
   return (
     <div className="max-w-5xl mx-auto space-y-5 pb-24 lg:pb-8">
@@ -127,6 +200,9 @@ export default function Eeff() {
           <input type="month" value={mes} max={hoyCol().slice(0, 7)} onChange={e => e.target.value && setMes(e.target.value)}
             className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave" />
         </label>
+        <div className="w-full sm:w-auto sm:min-w-[32rem]">
+          <Segmentado opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
+        </div>
         <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
           En construcción: listos los ingresos · faltan {totalPendiente} renglones de costos y gastos
         </span>
@@ -135,80 +211,67 @@ export default function Eeff() {
       {cargando && !ing ? <Cargando /> : error ? <ErrorOdoo mensaje={error} onReintentar={recargar} /> : ing && (
         <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
           <div className="px-4 py-3 border-b border-feisen-borde-suave">
-            <span className="text-sm font-semibold text-feisen-texto">P&amp;G · {Titulo}</span>
+            <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · {Titulo}</span>
           </div>
           <Encabezado />
 
-          <Seccion titulo="Ingresos" />
-          {VENTAS.map(v => (
-            <Fila key={v.id} nombre={v.nombre} feisen={val('feisen', v.id)} fc={val('fc', v.id)}
-              abierto={abierto === v.id} onClick={() => setAbierto(abierto === v.id ? null : v.id)}
-              detalle={[...ing.feisen[v.id].detalle.map(d => ({ ...d, emp: 'Feisen' })), ...ing.fc[v.id].detalle.map(d => ({ ...d, emp: 'FC' }))]} />
-          ))}
-          <Total nombre="Total ventas" feisen={totalVentas('feisen')} fc={totalVentas('fc')} />
-          <Fila nombre="(−) Devoluciones y descuentos comerciales" feisen={val('feisen', 'devoluciones')} fc={val('fc', 'devoluciones')}
-            abierto={abierto === 'dev'} onClick={() => setAbierto(abierto === 'dev' ? null : 'dev')}
-            detalle={[...ing.feisen.devoluciones.detalle.map(d => ({ ...d, emp: 'Feisen' })), ...ing.fc.devoluciones.detalle.map(d => ({ ...d, emp: 'FC' }))]} />
-          <Total nombre="Ingresos netos" feisen={neto('feisen')} fc={neto('fc')} fuerte />
-
-          <Seccion titulo="Transferencias internas a Construequipos" nota="ingreso de Hierro y Aluminio; en el consolidado se anulan con la materia prima de Construequipos" />
-          <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2 text-sm items-center">
-            <span className="pl-3 min-w-0">
-              <span className="block text-feisen-texto">Fundición Hierro <span className="text-xs text-feisen-texto-2">· del ERP</span></span>
-              <span className="block text-xs text-feisen-texto-2">
-                {erp.cargando ? 'Leyendo salidas de Fundición…' : erp.error ? `Error: ${erp.error}`
-                  : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}`}
-              </span>
-            </span>
-            <span className="hidden sm:block" /><span className="hidden sm:block" />
-            <span className="text-right tabular-nums text-feisen-texto">{erp.hierro ? pesos(erp.hierro.valor) : '—'}</span>
-          </div>
-          <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2 text-sm items-center border-t border-feisen-borde-suave">
-            <span className="pl-3 min-w-0">
-              <span className="block text-feisen-texto">Aluminio <span className="text-xs text-feisen-texto-2">· a mano</span></span>
-              <span className="block text-xs text-feisen-texto-2">Total del mes de tu Excel de control (Aluminio aún no está en el ERP)</span>
-            </span>
-            <span className="hidden sm:block" /><span className="hidden sm:block" />
-            <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', t)} />
-          </div>
-          <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm font-semibold">
-            <span className="text-feisen-texto">Total transferencias internas</span>
-            <span className="hidden sm:block" /><span className="hidden sm:block" />
-            <span className="text-right tabular-nums text-feisen-texto">{pesos((erp.hierro?.valor || 0) + (transfAluminio || 0))}</span>
-          </div>
-
-          {PENDIENTE.map(b => (
-            <div key={b.seccion}>
-              <Seccion titulo={b.seccion} />
-              <div className="divide-y divide-feisen-borde-suave">
-                {b.filas.map(f => (
-                  <div key={f} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2 text-sm items-center">
-                    <span className="text-feisen-texto-2 pl-3">{f}</span>
-                    <span className="sm:hidden text-xs text-gray-400">por definir</span>
-                    {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
-                  </div>
-                ))}
+          {!centro ? (<>
+            {/* Consolidado: ingresos agrupados por centro, con subtotal de cada uno */}
+            <Seccion titulo="Ingresos" />
+            {CENTROS.map(c => (
+              <div key={c.id}>
+                <Subtitulo titulo={c.nombre} />
+                {c.renglones.map(id => filaVenta(id, true))}
+                <Total nombre={`Subtotal ${c.nombre}`} feisen={suma('feisen', c.renglones)} fc={suma('fc', c.renglones)} />
               </div>
-              {b.total && (
-                <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm font-semibold">
-                  <span className="text-feisen-texto-2">{b.total}</span>
-                  <span className="sm:hidden text-gray-300">—</span>
-                  {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+            <div className="h-2" />
+            <Total nombre="Total ventas" feisen={totalVentas('feisen')} fc={totalVentas('fc')} fuerte />
+            {filaDevoluciones}
+            <Total nombre="Ingresos netos" feisen={neto('feisen')} fc={neto('fc')} fuerte />
+
+            <Seccion titulo="Transferencias internas a Construequipos" nota="Ingreso de Hierro y Aluminio y materia prima de Construequipos: en el consolidado se anulan, no suman a los ingresos netos" />
+            <SoloTotal nombre={<>Fundición Hierro <span className="text-xs text-feisen-texto-2">· del ERP</span></>} nota={notaHierro} valor={erp.hierro ? transfHierro : null} sangria />
+            <SoloTotal nombre={<>Aluminio <span className="text-xs text-feisen-texto-2">· a mano</span></>}
+              nota="Total del mes de tu Excel de control (Aluminio aún no está en el ERP)" sangria>{casillaAluminio}</SoloTotal>
+            <SoloTotal nombre="Total transferencias internas" valor={transfHierro + (transfAluminio || 0)} total />
+          </>) : centro.id === 'construequipos' ? (<>
+            {/* Construequipos: sus ventas, devoluciones e ingresos netos */}
+            <Seccion titulo="Ingresos" />
+            {centro.renglones.map(id => filaVenta(id))}
+            <Total nombre="Total ventas" feisen={suma('feisen', centro.renglones)} fc={suma('fc', centro.renglones)} fuerte />
+            {filaDevoluciones}
+            <Total nombre="Ingresos netos" feisen={suma('feisen', centro.renglones) - val('feisen', 'devoluciones')}
+              fc={suma('fc', centro.renglones) - val('fc', 'devoluciones')} fuerte />
+          </>) : (<>
+            {/* Fundición Hierro o Aluminio: ventas + transferencia interna (piezas a Construequipos) */}
+            <Seccion titulo="Ingresos" />
+            {filaVenta(centro.id)}
+            <Total nombre="Ingresos netos" feisen={val('feisen', centro.id)} fc={val('fc', centro.id)} fuerte />
+            {centro.id === 'hierro'
+              ? <SoloTotal nombre="Transferencia interna — ingreso (piezas a Construequipos)" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} />
+              : <SoloTotal nombre="Transferencia interna — ingreso (piezas a Construequipos)" nota="a mano · total del mes de tu Excel de control">{casillaAluminio}</SoloTotal>}
+            <SoloTotal nombre="Ingresos totales" total
+              valor={val('feisen', centro.id) + val('fc', centro.id) + (centro.id === 'hierro' ? transfHierro : (transfAluminio || 0))} />
+          </>)}
+
+          {pendientes}
         </div>
       )}
 
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         Ventas = cuenta 412000 de cada Odoo por centro; las demás cuentas de ingreso (no operacionales) van dentro de Construequipos.
-        Devoluciones = descuentos comerciales (530508) y devoluciones en ventas. Las notas crédito ya vienen restadas en las ventas.
+        Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
         Toca un renglón para ver de qué cuentas sale.
       </p>
       {aviso}
     </div>
   )
+}
+
+// Texto del selector: corto en celular, completo desde tableta
+function Corto({ largo, corto }) {
+  return <><span className="sm:hidden">{corto}</span><span className="hidden sm:inline">{largo}</span></>
 }
 
 function Encabezado() {
@@ -232,20 +295,25 @@ function Cifra({ v, fuerte }) {
   return <span className={`text-right tabular-nums ${fuerte ? 'font-semibold' : ''} ${v < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{v ? pesos(v) : '—'}</span>
 }
 
-function Fila({ nombre, feisen, fc, detalle, abierto, onClick }) {
+// Nombre del centro dentro de la sección (vista consolidada)
+function Subtitulo({ titulo }) {
+  return <div className="px-4 pt-3 pb-1 border-t border-feisen-borde-suave text-sm font-semibold text-feisen-texto">{titulo}</div>
+}
+
+function Fila({ nombre, feisen, fc, detalle, abierto, onClick, sangria }) {
   const Icono = abierto ? ChevronDown : ChevronRight
   return (
     <div className="border-t border-feisen-borde-suave">
       <button type="button" onClick={onClick}
-        className="w-full grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo">
-        <span className="flex items-center gap-1 text-feisen-texto min-w-0">
+        className={`w-full ${GRID} px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo`}>
+        <span className={`flex items-center gap-1 text-feisen-texto min-w-0 ${sangria ? 'pl-3' : ''}`}>
           <Icono size={14} className="text-gray-400 shrink-0" /><span className="truncate">{nombre}</span>
         </span>
         <span className="hidden sm:contents"><Cifra v={feisen} /><Cifra v={fc} /></span>
         <Cifra v={feisen + fc} fuerte />
       </button>
       {abierto && (
-        <div className="px-4 pb-2 pl-8 space-y-1">
+        <div className={`px-4 pb-2 space-y-1 ${sangria ? 'pl-11' : 'pl-8'}`}>
           {detalle.length === 0 ? <p className="text-xs text-feisen-texto-2">Sin movimiento en el mes.</p>
             : detalle.map((d, i) => (
               <div key={i} className="flex justify-between gap-3 text-xs text-feisen-texto-2">
@@ -261,10 +329,24 @@ function Fila({ nombre, feisen, fc, detalle, abierto, onClick }) {
 
 function Total({ nombre, feisen, fc, fuerte }) {
   return (
-    <div className={`grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm ${fuerte ? 'font-semibold' : 'font-medium'}`}>
+    <div className={`${GRID} px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm ${fuerte ? 'font-semibold' : 'font-medium'}`}>
       <span className="text-feisen-texto">{nombre}</span>
       <span className="hidden sm:contents"><Cifra v={feisen} fuerte={fuerte} /><Cifra v={fc} fuerte={fuerte} /></span>
       <Cifra v={feisen + fc} fuerte />
+    </div>
+  )
+}
+
+// Renglón que solo tiene valor en la columna Total (transferencias internas). `children` reemplaza la cifra (casilla a mano).
+function SoloTotal({ nombre, nota, valor, sangria, total, children }) {
+  return (
+    <div className={`${GRID} px-4 text-sm items-center ${total ? 'py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave font-semibold' : 'py-2 border-t border-feisen-borde-suave'}`}>
+      <span className={`min-w-0 ${sangria ? 'pl-3' : ''}`}>
+        <span className="block text-feisen-texto">{nombre}</span>
+        {nota && <span className="block text-xs font-normal text-feisen-texto-2">{nota}</span>}
+      </span>
+      <span className="hidden sm:block" /><span className="hidden sm:block" />
+      {children || <span className="text-right tabular-nums text-feisen-texto">{valor != null ? pesos(valor) : '—'}</span>}
     </div>
   )
 }
