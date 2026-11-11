@@ -71,6 +71,7 @@ const NAV_ADMIN = [
   { to: '/rrhh/desempeno',                    icon: Target,          label: 'Desempeño',          modulo: 'Recursos Humanos' },
   { to: '/calidad',                           icon: SealCheck,     label: 'No conformidades',   modulo: 'Calidad' },
   { to: '/mantenimiento',                     icon: Toolbox,       label: 'Equipos de planta',  modulo: 'Mantenimiento' },
+  { to: '/finanzas/eeff',                     icon: Table,         label: 'EEFF',               modulo: 'Finanzas' },
   { to: '/finanzas/resultado',                icon: ChartPieSlice, label: 'Resultado por centro', modulo: 'Finanzas' },
   { to: '/finanzas/cartera',                  icon: HandCoins,     label: 'Cartera',            modulo: 'Finanzas' },
   { to: '/finanzas/por-pagar',                icon: Receipt,       label: 'Cuentas por pagar',  modulo: 'Finanzas' },

@@ -66,6 +66,7 @@ import Mantenimiento            from './components/mantenimiento/Mantenimiento'
 import ResultadoCentros         from './components/finanzas/ResultadoCentros'
 import PendientesFinanzas       from './components/finanzas/Pendientes'
 import FlujoCaja                from './components/finanzas/FlujoCaja'
+import Eeff                     from './components/finanzas/Eeff'
 import Manuales                 from './components/manuales/Manuales'
 import { MODULOS }              from './permisos/modulos'
 
@@ -121,7 +122,7 @@ function AppRoutes() {
     '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,
     '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
     '/finanzas/resultado': <ResultadoCentros />, '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
-    '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />,
+    '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />, '/finanzas/eeff': <Eeff />,
     '/manuales': <Manuales />,
     '/config': <GestionConfig />,
   }
