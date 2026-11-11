@@ -140,7 +140,14 @@ export default function RegistrarMovimiento() {
     let vigente = true
     supabase.from('motor_seriales').select('id, serial')
       .eq('item_id', form.item_id).eq('estado', 'disponible').order('serial')
-      .then(({ data }) => { if (vigente) setSerialesDisp(data || []) })
+      .then(({ data }) => {
+        if (!vigente) return
+        setSerialesDisp(data || [])
+        // Mientras cargaba, el efecto de abajo alcanzó a crear un campo de serial vacío por la
+        // cantidad (1); con lista ese campo sobra y contaba como «Sale 1» sin haber marcado nada
+        // (video de compras, 11/11/2026). Con lista, la cantidad son los seriales que se toquen.
+        if (data?.length) setSerialesTexto([])
+      })
     return () => { vigente = false }
   }, [form.item_id, esMotor, form.tipo])
 
@@ -432,7 +439,7 @@ export default function RegistrarMovimiento() {
 
         {/* Motores: serial por unidad */}
         {esMotor && bloque(esEntrada ? 'Serial de cada motor' : '¿Qué motor sale?', modoLista ? <>
-          <p className="text-sm text-feisen-texto-2">Toca el serial que está en la placa del motor que sale.</p>
+          <p className="text-sm text-feisen-texto-2">Toca el serial de la placa de cada motor que sale. Si salen varios, márcalos todos: la cantidad se cuenta sola.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {serialesDisp.map(sd => {
               const activo = serialesElegidos.has(sd.id)
