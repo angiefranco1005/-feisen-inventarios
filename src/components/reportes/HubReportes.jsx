@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, ClipboardList, TrendingUp, Flame, Scale, ChevronRight } from '../shared/iconos'
+import { CalendarDays, ClipboardList, TrendingUp, MoveRight, Scale, ChevronRight } from '../shared/iconos'
 import { useAuth } from '../../contexts/AuthContext'
 
 const REPORTES = [
@@ -28,10 +28,10 @@ const REPORTES = [
     bg: 'bg-red-50',
   },
   {
-    to: '/reportes/ventas-internas-fundicion',
-    icon: Flame,
-    titulo: 'Ventas internas de Fundición',
-    descripcion: 'Lo que Fundición despacha a otras bodegas, valorizado al costo del movimiento. Es el costo que se lleva al centro de costos Construequipos. Exporta a Excel.',
+    to: '/reportes/transferencias-internas',
+    icon: MoveRight,
+    titulo: 'Transferencias internas',
+    descripcion: 'Qué le pasó cada bodega a otra (Fundición → Mecanizados, Mecanizados → Ensamble…) en un período: productos, cantidades y valor. Exporta a Excel.',
     color: 'text-orange-700',
     bg: 'bg-orange-50',
     soloAdmin: true,

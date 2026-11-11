@@ -45,8 +45,8 @@ export const MODULOS = [
 
   { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, BOM, nómina', niveles: ['todo'], usaBodega: true,
     rutas: ['/fundidas', '/fundidas/nueva', '/moldeo', '/moldeo/nueva', '/moldeo/catalogo', '/recogida', '/nomina/fundicion', '/analitica/fundicion'] },
-  { clave: 'informes_fundicion', grupo: 'Producción', nombre: 'Informes de fundición', detalle: 'balance de hierro, ventas internas', niveles: ['ve'],
-    rutas: ['/reportes/balance-hierro', '/reportes/ventas-internas-fundicion'] },
+  { clave: 'informes_fundicion', grupo: 'Producción', nombre: 'Informes de fundición', detalle: 'balance de hierro, ventas internas, transferencias internas', niveles: ['ve'],
+    rutas: ['/reportes/balance-hierro', '/reportes/ventas-internas-fundicion', '/reportes/transferencias-internas'] },
   { clave: 'mecanizados',    grupo: 'Producción', nombre: 'Mecanizados', detalle: 'registro de mecanizado', niveles: ['todo'], usaBodega: true,
     rutas: ['/mecanizados/registro'] },
   { clave: 'ensamble',       grupo: 'Producción', nombre: 'Ensamble', detalle: 'planillas de producción y números de máquina', niveles: ['todo'], usaBodega: true, rlsPorMatriz: true,

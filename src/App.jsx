@@ -20,7 +20,7 @@ import HubReportes        from './components/reportes/HubReportes'
 import CorteInventario    from './components/reportes/CorteInventario'
 import InventarioFisico   from './components/reportes/InventarioFisico'
 import InformeKardex      from './components/reportes/InformeKardex'
-import InformeVentasInternasFundicion from './components/reportes/InformeVentasInternasFundicion'
+import InformeTransferenciasInternas from './components/reportes/InformeTransferenciasInternas'
 import InformeBalanceHierro from './components/reportes/InformeBalanceHierro'
 import RegistrarFundida    from './components/fundicion/RegistrarFundida'
 import ListaFundidas       from './components/fundicion/ListaFundidas'
@@ -111,7 +111,8 @@ function AppRoutes() {
     '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />,
     '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
     '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
-    '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeVentasInternasFundicion />,
+    '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeTransferenciasInternas origenFundicion />,
+    '/reportes/transferencias-internas': <InformeTransferenciasInternas />,
     '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <PlanillasProduccion />, '/ensamble/seriales': <SerialesMaquina />,
     '/calidad': <NoConformidades />, '/mantenimiento': <Mantenimiento />,
     '/of/nueva': <NuevaOrdenOFConClave />, '/of/ordenes': <ListaOrdenesOF />, '/of/resumen': <ResumenPlaneacionOF />, '/of/calendario': <CalendarioOF />,

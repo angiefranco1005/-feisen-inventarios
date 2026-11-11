@@ -493,82 +493,47 @@ export function exportarKardex(filas, fechaInicio, fechaFin, bodegaNombre = 'tod
 }
 
 // ─────────────────────────────────────────────────────────────
-//  EXPORTAR VENTAS INTERNAS DE FUNDICIÓN (salidas a otras bodegas)
-//  Valor = cantidad × costo guardado en el movimiento. Se lleva como costo
-//  al centro de costos Construequipos.
+//  EXPORTAR TRANSFERENCIAS INTERNAS ENTRE BODEGAS
+//  (reemplaza "Ventas internas de Fundición", 11/11/2026)
+//  Valor = cantidad × costo guardado en el movimiento. Solo la salida del origen.
 // ─────────────────────────────────────────────────────────────
-export function exportarVentasInternasFundicion(res, fechaInicio, fechaFin, bodegaNombre = 'Fundición') {
+export function exportarTransferenciasInternas(res, fechaInicio, fechaFin, { origen = 'Todas', destino = 'Todas' } = {}) {
   const wb = XLSX.utils.book_new()
   const fFecha = (iso) => { const [a, m, d] = (iso || '').slice(0, 10).split('-'); return d ? `${d}/${m}/${a}` : '' }
-  const periodo = `${fFecha(fechaInicio)} al ${fFecha(fechaFin)}`
   const COP = '"$"#,##0'
-  const rojoPale = 'FDE8E6'
+  const NUM = '#,##0.##'
+  const r0 = (n) => Math.round(n || 0)
+  const r2 = (n) => Math.round((n || 0) * 100) / 100
+  const sub = `Período: ${fFecha(fechaInicio)} al ${fFecha(fechaFin)} · Entrega: ${origen} · Recibe: ${destino} · `
+            + 'Valor al costo de cada movimiento; solo la salida del origen; sin revertidos.'
 
-  // ── Hoja 1: Resumen por destino ──
-  const aoa1 = [
-    [`VENTAS INTERNAS DE FUNDICIÓN — ${bodegaNombre}`],
-    [`Período: ${periodo}`],
-    ['Valor al costo registrado en cada movimiento. Se lleva como COSTO al centro de costos Construequipos.'],
-    [],
-    ['Destino', 'Movimientos', 'Líneas', 'Líneas sin costo', 'Valor (COP)'],
-    ...res.resumen.map(r => [r.destino, r.movimientos, r.lineas, r.sinCosto, Math.round(r.valor)]),
-    ['TOTAL', res.totalMovimientos, res.totalLineas, res.sinCosto.length, Math.round(res.totalValor)],
-  ]
-  const ws1 = XLSX.utils.aoa_to_sheet(aoa1)
-  ws1['!cols'] = [{ wch: 34 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 20 }]
-  estRow(ws1, 0, 5, S.titulo); mergeFila(ws1, 0, 0, 4)
-  estRow(ws1, 1, 5, S.info);   mergeFila(ws1, 1, 0, 4)
-  estRow(ws1, 2, 5, S.info);   mergeFila(ws1, 2, 0, 4)
-  estRow(ws1, 4, 5, S.encabezado)
-  const ult1 = aoa1.length - 1
-  for (let R = 5; R < ult1; R++) {
-    const par = R % 2 === 0
-    estRow(ws1, R, 5, par ? S.itemImpar : S.itemPar)
-    for (const c of [1, 2, 3]) ws1[XLSX.utils.encode_cell({ r: R, c })].s = S.itemNum(par)
-    ws1[XLSX.utils.encode_cell({ r: R, c: 4 })].s = { ...S.itemNum(par), numFmt: COP }
-  }
-  estRow(ws1, ult1, 5, S.total)
-  for (const c of [1, 2, 3]) ws1[XLSX.utils.encode_cell({ r: ult1, c })].s = { ...S.totalNum, numFmt: '#,##0' }
-  ws1[XLSX.utils.encode_cell({ r: ult1, c: 4 })].s = S.totalNum
-  XLSX.utils.book_append_sheet(wb, ws1, 'Resumen')
+  hojaTabla(wb, 'Por ruta', 'TRANSFERENCIAS INTERNAS — QUIÉN LE PASÓ A QUIÉN', sub,
+    ['Entrega (origen)', 'Recibe (destino)', 'Movimientos', 'Productos', 'Líneas', 'Unidades', 'Kg', 'Líneas sin costo', 'Valor (COP)'],
+    res.rutas.map(r => [r.origen, r.destino, r.movimientos, r.productos, r.lineas, r2(r.cantidad), r2(r.kg), r.sinCosto, r0(r.valor)]),
+    { anchos: [24, 24, 13, 11, 9, 12, 12, 15, 18], fmt: { 2: '#,##0', 3: '#,##0', 4: '#,##0', 5: NUM, 6: NUM, 7: '#,##0', 8: COP },
+      total: ['TOTAL', '', res.totalMovimientos, '', res.filas.length, r2(res.totalCantidad), r2(res.totalKg), res.sinCosto, r0(res.totalValor)] })
 
-  // ── Hoja 2: Detalle ──
-  const enc = ['Fecha', 'N° movimiento', 'Producto', 'Categoría', 'Origen', 'Destino', 'Cantidad', 'Unidad',
-               'Costo unitario (COP)', 'Valor (COP)', 'Registrado por', 'Referencia', 'Observación']
-  const aoa2 = [
-    enc,
-    ...res.filas.map(f => [
-      fFecha(f.fecha), f.numero, f.producto, f.categoria, f.origen, f.destino, f.cantidad, f.unidad,
-      Math.round(f.costo), Math.round(f.valor), f.usuario, f.referencia,
-      f.sinCosto ? `SIN COSTO en el movimiento${f.costoActual > 0 ? ` — costo actual del catálogo: $${Math.round(f.costoActual).toLocaleString('es-CO')}` : ''}` : '',
-    ]),
-    ['TOTAL', '', '', '', '', '', '', '', '', Math.round(res.totalValor), '', '', ''],
-  ]
-  const ws2 = XLSX.utils.aoa_to_sheet(aoa2)
-  ws2['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 46 }, { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 11 }, { wch: 10 },
-                  { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 34 }, { wch: 46 }]
-  estRow(ws2, 0, 13, S.encabezado)
-  const ult2 = aoa2.length - 1
-  for (let R = 1; R < ult2; R++) {
-    const f = res.filas[R - 1]
-    const par = R % 2 === 0
-    estRow(ws2, R, 13, par ? S.itemImpar : S.itemPar)
-    ws2[XLSX.utils.encode_cell({ r: R, c: 6 })].s = { ...S.itemNum(par), numFmt: '#,##0.###' }
-    for (const c of [8, 9]) ws2[XLSX.utils.encode_cell({ r: R, c })].s = { ...S.itemNum(par), numFmt: COP }
-    if (f?.sinCosto) {
-      for (let c = 0; c < 13; c++) {
-        const cell = ws2[XLSX.utils.encode_cell({ r: R, c })]
-        cell.s = { ...cell.s, fill: fill(rojoPale), font: font(C.rojo, c === 12, 10) }
-      }
-    }
-  }
-  estRow(ws2, ult2, 13, S.total)
-  ws2[XLSX.utils.encode_cell({ r: ult2, c: 9 })].s = S.totalNum
-  ws2['!freeze'] = { xSplit: 0, ySplit: 1 }
-  ws2['!autofilter'] = { ref: `A1:M${aoa2.length - 1}` }
-  XLSX.utils.book_append_sheet(wb, ws2, 'Detalle')
+  hojaTabla(wb, 'Por producto', 'TRANSFERENCIAS INTERNAS — PRODUCTOS', sub,
+    ['Entrega (origen)', 'Recibe (destino)', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Kg', 'Veces', 'Costo promedio (COP)', 'Valor (COP)', 'Observación'],
+    res.productos.map(p => [p.origen, p.destino, p.producto, p.categoria, r2(p.cantidad), p.unidad, r2(p.kg), p.veces, r0(p.costoProm), r0(p.valor),
+      p.sinCosto ? `${p.sinCosto} de ${p.veces} línea(s) sin costo` : '']),
+    { anchos: [22, 22, 44, 22, 11, 9, 11, 8, 18, 18, 26], fmt: { 4: NUM, 6: NUM, 7: '#,##0', 8: COP, 9: COP },
+      alerta: (f) => !!f[10],
+      total: ['TOTAL', '', `${res.productos.length} productos`, '', r2(res.totalCantidad), '', r2(res.totalKg), res.filas.length, '', r0(res.totalValor), ''] })
 
-  XLSX.writeFile(wb, `ventas_internas_fundicion_${fechaInicio}_${fechaFin}.xlsx`)
+  const ws = hojaTabla(wb, 'Detalle', 'TRANSFERENCIAS INTERNAS — DETALLE DE MOVIMIENTOS', sub,
+    ['Fecha', 'N° movimiento', 'Entrega (origen)', 'Recibe (destino)', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Kg',
+     'Costo unitario (COP)', 'Valor (COP)', 'Registrado por', 'Referencia', 'Observación'],
+    res.filas.map(f => [fFecha(f.fecha), f.numero, f.origen, f.destino, f.producto, f.categoria, r2(f.cantidad), f.unidad, r2(f.kg),
+      r0(f.costo), r0(f.valor), f.usuario, f.referencia,
+      f.sinCosto ? `SIN COSTO en el movimiento${f.costoActual > 0 ? ` — costo actual: $${r0(f.costoActual).toLocaleString('es-CO')}` : ''}` : '']),
+    { anchos: [11, 15, 20, 20, 42, 20, 10, 9, 10, 16, 16, 20, 30, 40], fmt: { 6: NUM, 8: NUM, 9: COP, 10: COP },
+      alerta: (f) => !!f[13],
+      total: ['TOTAL', '', '', '', '', '', r2(res.totalCantidad), '', r2(res.totalKg), '', r0(res.totalValor), '', '', ''] })
+  ws['!freeze'] = { xSplit: 0, ySplit: 3 }
+  ws['!autofilter'] = { ref: `A3:N${res.filas.length + 3}` }
+
+  XLSX.writeFile(wb, `transferencias_internas_${fechaInicio}_${fechaFin}.xlsx`)
 }
 
 // ─────────────────────────────────────────────────────────────
