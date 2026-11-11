@@ -4,6 +4,7 @@
 //                proveedor menos notas crédito, sin IVA), no las cuentas contables. Lo que no trae centro
 //                queda en 'Sin centro' y la pantalla lo reparte según las ventas.
 //   'pendientes' (empresa): facturas por cobrar y por pagar sin saldar y el saldo de bancos y caja.
+//   'cuentas'    (empresa, mes = año 'YYYY'): plan de cuentas con saldo y movimiento, para homologar las dos empresas.
 // Usa la API JSON-2 de Odoo 19 con los mismos secretos que ventas-odoo.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -142,6 +143,35 @@ async function pendientes(cfg: Cfg, clave: string) {
   return { docs, bancos }
 }
 
+// Plan de cuentas con su movimiento: saldo acumulado (todo el histórico), movimiento del año y número
+// de líneas. Sirve para homologar las cuentas de Feisen y FC antes de armar los EEFF desde Odoo.
+async function cuentas(cfg: Cfg, clave: string, anio: string) {
+  const plan = await odoo(cfg, clave, 'account.account', 'search_read', {
+    domain: [], fields: ['code', 'name', 'account_type', 'reconcile', 'active'], context: { active_test: false },
+  })
+  // formatted_read_group (Odoo 19) agrupa en el servidor; así no se bajan decenas de miles de líneas
+  const agrupar = async (domain: unknown[]) => {
+    const grupos = await odoo(cfg, clave, 'account.move.line', 'formatted_read_group', {
+      domain, groupby: ['account_id'], aggregates: ['balance:sum', 'debit:sum', 'credit:sum', '__count'],
+    })
+    const m: Record<number, { saldo: number; debito: number; credito: number; lineas: number }> = {}
+    for (const g of grupos) {
+      const id = Array.isArray(g.account_id) ? g.account_id[0] : g.account_id
+      m[id] = { saldo: r2(g['balance:sum'] || 0), debito: r2(g['debit:sum'] || 0), credito: r2(g['credit:sum'] || 0), lineas: g.__count || 0 }
+    }
+    return m
+  }
+  const total = await agrupar([['parent_state', '=', 'posted']])
+  const delAnio = await agrupar([['parent_state', '=', 'posted'], ['date', '>=', `${anio}-01-01`], ['date', '<=', `${anio}-12-31`]])
+  return {
+    cuentas: plan.map((c: any) => ({
+      codigo: c.code, nombre: c.name, tipo: c.account_type, conciliable: c.reconcile, activa: c.active,
+      saldo: total[c.id]?.saldo || 0, lineas: total[c.id]?.lineas || 0,
+      debitoAnio: delAnio[c.id]?.debito || 0, creditoAnio: delAnio[c.id]?.credito || 0,
+    })).sort((a: any, b: any) => String(a.codigo).localeCompare(String(b.codigo))),
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -165,6 +195,7 @@ serve(async (req) => {
       return responder(await resultado(cfg, clave, mes))
     }
     if (accion === 'pendientes') return responder(await pendientes(cfg, clave))
+    if (accion === 'cuentas') return responder(await cuentas(cfg, clave, /^\d{4}$/.test(mes || '') ? mes : String(new Date().getFullYear())))
     return responder({ error: 'Acción desconocida.' }, 400)
   } catch (e) {
     return responder({ error: (e as Error).message || 'No se pudo consultar Odoo.' }, 502)
