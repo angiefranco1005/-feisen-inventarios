@@ -98,7 +98,7 @@ export default function Eeff() {
       const { data: bods } = await supabase.from('bodegas').select('id, nombre').ilike('nombre', '%fundic%')
       const ids = (bods || []).map(b => b.id)
       const { data, error: err } = await fetchAllPages((d, h) => supabase.from('movimientos')
-        .select('id, cantidad, bodega_origen_id, bodega_destino_id, items(nombre, peso_unitario, categorias(nombre)), bodegas_destino:bodega_destino_id(nombre)')
+        .select('id, numero, cantidad, precio_costo_snapshot, bodega_origen_id, bodega_destino_id, items(nombre, peso_unitario, categorias(nombre)), bodegas_destino:bodega_destino_id(nombre)')
         .eq('tipo', 'salida').in('bodega_origen_id', ids).not('bodega_destino_id', 'is', null)
         .is('revertido_en', null).or('revertido.is.null,revertido.eq.false')
         .or(`and(fecha_movimiento.gte.${desde},fecha_movimiento.lte.${hasta}),and(fecha_movimiento.is.null,created_at.gte.${desde}T00:00:00,created_at.lte.${hasta}T23:59:59)`)
@@ -107,9 +107,16 @@ export default function Eeff() {
       const piezas = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIAL FUNDIDO HIERRO')
       const kg = piezas.reduce((s, x) => s + Number(x.cantidad) * (Number(x.items?.peso_unitario) || 0), 0)
       const sinPeso = piezas.filter(x => !Number(x.items?.peso_unitario)).length
+      // Materia prima de Fundición registrada como salida a otra bodega (errores de registro de oct 2026):
+      // no es transferencia interna, se descuenta aquí y se deja la observación (decisión de Angie, 11/11)
+      const mp = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIA PRIMA')
+      const excluido = mp.length ? {
+        valor: mp.reduce((s, x) => s + Number(x.cantidad) * (Number(x.precio_costo_snapshot) || 0), 0),
+        documentos: [...new Set(mp.map(x => x.numero))].sort(),
+      } : null
       const { data: man } = await supabase.from('eeff_manual').select('concepto, empresa, valor').eq('mes', mes)
       setManual(Object.fromEntries((man || []).map(x => [`${x.concepto}|${x.empresa}`, Number(x.valor)])))
-      setErp({ cargando: false, error: '', hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso } })
+      setErp({ cargando: false, error: '', hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso, excluido } })
     } catch (e) {
       setErp({ cargando: false, hierro: null, error: e.message || 'No se pudo leer el ERP.' })
     }
@@ -151,7 +158,9 @@ export default function Eeff() {
       abierto={abierto === 'dev'} onClick={() => alternar('dev')} detalle={detalleDe('devoluciones')} />
   )
   const notaHierro = erp.cargando ? 'Leyendo salidas de Fundición…' : erp.error ? `Error: ${erp.error}`
-    : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}`
+    : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}${erp.hierro.excluido
+      ? ` · Observación: se descontaron ${pesos(erp.hierro.excluido.valor)} de materia prima de Fundición registrada como salida a otra bodega (${erp.hierro.excluido.documentos.join(', ')}); no es transferencia interna`
+      : ''}`
   const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', t)} />
 
   // Secciones que faltan por definir; en Construequipos, debajo de "Materia prima" van las transferencias recibidas

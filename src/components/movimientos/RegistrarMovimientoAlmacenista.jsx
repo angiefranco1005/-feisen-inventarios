@@ -632,6 +632,17 @@ export default function RegistrarMovimientoAlmacenista() {
     const agrupados = agruparProductos(sProductos)
     if (agrupados.length === 0) { setError('Agrega al menos un producto con cantidad.'); return }
 
+    // La materia prima de Fundición no es transferencia interna: se descuenta sola al registrar la fundida
+    // (decisión de Angie, 11/11/2026). La base de datos también lo bloquea (trigger trg_bloquear_mp_fundicion).
+    if (esInterna) {
+      const { data: cats } = await supabase.from('items').select('nombre, categorias(nombre)').in('id', agrupados.map(p => p.item_id))
+      const mp = (cats || []).filter(i => i.categorias?.nombre === 'MATERIA PRIMA').map(i => i.nombre)
+      if (mp.length) {
+        setError(`La materia prima no se transfiere a otra bodega (${mp.join(', ')}). Se descuenta sola al registrar la fundida en Fundición › Fundidas.`)
+        return
+      }
+    }
+
     // Mecanizados → "Soldadura y Armado": las piezas entran con stock a la bodega de
     // Ensamble (se consumen al registrar el avance de una orden de ensamble).
     const esMecEnsamble = esMecanizados && tipoSalidaMec === 'produccion' && destinoMec === 'SOLDADURA Y ARMADO'
