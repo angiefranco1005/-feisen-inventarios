@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
+import { BODEGA_FUNDICION_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { coincideBusqueda } from '../../utils/busqueda'
 import {
   ClipboardList, ChevronRight, Search, Plus, AlertTriangle, TrendingUp, Calendar,
@@ -21,6 +21,23 @@ function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
 const kg = n => Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })
+const decimal = v => parseFloat(String(v ?? '').replace(',', '.')) || 0
+
+// Número consecutivo de salida del usuario (SAL-iniciales-0001), igual que en Registrar fundida
+async function generarNumSalida(perfil) {
+  const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
+  const pre = `SAL-${iniciales}-`
+  const { data: last } = await supabase
+    .from('movimientos').select('numero').like('numero', `${pre}%`)
+    .order('numero', { ascending: false }).limit(1).maybeSingle()
+  const n = last?.numero ? parseInt(last.numero.replace(pre, ''), 10) || 0 : 0
+  return `${pre}${String(n + 1).padStart(4, '0')}`
+}
+
+// Arenas de moldeo = materia prima de la bodega Fundición cuyo nombre dice ARENA (decisión de Angie, 11/11/2026).
+// Su consumo se anota en el avance del día y sale del stock como consumo (sin bodega destino),
+// con referencia ORD-MOL-xxxx y la fecha del avance.
+const MOTIVO_ARENA = 'Consumo arena moldeo'
 const num = n => Number(n || 0).toLocaleString('es-CO')
 
 // Días que lleva abierta una orden (desde su fecha hasta hoy en Colombia)
@@ -150,6 +167,12 @@ export default function ListaOrdenesMoldeo() {
   const [fechaAvance,  setFechaAvance]  = useState({})
   const [guardandoAv,  setGuardandoAv]  = useState(null)
   const [errorAv,      setErrorAv]      = useState({})
+  // Arenas: catálogo, kg digitados en el avance y consumo ya registrado por orden
+  const [arenas,       setArenas]       = useState([])  // [{ id, nombre, unidad_medida, precio_costo, stock }]
+  const [arenaHoy,     setArenaHoy]     = useState({})  // { [ordenId]: { [itemId]: string } }
+  const [arenaData,    setArenaData]    = useState({})  // { [ordenId]: [{ item_id, fecha, cantidad }] }
+  // Orden cuyo descuento de arenas ya se guardó pero falló el avance de piezas: al reintentar no se repite
+  const [arenaYaGuardada, setArenaYaGuardada] = useState({})
 
   // Vista dentro de la orden abierta: 'pieza' | 'moldeador' | 'historial'
   const [vistaAbierta, setVistaAbierta] = useState({})
@@ -191,6 +214,21 @@ export default function ListaOrdenesMoldeo() {
     setFundBodegaId(bods?.id || null)
     setOrdenes(ords || [])
     setCargando(false)
+    cargarArenas()
+  }
+
+  async function cargarArenas() {
+    const { data: its } = await supabase.from('items')
+      .select('id, nombre, unidad_medida, precio_costo, categorias(nombre)')
+      .eq('bodega_id', BODEGA_FUNDICION_ID).eq('activo', true)
+      .ilike('nombre', '%arena%')
+      .order('nombre')
+    const lista = (its || []).filter(i => (i.categorias?.nombre || '').trim().toUpperCase() === 'MATERIA PRIMA')
+    if (lista.length === 0) { setArenas([]); return }
+    const { data: st } = await supabase.from('stock')
+      .select('item_id, cantidad_actual').in('item_id', lista.map(i => i.id)).eq('bodega_id', BODEGA_FUNDICION_ID)
+    const stMap = Object.fromEntries((st || []).map(s => [s.item_id, Number(s.cantidad_actual ?? 0)]))
+    setArenas(lista.map(i => ({ ...i, stock: stMap[i.id] ?? 0 })))
   }
 
   async function cargarAvancesYStock(orden, bodegaId) {
@@ -198,7 +236,8 @@ export default function ListaOrdenesMoldeo() {
     const piezaIds = piezas.map(p => p.id)
     const itemIds  = piezas.map(p => p.item_id)
 
-    const [{ data: avData }, { data: stData }] = await Promise.all([
+    const arenaIds = arenas.map(a => a.id)
+    const [{ data: avData }, { data: stData }, { data: arData }] = await Promise.all([
       piezaIds.length > 0
         ? supabase.from('ordenes_moldeo_avances')
             .select('orden_pieza_id, fecha, cantidad_moldeada')
@@ -210,6 +249,12 @@ export default function ListaOrdenesMoldeo() {
             .select('item_id, cantidad_actual')
             .in('item_id', itemIds)
             .eq('bodega_id', bodegaId)
+        : { data: [] },
+      arenaIds.length > 0
+        ? supabase.from('movimientos')
+            .select('item_id, cantidad, fecha_movimiento')
+            .eq('referencia', numOrden(orden.numero)).eq('tipo', 'salida').eq('revertido', false)
+            .in('item_id', arenaIds)
         : { data: [] },
     ])
 
@@ -224,6 +269,7 @@ export default function ListaOrdenesMoldeo() {
 
     setAvancesData(prev => ({ ...prev, [orden.id]: avMap }))
     setStockData(prev => ({ ...prev, [orden.id]: stMap }))
+    setArenaData(prev => ({ ...prev, [orden.id]: (arData || []).map(m => ({ item_id: m.item_id, fecha: m.fecha_movimiento, cantidad: Number(m.cantidad || 0) })) }))
   }
 
   async function toggle(orden) {
@@ -241,6 +287,11 @@ export default function ListaOrdenesMoldeo() {
   }
   function getAv(ordenId, piezaId) { return avanceHoy[ordenId]?.[piezaId] ?? '' }
 
+  function setArena(ordenId, itemId, val) {
+    setArenaHoy(prev => ({ ...prev, [ordenId]: { ...(prev[ordenId] || {}), [itemId]: val } }))
+  }
+  function getArena(ordenId, itemId) { return arenaHoy[ordenId]?.[itemId] ?? '' }
+
   async function guardarAvance(orden) {
     setErrorAv(prev => ({ ...prev, [orden.id]: '' }))
     const fecha  = fechaAvance[orden.id] || hoyCol()
@@ -248,28 +299,78 @@ export default function ListaOrdenesMoldeo() {
     const rows   = piezas
       .map(p => ({ pieza: p, cant: Number(getAv(orden.id, p.id) || 0) }))
       .filter(r => r.cant > 0)
+    const filasArena = arenaYaGuardada[orden.id] ? [] : arenas
+      .map(a => ({ arena: a, cant: decimal(getArena(orden.id, a.id)) }))
+      .filter(r => r.cant > 0)
 
-    if (rows.length === 0) {
-      setErrorAv(prev => ({ ...prev, [orden.id]: 'Ingresa al menos una cantidad mayor a 0.' }))
+    if (rows.length === 0 && filasArena.length === 0) {
+      setErrorAv(prev => ({ ...prev, [orden.id]: 'Ingresa al menos una cantidad de piezas o los kg de arena usados.' }))
+      return
+    }
+    if (arenas.some(a => decimal(getArena(orden.id, a.id)) < 0)) {
+      setErrorAv(prev => ({ ...prev, [orden.id]: 'Los kg de arena no pueden ser negativos.' }))
       return
     }
     setGuardandoAv(orden.id)
+    let arenaOk = false
     try {
-      const { error } = await supabase.from('ordenes_moldeo_avances').insert(
-        rows.map(r => ({
-          orden_pieza_id:    r.pieza.id,
-          fecha,
-          cantidad_moldeada: r.cant,
-          registrado_por_id: perfil?.id || null,
-        }))
-      )
-      if (error) throw error
+      // 1. Arenas: revisar stock y descontar (una sola inserción: se guardan todas o ninguna)
+      if (filasArena.length > 0) {
+        const { data: st, error: errSt } = await supabase.from('stock')
+          .select('item_id, cantidad_actual').in('item_id', filasArena.map(r => r.arena.id)).eq('bodega_id', BODEGA_FUNDICION_ID)
+        if (errSt) throw errSt
+        const faltan = filasArena.filter(r => Number(st?.find(x => x.item_id === r.arena.id)?.cantidad_actual ?? 0) < r.cant)
+        if (faltan.length > 0) {
+          setErrorAv(prev => ({ ...prev, [orden.id]: 'No hay suficiente arena en la bodega Fundición: ' + faltan.map(r =>
+            `${r.arena.nombre} (necesitas ${kg(r.cant)} kg, hay ${kg(st?.find(x => x.item_id === r.arena.id)?.cantidad_actual)} kg)`).join('; ') + '.' }))
+          return
+        }
+        const numSal = await generarNumSalida(perfil)
+        const cc     = await nombreBodega(BODEGA_FUNDICION_ID, 'FUNDICIÓN') // nombre actual de la bodega
+        const { error: errAr } = await supabase.from('movimientos').insert(
+          filasArena.map(r => ({
+            numero:                numSal,
+            tipo:                  'salida',
+            item_id:               r.arena.id,
+            bodega_origen_id:      BODEGA_FUNDICION_ID,
+            bodega_destino_id:     null,
+            cantidad:              r.cant,
+            precio_costo_snapshot: r.arena.precio_costo || 0,
+            centro_costo:          cc,
+            usuario_id:            perfil.id,
+            referencia:            numOrden(orden.numero),
+            fecha_movimiento:      fecha,
+            motivo:                MOTIVO_ARENA,
+            foto_remision_url: null, destino: null,
+            numero_of: null, serial_motor: null, cliente: null, proveedor: null,
+          }))
+        )
+        if (errAr) throw errAr
+        arenaOk = true
+        setArenaYaGuardada(prev => ({ ...prev, [orden.id]: true }))
+      }
+
+      // 2. Avance de piezas
+      if (rows.length > 0) {
+        const { error } = await supabase.from('ordenes_moldeo_avances').insert(
+          rows.map(r => ({
+            orden_pieza_id:    r.pieza.id,
+            fecha,
+            cantidad_moldeada: r.cant,
+            registrado_por_id: perfil?.id || null,
+          }))
+        )
+        if (error) throw error
+      }
       setAvanceHoy(prev => ({ ...prev, [orden.id]: {} }))
+      setArenaHoy(prev => ({ ...prev, [orden.id]: {} }))
+      setArenaYaGuardada(prev => ({ ...prev, [orden.id]: false }))
       setPanelAvance(prev => ({ ...prev, [orden.id]: false }))
-      await cargarAvancesYStock(orden, fundBodegaId)
+      await Promise.all([cargarAvancesYStock(orden, fundBodegaId), cargarArenas()])
       avisar(`Avance registrado en ${numOrden(orden.numero)}`)
     } catch (e) {
-      setErrorAv(prev => ({ ...prev, [orden.id]: 'Error: ' + e.message }))
+      setErrorAv(prev => ({ ...prev, [orden.id]: 'Error: ' + e.message +
+        (arenaOk ? '. La arena ya quedó descontada: al reintentar solo se guardan las piezas.' : '') }))
     } finally {
       setGuardandoAv(null)
     }
@@ -601,6 +702,23 @@ export default function ListaOrdenesMoldeo() {
     const stOrden    = stockData[orden.id]   || {}
     const r          = resumenOrden(orden, avOrden, stOrden)
     const registrando = !completada && !cancelada && !!panelAvance[orden.id]
+    // Arena consumida en la orden: total, por arena y por fecha
+    const consArena  = arenaData[orden.id] || []
+    const nombreArena = id => arenas.find(a => a.id === id)?.nombre || 'Arena'
+    const totalArena = consArena.reduce((s, m) => s + m.cantidad, 0)
+    const arenaPorItem = {}
+    const arenaPorFecha = {}
+    consArena.forEach(m => {
+      arenaPorItem[m.item_id] = (arenaPorItem[m.item_id] || 0) + m.cantidad
+      ;(arenaPorFecha[m.fecha] ||= []).push(m)
+    })
+    const fechasHistorial = [...new Set([...r.fechasDesc, ...Object.keys(arenaPorFecha)])].sort((a, b) => b.localeCompare(a))
+    const resumenArena = totalArena > 0 && (
+      <p className="text-xs text-feisen-texto-2 tabular-nums">
+        <span className="font-medium text-feisen-texto">Arena usada: {kg(totalArena)} kg</span>
+        {' · '}{Object.entries(arenaPorItem).map(([id, c]) => `${nombreArena(id)} ${kg(c)}`).join(' · ')}
+      </p>
+    )
 
     const encabezado = (
       <div className="space-y-1.5">
@@ -653,6 +771,7 @@ export default function ListaOrdenesMoldeo() {
                 <Cifra etiqueta="Kg" valor={kg(r.kgMoldeados)} detalle="moldeados" />
               </div>
               <BarraProgreso pct={r.pctAvance} />
+              {resumenArena}
               {r.hayStockAlerta && !cancelada && (
                 <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
                   <AlertTriangle size={14} className="shrink-0 mt-px" />
@@ -755,7 +874,7 @@ export default function ListaOrdenesMoldeo() {
 
             {/* Vista: Historial diario */}
             {(vistaAbierta[orden.id] || 'pieza') === 'historial' && (
-              r.fechasDesc.length === 0 ? (
+              fechasHistorial.length === 0 ? (
                 <div className="text-center py-8">
                   <TrendingUp size={28} className="mx-auto mb-2 text-gray-300" />
                   <p className="text-sm font-medium text-feisen-texto">Sin avances registrados</p>
@@ -763,8 +882,9 @@ export default function ListaOrdenesMoldeo() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {r.fechasDesc.map(fecha => {
-                    const entradas = r.historialPorFecha[fecha]
+                  {fechasHistorial.map(fecha => {
+                    const entradas = r.historialPorFecha[fecha] || []
+                    const arenaDia = arenaPorFecha[fecha] || []
                     const totalDia = entradas.reduce((s, e) => s + e.cantidad, 0)
                     return (
                       <section key={fecha}>
@@ -783,6 +903,15 @@ export default function ListaOrdenesMoldeo() {
                                 <p className="text-sm font-semibold text-feisen-texto tabular-nums">{num(e.cantidad)}</p>
                                 {e.kg > 0 && <p className="text-xs text-feisen-texto-2 tabular-nums">{kg(e.kg)} kg</p>}
                               </div>
+                            </li>
+                          ))}
+                          {arenaDia.map((m, i) => (
+                            <li key={`ar${i}`} className="flex items-start gap-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-feisen-texto break-words">{nombreArena(m.item_id)}</p>
+                                <p className="text-xs text-feisen-texto-2">Arena usada</p>
+                              </div>
+                              <p className="text-sm font-semibold text-feisen-texto tabular-nums shrink-0">{kg(m.cantidad)} kg</p>
                             </li>
                           ))}
                         </ul>
@@ -849,8 +978,57 @@ export default function ListaOrdenesMoldeo() {
               </ul>
             </section>
 
+            {/* Arenas usadas en el día: salen del stock de la bodega Fundición */}
+            <section className="space-y-2">
+              <div>
+                <h4 className="text-sm font-semibold text-feisen-texto">Arenas usadas</h4>
+                <p className="text-xs text-feisen-texto-2">Kg de arena gastados ese día. Se descuentan de la bodega Fundición. Deja en blanco las que no usaste.</p>
+              </div>
+              {arenaYaGuardada[orden.id] ? (
+                <p className="flex items-start gap-1.5 text-xs text-feisen-texto-2 bg-feisen-fondo rounded-lg px-3 py-2">
+                  <Check size={14} className="shrink-0 mt-px" /> La arena de este avance ya quedó descontada. Falta guardar las piezas.
+                </p>
+              ) : arenas.length === 0 ? (
+                <p className="text-xs text-feisen-texto-2 bg-feisen-fondo rounded-lg px-3 py-2">
+                  No hay arenas en el catálogo de Fundición. Crea el producto como materia prima de la bodega Fundición con “ARENA” en el nombre y aparecerá aquí.
+                </p>
+              ) : (
+                <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
+                  {arenas.map(a => {
+                    const v     = getArena(orden.id, a.id)
+                    const falta = decimal(v) > a.stock
+                    return (
+                      <li key={a.id} className="flex items-center gap-3 py-3">
+                        <label htmlFor={`arena-${orden.id}-${a.id}`} className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium text-feisen-texto break-words">{a.nombre}</span>
+                          <span className={`block text-xs tabular-nums ${falta ? 'text-amber-700' : 'text-feisen-texto-2'}`}>
+                            {falta && <AlertTriangle size={12} className="inline -mt-0.5 mr-1" />}
+                            En bodega: {kg(a.stock)} kg{falta ? ' · no alcanza' : ''}
+                          </span>
+                        </label>
+                        <div className="relative w-28 shrink-0">
+                          <input id={`arena-${orden.id}-${a.id}`} inputMode="decimal" value={v}
+                            onChange={e => setArena(orden.id, a.id, e.target.value.replace(/[^0-9.,]/g, ''))}
+                            onFocus={e => e.target.select()} placeholder="0"
+                            className={`${claseInput} pr-9 text-right tabular-nums font-semibold`} />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">kg</span>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
             <div className="sticky -bottom-4 -mx-5 px-5 pt-3 pb-4 bg-white border-t border-feisen-borde-suave flex gap-2">
-              <button type="button" onClick={() => setPanelAvance(prev => ({ ...prev, [orden.id]: false }))}
+              <button type="button" onClick={() => {
+                  setPanelAvance(prev => ({ ...prev, [orden.id]: false }))
+                  if (arenaYaGuardada[orden.id]) { // la arena ya se descontó: no dejarla marcada para el próximo avance
+                    setArenaYaGuardada(prev => ({ ...prev, [orden.id]: false }))
+                    setArenaHoy(prev => ({ ...prev, [orden.id]: {} }))
+                    cargarAvancesYStock(orden, fundBodegaId); cargarArenas()
+                  }
+                }}
                 className="border border-feisen-borde rounded-lg px-4 min-h-[48px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
                 Volver
               </button>
@@ -881,6 +1059,7 @@ export default function ListaOrdenesMoldeo() {
                   <p className={`text-xl font-semibold tabular-nums mt-0.5 ${totNC > 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{num(totNC)}</p>
                 </div>
               </section>
+              {resumenArena}
 
               <Segmentado valor={modo} onCambiar={setModo}
                 opciones={[{ valor: 'pieza', texto: 'Por pieza' }, { valor: 'moldeador', texto: 'Por moldeador' }]} />

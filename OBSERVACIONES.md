@@ -2291,3 +2291,21 @@ Biblioteca de manuales, procedimientos, instructivos, formatos y políticas por 
 - Ojo: este valor (costo del movimiento) **no** es el de la transferencia de Hierro de los EEFF (kg × $5.500, solo «MATERIAL FUNDIDO HIERRO»). Octubre 2026 aquí: Fundición → Armado y Soldadura $48.030.535 (incluye la materia prima que parece mal registrada), Fundición → Mecanizados $35.436.850, Mecanizados → Armado y Soldadura $10.747.802, Fundición → Almacén $418.000, Fundición → Aluminio $47.300.
 - **Errores de registro de Fundición (11/11, Angie):** toda salida de **materia prima** de Fundición a otra bodega es error de registro (en oct 2026: SAL-JA-0055/0056/0057 de Julián, $21.402.800 a costo, a "Armado y Soldadura"). **No se revierten** (movería el inventario de Fundición): EEFF las excluye de la transferencia interna y lo dice en una observación con los documentos.
   - Bloqueo: la pantalla de movimientos (Fundición › Salida › Transferencia interna) ya no deja enviar ítems de categoría MATERIA PRIMA y explica que se descuentan solos al registrar la fundida. Trigger en base de datos `trg_bloquear_mp_fundicion` (migración `2026-11-11_bloquear_mp_fundicion.sql`, no aplica a ADMIN) **aplicado 11/11 con OK de Angie**. Probado en transacción deshecha como Julián: materia prima a Armado → bloqueada; pieza fundida a Armado → pasa; materia prima sin destino (consumo, como la fundida) → pasa.
+
+## 2026-11-11 · Moldeo: consumo de arenas en el avance del día
+
+- Pedido de Angie: que el jefe de Fundición anote en la programación de moldeo lo que gasta de arenas.
+  Decisiones: se anota en **"Registrar avance del día"** de cada orden de moldeo (consumo real día a día), y
+  las arenas son los productos de la bodega Fundición, categoría **MATERIA PRIMA**, cuyo nombre contiene
+  **"ARENA"** (si se crea una arena nueva aparece sola; sin IDs fijos en el código).
+- Al guardar, cada arena con kg > 0 sale del stock de Fundición como **consumo** (salida sin bodega destino,
+  así no la frena `trg_bloquear_mp_fundicion`): número `SAL-iniciales-xxxx`, referencia `ORD-MOL-xxxx`,
+  fecha = fecha del avance, motivo "Consumo arena moldeo", costo = `precio_costo` del producto. Antes revisa
+  el stock y no deja guardar si no alcanza (dice cuánto hay).
+- Se puede guardar solo arena (sin piezas) o solo piezas. Orden de guardado: arenas (una sola inserción) y
+  luego piezas; si fallan las piezas, la arena queda marcada como descontada y el reintento solo guarda piezas.
+- La orden muestra "Arena usada: X kg" (por arena) en el resumen, también en órdenes completadas, y el
+  Historial lista la arena de cada día. Se lee de `movimientos` (referencia + ítems de arena), sin tabla nueva.
+- Archivo: `src/components/fundicion/ListaOrdenesMoldeo.jsx`. Probado en la demo (`vite.fundicion-demo`,
+  que ahora simula `virtual:pwa-register`): stock insuficiente bloquea, guardado normal, y fallo a mitad sin
+  descontar dos veces. No probado contra la base real.
