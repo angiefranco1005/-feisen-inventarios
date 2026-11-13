@@ -24,11 +24,12 @@ export const TIPOS_DOCUMENTO = [
   { value: 'PA',  label: 'Pasaporte' },
 ]
 
-// Centros de costo para repartir la nómina (pedido de Angie, 2026-11-13). Los ids son los
-// mismos de Finanzas › EEFF (construequipos / hierro / aluminio) para cruzar la mano de obra.
+// Centros de costo para repartir la nómina (pedido de Angie, 2026-11-13). Los ids son los mismos
+// de las órdenes de fabricación (items_of / profiles.centro_costo_of); en Finanzas › EEFF el de
+// Fundición Hierro se llama 'hierro'.
 export const CENTROS_COSTO = [
   { value: 'construequipos', label: 'Construequipos' },
-  { value: 'hierro',         label: 'Fundición Hierro' },
+  { value: 'fundicionHierro', label: 'Fundición Hierro' },
   { value: 'aluminio',       label: 'Aluminio' },
   { value: 'administracion', label: 'Administración' },
 ]

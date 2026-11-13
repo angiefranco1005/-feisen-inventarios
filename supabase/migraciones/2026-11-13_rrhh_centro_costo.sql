@@ -5,7 +5,7 @@
 -- ============================================================
 -- Pedido de Angie: clasificar a la gente en Construequipos, Fundición Hierro,
 -- Aluminio o Administración para sacar el valor de la nómina por centro de costo.
--- Los ids son los mismos de Finanzas › EEFF. La liquidación guarda el centro con
+-- Los ids son los mismos de las órdenes de fabricación (items_of, profiles.centro_costo_of). La liquidación guarda el centro con
 -- el que se pagó (si la persona cambia de centro, las quincenas viejas no cambian).
 
 ALTER TABLE public.empleados
@@ -15,10 +15,10 @@ ALTER TABLE public.nomina_liquidaciones
 
 ALTER TABLE public.empleados DROP CONSTRAINT IF EXISTS empleados_centro_costo_check;
 ALTER TABLE public.empleados ADD CONSTRAINT empleados_centro_costo_check
-  CHECK (centro_costo IN ('construequipos', 'hierro', 'aluminio', 'administracion'));
+  CHECK (centro_costo IN ('construequipos', 'fundicionHierro', 'aluminio', 'administracion'));
 ALTER TABLE public.nomina_liquidaciones DROP CONSTRAINT IF EXISTS nomina_liquidaciones_centro_costo_check;
 ALTER TABLE public.nomina_liquidaciones ADD CONSTRAINT nomina_liquidaciones_centro_costo_check
-  CHECK (centro_costo IN ('construequipos', 'hierro', 'aluminio', 'administracion'));
+  CHECK (centro_costo IN ('construequipos', 'fundicionHierro', 'aluminio', 'administracion'));
 
 -- Verificación
 SELECT column_name, table_name FROM information_schema.columns
