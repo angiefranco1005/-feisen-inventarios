@@ -2427,3 +2427,40 @@ Pedido de Angie: *"ver en tiempo real cómo vamos con temas de IVA, renta, certi
 - **Aviso fijo y visible:** es *una estimación para conversar con el revisor fiscal, no una declaración de renta*; la renta real tiene depuración fiscal (gastos no deducibles, renta presuntiva, tasa mínima, descuentos) que la pantalla no hace. La cifra nunca se presenta como definitiva.
 - No se copió el formato del revisor fiscal (es una hoja de contador): Angie necesita la respuesta, no un balance.
 - **Pendiente de verificar con datos reales** (desde la sesión solo se comprobó que compila): que las cifras cuadren contra Odoo y contra el Excel del revisor, y la duda del IVA ya liquidado.
+
+## Finanzas › EEFF — modo "Balance" (balance general) (13-nov-2026)
+
+Tercer modo de la pantalla Finanzas › EEFF, junto a "Un mes" y "Todo el año". **No comparte
+ningún cálculo con el estado de resultados**: el dato y la cuenta viven aparte, en
+`src/components/finanzas/calculoBalance.js`. Tocar el balance no puede mover un número del P&G.
+
+- **Dato:** función `finanzas-odoo`, acción `cuentas`, una llamada por empresa (`useOdoo('cuentas',
+  'ambas', { mes: <año> }, verBalance)`). Solo se pide cuando el modo está seleccionado. De cada
+  cuenta se usa **únicamente `saldo`**, que es el acumulado de toda la historia: por eso el balance
+  es "a hoy" y el modo no tiene selector de mes ni de año.
+- **No hay cuentas padre que dupliquen a sus hijas** (verificado contra Odoo): sumar todas las
+  cuentas de una empresa da **exactamente 0** en Feisen y en FC. Esa suma en cero es la fila de
+  **Comprobación** de la pantalla (se pinta en rojo si algún día no da cero). **No deduplicar por
+  prefijo.**
+- **Signos:** los activos vienen positivos; pasivo, patrimonio e ingresos vienen negativos. Se les
+  voltea el signo para mostrarlos en positivo. Las **transitorias se dejan con el signo de Odoo**,
+  porque a veces se comportan como activo y a veces como pasivo. La comprobación es
+  `Activo + transitorias − pasivo − patrimonio`, que es lo mismo que sumar todas las cuentas.
+- **Estructura:** grupos del PUC por los dos primeros dígitos, **cada uno se abre y muestra el
+  detalle cuenta por cuenta** (Angie lo pidió así). El grupo 15 parte el detalle en costo y
+  depreciación acumulada (159xxx) para que se vea la resta, no solo el neto.
+- **El balance no se divide por centro de costo:** en este modo el filtro de centro no aparece.
+  Tampoco se divide entre **corriente y no corriente** (Odoo no lo trae y deducirlo por prefijo
+  sería adivinar); se dice en la nota al pie porque el Excel de Angie sí lo tenía.
+- **Advertencias que la pantalla da arriba, antes de las cifras** (todas con la cifra sacada del
+  dato, no escrita en el código): el "banco" de FC no es plata real (movimientos sin conciliar, el
+  97 % de sus activos; mismo motivo por el que está excluido en Flujo de caja — aquí sí aparece,
+  marcado en ámbar, porque si no el balance no cuadraría); los movimientos transitorios de FC; que
+  FC no tiene patrimonio registrado, así que su "resultado del periodo" es de varios años; y que
+  **las dos contabilidades cuadran**, o sea que el problema no es un descuadre sino dónde está
+  ubicada la plata.
+- Cifras con las que se calibró (13/11/2026) — Feisen: activo $2.769.507.992 · pasivo
+  $1.496.437.892 · patrimonio registrado $671.918.174 · resultado del periodo $584.952.844 ·
+  transitorias −$16.199.083 · suma total $0. FC: activo $1.613.909.011 · pasivo $142.922.920 ·
+  patrimonio $0 · resultado $2.046.431.483 · transitorias $575.445.392 · suma total $0.
+  Propiedad, planta y equipo de Feisen: $1.536.355.226 − $757.133.219 = **$779.222.007**.
