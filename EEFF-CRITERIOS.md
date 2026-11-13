@@ -36,6 +36,31 @@ Las cuentas contables son **las mismas en las dos empresas** desde la homologaci
 
 La última columna, **"% ventas"**, es el análisis vertical: cada renglón como porcentaje de los **ingresos netos de la vista** (los del consolidado o los del centro que estés mirando), igual que la hoja "ANÁLISIS VERTICAL" del Excel. Se ve en computador; en celular la pantalla deja solo el total.
 
+## 2.2 La vista de todo el año
+
+Desde el **13/11/2026** la pantalla tiene dos modos: **"Un mes"**, el de siempre, y **"Todo el año"**.
+
+- **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con octubre, renglón por renglón.
+- En la vista del año los **meses van en columnas** y al final hay una columna con el **total del año**.
+- Las cifras se pueden ver **en millones, en pesos o como % de ventas** (el análisis vertical de siempre).
+- El **filtro de centro de costo funciona igual** que en la vista de un mes.
+- **En la vista del año no se escriben valores a mano.** Las casillas solo existen en la vista de un mes; si hay que escribir o corregir algo, se cambia de modo.
+
+### El total del año todavía NO es una cifra real: no se debe reportar
+
+Dicho con todas las letras: **la columna del año no sirve todavía para informar a nadie**. Faltan datos, y por dos razones:
+
+1. **Enero, febrero y marzo no están en Odoo para Feisen**, que en esos meses todavía estaba en SIIGO. De esos tres meses solo se ve lo de FC.
+2. **A varios meses les falta la mano de obra.** La nómina de producción se empezó a cargar en el ERP hace poco, y la de FC nunca se registró en Odoo. Un mes sin ese costo muestra una utilidad que no existe.
+
+Para dar una idea del tamaño del hueco: la mano de obra de todo el año suma **$387 M**, y **solo octubre son $165 M**. Por eso el informe de **octubre de 2026 da 8 % de utilidad neta** y la **columna del año da 41 %**, que es falso.
+
+La pantalla ya avisa: los meses incompletos van **marcados en ámbar** ("sin Odoo" o "sin mano de obra") y el título dice **"Utilidad neta del año (incompleta)"**.
+
+**Marzo de 2026 se ve enorme** ($1,62 mil M de ventas) porque ahí quedó cargado el acumulado de enero a marzo cuando Feisen pasó de SIIGO a Odoo. **No es un error del cálculo.**
+
+**Qué haría falta para que el año sirva:** cargar a mano los meses que quedaron en SIIGO (enero, febrero y marzo) y las nóminas que faltan. Mientras eso no esté, el año se mira para ver tendencias, no para reportar cifras.
+
 ## 3. Ingresos
 
 | Renglón | De dónde sale |
@@ -275,5 +300,6 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | **Se quitaron de la pantalla los dos sub-renglones de la nómina administrativa** (lo que viene del ERP y la casilla de las quincenas que falten), porque Angie no los necesitaba a la vista. El valor escrito a mano sigue guardado y sigue sumando; ahora se cambia solo pidiéndolo. El renglón lo explica en su nota |
 | 13/11 | Queda claro que la **510500 de Odoo FC no se usa en ningún renglón**: la nómina de FC, producción y administración, se toma del ERP. Pendiente que Angie lo confirme |
 | 13/11 | Gastos no operacionales conectados: 530507, 530501, 530504, 530502 y 530503 de Odoo Feisen. Solo Feisen (FC a mano), repartidos por ventas. **La 530508 queda por fuera a propósito**: ya está restada en los ingresos, y por eso las cuentas se nombran una por una y no por prefijo |
+| 13/11 | Nuevo modo **"Todo el año"** en la pantalla: los meses en columnas y una columna con el total del año, con el **mismo cálculo** que la vista de un mes (se comprobó octubre renglón por renglón). En el año no se escriben valores a mano. **El total del año todavía no es real y no se debe reportar**: faltan enero, febrero y marzo de Feisen (estaba en SIIGO) y la mano de obra de varios meses. Los meses incompletos van marcados en ámbar |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
