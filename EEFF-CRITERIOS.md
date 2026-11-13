@@ -61,7 +61,7 @@ La última columna, **"% ventas"**, es el análisis vertical: cada renglón como
 
 ## 2.2 La vista de todo el año
 
-Desde el **13/11/2026** la pantalla tiene dos modos: **"Un mes"**, el de siempre, y **"Todo el año"**.
+Desde el **13/11/2026** la pantalla tiene tres modos: **"Un mes"**, el de siempre, **"Todo el año"** y **"Balance"** (el balance general, que se explica en la sección 2.3). Esta sección es de la vista del año.
 
 - **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con **octubre** (que viene de Odoo) y con **septiembre** (que viene del Excel), renglón por renglón.
 - **Los dos modos usan la misma fuente para cada mes**, la de la sección 1.1: hasta septiembre el Excel, desde octubre Odoo y el ERP. Esto se arregló el **13/11/2026**; antes el Excel estaba solo en la vista del año y septiembre no daba igual en los dos lados.
@@ -413,7 +413,6 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | Con esos dos cambios, el estado de resultados de octubre **no deja ninguna cuenta por fuera salvo la 736000** ("Maquinaria y Equipo Planta", depreciación, $1.151.026) |
 | 13/11 | **Angie decidió que la depreciación (cuenta 736000) queda por fuera del informe.** Su Excel a mano tampoco tenía renglón de depreciación, así que el informe sigue su método. Es una decisión tomada, no un olvido: **no hay que "arreglarlo"**. Consecuencia: la utilidad del informe queda por encima de la contable en el valor de la depreciación (unos $1,15 millones al mes con octubre), y esa es una de las diferencias a tener presente si hay que cuadrar contra la contabilidad o el revisor fiscal. Si alguna vez cambia de opinión, el renglón iría dentro de los CIF |
 | 13/11 | Nuevo modo **"Todo el año"** en la pantalla: los meses en columnas y una columna con el total del año, con el **mismo cálculo** que la vista de un mes (se comprobó octubre renglón por renglón). En el año no se escriben valores a mano. **El total del año todavía no es real y no se debe reportar**: faltan enero, febrero y marzo de Feisen (estaba en SIIGO) y la mano de obra de varios meses. Los meses incompletos van marcados en ámbar |
-
 | 13/11 | **Los meses anteriores a octubre de 2026 salen del Excel de Angie en las dos vistas**, no solo en la del año. Antes el mismo mes mostraba cifras distintas según dónde se mirara: septiembre daba $795.901.155 de ingresos netos en la vista de un mes (leyendo Odoo, incompleto) y $827.138.921 en la del año (leyendo el Excel). **Ya dan iguales: $827.138.921 en las dos.** La regla quedó una sola para toda la pantalla: **hasta septiembre el Excel, desde octubre Odoo y el ERP** |
 | 13/11 | En un mes que viene del Excel **no se escribe nada**: las casillas se vuelven cifras de solo lectura (incluidas la transferencia de aluminio y las quincenas que falten de la mano de obra) y la pantalla avisa con un distintivo que el mes viene del Excel. A esos meses **no se les pide nada a Odoo**, así que abren al instante |
 | 13/11 | **El mes se escoge en una lista** con el nombre del mes ("Septiembre de 2026"), del más nuevo al más viejo, y ya no en un calendario |
