@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { EncabezadoPagina, Segmentado, useAviso } from '../shared/ui'
 import { ChevronDown, ChevronRight, RefreshCw } from '../shared/iconos'
-import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, hoyCol } from './comun'
+import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, millones, hoyCol } from './comun'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -17,6 +17,11 @@ import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, hoyCol } from './comun
 //  - Transferencias internas a Construequipos (ingreso de Hierro y Aluminio, materia prima de Construequipos;
 //    en el consolidado se anulan): Hierro = piezas "MATERIAL FUNDIDO HIERRO" que salen de Fundición a otra
 //    bodega en el ERP, kg × $5.500; Aluminio = valor a mano (todavía no registra salidas en el ERP).
+//
+// Paso 2 — Costos y gastos a mano con utilidad en vivo (13/11/2026): cada renglón de costo o gasto es una
+// casilla en la vista de su centro; al escribirla se recalculan los subtotales y las tres utilidades.
+// Mientras falten renglones la utilidad se marca como parcial. Después, cada renglón se irá conectando a
+// su fuente (Odoo o el ERP) y dejará de escribirse a mano.
 
 const PRECIO_KG_HIERRO = 5500
 const DESCUENTOS = c => c === '530508' || c.startsWith('4175')
@@ -51,13 +56,39 @@ const VISTAS = [
 // Columnas de cada renglón: concepto + Feisen / FC / Total (en celular solo concepto + Total)
 const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3'
 
-// Lo que todavía falta definir con Angie (estructura del Excel)
-const PENDIENTE = [
-  { seccion: 'Costos directos', filas: ['Materia prima', 'Mano de obra'] },
-  { seccion: 'Costos indirectos (CIF)', filas: ['Servicios públicos', 'Mantenimiento equipos planta', 'Transporte', 'Dotación', 'Insumos'], total: 'Utilidad bruta' },
-  { seccion: 'Gastos operacionales', filas: ['Viáticos', 'Publicidad', 'Comisiones', 'Nómina asesores y director comercial', 'Sueldos marketing / community', 'Honorarios', 'Nómina administrativa', 'Otros gastos operacionales'], total: 'Utilidad operacional' },
-  { seccion: 'Gastos no operacionales', filas: ['Intereses de impuestos', 'Gravámenes (4x1000)', 'Intereses bancarios', 'Comisiones financieras'], total: 'Utilidad neta' },
+// Costos y gastos: todavía se escriben a mano en cada centro (se guardan en eeff_manual, concepto
+// '<centro>:<fila>'). Al escribirlos, los subtotales y la utilidad se recalculan al instante.
+// En Consolidado no se escriben: es la suma de los tres centros, como la hoja consolidada del Excel de Angie.
+const BLOQUES = [
+  { id: 'costos_directos', seccion: 'Costos directos', subtotal: 'Total costos directos', filas: [
+    { id: 'materia_prima', nombre: 'Materia prima' },
+    { id: 'mano_obra', nombre: 'Mano de obra' },
+  ] },
+  { id: 'cif', seccion: 'Costos indirectos (CIF)', subtotal: 'Total CIF', utilidad: 'Utilidad bruta', filas: [
+    { id: 'servicios_publicos', nombre: 'Servicios públicos' },
+    { id: 'mantenimiento', nombre: 'Mantenimiento equipos planta' },
+    { id: 'transporte', nombre: 'Transporte' },
+    { id: 'dotacion', nombre: 'Dotación' },
+    { id: 'insumos', nombre: 'Insumos' },
+  ] },
+  { id: 'gastos_op', seccion: 'Gastos operacionales', subtotal: 'Total gastos operacionales', utilidad: 'Utilidad operacional', filas: [
+    { id: 'viaticos', nombre: 'Viáticos' },
+    { id: 'publicidad', nombre: 'Publicidad' },
+    { id: 'comisiones', nombre: 'Comisiones' },
+    { id: 'nomina_comercial', nombre: 'Nómina asesores y director comercial' },
+    { id: 'sueldos_marketing', nombre: 'Sueldos marketing / community' },
+    { id: 'honorarios', nombre: 'Honorarios' },
+    { id: 'nomina_admin', nombre: 'Nómina administrativa' },
+    { id: 'otros_operacionales', nombre: 'Otros gastos operacionales' },
+  ] },
+  { id: 'gastos_no_op', seccion: 'Gastos no operacionales', subtotal: 'Total gastos no operacionales', utilidad: 'Utilidad neta', filas: [
+    { id: 'intereses_impuestos', nombre: 'Intereses de impuestos' },
+    { id: 'gravamenes', nombre: 'Gravámenes (4x1000)' },
+    { id: 'intereses_bancarios', nombre: 'Intereses bancarios' },
+    { id: 'comisiones_financieras', nombre: 'Comisiones financieras' },
+  ] },
 ]
+const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
 
 // Clasifica las filas de 'pyg' de una empresa en los renglones de ingresos
 function ingresosDe(filas = []) {
@@ -142,9 +173,31 @@ export default function Eeff() {
   const Titulo = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)
   const transfAluminio = manual['transferencia_aluminio|total']
   const transfHierro = erp.hierro?.valor || 0
-  const totalPendiente = PENDIENTE.reduce((s, b) => s + b.filas.length, 0)
   const centro = CENTROS.find(c => c.id === vista)
   const tituloVista = VISTAS.find(v => v.valor === vista)?.titulo || 'consolidado'
+
+  // ── Costos y gastos a mano, y utilidad que va quedando ──
+  // En un centro se escriben; en Consolidado se suman los tres (las transferencias internas se anulan:
+  // son ingreso de Hierro/Aluminio y materia prima de Construequipos, y ninguna entra al consolidado).
+  const transfRecibidas = transfHierro + (transfAluminio || 0)
+  const escrito = (centroId, filaId) => manual[`${centroId}:${filaId}|total`]
+  const valorFila = filaId => {
+    if (!centro) return CENTROS.reduce((s, c) => s + (escrito(c.id, filaId) || 0), 0)
+    const v = escrito(centro.id, filaId) || 0
+    return centro.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
+  }
+  const totalBloque = b => b.filas.reduce((s, f) => s + valorFila(f.id), 0)
+  const porBloque = Object.fromEntries(BLOQUES.map(b => [b.id, totalBloque(b)]))
+  const ingresoBase = !centro ? neto('feisen') + neto('fc')
+    : centro.id === 'construequipos'
+      ? suma('feisen', centro.renglones) + suma('fc', centro.renglones) - val('feisen', 'devoluciones') - val('fc', 'devoluciones')
+      : val('feisen', centro.id) + val('fc', centro.id) + (centro.id === 'hierro' ? transfHierro : (transfAluminio || 0))
+  const utilidadBruta = ingresoBase - porBloque.costos_directos - porBloque.cif
+  const utilidadOperacional = utilidadBruta - porBloque.gastos_op
+  const utilidadNeta = utilidadOperacional - porBloque.gastos_no_op
+  const UTILIDAD = { 'Utilidad bruta': utilidadBruta, 'Utilidad operacional': utilidadOperacional, 'Utilidad neta': utilidadNeta }
+  const llenas = FILAS_COSTO.filter(f => centro ? escrito(centro.id, f.id) != null : CENTROS.some(c => escrito(c.id, f.id) != null)).length
+  const parcial = llenas < FILAS_COSTO.length
 
   const alternar = id => setAbierto(a => (a === id ? null : id))
   // Mientras Odoo carga, `ing` es null: los renglones se arman igual (filaDevoluciones es un elemento ya creado)
@@ -163,33 +216,33 @@ export default function Eeff() {
       : ''}`
   const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', t)} />
 
-  // Secciones que faltan por definir; en Construequipos, debajo de "Materia prima" van las transferencias recibidas
-  const pendientes = PENDIENTE.map(b => (
-    <div key={b.seccion}>
-      <Seccion titulo={b.seccion} />
-      <div className="divide-y divide-feisen-borde-suave">
-        {b.filas.map(f => (
-          <div key={f}>
-            <div className={`${GRID} px-4 py-2 text-sm items-center`}>
-              <span className="text-feisen-texto-2 pl-3">{f}</span>
-              <span className="sm:hidden text-xs text-gray-400">por definir</span>
-              {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
-            </div>
-            {vista === 'construequipos' && f === 'Materia prima' && (<>
-              <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
-              <SoloTotal nombre="Transferencia recibida — Aluminio"
-                nota={transfAluminio == null ? 'Sin valor: escríbelo en la vista Aluminio o Consolidado' : 'a mano'} valor={transfAluminio} sangria />
-            </>)}
-          </div>
-        ))}
-      </div>
-      {b.total && (
-        <div className={`${GRID} px-4 py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave text-sm font-semibold`}>
-          <span className="text-feisen-texto-2">{b.total}</span>
-          <span className="sm:hidden text-gray-300">—</span>
-          {[0, 1, 2].map(i => <span key={i} className="hidden sm:block text-right text-gray-300">—</span>)}
+  // Costos y gastos: casillas en la vista de un centro, suma de los centros en Consolidado.
+  // En Construequipos, debajo de "Materia prima" van las piezas recibidas de Hierro y Aluminio.
+  const pendientes = BLOQUES.map((b, i) => (
+    <div key={b.id}>
+      <Seccion titulo={b.seccion} nota={i === 0
+        ? (centro ? 'Escribe el valor del mes en cada renglón: la utilidad de abajo se actualiza sola.'
+          : 'Suma de los tres centros. Para escribir los valores, elige un centro arriba.')
+        : undefined} />
+      {b.filas.map(f => (
+        <div key={f.id}>
+          {centro
+            ? <SoloTotal nombre={f.nombre}
+                nota={centro.id === 'construequipos' && f.id === 'materia_prima' ? 'lo comprado; abajo van las piezas recibidas de Hierro y Aluminio' : undefined}>
+                <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${escrito(centro.id, f.id)}`}
+                  valor={escrito(centro.id, f.id)} onGuardar={t => guardarManual(`${centro.id}:${f.id}`, t)} />
+              </SoloTotal>
+            : <SoloTotal nombre={f.nombre} valor={valorFila(f.id) || null} />}
+          {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
+            <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
+            <SoloTotal nombre="Transferencia recibida — Aluminio"
+              nota={transfAluminio == null ? 'Sin valor: escríbelo en la vista Aluminio o Consolidado' : 'a mano'} valor={transfAluminio} sangria />
+          </>)}
         </div>
-      )}
+      ))}
+      <SoloTotal nombre={b.subtotal} valor={porBloque[b.id] || null} total />
+      {b.utilidad && <SoloTotal nombre={b.utilidad} nota={parcial ? `con lo que va cargado: ${llenas} de ${FILAS_COSTO.length} renglones` : undefined}
+        valor={UTILIDAD[b.utilidad]} total destacado />}
     </div>
   ))
 
@@ -213,14 +266,18 @@ export default function Eeff() {
           <Segmentado opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
         </div>
         <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
-          En construcción: listos los ingresos · faltan {totalPendiente} renglones de costos y gastos
+          Ingresos automáticos · costos y gastos a mano: {llenas} de {FILAS_COSTO.length} renglones
         </span>
       </div>
 
       {cargando && !ing ? <Cargando /> : error ? <ErrorOdoo mensaje={error} onReintentar={recargar} /> : ing && (
         <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
-          <div className="px-4 py-3 border-b border-feisen-borde-suave">
+          <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · {Titulo}</span>
+            <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${utilidadNeta < 0 ? 'bg-feisen-rojo-suave text-feisen-rojo'
+              : parcial ? 'bg-amber-50 text-amber-700' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+              Utilidad neta{parcial ? ' parcial' : ''}: {millones(utilidadNeta)}
+            </span>
           </div>
           <Encabezado />
 
@@ -271,7 +328,9 @@ export default function Eeff() {
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         Ventas = cuenta 412000 de cada Odoo por centro; las demás cuentas de ingreso (no operacionales) van dentro de Construequipos.
         Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
-        Toca un renglón para ver de qué cuentas sale.
+        Toca un renglón de ingresos para ver de qué cuentas sale.
+        Los costos y gastos se escriben por centro (Construequipos, Fundición Hierro o Aluminio) y quedan guardados en el ERP: Consolidado los suma.
+        Mientras falten renglones, la utilidad es parcial, porque sale de restar solo lo que ya está escrito.
       </p>
       {aviso}
     </div>
@@ -346,16 +405,19 @@ function Total({ nombre, feisen, fc, fuerte }) {
   )
 }
 
-// Renglón que solo tiene valor en la columna Total (transferencias internas). `children` reemplaza la cifra (casilla a mano).
-function SoloTotal({ nombre, nota, valor, sangria, total, children }) {
+// Renglón que solo tiene valor en la columna Total (transferencias, costos y gastos).
+// `children` reemplaza la cifra (casilla a mano); `destacado` es para las utilidades.
+function SoloTotal({ nombre, nota, valor, sangria, total, destacado, children }) {
   return (
-    <div className={`${GRID} px-4 text-sm items-center ${total ? 'py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave font-semibold' : 'py-2 border-t border-feisen-borde-suave'}`}>
+    <div className={`${GRID} px-4 text-sm items-center ${destacado ? 'py-3 bg-feisen-azul-suave border-y border-feisen-borde font-semibold'
+      : total ? 'py-2.5 bg-feisen-fondo border-y border-feisen-borde-suave font-semibold' : 'py-2 border-t border-feisen-borde-suave'}`}>
       <span className={`min-w-0 ${sangria ? 'pl-3' : ''}`}>
-        <span className="block text-feisen-texto">{nombre}</span>
+        <span className={`block ${destacado ? 'text-feisen-azul' : 'text-feisen-texto'}`}>{nombre}</span>
         {nota && <span className="block text-xs font-normal text-feisen-texto-2">{nota}</span>}
       </span>
       <span className="hidden sm:block" /><span className="hidden sm:block" />
-      {children || <span className="text-right tabular-nums text-feisen-texto">{valor != null ? pesos(valor) : '—'}</span>}
+      {children || <span className={`text-right tabular-nums ${valor < 0 ? 'text-feisen-rojo' : destacado ? 'text-feisen-azul' : 'text-feisen-texto'}`}>
+        {valor != null ? pesos(valor) : '—'}</span>}
     </div>
   )
 }
