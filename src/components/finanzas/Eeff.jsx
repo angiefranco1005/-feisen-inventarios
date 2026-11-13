@@ -175,6 +175,23 @@ for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
     AUTO[emp][fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
   }
 }
+
+// Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
+// (decisión de Angie, 13/11, para no contarlos dos veces). En Feisen se lee de las compras, la misma
+// fuente de su materia prima, para que la exclusión calce exacta; FC no tiene insumos de fundición.
+AUTO.feisen.insumos = {
+  fuente: 'compras', nota: 'insumos de producción que no son de las fundiciones (737001, 737002, 730500)',
+  porVentas: true,
+  filtro: x => {
+    const cod = String(x.cuenta).split(' ')[0]
+    if (!esInsumo(cod)) return false
+    return !CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) && !ES_MATERIA_PRIMA.has(sinAdornos(x.proveedor))
+  },
+}
+AUTO.fc.insumos = {
+  fuente: 'pyg', nota: 'insumos de producción (737001, 737002, 730500)', porVentas: true,
+  filtro: x => esInsumo(x.codigo),
+}
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
