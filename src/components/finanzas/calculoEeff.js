@@ -535,8 +535,15 @@ export function calcularMesHistorico(mes, centroId = null) {
   const utilidadOperacional = utilidadBruta - porBloque.gastos_op
   const utilidadNeta = utilidadOperacional - porBloque.gastos_no_op
 
+  // Mismo molde que `ingresosDe`, para que la pantalla pueda pedir el detalle de un renglón de ventas
+  // sin saber de dónde viene el mes. Del Excel no hay detalle por factura: solo el total.
+  const ing = Object.fromEntries(['feisen', 'fc'].map(emp => [
+    emp,
+    Object.fromEntries([...VENTAS.map(v => v.id), 'devoluciones'].map(id => [id, { valor: val(emp, id), detalle: [] }])),
+  ]))
+
   return {
-    historico: true, centro, val, suma, totalVentas, neto,
+    historico: true, centro, ing, val, suma, totalVentas, neto,
     transfHierro, transfAluminio, transfRecibidas,
     peso: () => 0, escrito: () => undefined, automatico: () => null,
     valorEmpresa, valorFila, nominaDeLaVista: () => 0,

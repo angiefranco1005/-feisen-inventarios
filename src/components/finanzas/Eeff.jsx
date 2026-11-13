@@ -58,6 +58,11 @@ const BaseVertical = createContext(0)
 const ANIOS = Array.from({ length: Math.max(1, Number(hoyCol().slice(0, 4)) - 2025) }, (_, i) => String(2026 + i))
 
 const MES_CORTO =['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+// Todos los meses que se pueden escoger, del más nuevo al más viejo: desde enero de 2026 hasta el mes
+// en curso. Se arma una lista y no un calendario para que escoger el mes sea un clic y se lea el nombre.
+const MESES_ELEGIBLES = ANIOS.flatMap(a => Array.from({ length: 12 }, (_, i) => `${a}-${String(i + 1).padStart(2, '0')}`))
+  .filter(m => m <= hoyCol().slice(0, 7))
+  .reverse()
 const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const nombreLargo = mes => MES_LARGO[Number(mes.slice(5, 7)) - 1]
 
@@ -116,8 +121,9 @@ export default function Eeff() {
   const centroId = vista === 'consolidado' ? null : vista
 
   // ── Datos del mes que se está mirando ──
-  const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes }, verMes)
-  const compras = useOdoo('resultado', 'feisen', { mes }, verMes)
+  const pideOdoo = verMes && !hayHistorico(mes)
+  const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes }, pideOdoo)
+  const compras = useOdoo('resultado', 'feisen', { mes }, pideOdoo)
   const [erp, setErp] = useState({ cargando: true, hierro: null, nomina: null, error: '' })
   const [manual, setManual] = useState({})
   const cargarErp = useCallback(async () => {
@@ -143,9 +149,13 @@ export default function Eeff() {
   const ano = useAno(anio, !verMes)
 
   // El cálculo del mes: la misma función que usa la vista del año
-  const calc = useMemo(() => calcularMes({
+  // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
+  // leyera Odoo, el mismo mes mostraría cifras distintas en cada vista. En Odoo esos meses están
+  // incompletos (Feisen venía de SIIGO y contabilidad cargó enero a marzo dentro de marzo).
+  const esHistorico = hayHistorico(mes)
+  const calc = useMemo(() => esHistorico ? calcularMesHistorico(mes, centroId) : calcularMes({
     pyg: datos, compras: compras.datos, hierro: erp.hierro?.valor, nomina: erp.nomina, manual, centroId,
-  }), [datos, compras.datos, erp.hierro, erp.nomina, manual, centroId])
+  }), [esHistorico, mes, datos, compras.datos, erp.hierro, erp.nomina, manual, centroId])
 
   const {
     centro, ing, val, suma, totalVentas, neto, transfHierro, transfAluminio,
@@ -189,7 +199,9 @@ export default function Eeff() {
     : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}${erp.hierro.excluido
       ? ` · Observación: se descontaron ${pesos(erp.hierro.excluido.valor)} de materia prima de Fundición registrada como salida a otra bodega (${erp.hierro.excluido.documentos.join(', ')}); no es transferencia interna`
       : ''}`
-  const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', 'total', t)} />
+  const casillaAluminio = esHistorico
+    ? <Cifra v={transfAluminio} />
+    : <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', 'total', t)} />
 
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
@@ -205,6 +217,8 @@ export default function Eeff() {
   }
   // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
   const celda = (f, empresa) => {
+    // En un mes que viene del Excel no se escribe nada: esas cifras ya están cerradas
+    if (esHistorico) return <Cifra v={valorEmpresa(f.id, empresa)} />
     // Mano de obra de FC: la columna muestra el total (nómina del ERP + lo escrito); se escribe abajo
     if (!centro || AUTO[empresa]?.[f.id] || (empresa === 'fc' && (f.id === 'mano_obra' || f.id === 'nomina_admin'))) return <Cifra v={valorEmpresa(f.id, empresa)} />
     return <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${empresa}-${escrito(centro.id, f.id, empresa)}`}
@@ -215,10 +229,10 @@ export default function Eeff() {
   // En Construequipos, debajo de "Materia prima" van las piezas recibidas de Hierro y Aluminio.
   const pendientes = BLOQUES.map((b, i) => (
     <div key={b.id}>
-      <Seccion titulo={b.seccion} nota={i === 0
-        ? (centro ? 'Escribe el valor del mes en cada empresa: la utilidad de abajo se actualiza sola.'
-          : 'Suma de los tres centros. Para escribir o corregir un valor, elige un centro arriba.')
-        : undefined} />
+      <Seccion titulo={b.seccion} nota={i !== 0 ? undefined
+        : esHistorico ? 'Este mes viene de tu Excel: las cifras están cerradas y no se escriben aquí.'
+        : centro ? 'Escribe el valor del mes en cada empresa: la utilidad de abajo se actualiza sola.'
+        : 'Suma de los tres centros. Para escribir o corregir un valor, elige un centro arriba.'} />
       {b.filas.map(f => (
         <div key={f.id}>
           <div className={`${GRID} px-4 py-2 text-sm items-center border-t border-feisen-borde-suave`}>
@@ -230,14 +244,14 @@ export default function Eeff() {
             <Cifra v={valorFila(f.id)} fuerte />
             <Pct v={valorFila(f.id)} />
           </div>
-          {f.id === 'mano_obra' && (
+          {f.id === 'mano_obra' && !esHistorico && (
             <SoloTotal nombre="De esa, la nómina ya cargada en el ERP (FC)" sangria valor={erp.nomina ? nominaDeLaVista() : null}
               nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
                 : erp.nomina?.quincenas?.length
                   ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de producción, sin administración`
                   : 'Todavía no hay nómina cargada de este mes: escribe el valor abajo'} />
           )}
-          {f.id === 'mano_obra' && centro && (
+          {f.id === 'mano_obra' && centro && !esHistorico && (
             <SoloTotal nombre="Más las quincenas que falten (FC)" sangria
               nota="Lo que todavía no está en el ERP. Se suma a lo de arriba.">
               <CasillaPesos key={`${mes}-${centro.id}-mano_obra-fc-${escrito(centro.id, 'mano_obra', 'fc')}`}
@@ -281,8 +295,13 @@ export default function Eeff() {
         </Grupo>
         {verMes ? (
           <Grupo etiqueta="Mes">
-            <input type="month" value={mes} max={hoyCol().slice(0, 7)} onChange={e => e.target.value && setMes(e.target.value)}
-              className={CAMPO} />
+            <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
+              {MESES_ELEGIBLES.map(m => (
+                <option key={m} value={m}>
+                  {`${nombreLargo(m).charAt(0).toUpperCase()}${nombreLargo(m).slice(1)} de ${m.slice(0, 4)}`}
+                </option>
+              ))}
+            </select>
           </Grupo>
         ) : (
           <Grupo etiqueta="Año">
@@ -299,7 +318,12 @@ export default function Eeff() {
             <Pildoras opciones={FORMATOS} valor={formato} onCambiar={cambiarFormato} />
           </Grupo>
         )}
-        {verMes && (
+        {verMes && esHistorico && (
+          <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
+            De tu Excel de EEFF 2026 · desde octubre las cifras salen solas de Odoo
+          </span>
+        )}
+        {verMes && !esHistorico && (
           <span className="sm:ml-auto text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-1 font-medium">
             Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
           </span>
