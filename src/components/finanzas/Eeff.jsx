@@ -109,6 +109,8 @@ const PROVEEDORES_MATERIA_PRIMA = [
   'EQUIPOS TOYAMA DE COLOMBIA S.A.S.',
   'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
   'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
+  'MIFRAN SAS',        // materia prima de Fundición Hierro (Angie, 13/11)
+  'METAL BARCAS SAS',  // materia prima de Fundición Hierro; en Odoo le quedó el centro Construequipos
 ]
 // Al revés: contabilidad los causa en inventario (140500) pero para Angie no son materia prima.
 // Los revisó el 13/11/2026 sobre octubre: herramienta o insumos, no material.
