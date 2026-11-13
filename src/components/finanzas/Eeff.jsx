@@ -151,8 +151,12 @@ const AUTO = {
 // $21.608.473 de "M.O. nómina planta — SIIGO".
 // OJO: la 720511 (dotación) queda incluida aquí, tal como ella lo hace; al conectar el renglón de Dotación
 // hay que excluirla de allá para no contarla dos veces.
+// `sinCentro` dice a qué centro va lo que en Odoo no trae centro, en vez de repartirlo por ventas: la
+// nómina de producción de Feisen es la planta de Construequipos, así que Hierro y Aluminio no llevan nada
+// (decisión de Angie, 13/11; sus operarios los paga FC).
 AUTO.feisen.mano_obra = {
-  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (cuentas 7205xx)', filtro: x => x.codigo.startsWith('7205'),
+  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (cuentas 7205xx)',
+  filtro: x => x.codigo.startsWith('7205'), sinCentro: 'construequipos',
 }
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
@@ -300,7 +304,7 @@ export default function Eeff() {
         ? (compras.datos?.[empresa]?.compras || []).filter(f.filtro)
         : (datos?.[empresa]?.filas || []).filter(f.filtro)
       for (const l of lineas) {
-        const c = centroDe(l.centro)
+        const c = centroDe(l.centro) || f.sinCentro
         if (c) a.centros[c] += l.valor; else a.sinCentro += l.valor
       }
     }
