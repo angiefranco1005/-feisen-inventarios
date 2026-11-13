@@ -99,9 +99,31 @@ const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
 // inventario y nunca saca lo consumido; su cuenta de costo de ventas (613500) se registra a saltos y no sirve
 // mes a mes (marzo $919 M, agosto $348 M). Las compras ya traen el centro de costo.
 // Enero a marzo no están en Odoo (Feisen todavía estaba en SIIGO): esos meses se escriben a mano.
+// Proveedores que contabilidad causa como insumos (737001 / 737002 / 730500) pero que para Angie son
+// materia prima. Los marcó ella el 13/11/2026 mirando junio–octubre. Si algún día se conecta el renglón
+// de insumos, hay que descontarlos allá para no contarlos dos veces.
+const PROVEEDORES_MATERIA_PRIMA = [
+  'IMPORTACIONES POWER SAS',
+  'ALAPLUMEZ SAS',
+  'HIDRAULICO A.L SAS',
+  'EQUIPOS TOYAMA DE COLOMBIA S.A.S.',
+  'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
+  'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
+]
+// Se comparan sin tildes, sin puntos y sin espacios, porque el mismo proveedor aparece escrito de varias formas
+const sinAdornos = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+const ES_MATERIA_PRIMA = new Set(PROVEEDORES_MATERIA_PRIMA.map(sinAdornos))
+const esInsumo = cod => cod.startsWith('7370') || cod === '730500'
+
 const AUTO = {
-  feisen: { materia_prima: { fuente: 'compras', cuenta: '1405', nota: 'compras del mes a inventario (140500)' } },
-  fc: { materia_prima: { fuente: 'pyg', cuenta: '613500', nota: 'estado de resultados (613500)' } },
+  feisen: { materia_prima: {
+    fuente: 'compras', nota: 'compras a inventario (140500) y los proveedores que marcaste',
+    filtro: x => {
+      const cod = String(x.cuenta).split(' ')[0]
+      return cod.startsWith('1405') || (esInsumo(cod) && ES_MATERIA_PRIMA.has(sinAdornos(x.proveedor)))
+    },
+  } },
+  fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
 }
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
@@ -226,8 +248,8 @@ export default function Eeff() {
     for (const [empresa, filas] of Object.entries(AUTO)) for (const [filaId, f] of Object.entries(filas)) {
       const a = auto[`${empresa}:${filaId}`] = { centros: { construequipos: 0, hierro: 0, aluminio: 0 }, sinCentro: 0 }
       const lineas = f.fuente === 'compras'
-        ? (compras.datos?.[empresa]?.compras || []).filter(x => String(x.cuenta).startsWith(f.cuenta))
-        : (datos?.[empresa]?.filas || []).filter(x => x.codigo === f.cuenta)
+        ? (compras.datos?.[empresa]?.compras || []).filter(f.filtro)
+        : (datos?.[empresa]?.filas || []).filter(f.filtro)
       for (const l of lineas) {
         const c = centroDe(l.centro)
         if (c) a.centros[c] += l.valor; else a.sinCentro += l.valor
