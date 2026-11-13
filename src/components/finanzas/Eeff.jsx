@@ -158,6 +158,20 @@ AUTO.feisen.mano_obra = {
   fuente: 'pyg', nota: 'mano de obra directa con prestaciones (cuentas 7205xx)',
   filtro: x => x.codigo.startsWith('7205'), sinCentro: 'construequipos',
 }
+
+// CIF: son gastos compartidos y no se sabe cuánto gasta de luz o de transporte cada centro, así que
+// **se reparten entre los centros en la misma proporción en que vendieron** (método de Angie, 13/11).
+// Eso es `porVentas`: no importa el centro que traiga Odoo, todo el renglón se reparte por ventas.
+const CIF_CUENTAS = {
+  servicios_publicos: { cuentas: ['734000', '734001'], nota: 'energía y aseo de planta (734000, 734001)' },
+  mantenimiento: { cuentas: ['734500', '734501'], nota: 'mantenimiento de equipos (734500, 734501)' },
+  transporte: { cuentas: ['523500', '513504'], nota: 'transportes, fletes y acarreos (523500, 513504)' },
+}
+for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
+  for (const emp of ['feisen', 'fc']) {
+    AUTO[emp][fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
+  }
+}
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
@@ -304,7 +318,7 @@ export default function Eeff() {
         ? (compras.datos?.[empresa]?.compras || []).filter(f.filtro)
         : (datos?.[empresa]?.filas || []).filter(f.filtro)
       for (const l of lineas) {
-        const c = centroDe(l.centro) || f.sinCentro
+        const c = f.porVentas ? null : (centroDe(l.centro) || f.sinCentro)
         if (c) a.centros[c] += l.valor; else a.sinCentro += l.valor
       }
     }
