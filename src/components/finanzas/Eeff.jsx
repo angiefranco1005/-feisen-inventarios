@@ -165,7 +165,10 @@ AUTO.feisen.mano_obra = {
 // **se reparten entre los centros en la misma proporción en que vendieron** (método de Angie, 13/11).
 // Eso es `porVentas`: no importa el centro que traiga Odoo, todo el renglón se reparte por ventas.
 const CIF_CUENTAS = {
-  servicios_publicos: { cuentas: ['734000', '734001'], nota: 'energía y aseo de planta (734000, 734001)' },
+  // Angie incluye aquí la luz, el internet y el plan de celular (octubre 2026). La 734001 "Aseo" es el
+  // aseo que viene dentro de la factura de Enel, por eso va con la energía. El teléfono (513503) trae
+  // Starlink y Colombia Móvil: cuando se conecte "otros gastos operacionales", no volver a sumarlo allá.
+  servicios_publicos: { cuentas: ['734000', '734001', '513503'], nota: 'luz, internet y celular (734000, 734001, 513503)' },
   mantenimiento: { cuentas: ['734500', '734501'], nota: 'mantenimiento de equipos (734500, 734501)' },
   transporte: { cuentas: ['523500', '513504'], nota: 'transportes, fletes y acarreos (523500, 513504)' },
   dotacion: { cuentas: ['720511'], nota: 'dotación y suministro a trabajadores (720511)' },
