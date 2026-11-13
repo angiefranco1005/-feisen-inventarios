@@ -32,6 +32,10 @@ Las cuentas contables son **las mismas en las dos empresas** desde la homologaci
 
 ---
 
+## 2.1 Análisis vertical
+
+La última columna, **"% ventas"**, es el análisis vertical: cada renglón como porcentaje de los **ingresos netos de la vista** (los del consolidado o los del centro que estés mirando), igual que la hoja "ANÁLISIS VERTICAL" del Excel. Se ve en computador; en celular la pantalla deja solo el total.
+
 ## 3. Ingresos
 
 | Renglón | De dónde sale |

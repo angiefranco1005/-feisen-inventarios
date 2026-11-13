@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { EncabezadoPagina, Segmentado, useAviso } from '../shared/ui'
@@ -54,7 +54,11 @@ const VISTAS = [
 ]
 
 // Columnas de cada renglón: concepto + Feisen / FC / Total (en celular solo concepto + Total)
-const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)] gap-3'
+const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)_4.5rem] gap-3'
+
+// Análisis vertical: cada renglón como % de los ingresos netos de la vista (consolidado o centro),
+// igual que la hoja "ANÁLISIS VERTICAL" del Excel de Angie.
+const BaseVertical = createContext(0)
 
 // Costos y gastos: todavía se escriben a mano en cada centro (se guardan en eeff_manual, concepto
 // '<centro>:<fila>'). Al escribirlos, los subtotales y la utilidad se recalculan al instante.
@@ -403,7 +407,10 @@ export default function Eeff() {
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
     if (f.id === 'mano_obra') return 'Feisen: mano de obra directa con prestaciones (7205xx) · FC: la nómina del ERP más lo que escribas'
-    const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre}: ${AUTO[e.id][f.id].nota}`)
+    const notas = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => [e.nombre, AUTO[e.id][f.id].nota])
+    // Si las dos empresas sacan el renglón de lo mismo, no se repite el texto
+    const iguales = notas.length === 2 && notas[0][1] === notas[1][1]
+    const auto = iguales ? [notas[0][1]] : notas.map(([emp, n]) => `${emp}: ${n}`)
     return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
   }
   // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
@@ -431,6 +438,7 @@ export default function Eeff() {
             </span>
             <span className="hidden sm:contents">{celda(f, 'feisen')}{celda(f, 'fc')}</span>
             <Cifra v={valorFila(f.id)} fuerte />
+            <Pct v={valorFila(f.id)} />
           </div>
           {f.id === 'mano_obra' && (
             <SoloTotal nombre="De esa, la nómina ya cargada en el ERP (FC)" sangria valor={erp.nomina ? nominaDeLaVista() : null}
@@ -485,6 +493,7 @@ export default function Eeff() {
 
       {(cargando && !ing) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : ing && (
+        <BaseVertical.Provider value={ingresoBase}>
         <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando || compras.cargando ? 'opacity-60' : ''}`}>
           <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · {Titulo}</span>
@@ -538,12 +547,14 @@ export default function Eeff() {
           {pendientes}
 
         </div>
+        </BaseVertical.Provider>
       )}
 
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         Ventas = cuenta 412000 de cada Odoo por centro; las demás cuentas de ingreso (no operacionales) van dentro de Construequipos.
         Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
         Toca un renglón de ingresos para ver de qué cuentas sale.
+        La columna "% ventas" es el análisis vertical: cada renglón como porcentaje de los ingresos netos de la vista.
         Los costos y gastos se escriben por centro, en su columna de Feisen o de FC, y Consolidado suma los tres centros.
         Por ahora el único renglón que sale solo de Odoo es la materia prima: en FC, de su estado de resultados (cuenta 613500);
         en Feisen, de las compras del mes a inventario (cuenta 140500), que es donde contabilidad las deja.
@@ -561,8 +572,8 @@ function Corto({ largo, corto }) {
 
 function Encabezado() {
   return (
-    <div className="hidden sm:grid grid-cols-[1fr_repeat(3,8rem)] gap-3 px-4 py-2 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">
-      <span>Concepto</span><span className="text-right">Feisen</span><span className="text-right">FC</span><span className="text-right">Total</span>
+    <div className="hidden sm:grid grid-cols-[1fr_repeat(3,8rem)_4.5rem] gap-3 px-4 py-2 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">
+      <span>Concepto</span><span className="text-right">Feisen</span><span className="text-right">FC</span><span className="text-right">Total</span><span className="text-right">% ventas</span>
     </div>
   )
 }
@@ -574,6 +585,14 @@ function Seccion({ titulo, nota }) {
       {nota && <span className="block text-xs text-feisen-texto-2">{nota}</span>}
     </div>
   )
+}
+
+// Celda del análisis vertical
+function Pct({ v }) {
+  const base = useContext(BaseVertical)
+  const p = base && v ? (v / base) * 100 : null
+  return <span className="hidden sm:block text-right tabular-nums text-xs text-feisen-texto-2">
+    {p == null ? '' : `${p.toFixed(1).replace('.', ',')} %`}</span>
 }
 
 function Cifra({ v, fuerte }) {
@@ -596,6 +615,7 @@ function Fila({ nombre, feisen, fc, detalle, abierto, onClick, sangria }) {
         </span>
         <span className="hidden sm:contents"><Cifra v={feisen} /><Cifra v={fc} /></span>
         <Cifra v={feisen + fc} fuerte />
+        <Pct v={feisen + fc} />
       </button>
       {abierto && (
         <div className={`px-4 pb-2 space-y-1 ${sangria ? 'pl-11' : 'pl-8'}`}>
@@ -618,6 +638,7 @@ function Total({ nombre, feisen, fc, fuerte }) {
       <span className="text-feisen-texto">{nombre}</span>
       <span className="hidden sm:contents"><Cifra v={feisen} fuerte={fuerte} /><Cifra v={fc} fuerte={fuerte} /></span>
       <Cifra v={feisen + fc} fuerte />
+      <Pct v={feisen + fc} />
     </div>
   )
 }
@@ -635,6 +656,7 @@ function SoloTotal({ nombre, nota, valor, sangria, total, destacado, children })
       <span className="hidden sm:block" /><span className="hidden sm:block" />
       {children || <span className={`text-right tabular-nums ${valor < 0 ? 'text-feisen-rojo' : destacado ? 'text-feisen-azul' : 'text-feisen-texto'}`}>
         {valor != null ? pesos(valor) : '—'}</span>}
+      <Pct v={valor || 0} />
     </div>
   )
 }
