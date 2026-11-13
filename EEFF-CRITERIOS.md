@@ -15,6 +15,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 |---|---|---|
 | **Odoo Feisen y Odoo FC** | Estado de resultados del mes, por cuenta y centro | Función `finanzas-odoo`, acción `pyg`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Facturas de compra del mes, con proveedor, cuenta y centro | Función `finanzas-odoo`, acción `resultado`. **Solo lectura** |
+| **Odoo Feisen y Odoo FC** | Saldos acumulados de todas las cuentas, para el **balance general** | Función `finanzas-odoo`, acción `cuentas`. **Solo lectura** |
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
 | **A mano** | Lo que todavía no está en ningún sistema | Tabla `eeff_manual` |
@@ -77,6 +78,66 @@ Los meses que vienen del **Excel** (enero a septiembre) están completos: son la
 Lo que sí hay que seguir mirando son los meses **de octubre en adelante**: **un mes al que le falte la mano de obra muestra una utilidad que no existe**. La nómina de producción se empezó a cargar en el ERP hace poco y la de FC nunca se registró en Odoo, así que mientras falte una quincena el mes se ve más rentable de lo que fue.
 
 La pantalla ya avisa: los meses a los que les falta la mano de obra van **marcados en ámbar** ("sin mano de obra") y el título dice **"Utilidad neta del año (incompleta)"**. **Mientras aparezca ese aviso, el año se mira para ver tendencias, no para reportar cifras.**
+
+## 2.3 El balance general
+
+Desde el **13/11/2026** la pantalla tiene un **tercer modo**, al lado de "Un mes" y "Todo el año": **Balance**. El cálculo vive aparte, en `src/components/finanzas/calculoBalance.js`, y **no comparte nada con el estado de resultados**: tiene su propio dato y su propia cuenta, así que tocar uno no mueve ni un número del otro.
+
+**De dónde sale.** De los **saldos acumulados de Odoo de las dos empresas**, Feisen y FC (acción `cuentas` de la función `finanzas-odoo`, una llamada por empresa). De cada cuenta se usa **solo el saldo**, que es el acumulado de toda la historia.
+
+**Es "a hoy", no de un mes.** El saldo de una cuenta de balance viene acumulado **desde que arrancó cada contabilidad**, así que aquí no hay mes que escoger: el balance muestra cómo están las cosas hoy. Por eso tampoco aplica la regla de la sección 1.1 (el Excel hasta septiembre, Odoo desde octubre): esa regla es del estado de resultados.
+
+**Cómo se agrupa.** Por los **grupos del PUC**, los dos primeros dígitos del código de cuenta: 11 Disponible, 13 Deudores, 14 Inventarios, 15 Propiedad planta y equipo, 21 Obligaciones financieras, 22 Proveedores, 23 Cuentas por pagar, 24 Impuestos, 25 Obligaciones laborales, 31 Capital, 33 Reservas, 36 y 37 Resultados… **Cada grupo se abre y muestra el detalle cuenta por cuenta**, como lo pidió Angie. El último grupo de cada sección recoge lo que no cayó en los de arriba, para que no se pierda ninguna cuenta.
+
+**Los signos.** En Odoo los activos vienen en positivo y el pasivo, el patrimonio y los ingresos vienen en negativo. En la pantalla **se les voltea el signo** al pasivo, al patrimonio y al resultado, para que se lean en positivo; por eso un número en rojo en esas secciones es un saldo al revés de lo normal. Las cuentas transitorias se dejan tal como vienen.
+
+### La comprobación da $0, y eso es lo que garantiza que está bien
+
+Al pie del balance hay un renglón de comprobación: **activo + transitorias − pasivo − patrimonio**. Eso es exactamente lo mismo que sumar el saldo de **todas** las cuentas de las dos empresas, así que **tiene que dar $0**, y da $0.
+
+Si algún día no diera cero, **sale en rojo**: quiere decir que apareció una cuenta en una clase que la pantalla no esperaba.
+
+### Tres cosas que hay que decir sin suavizar
+
+Angie decidió ver las dos empresas juntas **sabiendo estas tres cosas**, y por eso van arriba del balance y no al pie:
+
+1. **El "banco" de FC dice $1.567.157.555 y no es plata real.** Es la cuenta donde caen los movimientos que todavía no se concilian, y hoy son el **97 % de los activos de FC**. Por eso los bancos de FC están excluidos de la pantalla de **Flujo de caja**. En el balance **sí aparecen**, porque sacarlos lo descuadraría, pero van **marcados en ámbar**.
+2. **FC tiene $575.445.392 en "Movimientos transitorios":** plata ya contabilizada que todavía no tiene cuenta definitiva. No es ni activo ni pasivo, así que va en **su propio bloque**, al final.
+3. **FC no tiene patrimonio registrado ni cierre de años anteriores**, así que su "resultado del periodo" (unos **$2.046 millones**) es de **varios años acumulados**, no de 2026. El de **Feisen sí es solo de 2026**, porque su contabilidad en Odoo empieza en marzo.
+
+**La conclusión:** **las dos contabilidades cuadran; el problema no es un descuadre sino dónde está ubicada la plata.**
+
+### La maquinaria va al valor en libros
+
+Decisión de Angie del **13/11/2026**: la propiedad, planta y equipo se muestra **neta**, al valor en libros.
+
+| | Valor |
+|---|---|
+| Costo | $1.536.355.226 |
+| (−) Depreciación acumulada (cuentas 159xxx) | $757.133.219 |
+| **Valor en libros** | **$779.222.007** |
+
+- El grupo muestra el **neto**; al abrirlo se ve la resta, costo y depreciación por separado.
+- Su Excel la tenía en **$1.063.540.000 sin depreciar**: son **$284 millones** de diferencia.
+- Verificado contra Odoo.
+
+### Dos cosas que el balance NO hace
+
+Conviene que estén escritas, porque el Excel de Angie sí las tenía:
+
+- **No se divide por centro de costo.** Un balance no se reparte por centro, así que en este modo el **filtro de centro se esconde**.
+- **No separa corriente de no corriente.** Odoo no trae esa división y deducirla por el número de cuenta **sería adivinar**. Si algún día se quiere, hay que decidirlo **cuenta por cuenta**.
+
+### La hoja de BALANCE del Excel de Angie no cuadra
+
+Queda anotado: en esa hoja la fila **"VERIFICACIÓN (debe ser 0)"** da entre **−$136.620.337** (marzo) y **$282.265.443** (septiembre).
+
+Son dos causas:
+- El **patrimonio** solo lleva el capital y la utilidad del mes, **sin utilidades acumuladas**.
+- La **propiedad, planta y equipo** es un **avalúo**, no el valor en libros.
+
+Por eso el balance del ERP **no se arma copiando esa hoja**, sino desde Odoo.
+
 
 ## 3. Ingresos
 
@@ -317,6 +378,12 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.374.785 (530507 más el grupo 5395, con un ajuste al peso de −$215) · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.601** |
 | Las dos vistas dan lo mismo | septiembre | **Exacto**: septiembre da igual en la vista de un mes y en la del año, porque las dos leen el Excel. Ingresos netos **$827.138.921** · nómina administrativa **$62.456.739** · otros gastos operacionales **$13.345.564** · utilidad neta **$98,4 M**. Antes del 13/11 la vista de un mes leía Odoo y mostraba $795.901.155 de ingresos netos |
 | Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que **Angie decidió el 13/11/2026 dejar fuera del informe** |
+| Balance: la comprobación | a hoy | **Exacto**: activo + transitorias − pasivo − patrimonio = **$0** en las dos empresas, que es lo mismo que sumar el saldo de todas sus cuentas. Las dos contabilidades cuadran; el problema no es un descuadre sino dónde está ubicada la plata |
+| Balance: banco de FC | a hoy | **$1.567.157.555**, el **97 % de los activos de FC**, y no es plata real: es donde caen los movimientos sin conciliar. Excluido en Flujo de caja; en el balance aparece, marcado en ámbar, porque sacarlo lo descuadraría |
+| Balance: movimientos transitorios de FC | a hoy | **$575.445.392** de plata contabilizada sin cuenta definitiva. Va en su propio bloque |
+| Balance: resultado del periodo de FC | a hoy | Unos **$2.046 millones**, pero son de **varios años acumulados**: FC no tiene patrimonio registrado ni cierre de años anteriores. El de Feisen sí es solo de 2026 |
+| Balance: maquinaria | a hoy | Verificado contra Odoo: costo **$1.536.355.226** − depreciación acumulada **$757.133.219** = **$779.222.007** de valor en libros. Su Excel la tenía en $1.063.540.000 sin depreciar: **$284 millones** de diferencia |
+| Balance: la hoja del Excel de Angie | marzo a septiembre | **No cuadra**: su fila "VERIFICACIÓN (debe ser 0)" va de **−$136.620.337** (marzo) a **$282.265.443** (septiembre), porque el patrimonio solo lleva capital y utilidad del mes, sin utilidades acumuladas, y la propiedad planta y equipo es un avalúo. Por eso el balance del ERP se arma desde Odoo y no copiando esa hoja |
 
 ## 11. Qué cambió y por qué
 
@@ -350,5 +417,11 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | **Los meses anteriores a octubre de 2026 salen del Excel de Angie en las dos vistas**, no solo en la del año. Antes el mismo mes mostraba cifras distintas según dónde se mirara: septiembre daba $795.901.155 de ingresos netos en la vista de un mes (leyendo Odoo, incompleto) y $827.138.921 en la del año (leyendo el Excel). **Ya dan iguales: $827.138.921 en las dos.** La regla quedó una sola para toda la pantalla: **hasta septiembre el Excel, desde octubre Odoo y el ERP** |
 | 13/11 | En un mes que viene del Excel **no se escribe nada**: las casillas se vuelven cifras de solo lectura (incluidas la transferencia de aluminio y las quincenas que falten de la mano de obra) y la pantalla avisa con un distintivo que el mes viene del Excel. A esos meses **no se les pide nada a Odoo**, así que abren al instante |
 | 13/11 | **El mes se escoge en una lista** con el nombre del mes ("Septiembre de 2026"), del más nuevo al más viejo, y ya no en un calendario |
+| 13/11 | Nuevo modo **"Balance"**, el tercero de la pantalla. Sale de los **saldos acumulados de Odoo de las dos empresas** (acción `cuentas`), es **"a hoy"** y no de un mes, se agrupa por los grupos del PUC y **cada grupo se abre para ver el detalle cuenta por cuenta**. El cálculo vive aparte, en `calculoBalance.js`, y no comparte nada con el estado de resultados |
+| 13/11 | La comprobación del balance (**activo + transitorias − pasivo − patrimonio**) da **$0** en las dos empresas: es lo mismo que sumar el saldo de todas las cuentas. Si algún día no da cero sale en rojo, y quiere decir que apareció una cuenta en una clase que la pantalla no esperaba |
+| 13/11 | El balance avisa arriba, sin suavizarlo, de las tres cosas con las que Angie decidió ver las dos empresas juntas: el **"banco" de FC ($1.567.157.555, el 97 % de sus activos)** son movimientos sin conciliar y van marcados en ámbar; FC tiene **$575.445.392 en movimientos transitorios**; y FC **no tiene patrimonio registrado**, así que su resultado del periodo (unos $2.046 millones) es de varios años. **Las dos contabilidades cuadran: el problema no es un descuadre sino dónde está ubicada la plata** |
+| 13/11 | **Angie decidió que la maquinaria va al valor en libros**: costo $1.536.355.226 − depreciación acumulada $757.133.219 = **$779.222.007**. Su Excel la tenía en $1.063.540.000 sin depreciar, **$284 millones** de diferencia. Verificado contra Odoo |
+| 13/11 | El balance **no se divide por centro de costo** (en ese modo el filtro se esconde) ni **separa corriente de no corriente**: Odoo no trae esa división y deducirla por el número de cuenta sería adivinar. Si algún día se quiere, hay que decidirlo cuenta por cuenta |
+| 13/11 | Queda anotado que **la hoja de BALANCE del Excel de Angie no cuadra**: su fila "VERIFICACIÓN (debe ser 0)" va de −$136.620.337 (marzo) a $282.265.443 (septiembre), porque el patrimonio solo lleva capital y utilidad del mes, sin utilidades acumuladas, y la propiedad planta y equipo es un avalúo y no el valor en libros. Por eso el balance del ERP **no se arma copiando esa hoja**, sino desde Odoo |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
