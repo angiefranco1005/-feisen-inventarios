@@ -172,6 +172,10 @@ const CIF_CUENTAS = {
   mantenimiento: { cuentas: ['734500', '734501'], nota: 'mantenimiento de equipos (734500, 734501)' },
   transporte: { cuentas: ['523500', '513504'], nota: 'transportes, fletes y acarreos (523500, 513504)' },
   dotacion: { cuentas: ['720511'], nota: 'dotación y suministro a trabajadores (720511)' },
+  // Gastos operacionales: también se reparten por ventas, como en el Excel de Angie
+  viaticos: { cuentas: ['525500', '515500', '519504'], nota: 'viajes, alojamiento, taxis y buses (525500, 515500, 519504)' },
+  publicidad: { cuentas: ['523501'], nota: 'publicidad, propaganda y promoción (523501)' },
+  comisiones: { cuentas: ['529500'], nota: 'comisiones (529500)' },
 }
 for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
   for (const emp of ['feisen', 'fc']) {

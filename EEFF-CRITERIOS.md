@@ -103,10 +103,25 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 
 ---
 
-## 7. Gastos operacionales y no operacionales
+## 7. Gastos operacionales
 
-**Todavía se escriben a mano.** Pendientes de definir con Angie:
-viáticos, publicidad, comisiones, nómina de asesores y director comercial, sueldos de marketing, honorarios, nómina administrativa, otros gastos operacionales, intereses de impuestos, gravámenes, intereses bancarios y comisiones financieras.
+**También se reparten por la proporción de ventas**, como los CIF.
+
+| Renglón | Cuentas |
+|---|---|
+| Viáticos | **525500** viajes · **515500** alojamiento y manutención · **519504** taxis y buses |
+| Publicidad | **523501** |
+| Comisiones | **529500** |
+
+**Todavía se escriben a mano:** nómina de asesores y director comercial, sueldos de marketing, honorarios, nómina administrativa y otros gastos operacionales.
+
+Dos cosas por resolver antes de conectar la nómina:
+- En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre. Hay que confirmar si es la misma plata que ya contamos como mano de obra desde el ERP; si lo es, **no se puede usar**, o se contaría dos veces.
+- El Excel separa "asesores y director comercial" de "marketing", pero en Odoo las dos salen de las mismas cuentas **5205xx** ($15.394.169 en octubre).
+
+## 7.1 Gastos no operacionales
+
+**Todavía se escriben a mano.** Las cuentas candidatas son: intereses bancarios **530504** y **530505**, intereses de impuestos **530507** (ella le suma **539502** multas y sanciones), gravamen 4x1000 **530501**, comisiones financieras **530502** y **530503**.
 
 Dos cosas que hay que recordar cuando se conecten:
 - La **530508** (descuentos comerciales) ya está restada en los ingresos: no volver a sumarla.
@@ -143,6 +158,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Mantenimiento | septiembre | **Exacto**: $7.684.000 |
 | Transporte | octubre | Las cinco facturas coinciden; Odoo trae $11.900 más de un domicilio de Sodimac, que ella acepta como transporte |
 | Dotación | octubre | Sus dos facturas de Metalcab ($1.115.000) más Maxiguantes ($1.723.600), que ella acepta como dotación: **$2.838.600** |
+| Viáticos, publicidad y comisiones | octubre | Conectados, sin contrastar todavía con su lista: viáticos $0, publicidad $1.816.107, comisiones $5.021.800 |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 
 ## 11. Qué cambió y por qué
