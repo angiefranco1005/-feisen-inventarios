@@ -145,6 +145,10 @@ const AUTO = {
   } },
   fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
 }
+// Nota para cuando Angie quiera conectar la mano de obra de Feisen: sus cuentas 7205xx del estado de
+// resultados dan exactamente su "M.O. nómina planta — SIIGO" (septiembre: $21.608.474 contra $21.608.473).
+// Por ahora ella la deja vacía. Si se conecta, ojo: la 720511 (dotación) está dentro de esas cuentas y
+// habría que excluirla del renglón de Dotación para no contarla dos veces.
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
@@ -298,6 +302,10 @@ export default function Eeff() {
     return auto
   }, [datos, compras.datos]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Nómina de producción cargada en el ERP (RRHH › Nómina), por centro. Es la que paga FC.
+  const nominaCentro = id => erp.nomina?.porCentro?.[id] || 0
+  const nominaDeLaVista = () => centro ? nominaCentro(centro.id) : CENTROS.reduce((s, c) => s + nominaCentro(c.id), 0)
+
   const automatico = (centroId, filaId, empresa) => {
     const a = auto[`${empresa}:${filaId}`]
     return a ? a.centros[centroId] + a.sinCentro * peso(centroId) : null
@@ -306,16 +314,14 @@ export default function Eeff() {
     const esc = escrito(centroId, filaId, empresa)
     return esc != null ? esc : (automatico(centroId, filaId, empresa) || 0)
   }
-  const valorEmpresa = (filaId, empresa) => centro
-    ? baseCentro(centro.id, filaId, empresa)
-    : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
-  // Nómina de producción que ya está cargada en el ERP, por centro. No se sabe cuál empresa la paga,
-  // así que va aparte en la columna Total; lo que falte de ese mes se escribe en las casillas.
-  const nominaCentro = id => erp.nomina?.porCentro?.[id] || 0
-  const nominaDeLaVista = () => centro ? nominaCentro(centro.id) : CENTROS.reduce((s, c) => s + nominaCentro(c.id), 0)
+  const valorEmpresa = (filaId, empresa) => {
+    const base = centro ? baseCentro(centro.id, filaId, empresa)
+      : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
+    // La nómina del ERP es la que paga FC; se suma a lo que Angie escriba de las quincenas que falten
+    return filaId === 'mano_obra' && empresa === 'fc' ? base + nominaDeLaVista() : base
+  }
   const valorFila = filaId => {
     const v = EMPRESAS.reduce((s, e) => s + valorEmpresa(filaId, e.id), 0)
-    if (filaId === 'mano_obra') return v + nominaDeLaVista()
     return centro?.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
   }
   const totalBloque = b => b.filas.reduce((s, f) => s + valorFila(f.id), 0)
@@ -351,7 +357,7 @@ export default function Eeff() {
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
-    if (f.id === 'mano_obra') return ['de la nómina del ERP; en las casillas va lo que falte', extra].filter(Boolean).join(' · ')
+    if (f.id === 'mano_obra') return 'FC: la nómina del ERP más lo que escribas. Feisen todavía no se lleva aquí'
     const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre}: ${AUTO[e.id][f.id].nota}`)
     return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
   }
@@ -381,7 +387,7 @@ export default function Eeff() {
             <Cifra v={valorFila(f.id)} fuerte />
           </div>
           {f.id === 'mano_obra' && (
-            <SoloTotal nombre="Nómina ya cargada en el ERP" sangria valor={erp.nomina ? nominaDeLaVista() : null}
+            <SoloTotal nombre="De esa, la nómina ya cargada en el ERP (FC)" sangria valor={erp.nomina ? nominaDeLaVista() : null}
               nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
                 : erp.nomina?.quincenas?.length
                   ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de producción, sin administración`
