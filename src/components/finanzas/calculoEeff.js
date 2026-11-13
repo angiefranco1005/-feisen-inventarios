@@ -14,14 +14,13 @@
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { normCentro, SIN_CENTRO } from './comun'
+import { HISTORICO, hayHistorico } from './eeffHistorico'
 
 export const PRECIO_KG_HIERRO = 5500
 export const DESCUENTOS = c => c === '530508' || c.startsWith('4175')
 
 // Meses que todavía no están en Odoo para Feisen (estaba en SIIGO). Lo que se vea
 // de esos meses es solo FC y lo que esté escrito a mano: no son ceros reales.
-export const MESES_SIN_ODOO = ['2026-01', '2026-02', '2026-03']
-export const sinOdooFeisen = mes => MESES_SIN_ODOO.includes(mes)
 
 // Renglones de ventas: centro de Odoo → renglón (el nombre es el que se ve dentro de su centro)
 export const VENTAS = [
@@ -448,5 +447,69 @@ export function calcularMes({ pyg = null, compras = null, hierro = null, nomina 
     nominaDeLaVista, adminErp, adminAMano, adminDeLaVista,
     porBloque, ingresoBase, utilidadBruta, utilidadOperacional, utilidadNeta, UTILIDAD,
     llenas, parcial: llenas < FILAS_COSTO.length,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Los meses anteriores a octubre de 2026 no salen de Odoo: salen del Excel que Angie llevaba a mano
+// (ver eeffHistorico.js). Esta función arma con esos números el mismo objeto que `calcularMes`,
+// para que la tabla del año no tenga que saber de dónde viene cada mes.
+// ─────────────────────────────────────────────────────────────────────────────
+export { hayHistorico }
+
+export function calcularMesHistorico(mes, centroId = null) {
+  const porCentro = HISTORICO[mes]
+  if (!porCentro) return null
+  const centro = CENTROS.find(c => c.id === centroId) || null
+  const losCentros = centro ? [centro] : CENTROS
+  const iEmp = emp => (emp === 'feisen' ? 0 : 1)
+
+  // Un renglón del Excel, sumando los centros de la vista
+  const dato = (fila, emp) => losCentros.reduce((s, c) => s + ((porCentro[c.id]?.[fila] || [0, 0])[iEmp(emp)] || 0), 0)
+
+  // Ventas: Construequipos tiene sus cuatro renglones; las fundiciones tienen uno solo
+  const val = (emp, id) => {
+    if (id === 'devoluciones') return dato('devoluciones', emp)
+    if (id === 'hierro' || id === 'aluminio') {
+      if (centro && centro.id !== id) return 0
+      return (porCentro[id]?.v_centro || [0, 0])[iEmp(emp)] || 0
+    }
+    if (centro && centro.id !== 'construequipos') return 0
+    const m = { construequipos: 'v_construequipos', repuestos: 'v_repuestos', mantenimientos: 'v_mantenimientos', no_operacionales: 'v_no_operacionales' }
+    return m[id] ? (porCentro.construequipos?.[m[id]] || [0, 0])[iEmp(emp)] || 0 : 0
+  }
+  const suma = (emp, ids) => ids.reduce((s, id) => s + val(emp, id), 0)
+  const totalVentas = emp => VENTAS.reduce((s, v) => s + val(emp, v.id), 0)
+  const neto = emp => totalVentas(emp) - val(emp, 'devoluciones')
+
+  const transfHierro = porCentro.construequipos?.transf_hierro || 0
+  const transfAluminio = porCentro.construequipos?.transf_aluminio || 0
+  // En Construequipos las piezas recibidas se suman a su materia prima, igual que en la vista del mes
+  const transfRecibidas = centro?.id === 'construequipos' ? transfHierro + transfAluminio : 0
+
+  const valorEmpresa = (filaId, emp) => dato(filaId, emp)
+  const valorFila = filaId => {
+    const v = valorEmpresa(filaId, 'feisen') + valorEmpresa(filaId, 'fc')
+    return centro?.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
+  }
+  const porBloque = Object.fromEntries(BLOQUES.map(b => [b.id, b.filas.reduce((s, f) => s + valorFila(f.id), 0)]))
+  const ingresoBase = !centro ? neto('feisen') + neto('fc')
+    : centro.id === 'construequipos'
+      ? suma('feisen', centro.renglones) + suma('fc', centro.renglones) - val('feisen', 'devoluciones') - val('fc', 'devoluciones')
+      : val('feisen', centro.id) + val('fc', centro.id) + (centro.id === 'hierro' ? transfHierro : transfAluminio)
+  const utilidadBruta = ingresoBase - porBloque.costos_directos - porBloque.cif
+  const utilidadOperacional = utilidadBruta - porBloque.gastos_op
+  const utilidadNeta = utilidadOperacional - porBloque.gastos_no_op
+
+  return {
+    historico: true, centro, val, suma, totalVentas, neto,
+    transfHierro, transfAluminio, transfRecibidas,
+    peso: () => 0, escrito: () => undefined, automatico: () => null,
+    valorEmpresa, valorFila, nominaDeLaVista: () => 0,
+    adminErp: () => 0, adminAMano: () => 0, adminDeLaVista: () => 0,
+    porBloque, ingresoBase, utilidadBruta, utilidadOperacional, utilidadNeta,
+    UTILIDAD: { 'Utilidad bruta': utilidadBruta, 'Utilidad operacional': utilidadOperacional, 'Utilidad neta': utilidadNeta },
+    llenas: FILAS_COSTO.filter(f => Math.round(valorFila(f.id)) !== 0).length,
+    parcial: false,
   }
 }

@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, RefreshCw } from '../shared/iconos'
 import { useOdoo, Cargando, ErrorOdoo, pesos, millones, hoyCol } from './comun'
 import {
   AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
-  calcularMes, leerErpMes, leerOdooMes, sinOdooFeisen,
+  calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
@@ -342,7 +342,8 @@ function useAno(anio, activo) {
   const cargar = useCallback(async (forzar) => {
     const mio = ++tanda.current
     if (anioRef.current !== anio || forzar) { guardados.current = {}; setMeses({}); anioRef.current = anio }
-    const faltan = lista.filter(m => !guardados.current[m])
+    // Los meses anteriores a octubre salen del Excel (eeffHistorico.js): no se le piden a Odoo
+    const faltan = lista.filter(m => !guardados.current[m] && !hayHistorico(m))
     if (!faltan.length) { setEstado({ cargando: false, listos: lista.length, actual: null, error: '' }); return }
     setEstado({ cargando: true, listos: lista.length - faltan.length, actual: faltan[0], error: '' })
     const fallos = []
@@ -405,6 +406,7 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
   // Un cálculo por mes, con la misma función de la vista mensual. Cambiar de centro rehace solo
   // esta cuenta (es instantánea): no se vuelve a pedir nada a Odoo.
   const porMes = useMemo(() => ano.lista.map(mes => {
+    if (hayHistorico(mes)) return { mes, listo: true, fallo: false, historico: true, calc: calcularMesHistorico(mes, centroId) }
     const d = ano.meses[mes]
     return {
       mes,
@@ -419,13 +421,13 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
   const totalDe = fila => listos.reduce((s, x) => s + (fila.valor(x.calc) || 0), 0)
   const baseAno = listos.reduce((s, x) => s + x.calc.ingresoBase, 0)
   const utilidadAno = listos.reduce((s, x) => s + x.calc.utilidadNeta, 0)
-  const incompletos = listos.filter(x => sinOdooFeisen(x.mes))
+  const deExcel = listos.filter(x => x.historico)
   // Un mes sin mano de obra no es un mes barato: es un mes al que le falta el dato. La nómina de
   // producción se empezó a cargar en el ERP hace poco y antes de eso no quedó en ninguna parte, así
   // que esos meses muestran una utilidad que no es real. Se marcan igual que los meses sin Odoo.
   const sinManoObra = x => !!x.calc && x.calc.ingresoBase > 0 && !Math.round(x.calc.valorFila('mano_obra'))
-  const cojo = x => sinOdooFeisen(x.mes) || sinManoObra(x)
-  const mesesSinManoObra = listos.filter(x => !sinOdooFeisen(x.mes) && sinManoObra(x))
+  const cojo = x => sinManoObra(x)
+  const mesesSinManoObra = listos.filter(sinManoObra)
   const anoParcial = listos.some(cojo)
 
   const texto = (v, base) => {
@@ -474,8 +476,7 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
                 {porMes.map(x => (
                   <th key={x.mes} className={`px-3 py-2 text-right align-bottom ${anchoMes} border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide ${cojo(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
                     {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
-                    {sinOdooFeisen(x.mes) && <span className="block text-[10px] font-medium normal-case">sin Odoo</span>}
-                    {!sinOdooFeisen(x.mes) && sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
+                    {sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
                     {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
                   </th>
                 ))}
@@ -534,11 +535,10 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
           Esos meses se ven más rentables de lo que fueron.
         </p>
       )}
-      {!!incompletos.length && (
-        <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
-          {incompletos.map(x => nombreLargo(x.mes)).join(', ')} no están en Odoo para Feisen (todavía estaba en SIIGO):
-          de esos meses solo se ve lo de FC y lo que esté escrito a mano, así que los ceros no son ceros de verdad y la
-          columna del año se queda corta. Las cifras de esos meses están en tu Excel.
+      {!!deExcel.length && (
+        <p className="text-xs text-feisen-texto-2 leading-relaxed">
+          {nombreLargo(deExcel[0].mes)} a {nombreLargo(deExcel[deExcel.length - 1].mes)} salen de tu Excel de EEFF 2026,
+          tal como los llevabas a mano. De octubre en adelante las cifras salen solas de Odoo y del ERP.
         </p>
       )}
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
