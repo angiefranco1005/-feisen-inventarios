@@ -113,6 +113,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 | Publicidad | **523501** |
 | Comisiones | **529500** |
 | Nómina asesores y director comercial | Todas las **5205xx** de Feisen |
+| Honorarios | Todas las **5110xx** de Feisen más la **519600** |
 
 **Nómina de asesores y director comercial.** Sale del estado de resultados de **Feisen**, cuentas **5205xx**: los sueldos de ventas **más todas las prestaciones**. En octubre de 2026 fueron:
 
@@ -134,9 +135,27 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 - Se reparte entre los tres centros **por su participación en ventas**, como todos los gastos.
 - Angie revisó esta lista de cuentas el **13/11/2026** contra Odoo y da exacto.
 
-> **Ojo:** si alguna vez se paga marketing o community por esas mismas cuentas **5205xx**, quedaría contado aquí. Por eso el renglón **"Gastos marketing" sigue escribiéndose a mano**, para no contarlo dos veces.
+> **Ojo:** si se paga marketing o community por esas mismas cuentas **5205xx**, queda contado aquí dentro de la nómina de asesores y director comercial. **No hay renglón aparte de marketing.**
 
-**Todavía se escriben a mano:** gastos marketing, honorarios, nómina administrativa y otros gastos operacionales.
+**Honorarios.** Sale del estado de resultados de **Feisen**, de estas cuentas:
+
+| Cuenta | Qué es | Octubre |
+|---|---|---|
+| 511000 | Revisoría fiscal | $3.061.810 |
+| 511001 | Auditoría externa | — |
+| 511002 | Asesoría jurídica | — |
+| 511003 | Asesoría técnica | — |
+| 511004 | Otros | — |
+| 519600 | Honorarios SGST (el asesor de seguridad y salud en el trabajo) | $1.275.262 |
+| | **Total octubre** | **$4.337.072** |
+
+- **No entra la 519601** (exámenes médicos ocupacionales): eso no es un honorario, queda para otros gastos operacionales.
+- **Solo la columna de Feisen**, como lo pidió Angie: "solo lo que muestra Odoo Feisen". En FC no hay honorarios causados, así que la casilla de FC queda a mano, vacía.
+- Se reparte entre los tres centros **por su participación en ventas**, como todos los gastos.
+- En octubre solo dos cuentas tuvieron movimiento; las otras cuatro quedaron en cero.
+- Si algún día Angie prefiere que el asesor de SGST (**519600**) no vaya en honorarios, basta sacarlo del filtro.
+
+**Todavía se escriben a mano:** nómina administrativa y otros gastos operacionales.
 
 Queda una cosa por resolver antes de conectar el resto de la nómina:
 - En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre. Hay que confirmar si es la misma plata que ya contamos como mano de obra desde el ERP; si lo es, **no se puede usar**, o se contaría dos veces.
@@ -182,6 +201,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Dotación | octubre | Sus dos facturas de Metalcab ($1.115.000) más Maxiguantes ($1.723.600), que ella acepta como dotación: **$2.838.600** |
 | Viáticos, publicidad y comisiones | octubre | Conectados, sin contrastar todavía con su lista: viáticos $0, publicidad $1.816.107, comisiones $5.021.800 |
 | Nómina asesores y director comercial (Feisen) | octubre | **Exacto**: $15.394.169, las diez cuentas 5205xx contra Odoo |
+| Honorarios (Feisen) | octubre | **$4.337.072**: revisoría fiscal $3.061.810 y el asesor de SGST $1.275.262. Las demás 5110xx sin movimiento |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 
 ## 11. Qué cambió y por qué
@@ -201,5 +221,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | 13/11 | Servicios públicos incluye internet y celular, no solo la luz |
 | 13/11 | Nómina de asesores y director comercial conectada: cuentas 5205xx de Feisen, solo esa empresa, repartida por ventas |
 | 13/11 | El renglón "Sueldos marketing / community" se llama ahora **"Gastos marketing"** y sigue a mano, para no contar dos veces las 5205xx |
+| 13/11 | **Se eliminó el renglón "Gastos marketing"**: en Odoo no hay una cuenta propia para marketing. Si se paga por las 5205xx, queda dentro de la nómina de asesores y director comercial |
+| 13/11 | Honorarios conectado: cuentas 5110xx de Feisen más la 519600 (asesor de SGST), sin la 519601 (exámenes médicos). Solo Feisen, repartido por ventas |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.

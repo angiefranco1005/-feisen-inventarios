@@ -80,7 +80,6 @@ const BLOQUES = [
     { id: 'publicidad', nombre: 'Publicidad' },
     { id: 'comisiones', nombre: 'Comisiones' },
     { id: 'nomina_comercial', nombre: 'Nómina asesores y director comercial' },
-    { id: 'sueldos_marketing', nombre: 'Gastos marketing' },
     { id: 'honorarios', nombre: 'Honorarios' },
     { id: 'nomina_admin', nombre: 'Nómina administrativa' },
     { id: 'otros_operacionales', nombre: 'Otros gastos operacionales' },
@@ -188,11 +187,21 @@ for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
 // pensión y caja de compensación). Angie las marcó el 13/11/2026 sobre octubre y dan exacto.
 // **Solo Feisen**: FC no tiene nómina de ventas (su única cuenta de personal es la 510500).
 // Como todo gasto, se reparte entre los centros por su participación en ventas.
-// Ojo: si algún día se paga marketing o community por estas cuentas, caería aquí; el renglón de
-// "Gastos marketing" se escribe a mano para no contarlo dos veces.
+// Ojo: si algún día se paga marketing o community por estas cuentas, cae aquí. Angie quitó el renglón
+// aparte de marketing el 13/11/2026: en Odoo no hay una cuenta propia para eso.
 AUTO.feisen.nomina_comercial = {
   fuente: 'pyg', nota: 'sueldos de ventas con prestaciones (5205xx)', porVentas: true,
   filtro: x => x.codigo.startsWith('5205'),
+}
+
+// Honorarios: las cuentas 5110xx de Feisen (revisoría fiscal, auditoría externa, asesoría jurídica,
+// asesoría técnica y otros) más la 519600 "Honorarios SGST", que es el honorario del asesor de
+// seguridad y salud en el trabajo. No entra la 519601 (exámenes médicos): esa no es honorario.
+// **Solo Feisen**, como lo pidió Angie el 13/11/2026: en FC no hay honorarios causados.
+// Como todo gasto, se reparte entre los centros por su participación en ventas.
+AUTO.feisen.honorarios = {
+  fuente: 'pyg', nota: 'honorarios (5110xx) y el asesor de seguridad y salud (519600)', porVentas: true,
+  filtro: x => x.codigo.startsWith('5110') || x.codigo === '519600',
 }
 
 // Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
