@@ -94,8 +94,15 @@ const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
 // que es el fácil: Angie toma lo que sale en el estado de resultados de FC como materia prima = cuenta 613500
 // (la misma que Feisen usa para costo de ventas desde la homologación del 11/11).
 // El lado de Feisen sigue a mano mientras definimos cómo clasificar sus compras. Todo lo demás, a mano.
-const CUENTA_MATERIA_PRIMA = '613500'
-const AUTO = { fc: { materia_prima: CUENTA_MATERIA_PRIMA } }
+// En FC: lo que sale en su estado de resultados como materia prima (cuenta 613500).
+// En Feisen: las compras del mes a la cuenta de inventario (140500), porque contabilidad las lleva a
+// inventario y nunca saca lo consumido; su cuenta de costo de ventas (613500) se registra a saltos y no sirve
+// mes a mes (marzo $919 M, agosto $348 M). Las compras ya traen el centro de costo.
+// Enero a marzo no están en Odoo (Feisen todavía estaba en SIIGO): esos meses se escriben a mano.
+const AUTO = {
+  feisen: { materia_prima: { fuente: 'compras', cuenta: '1405', nota: 'compras del mes a inventario (140500)' } },
+  fc: { materia_prima: { fuente: 'pyg', cuenta: '613500', nota: 'estado de resultados (613500)' } },
+}
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Clasifica las filas de 'pyg' de una empresa en los renglones de ingresos
@@ -119,6 +126,7 @@ export default function Eeff() {
   const [mes, setMes] = useState('2026-10')
   const [aviso, avisar] = useAviso()
   const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes })
+  const compras = useOdoo('resultado', 'feisen', { mes })
   const [abierto, setAbierto] = useState(null)
   const [vista, setVista] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_VISTA); return VISTAS.some(o => o.valor === v) ? v : 'consolidado' } catch { return 'consolidado' }
@@ -215,16 +223,18 @@ export default function Eeff() {
   // entre los centros según lo que vendió cada uno en el mes (el mismo criterio de Resultado por centro).
   const auto = useMemo(() => {
     const auto = {}
-    for (const [empresa, filas] of Object.entries(AUTO)) for (const [filaId, codigo] of Object.entries(filas)) {
+    for (const [empresa, filas] of Object.entries(AUTO)) for (const [filaId, f] of Object.entries(filas)) {
       const a = auto[`${empresa}:${filaId}`] = { centros: { construequipos: 0, hierro: 0, aluminio: 0 }, sinCentro: 0 }
-      for (const f of datos?.[empresa]?.filas || []) {
-        if (f.codigo !== codigo) continue
-        const c = centroDe(f.centro)
-        if (c) a.centros[c] += f.valor; else a.sinCentro += f.valor
+      const lineas = f.fuente === 'compras'
+        ? (compras.datos?.[empresa]?.compras || []).filter(x => String(x.cuenta).startsWith(f.cuenta))
+        : (datos?.[empresa]?.filas || []).filter(x => x.codigo === f.cuenta)
+      for (const l of lineas) {
+        const c = centroDe(l.centro)
+        if (c) a.centros[c] += l.valor; else a.sinCentro += l.valor
       }
     }
     return auto
-  }, [datos]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [datos, compras.datos]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const automatico = (centroId, filaId, empresa) => {
     const a = auto[`${empresa}:${filaId}`]
@@ -274,7 +284,7 @@ export default function Eeff() {
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
-    const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre} de Odoo (cuenta ${AUTO[e.id][f.id]})`)
+    const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre}: ${AUTO[e.id][f.id].nota}`)
     return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
   }
   // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
@@ -319,9 +329,9 @@ export default function Eeff() {
     <div className="max-w-5xl mx-auto space-y-5 pb-24 lg:pb-8">
       <EncabezadoPagina modulo="Finanzas" titulo="EEFF"
         subtitulo="Estado de resultados de Feisen y FC juntos, armado paso a paso con tu método.">
-        <button type="button" onClick={() => { recargar(); cargarErp() }} disabled={cargando}
+        <button type="button" onClick={() => { recargar(); compras.recargar(); cargarErp() }} disabled={cargando || compras.cargando}
           className="flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60">
-          <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} /> Actualizar
+          <RefreshCw size={16} className={cargando || compras.cargando ? 'animate-spin' : ''} /> Actualizar
         </button>
       </EncabezadoPagina>
 
@@ -339,8 +349,9 @@ export default function Eeff() {
         </span>
       </div>
 
-      {cargando && !ing ? <Cargando /> : error ? <ErrorOdoo mensaje={error} onReintentar={recargar} /> : ing && (
-        <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
+      {(cargando && !ing) || (compras.cargando && !compras.datos) ? <Cargando />
+        : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : ing && (
+        <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando || compras.cargando ? 'opacity-60' : ''}`}>
           <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · {Titulo}</span>
             <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${utilidadNeta < 0 ? 'bg-feisen-rojo-suave text-feisen-rojo'
@@ -400,8 +411,9 @@ export default function Eeff() {
         Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
         Toca un renglón de ingresos para ver de qué cuentas sale.
         Los costos y gastos se escriben por centro, en su columna de Feisen o de FC, y Consolidado suma los tres centros.
-        Por ahora el único que sale solo de Odoo es la materia prima de FC (cuenta 613500 de su estado de resultados);
-        lo que ahí viene sin centro se reparte entre los centros según lo que vendió cada uno.
+        Por ahora el único renglón que sale solo de Odoo es la materia prima: en FC, de su estado de resultados (cuenta 613500);
+        en Feisen, de las compras del mes a inventario (cuenta 140500), que es donde contabilidad las deja.
+        Lo que viene sin centro se reparte entre los centros según lo que vendió cada uno. Enero, febrero y marzo no están en Odoo.
       </p>
       {aviso}
     </div>
