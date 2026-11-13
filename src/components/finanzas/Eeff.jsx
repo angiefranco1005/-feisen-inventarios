@@ -109,6 +109,7 @@ const PROVEEDORES_MATERIA_PRIMA = [
   'EQUIPOS TOYAMA DE COLOMBIA S.A.S.',
   'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
   'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
+  'IMPORTADORA DE RODAMIENTOS INDUSTRIALES SAS', // rodamientos: van en la máquina (Angie los marcó en octubre)
 ]
 // Decisión de Angie (13/11): en las fundiciones también se separa el material de los insumos, como ya lo
 // hace contabilidad. Antes ella metía todo junto en materia prima. La utilidad bruta no cambia (los dos
