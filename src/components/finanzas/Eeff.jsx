@@ -154,9 +154,11 @@ const AUTO = {
 // `sinCentro` dice a qué centro va lo que en Odoo no trae centro, en vez de repartirlo por ventas: la
 // nómina de producción de Feisen es la planta de Construequipos, así que Hierro y Aluminio no llevan nada
 // (decisión de Angie, 13/11; sus operarios los paga FC).
+// La 720511 (dotación) sale de aquí y se va al renglón de Dotación (decisión de Angie, 13/11). Por eso
+// la mano de obra de Feisen ya no coincide exacto con su Excel de septiembre, que sí la tenía adentro.
 AUTO.feisen.mano_obra = {
-  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (cuentas 7205xx)',
-  filtro: x => x.codigo.startsWith('7205'), sinCentro: 'construequipos',
+  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (7205xx, sin la dotación)',
+  filtro: x => x.codigo.startsWith('7205') && x.codigo !== '720511', sinCentro: 'construequipos',
 }
 
 // CIF: son gastos compartidos y no se sabe cuánto gasta de luz o de transporte cada centro, así que
@@ -166,6 +168,7 @@ const CIF_CUENTAS = {
   servicios_publicos: { cuentas: ['734000', '734001'], nota: 'energía y aseo de planta (734000, 734001)' },
   mantenimiento: { cuentas: ['734500', '734501'], nota: 'mantenimiento de equipos (734500, 734501)' },
   transporte: { cuentas: ['523500', '513504'], nota: 'transportes, fletes y acarreos (523500, 513504)' },
+  dotacion: { cuentas: ['720511'], nota: 'dotación y suministro a trabajadores (720511)' },
 }
 for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
   for (const emp of ['feisen', 'fc']) {
