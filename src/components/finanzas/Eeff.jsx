@@ -90,39 +90,13 @@ const BLOQUES = [
 ]
 const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
 
-// Paso 3 (13/11/2026): cada renglón sale solo del **estado de resultados** del mes de cada Odoo (acción
-// 'pyg'), por cuenta contable. Las cuentas son las mismas en las dos empresas desde la homologación del 11/11.
-// Se probó contra el septiembre que Angie armó a mano: mantenimiento al peso ($7.684.000 contra $7.683.999),
-// servicios públicos $10 mil de diferencia, transporte $74 mil, dotación $180 mil, y materia prima más
-// insumos juntos 1,1 % (contabilidad y ella reparten distinto entre esos dos renglones).
-// Se probó también contra las facturas de compra y quedaban más lejos, así que manda el estado de resultados.
-// La nómina (mano de obra y las tres de gastos) sigue escribiéndose a mano: Angie la saca de las nóminas.
-const CUENTAS = {
-  materia_prima: ['613500'],
-  insumos: ['737001', '737002', '730500'],
-  servicios_publicos: ['734000', '734001'],
-  mantenimiento: ['734500', '734501'],
-  transporte: ['523500', '513504'],
-  dotacion: ['720511'],
-  viaticos: ['525500', '515500', '519504'],
-  publicidad: ['523501'],
-  comisiones: ['529500'],
-  honorarios: ['511000', '511002', '519600'],
-  otros_operacionales: ['512500', '513000', '513500', '513503', '513505', '512000', '514000', '514001', '514002', '515000', '516000', '519500', '519501', '519502', '519506', '539500'],
-  intereses_impuestos: ['530507', '539502'],
-  gravamenes: ['530501'],
-  intereses_bancarios: ['530504', '530505'],
-  comisiones_financieras: ['530502', '530503'],
-}
-// Cuentas que no entran al P&G automático: la nómina la escribe Angie, y la 530508 (descuentos comerciales)
-// ya está restada en los ingresos. Se miran después del mapa de arriba, así que 720511 (dotación) no se afecta.
-const FUERA = [
-  { prefijos: ['5105', '5205', '7205'], nota: 'nómina: se escribe a mano' },
-  { prefijos: ['530508'], nota: 'descuentos comerciales: ya están restados en los ingresos' },
-]
-const CUENTA_DE = {}
-for (const [fila, codigos] of Object.entries(CUENTAS)) for (const c of codigos) CUENTA_DE[c] = fila
-const fueraDe = cod => FUERA.find(f => f.prefijos.some(p => cod.startsWith(p)))?.nota
+// Paso 3 (13/11/2026): se va renglón por renglón. Por ahora solo **materia prima**, y solo del lado de FC,
+// que es el fácil: Angie toma lo que sale en el estado de resultados de FC como materia prima = cuenta 613500
+// (la misma que Feisen usa para costo de ventas desde la homologación del 11/11).
+// El lado de Feisen sigue a mano mientras definimos cómo clasificar sus compras. Todo lo demás, a mano.
+const CUENTA_MATERIA_PRIMA = '613500'
+const AUTO = { fc: { materia_prima: CUENTA_MATERIA_PRIMA } }
+const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Clasifica las filas de 'pyg' de una empresa en los renglones de ingresos
 function ingresosDe(filas = []) {
@@ -195,19 +169,19 @@ export default function Eeff() {
   const neto = emp => totalVentas(emp) - val(emp, 'devoluciones')
 
   // Borrar la casilla devuelve el renglón a lo que trae Odoo; escribir en ella reemplaza ese valor
-  async function guardarManual(concepto, texto) {
+  async function guardarManual(concepto, empresa, texto) {
     const limpio = String(texto).replace(/[^\d-]/g, '')
     if (limpio === '') {
-      const { error: err } = await supabase.from('eeff_manual').delete().eq('mes', mes).eq('concepto', concepto).eq('empresa', 'total')
+      const { error: err } = await supabase.from('eeff_manual').delete().eq('mes', mes).eq('concepto', concepto).eq('empresa', empresa)
       if (err) { avisar('No se pudo borrar: ' + err.message); return }
-      setManual(m => { const n = { ...m }; delete n[`${concepto}|total`]; return n })
-      avisar('Vuelve al valor de Odoo')
+      setManual(m => { const n = { ...m }; delete n[`${concepto}|${empresa}`]; return n })
+      avisar('Casilla vacía')
       return
     }
     const valor = Number(limpio) || 0
-    const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa: 'total', valor, updated_at: new Date().toISOString() })
+    const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa, valor, updated_at: new Date().toISOString() })
     if (err) { avisar('No se pudo guardar: ' + err.message); return }
-    setManual(m => ({ ...m, [`${concepto}|total`]: valor }))
+    setManual(m => ({ ...m, [`${concepto}|${empresa}`]: valor }))
     avisar('Guardado')
   }
 
@@ -223,7 +197,7 @@ export default function Eeff() {
   // En un centro se escriben; en Consolidado se suman los tres (las transferencias internas se anulan:
   // son ingreso de Hierro/Aluminio y materia prima de Construequipos, y ninguna entra al consolidado).
   const transfRecibidas = transfHierro + (transfAluminio || 0)
-  const escrito = (centroId, filaId) => manual[`${centroId}:${filaId}|total`]
+  const escrito = (centroId, filaId, empresa) => manual[`${centroId}:${filaId}|${empresa}`]
 
   // Lo que cada renglón saca solo de Odoo, por centro. Lo que viene sin centro se reparte entre los
   // centros según lo que vendió cada uno en el mes (el mismo criterio de Resultado por centro).
@@ -237,36 +211,35 @@ export default function Eeff() {
   const ventasCentros = CENTROS.reduce((s, c) => s + ventasCentro(c.id), 0)
   const peso = id => ventasCentros > 0 ? ventasCentro(id) / ventasCentros : 0
 
-  const { auto, sinClasificar, fuera } = useMemo(() => {
-    const auto = {}, sinClasificar = {}, fuera = {}
-    const sumar = (filaId, centroId, v) => {
-      const a = auto[filaId] ??= { centros: { construequipos: 0, hierro: 0, aluminio: 0 }, sinCentro: 0 }
-      if (centroId) a.centros[centroId] += v; else a.sinCentro += v
+  // Lo único que por ahora sale solo de Odoo: la materia prima de FC. Lo que viene sin centro se reparte
+  // entre los centros según lo que vendió cada uno en el mes (el mismo criterio de Resultado por centro).
+  const auto = useMemo(() => {
+    const auto = {}
+    for (const [empresa, filas] of Object.entries(AUTO)) for (const [filaId, codigo] of Object.entries(filas)) {
+      const a = auto[`${empresa}:${filaId}`] = { centros: { construequipos: 0, hierro: 0, aluminio: 0 }, sinCentro: 0 }
+      for (const f of datos?.[empresa]?.filas || []) {
+        if (f.codigo !== codigo) continue
+        const c = centroDe(f.centro)
+        if (c) a.centros[c] += f.valor; else a.sinCentro += f.valor
+      }
     }
-    for (const d of Object.values(datos || {})) for (const f of d.filas || []) {
-      if (f.codigo.startsWith('4')) continue // ingresos: ya están arriba
-      const fila = CUENTA_DE[f.codigo]
-      if (fila) { sumar(fila, centroDe(f.centro), f.valor); continue }
-      const nota = fueraDe(f.codigo)
-      const etiqueta = `${f.codigo} ${f.cuenta}`
-      if (nota) (fuera[etiqueta] ??= { valor: 0, nota }).valor += f.valor
-      else (sinClasificar[etiqueta] ??= { valor: 0 }).valor += f.valor
-    }
-    return { auto, sinClasificar, fuera }
+    return auto
   }, [datos]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const automatico = (centroId, filaId) => {
-    const a = auto[filaId]
-    return a ? a.centros[centroId] + a.sinCentro * peso(centroId) : 0
+  const automatico = (centroId, filaId, empresa) => {
+    const a = auto[`${empresa}:${filaId}`]
+    return a ? a.centros[centroId] + a.sinCentro * peso(centroId) : null
   }
-  const baseCentro = (centroId, filaId) => {
-    const esc = escrito(centroId, filaId)
-    return esc != null ? esc : automatico(centroId, filaId)
+  const baseCentro = (centroId, filaId, empresa) => {
+    const esc = escrito(centroId, filaId, empresa)
+    return esc != null ? esc : (automatico(centroId, filaId, empresa) || 0)
   }
+  const valorEmpresa = (filaId, empresa) => centro
+    ? baseCentro(centro.id, filaId, empresa)
+    : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
   const valorFila = filaId => {
-    if (!centro) return CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId), 0)
-    const v = baseCentro(centro.id, filaId)
-    return centro.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
+    const v = EMPRESAS.reduce((s, e) => s + valorEmpresa(filaId, e.id), 0)
+    return centro?.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
   }
   const totalBloque = b => b.filas.reduce((s, f) => s + valorFila(f.id), 0)
   const porBloque = Object.fromEntries(BLOQUES.map(b => [b.id, totalBloque(b)]))
@@ -278,8 +251,7 @@ export default function Eeff() {
   const utilidadOperacional = utilidadBruta - porBloque.gastos_op
   const utilidadNeta = utilidadOperacional - porBloque.gastos_no_op
   const UTILIDAD = { 'Utilidad bruta': utilidadBruta, 'Utilidad operacional': utilidadOperacional, 'Utilidad neta': utilidadNeta }
-  const llenas = FILAS_COSTO.filter(f => Math.round(valorFila(f.id)) !== 0
-    || (centro ? escrito(centro.id, f.id) != null : CENTROS.some(c => escrito(c.id, f.id) != null))).length
+  const llenas = FILAS_COSTO.filter(f => Math.round(valorFila(f.id)) !== 0).length
   const parcial = llenas < FILAS_COSTO.length
 
   const alternar = id => setAbierto(a => (a === id ? null : id))
@@ -297,35 +269,39 @@ export default function Eeff() {
     : `${Math.round(erp.hierro.piezas).toLocaleString('es-CO')} piezas · ${Math.round(erp.hierro.kg).toLocaleString('es-CO')} kg × $${PRECIO_KG_HIERRO.toLocaleString('es-CO')}${erp.hierro.sinPeso ? ` · ${erp.hierro.sinPeso} sin peso` : ''}${erp.hierro.excluido
       ? ` · Observación: se descontaron ${pesos(erp.hierro.excluido.valor)} de materia prima de Fundición registrada como salida a otra bodega (${erp.hierro.excluido.documentos.join(', ')}); no es transferencia interna`
       : ''}`
-  const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', t)} />
+  const casillaAluminio = <CasillaPesos key={`${mes}-${transfAluminio}`} valor={transfAluminio} onGuardar={t => guardarManual('transferencia_aluminio', 'total', t)} />
 
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
-    const cods = CUENTAS[f.id]
-    const aMano = centro ? escrito(centro.id, f.id) != null : CENTROS.some(c => escrito(c.id, f.id) != null)
-    const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? ' · abajo van las piezas recibidas de Hierro y Aluminio' : ''
-    if (aMano) return `a mano${cods ? ' · reemplaza lo de Odoo' : ''}${extra}`
-    if (!cods) return `se escribe a mano (nómina)${extra}`
-    return `de Odoo · ${cods.length > 4 ? `${cods.slice(0, 4).join(', ')} y ${cods.length - 4} más` : cods.join(', ')}${extra}`
+    const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
+    const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre} de Odoo (cuenta ${AUTO[e.id][f.id]})`)
+    return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
+  }
+  // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
+  const celda = (f, empresa) => {
+    if (!centro || AUTO[empresa]?.[f.id]) return <Cifra v={valorEmpresa(f.id, empresa)} />
+    return <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${empresa}-${escrito(centro.id, f.id, empresa)}`}
+      valor={escrito(centro.id, f.id, empresa)} onGuardar={t => guardarManual(`${centro.id}:${f.id}`, empresa, t)} />
   }
 
-  // Costos y gastos: casillas en la vista de un centro, suma de los centros en Consolidado.
+  // Costos y gastos: cada renglón con su valor de Feisen y el de FC, como en el Excel.
   // En Construequipos, debajo de "Materia prima" van las piezas recibidas de Hierro y Aluminio.
   const pendientes = BLOQUES.map((b, i) => (
     <div key={b.id}>
       <Seccion titulo={b.seccion} nota={i === 0
-        ? (centro ? 'Lo que trae Odoo ya viene puesto. Si escribes un valor, reemplaza el de Odoo; si borras la casilla, vuelve.'
+        ? (centro ? 'Escribe el valor del mes en cada empresa: la utilidad de abajo se actualiza sola.'
           : 'Suma de los tres centros. Para escribir o corregir un valor, elige un centro arriba.')
         : undefined} />
       {b.filas.map(f => (
         <div key={f.id}>
-          {centro
-            ? <SoloTotal nombre={f.nombre} nota={notaFila(f)}>
-                <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${escrito(centro.id, f.id)}`}
-                  valor={escrito(centro.id, f.id)} auto={automatico(centro.id, f.id)}
-                  onGuardar={t => guardarManual(`${centro.id}:${f.id}`, t)} />
-              </SoloTotal>
-            : <SoloTotal nombre={f.nombre} nota={notaFila(f)} valor={valorFila(f.id) || null} />}
+          <div className={`${GRID} px-4 py-2 text-sm items-center border-t border-feisen-borde-suave`}>
+            <span className="min-w-0">
+              <span className="block text-feisen-texto">{f.nombre}</span>
+              {notaFila(f) && <span className="block text-xs text-feisen-texto-2">{notaFila(f)}</span>}
+            </span>
+            <span className="hidden sm:contents">{celda(f, 'feisen')}{celda(f, 'fc')}</span>
+            <Cifra v={valorFila(f.id)} fuerte />
+          </div>
           {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
             <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
             <SoloTotal nombre="Transferencia recibida — Aluminio"
@@ -359,7 +335,7 @@ export default function Eeff() {
           <Segmentado opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
         </div>
         <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
-          De Odoo y el ERP · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
+          Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
         </span>
       </div>
 
@@ -416,16 +392,6 @@ export default function Eeff() {
 
           {pendientes}
 
-          {(Object.keys(sinClasificar).length > 0 || Object.keys(fuera).length > 0) && (<>
-            <Seccion titulo="Cuentas que no entraron a ningún renglón"
-              nota="Del mes, en las dos empresas. Si alguna debe ir al P&G, dime a qué renglón y la conecto." />
-            {Object.entries(sinClasificar).sort((a, b) => b[1].valor - a[1].valor).map(([cuenta, o]) => (
-              <SoloTotal key={cuenta} nombre={cuenta} sangria valor={o.valor} />
-            ))}
-            {Object.entries(fuera).sort((a, b) => b[1].valor - a[1].valor).map(([cuenta, o]) => (
-              <SoloTotal key={cuenta} nombre={cuenta} sangria valor={o.valor} nota={`No entra al P&G: ${o.nota}`} />
-            ))}
-          </>)}
         </div>
       )}
 
@@ -433,9 +399,9 @@ export default function Eeff() {
         Ventas = cuenta 412000 de cada Odoo por centro; las demás cuentas de ingreso (no operacionales) van dentro de Construequipos.
         Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
         Toca un renglón de ingresos para ver de qué cuentas sale.
-        Los costos y gastos salen del estado de resultados de cada Odoo, por cuenta contable.
-        Lo que viene sin centro se reparte entre los centros según lo que vendió cada uno. La nómina todavía se escribe a mano.
-        En la vista de un centro puedes escribir cualquier renglón para reemplazar el valor de Odoo, y borrar la casilla lo devuelve.
+        Los costos y gastos se escriben por centro, en su columna de Feisen o de FC, y Consolidado suma los tres centros.
+        Por ahora el único que sale solo de Odoo es la materia prima de FC (cuenta 613500 de su estado de resultados);
+        lo que ahí viene sin centro se reparte entre los centros según lo que vendió cada uno.
       </p>
       {aviso}
     </div>
