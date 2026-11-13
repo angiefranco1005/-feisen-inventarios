@@ -93,7 +93,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 |---|---|
 | Servicios públicos | **734000** energía · **734001** el aseo que viene dentro de la factura de Enel · **513503** teléfono (internet Starlink y plan de celular) |
 | Mantenimiento equipos planta | **734500**, **734501** |
-| Transporte | **523500**, **513504** |
+| Transporte | **523500**, **513504**. Incluye los domicilios pequeños (p. ej. Sodimac), como los causa contabilidad |
 | Dotación | **720511** |
 | Insumos | 737001, 737002, 730500, **menos los de las fundiciones**, que ya están en materia prima. En Feisen se leen de las facturas de compra, para que la exclusión calce exacta; FC no tiene insumos de fundición |
 
@@ -128,7 +128,18 @@ Dos cosas que hay que recordar cuando se conecten:
 
 ---
 
-## 10. Qué cambió y por qué
+## 10. Comprobaciones contra la clasificación manual de Angie
+
+| Renglón | Mes | Resultado |
+|---|---|---|
+| Materia prima (Feisen) | octubre | **Exacto**: $285.114.608, factura por factura, con las dos listas de proveedores |
+| Materia prima (FC) | septiembre | Odoo $99.425.524 contra su Excel $88.959.324. **Manda Odoo**: en su Excel una compra salió de Construequipos y no se sumó en Hierro |
+| Mano de obra (Feisen) | septiembre | $21.608.474 contra $21.608.473 *(antes de sacarle la dotación)* |
+| Servicios públicos | octubre | **Exacto**: $9.838.666 contra sus cuatro facturas |
+| Mantenimiento | septiembre | **Exacto**: $7.684.000 |
+| Transporte | octubre | Las cinco facturas coinciden; Odoo trae $11.900 más de un domicilio de Sodimac, que ella acepta como transporte |
+
+## 11. Qué cambió y por qué
 
 | Fecha | Cambio |
 |---|---|
