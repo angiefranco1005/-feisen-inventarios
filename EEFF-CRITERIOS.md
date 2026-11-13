@@ -141,6 +141,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 | Nómina asesores y director comercial | Todas las **5205xx** de Feisen |
 | Honorarios | Todas las **5110xx** de Feisen más la **519600** |
 | Nómina administrativa | Todas las **5105xx** de Feisen · FC sale del ERP (RRHH › Nómina, centro administración) más las quincenas que falten |
+| Otros gastos operacionales | **Todo lo que quede** de los grupos **51** y **52** de las dos empresas que no tenga renglón propio arriba |
 
 **Nómina de asesores y director comercial.** Sale del estado de resultados de **Feisen**, cuentas **5205xx**: los sueldos de ventas **más todas las prestaciones**. En octubre de 2026 fueron:
 
@@ -214,10 +215,20 @@ En octubre de 2026: **$17.449.584** de la 2.ª quincena ya cargada en el ERP **+
 
 > **Ojo para los meses siguientes:** igual que con la mano de obra, **cuando la primera quincena quede cargada en el ERP hay que borrar ese valor**, o la nómina administrativa se cuenta dos veces. El aviso sigue valiendo igual que antes; lo que cambia es que ya no se borra desde la pantalla: **hay que pedirlo**.
 
-**Todavía se escriben a mano:** otros gastos operacionales.
+**Otros gastos operacionales.** Conectado el **13/11/2026**. Es el último renglón que faltaba y funciona distinto a todos los demás:
 
-Queda una cosa por resolver, y no es un olvido sino una decisión a la espera de que Angie confirme:
+- **No es una lista de cuentas: es el renglón de cierre.** Recoge **todo lo que quedó sin renglón propio dentro de los grupos 51 y 52** (gastos de administración y gastos de ventas) de las **dos empresas**, Feisen y FC.
+- **Se hizo así a propósito, y no con una lista fija de cuentas.** Con una lista, cada cuenta nueva que abra contabilidad se perdería sin que nadie lo notara. Ya pasó una vez: una compra a Würth no caía en ningún renglón y solo apareció revisando a mano. Con el renglón de cierre, **lo que no tiene casa cae aquí y siempre se ve**.
+- **Quedan por fuera** las cuentas que ya tienen su propio renglón arriba: **513503** (teléfono, va en servicios públicos), **513504** (fletes, va en transporte), **515500 / 519504 / 525500** (viáticos), **523500** (transporte), **523501** (publicidad), **529500** (comisiones), **519600** (el asesor de seguridad y salud, va en honorarios), y los grupos **5105** (nómina administrativa), **5110** (honorarios), **5120** (arrendamientos) y **5205** (nómina de asesores y director comercial).
+- **Si algún día uno de estos gastos crece y merece su propio renglón**, basta con dárselo arriba: este filtro lo suelta solo, sin tocar nada más.
+- Se reparte entre los tres centros **por participación en ventas**, como todos los gastos.
+- **Octubre de 2026:** **$5.831.384** de Feisen **+ $6.900.241** de FC = **$12.731.625**.
+
+**Ya no queda ningún gasto operacional escribiéndose a mano.** Con "otros gastos operacionales" conectado, toda la sección 7 sale sola de Odoo y del ERP.
+
+Quedan dos cosas por resolver, y no son olvidos sino decisiones a la espera de que Angie confirme:
 - En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre y **hoy no se usa en ningún renglón**. La razón: toda la nómina de FC —producción y administración— se toma del **ERP**, no de Odoo, así que usar además esa cuenta sería contar dos veces la misma plata. Queda pendiente que Angie confirme que efectivamente es la misma nómina; mientras tanto, se deja por fuera.
+- La cuenta **736000 "Maquinaria y Equipo Planta"**, que es **depreciación**, **$1.151.026** en octubre, **tampoco entra en ningún renglón**. El Excel de Angie no tiene renglón de depreciación y ella todavía no ha decidido si quiere uno. Mientras no lo decida, esa plata se queda por fuera **a propósito**. **Es la única cuenta que el estado de resultados de octubre deja por fuera**: todo lo demás ya cae en algún renglón.
 
 ## 7.1 Gastos no operacionales
 
@@ -225,15 +236,16 @@ Queda una cosa por resolver, y no es un olvido sino una decisión a la espera de
 
 | Renglón | Cuentas | Octubre |
 |---|---|---|
-| Intereses de impuestos | **530507** Intereses de Impuestos | $5.375.000 |
+| Intereses de impuestos | **530507** Intereses de Impuestos · grupo **5395** ("Diversos" en Odoo), donde viven la mora y el ajuste al peso | $5.374.785 |
 | Gravámenes (4x1000) | **530501** Gravamen a los movimientos financieros 4x1000 | $2.894.891 |
 | Intereses bancarios | **530504** Intereses corrientes Bancarios | $8.342.532 |
 | Comisiones financieras | **530502** Cuota de manejo ($62.040) · **530503** Comisiones ($1.029.353) | $1.091.393 |
-| | **Total octubre** | **$17.703.816** |
+| | **Total octubre** | **$17.703.601** |
 
 - **Solo la columna de Feisen**, como lo pidió Angie: "los gastos no operacionales los saca de Feisen, porque eso sí o sí tiene que ver con Feisen". La casilla de FC queda a mano, vacía.
 - Se reparten entre los tres centros **por su participación en ventas**, como todos los gastos.
 - Angie verificó estos valores el **13/11/2026** contra Odoo.
+- **Desde el 13/11/2026 "intereses de impuestos" recoge además el grupo 5395** ("Diversos" en Odoo): ahí quedan la mora y el ajuste al peso. En octubre eso baja el renglón de $5.375.000 a **$5.374.785**, por un ajuste al peso de **−$215**.
 
 > **Ojo con la 530508** (descuentos comerciales condicionados): **no entra en ninguno de estos cuatro renglones**. Ya está restada arriba, en "Devoluciones y descuentos comerciales". Como también empieza por 5305, si alguna vez se cambia el código por un filtro de prefijo (`5305…`) esa plata se resta **dos veces**. Por eso las cuentas se nombran una por una.
 
@@ -276,7 +288,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | Honorarios (Feisen) | octubre | **$4.337.072**: revisoría fiscal $3.061.810 y el asesor de SGST $1.275.262. Las demás 5110xx sin movimiento |
 | Nómina administrativa | octubre | Feisen **$63.016.769** (las diez cuentas 5105xx, lista verificada por Angie el 13/11) + FC **$28.538.767** ($17.449.584 del ERP y $11.089.183 de la primera quincena a mano) = **$91.555.536** |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
-| Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.375.000 · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.816** |
+| Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.374.785 (530507 más el grupo 5395, con un ajuste al peso de −$215) · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.601** |
+| Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que está pendiente de decisión |
 
 ## 11. Qué cambió y por qué
 
@@ -301,6 +314,9 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | **Se quitaron de la pantalla los dos sub-renglones de la nómina administrativa** (lo que viene del ERP y la casilla de las quincenas que falten), porque Angie no los necesitaba a la vista. El valor escrito a mano sigue guardado y sigue sumando; ahora se cambia solo pidiéndolo. El renglón lo explica en su nota |
 | 13/11 | Queda claro que la **510500 de Odoo FC no se usa en ningún renglón**: la nómina de FC, producción y administración, se toma del ERP. Pendiente que Angie lo confirme |
 | 13/11 | Gastos no operacionales conectados: 530507, 530501, 530504, 530502 y 530503 de Odoo Feisen. Solo Feisen (FC a mano), repartidos por ventas. **La 530508 queda por fuera a propósito**: ya está restada en los ingresos, y por eso las cuentas se nombran una por una y no por prefijo |
+| 13/11 | **"Otros gastos operacionales" conectado como renglón de cierre**: recoge todo lo que quede sin renglón propio dentro de los grupos 51 y 52 de las dos empresas. Se hizo con un filtro de exclusiones y no con una lista de cuentas, para que ninguna cuenta nueva se pierda sin que nadie lo note (ya había pasado con una compra a Würth). Octubre: Feisen $5.831.384 + FC $6.900.241 = **$12.731.625**. Con esto **ya no queda ningún gasto operacional a mano** |
+| 13/11 | "Intereses de impuestos" recoge además el grupo **5395** ("Diversos" en Odoo), donde están la mora y el ajuste al peso. Octubre pasa de $5.375.000 a **$5.374.785** (ajuste al peso de −$215) y el total de no operacionales a **$17.703.601** |
+| 13/11 | Con esos dos cambios, el estado de resultados de octubre **no deja ninguna cuenta por fuera salvo la 736000** ("Maquinaria y Equipo Planta", depreciación, $1.151.026). El Excel de Angie no tiene renglón de depreciación y ella no ha decidido si lo quiere: queda **pendiente de decisión**, no olvidado |
 | 13/11 | Nuevo modo **"Todo el año"** en la pantalla: los meses en columnas y una columna con el total del año, con el **mismo cálculo** que la vista de un mes (se comprobó octubre renglón por renglón). En el año no se escriben valores a mano. **El total del año todavía no es real y no se debe reportar**: faltan enero, febrero y marzo de Feisen (estaba en SIIGO) y la mano de obra de varios meses. Los meses incompletos van marcados en ámbar |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
