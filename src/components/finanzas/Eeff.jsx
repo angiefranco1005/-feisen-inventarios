@@ -145,10 +145,15 @@ const AUTO = {
   } },
   fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
 }
-// Nota para cuando Angie quiera conectar la mano de obra de Feisen: sus cuentas 7205xx del estado de
-// resultados dan exactamente su "M.O. nómina planta — SIIGO" (septiembre: $21.608.474 contra $21.608.473).
-// Por ahora ella la deja vacía. Si se conecta, ojo: la 720511 (dotación) está dentro de esas cuentas y
-// habría que excluirla del renglón de Dotación para no contarla dos veces.
+// Mano de obra directa de Feisen: todas las cuentas 7205xx de su estado de resultados, que es sueldos más
+// prestaciones (auxilio de transporte, cesantías e intereses, prima, vacaciones, ARL, pensión, caja,
+// dotación, capacitación…). Probado contra el Excel de Angie: septiembre dio $21.608.474 contra sus
+// $21.608.473 de "M.O. nómina planta — SIIGO".
+// OJO: la 720511 (dotación) queda incluida aquí, tal como ella lo hace; al conectar el renglón de Dotación
+// hay que excluirla de allá para no contarla dos veces.
+AUTO.feisen.mano_obra = {
+  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (cuentas 7205xx)', filtro: x => x.codigo.startsWith('7205'),
+}
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
 // Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
@@ -357,7 +362,7 @@ export default function Eeff() {
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
-    if (f.id === 'mano_obra') return 'FC: la nómina del ERP más lo que escribas. Feisen todavía no se lleva aquí'
+    if (f.id === 'mano_obra') return 'Feisen: mano de obra directa con prestaciones (7205xx) · FC: la nómina del ERP más lo que escribas'
     const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre}: ${AUTO[e.id][f.id].nota}`)
     return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
   }
