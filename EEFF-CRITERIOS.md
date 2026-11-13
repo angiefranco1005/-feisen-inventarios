@@ -182,10 +182,11 @@ Angie revisó esta lista de cuentas el **13/11/2026**.
 
 En octubre de 2026: **$17.449.584** de la 2.ª quincena ya cargada en el ERP **+ $11.089.183** de la primera quincena, que Angie dio a mano y ya quedó guardada. **Total FC $28.538.767.** Total del renglón en octubre: **$91.555.536**.
 
-- La casilla de "las quincenas que falten" de la nómina administrativa es **una sola para toda la empresa** (se guarda con el concepto `todos:nomina_admin`, no por centro), porque la administración **no tiene centro de costo**. Después se reparte entre los tres centros **por participación en ventas**, como todos los gastos. Esto es distinto de la mano de obra, donde la casilla sí es **por centro**.
+- El valor de "las quincenas que falten" de la nómina administrativa es **uno solo para toda la empresa** (se guarda con el concepto `todos:nomina_admin`, no por centro), porque la administración **no tiene centro de costo**. Después se reparte entre los tres centros **por participación en ventas**, como todos los gastos. Esto es distinto de la mano de obra, donde la casilla sí es **por centro**.
+- **Esa casilla ya no está en la pantalla.** Se quitó el **13/11/2026** porque Angie no la necesitaba a la vista en el informe. **El valor sigue guardado y sigue sumando** en la columna de FC: lo único que cambió es que ahora **no se puede cambiar desde la pantalla, hay que pedirlo** para que se modifique en la base de datos. Para que no quede siendo un misterio de dónde sale la cifra de FC, el renglón lo dice en su nota.
 - Todo el renglón, Feisen y FC, se reparte entre los tres centros por participación en ventas.
 
-> **Ojo para los meses siguientes:** igual que con la mano de obra, **cuando la primera quincena quede cargada en el ERP hay que borrar esa casilla**, o la nómina administrativa se cuenta dos veces.
+> **Ojo para los meses siguientes:** igual que con la mano de obra, **cuando la primera quincena quede cargada en el ERP hay que borrar ese valor**, o la nómina administrativa se cuenta dos veces. El aviso sigue valiendo igual que antes; lo que cambia es que ya no se borra desde la pantalla: **hay que pedirlo**.
 
 **Todavía se escriben a mano:** otros gastos operacionales.
 
@@ -194,11 +195,23 @@ Queda una cosa por resolver, y no es un olvido sino una decisión a la espera de
 
 ## 7.1 Gastos no operacionales
 
-**También se reparten por ventas. Todavía se escriben a mano.** Las cuentas candidatas son: intereses bancarios **530504** y **530505**, intereses de impuestos **530507** (ella le suma **539502** multas y sanciones), gravamen 4x1000 **530501**, comisiones financieras **530502** y **530503**.
+**Ya están conectados** (13/11/2026). Salen del estado de resultados de **Feisen** y **se reparten por ventas**, como todos los gastos.
 
-Dos cosas que hay que recordar cuando se conecten:
-- La **530508** (descuentos comerciales) ya está restada en los ingresos: no volver a sumarla.
-- La **513503** (teléfono) ya está en servicios públicos: no volver a sumarla en otros gastos operacionales.
+| Renglón | Cuentas | Octubre |
+|---|---|---|
+| Intereses de impuestos | **530507** Intereses de Impuestos | $5.375.000 |
+| Gravámenes (4x1000) | **530501** Gravamen a los movimientos financieros 4x1000 | $2.894.891 |
+| Intereses bancarios | **530504** Intereses corrientes Bancarios | $8.342.532 |
+| Comisiones financieras | **530502** Cuota de manejo ($62.040) · **530503** Comisiones ($1.029.353) | $1.091.393 |
+| | **Total octubre** | **$17.703.816** |
+
+- **Solo la columna de Feisen**, como lo pidió Angie: "los gastos no operacionales los saca de Feisen, porque eso sí o sí tiene que ver con Feisen". La casilla de FC queda a mano, vacía.
+- Se reparten entre los tres centros **por su participación en ventas**, como todos los gastos.
+- Angie verificó estos valores el **13/11/2026** contra Odoo.
+
+> **Ojo con la 530508** (descuentos comerciales condicionados): **no entra en ninguno de estos cuatro renglones**. Ya está restada arriba, en "Devoluciones y descuentos comerciales". Como también empieza por 5305, si alguna vez se cambia el código por un filtro de prefijo (`5305…`) esa plata se resta **dos veces**. Por eso las cuentas se nombran una por una.
+
+Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públicos, no volver a sumarla en otros gastos operacionales.
 
 ---
 
@@ -207,7 +220,7 @@ Dos cosas que hay que recordar cuando se conecten:
 - Se escriben **en la vista de un centro**, en la columna de la empresa que corresponda. Consolidado solo suma.
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
-- La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas.
+- La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas. **Desde el 13/11/2026 ya no aparece en la pantalla**: el valor sigue guardado y sigue sumando, pero para cambiarlo o borrarlo **hay que pedirlo**.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -215,7 +228,7 @@ Dos cosas que hay que recordar cuando se conecten:
 ## 9. Avisos
 
 - **El periodo de nómina de octubre está en borrador.** Al cerrarlo las cifras pueden cambiar.
-- **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro) y la de **nómina administrativa de FC** (una sola para toda la empresa).
+- **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro), que se borran desde la pantalla, y la de **nómina administrativa de FC** (una sola para toda la empresa), que **ya no está en la pantalla y hay que pedir que la borren**.
 - **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
@@ -237,6 +250,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Honorarios (Feisen) | octubre | **$4.337.072**: revisoría fiscal $3.061.810 y el asesor de SGST $1.275.262. Las demás 5110xx sin movimiento |
 | Nómina administrativa | octubre | Feisen **$63.016.769** (las diez cuentas 5105xx, lista verificada por Angie el 13/11) + FC **$28.538.767** ($17.449.584 del ERP y $11.089.183 de la primera quincena a mano) = **$91.555.536** |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
+| Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.375.000 · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.816** |
 
 ## 11. Qué cambió y por qué
 
@@ -258,6 +272,8 @@ Dos cosas que hay que recordar cuando se conecten:
 | 13/11 | **Se eliminó el renglón "Gastos marketing"**: en Odoo no hay una cuenta propia para marketing. Si se paga por las 5205xx, queda dentro de la nómina de asesores y director comercial |
 | 13/11 | Honorarios conectado: cuentas 5110xx de Feisen más la 519600 (asesor de SGST), sin la 519601 (exámenes médicos). Solo Feisen, repartido por ventas |
 | 13/11 | Nómina administrativa conectada: Feisen son las cuentas 5105xx de Odoo; FC sale del ERP (centro administración) más las quincenas que falten, con **una sola casilla para toda la empresa** (`todos:nomina_admin`). Se reparte por ventas |
+| 13/11 | **Se quitaron de la pantalla los dos sub-renglones de la nómina administrativa** (lo que viene del ERP y la casilla de las quincenas que falten), porque Angie no los necesitaba a la vista. El valor escrito a mano sigue guardado y sigue sumando; ahora se cambia solo pidiéndolo. El renglón lo explica en su nota |
 | 13/11 | Queda claro que la **510500 de Odoo FC no se usa en ningún renglón**: la nómina de FC, producción y administración, se toma del ERP. Pendiente que Angie lo confirme |
+| 13/11 | Gastos no operacionales conectados: 530507, 530501, 530504, 530502 y 530503 de Odoo Feisen. Solo Feisen (FC a mano), repartidos por ventas. **La 530508 queda por fuera a propósito**: ya está restada en los ingresos, y por eso las cuentas se nombran una por una y no por prefijo |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.

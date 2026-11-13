@@ -211,6 +211,26 @@ AUTO.feisen.honorarios = {
   filtro: x => x.codigo.startsWith('5110') || x.codigo === '519600',
 }
 
+// Gastos no operacionales: salen **solo de Odoo Feisen**, como lo pidió Angie el 13/11/2026 ("los gastos
+// no operacionales los saca de Feisen, porque eso sí o sí tiene que ver con Feisen"). La columna de FC
+// queda como casilla a mano. Como todo gasto, se reparten entre los tres centros por participación en ventas.
+// **Ojo:** las cuentas se nombran una por una, nunca por prefijo '5305'. La 530508 "Descuentos comerciales
+// condicionados" también empieza por 5305 y ya está restada arriba, en "Devoluciones y descuentos
+// comerciales": si entra por un filtro de prefijo, esa plata se resta dos veces. No cambiar a startsWith.
+const NO_OPERACIONALES = {
+  // Intereses que cobra la DIAN por impuestos pagados tarde (octubre 2026: $5.375.000)
+  intereses_impuestos: { cuentas: ['530507'], nota: 'intereses de impuestos (530507)' },
+  // El 4x1000 que descuenta el banco de cada movimiento (octubre 2026: $2.894.891)
+  gravamenes: { cuentas: ['530501'], nota: 'gravamen a los movimientos financieros 4x1000 (530501)' },
+  // Intereses de los créditos y sobregiros bancarios (octubre 2026: $8.342.532)
+  intereses_bancarios: { cuentas: ['530504'], nota: 'intereses corrientes bancarios (530504)' },
+  // Lo que cobra el banco por el servicio: cuota de manejo y comisiones (octubre 2026: $1.091.393)
+  comisiones_financieras: { cuentas: ['530502', '530503'], nota: 'cuota de manejo y comisiones bancarias (530502, 530503)' },
+}
+for (const [fila, { cuentas, nota }] of Object.entries(NO_OPERACIONALES)) {
+  AUTO.feisen[fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
+}
+
 // Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
 // (decisión de Angie, 13/11, para no contarlos dos veces). En Feisen se lee de las compras, la misma
 // fuente de su materia prima, para que la exclusión calce exacta; FC no tiene insumos de fundición.
@@ -449,6 +469,8 @@ export default function Eeff() {
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
     if (f.id === 'mano_obra') return 'Feisen: mano de obra directa con prestaciones (7205xx) · FC: la nómina del ERP más lo que escribas'
+    // La columna de FC ya no muestra el desglose abajo, así que la nota explica de dónde sale
+    if (f.id === 'nomina_admin') return `Feisen: ${AUTO.feisen.nomina_admin.nota} · FC: nómina de administración del ERP más las quincenas escritas a mano`
     const notas = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => [e.nombre, AUTO[e.id][f.id].nota])
     // Si las dos empresas sacan el renglón de lo mismo, no se repite el texto
     const iguales = notas.length === 2 && notas[0][1] === notas[1][1]
@@ -496,19 +518,10 @@ export default function Eeff() {
                 valor={escrito(centro.id, 'mano_obra', 'fc')} onGuardar={t => guardarManual(`${centro.id}:mano_obra`, 'fc', t)} />
             </SoloTotal>
           )}
-          {f.id === 'nomina_admin' && (<>
-            <SoloTotal nombre="De esa, la nómina de administración ya cargada en el ERP (FC)" sangria
-              valor={erp.nomina ? adminErp() * (centro ? peso(centro.id) : 1) : null}
-              nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
-                : erp.nomina?.quincenas?.length
-                  ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de administración`
-                  : 'Todavía no hay nómina cargada de este mes: escribe el valor abajo'} />
-            <SoloTotal nombre="Más las quincenas que falten (FC)" sangria
-              nota="Lo que todavía no está en el ERP. Es el valor de toda la empresa: se reparte entre los centros por ventas.">
-              <CasillaPesos key={`${mes}-todos-nomina_admin-fc-${adminAMano()}`}
-                valor={manual['todos:nomina_admin|fc']} onGuardar={t => guardarManual('todos:nomina_admin', 'fc', t)} />
-            </SoloTotal>
-          </>)}
+          {/* Los dos sub-renglones de nómina administrativa (lo del ERP y la casilla de las quincenas
+              que falten) se quitaron de la vista el 13/11/2026: Angie no los necesita en el informe.
+              El valor escrito a mano sigue guardado y sigue sumando en la columna de FC; ahora solo
+              se cambia desde la base de datos (eeff_manual, concepto 'todos:nomina_admin'). */}
           {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
             <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
             <SoloTotal nombre="Transferencia recibida — Aluminio"
