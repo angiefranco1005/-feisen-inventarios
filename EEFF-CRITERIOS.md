@@ -95,7 +95,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 | Mantenimiento equipos planta | **734500**, **734501** |
 | Transporte | **523500**, **513504**. Incluye los domicilios pequeños (p. ej. Sodimac), como los causa contabilidad |
 | Dotación | **720511**. Incluye los elementos de protección (p. ej. guantes), además de la dotación de ropa |
-| Insumos | 737001, 737002, 730500, **menos los de las fundiciones**, que ya están en materia prima. En Feisen se leen de las facturas de compra, para que la exclusión calce exacta; FC no tiene insumos de fundición |
+| Insumos | 737001, 737002, 730500, **menos los de las fundiciones**, que ya están en materia prima, **más** lo que contabilidad causó a inventario (140500) pero es herramienta o insumo: Würth, Importadora Superior, La Roca Abrasivos, Uyusa y Ferretería Ángel. Así no se pierde nada entre los dos renglones. En Feisen se lee de las facturas de compra, para que la exclusión calce exacta; FC no tiene insumos de fundición |
 
 ---
 
@@ -139,6 +139,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Mantenimiento | septiembre | **Exacto**: $7.684.000 |
 | Transporte | octubre | Las cinco facturas coinciden; Odoo trae $11.900 más de un domicilio de Sodimac, que ella acepta como transporte |
 | Dotación | octubre | Sus dos facturas de Metalcab ($1.115.000) más Maxiguantes ($1.723.600), que ella acepta como dotación: **$2.838.600** |
+| Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 
 ## 11. Qué cambió y por qué
 

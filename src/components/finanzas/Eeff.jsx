@@ -183,8 +183,11 @@ AUTO.feisen.insumos = {
   porVentas: true,
   filtro: x => {
     const cod = String(x.cuenta).split(' ')[0]
+    const prov = sinAdornos(x.proveedor)
+    // Lo que contabilidad causó a inventario pero es herramienta o insumo cae aquí, no en materia prima
+    if (cod.startsWith('1405')) return NO_ES_MATERIA_PRIMA.has(prov)
     if (!esInsumo(cod)) return false
-    return !CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) && !ES_MATERIA_PRIMA.has(sinAdornos(x.proveedor))
+    return !CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) && !ES_MATERIA_PRIMA.has(prov)
   },
 }
 AUTO.fc.insumos = {
