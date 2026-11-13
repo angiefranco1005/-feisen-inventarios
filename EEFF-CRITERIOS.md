@@ -18,8 +18,30 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
 | **A mano** | Lo que todavía no está en ningún sistema | Tabla `eeff_manual` |
+| **El Excel de Angie (EEFF 2026)** | Los meses **anteriores a octubre de 2026**, enteros | `src/components/finanzas/eeffHistorico.js` |
 
 Las cuentas contables son **las mismas en las dos empresas** desde la homologación del 11/11/2026.
+
+---
+
+## 1.1 Hasta septiembre de 2026, el Excel; desde octubre, Odoo y el ERP
+
+**Esta es una sola regla y vale para toda la pantalla**, mires el mes que mires y estés en la vista de **"Un mes"** o en la de **"Todo el año"**:
+
+- **Enero a septiembre de 2026 salen del Excel** que Angie llevaba a mano (`EEFF 2026.xlsx`, hojas CONSTRUEQUIPOS, FUND. HIERRO y ALUMINIO), tal cual están ahí.
+- **De octubre de 2026 en adelante** las cifras salen solas de **Odoo y del ERP**, con los criterios que explica el resto de este documento.
+
+**Por qué, y esto es lo importante para quien venga después:** **Odoo Feisen está incompleto antes de octubre.** Feisen venía de SIIGO y contabilidad cargó enero, febrero y marzo dentro de marzo. Leer Odoo en esos meses **da cifras que parecen buenas y no lo son**. Por eso no se leen: se usa el Excel, que es el dato bueno.
+
+**Qué cambia en la pantalla cuando el mes viene del Excel:**
+
+- **No se escribe nada.** Esas cifras ya están cerradas. Todas las casillas se vuelven **cifras de solo lectura**, incluidas la **transferencia de aluminio** y **las quincenas que falten de la mano de obra**.
+- La pantalla **avisa con un distintivo** que dice que el mes viene del Excel ("De tu Excel de EEFF 2026 · desde octubre las cifras salen solas de Odoo").
+- **A esos meses no se les pide nada a Odoo**, así que **abren al instante**.
+
+> **Antes del 13/11/2026 el Excel estaba conectado solo en la vista del año**, así que el mismo mes mostraba cifras distintas según dónde se mirara: **septiembre** daba **$795.901.155** de ingresos netos en la vista de un mes (leyendo Odoo, incompleto) y **$827.138.921** en la del año (leyendo el Excel, correcto). **Ya dan iguales: $827.138.921 en las dos.**
+
+**El mes se escoge en una lista, no en un calendario.** Desde el 13/11/2026 el filtro de arriba es una lista con el nombre del mes ("Septiembre de 2026"), del más nuevo al más viejo.
 
 ---
 
@@ -40,27 +62,21 @@ La última columna, **"% ventas"**, es el análisis vertical: cada renglón como
 
 Desde el **13/11/2026** la pantalla tiene dos modos: **"Un mes"**, el de siempre, y **"Todo el año"**.
 
-- **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con octubre, renglón por renglón.
+- **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con **octubre** (que viene de Odoo) y con **septiembre** (que viene del Excel), renglón por renglón.
+- **Los dos modos usan la misma fuente para cada mes**, la de la sección 1.1: hasta septiembre el Excel, desde octubre Odoo y el ERP. Esto se arregló el **13/11/2026**; antes el Excel estaba solo en la vista del año y septiembre no daba igual en los dos lados.
 - En la vista del año los **meses van en columnas** y al final hay una columna con el **total del año**.
 - Las cifras se pueden ver **en pesos (como arranca), en millones o como % de ventas** (el análisis vertical de siempre).
 - En pesos y en millones, la **columna del año** trae además, debajo de cada cifra, **su porcentaje sobre los ingresos netos del año**: es el mismo análisis vertical de la vista de un mes, aplicado al acumulado. Los meses se quedan solo con la cifra.
 - El **filtro de centro de costo funciona igual** que en la vista de un mes.
 - **En la vista del año no se escriben valores a mano.** Las casillas solo existen en la vista de un mes; si hay que escribir o corregir algo, se cambia de modo.
 
-### El total del año todavía NO es una cifra real: no se debe reportar
+### Hay que mirar si algún mes quedó cojo antes de reportar el año
 
-Dicho con todas las letras: **la columna del año no sirve todavía para informar a nadie**. Faltan datos, y por dos razones:
+Los meses que vienen del **Excel** (enero a septiembre) están completos: son las cifras que Angie misma llevaba, con su mano de obra incluida. El hueco que quedaba por enero, febrero y marzo **se cerró el 13/11/2026** al conectar el Excel también en la vista de un mes.
 
-1. **Enero, febrero y marzo no están en Odoo para Feisen**, que en esos meses todavía estaba en SIIGO. De esos tres meses solo se ve lo de FC.
-2. **A varios meses les falta la mano de obra.** La nómina de producción se empezó a cargar en el ERP hace poco, y la de FC nunca se registró en Odoo. Un mes sin ese costo muestra una utilidad que no existe.
+Lo que sí hay que seguir mirando son los meses **de octubre en adelante**: **un mes al que le falte la mano de obra muestra una utilidad que no existe**. La nómina de producción se empezó a cargar en el ERP hace poco y la de FC nunca se registró en Odoo, así que mientras falte una quincena el mes se ve más rentable de lo que fue.
 
-Para dar una idea del tamaño del hueco: la mano de obra de todo el año suma **$387 M**, y **solo octubre son $165 M**. Por eso el informe de **octubre de 2026 da 8 % de utilidad neta** y la **columna del año da 41 %**, que es falso.
-
-La pantalla ya avisa: los meses incompletos van **marcados en ámbar** ("sin Odoo" o "sin mano de obra") y el título dice **"Utilidad neta del año (incompleta)"**.
-
-**Marzo de 2026 se ve enorme** ($1,62 mil M de ventas) porque ahí quedó cargado el acumulado de enero a marzo cuando Feisen pasó de SIIGO a Odoo. **No es un error del cálculo.**
-
-**Qué haría falta para que el año sirva:** cargar a mano los meses que quedaron en SIIGO (enero, febrero y marzo) y las nóminas que faltan. Mientras eso no esté, el año se mira para ver tendencias, no para reportar cifras.
+La pantalla ya avisa: los meses a los que les falta la mano de obra van **marcados en ámbar** ("sin mano de obra") y el título dice **"Utilidad neta del año (incompleta)"**. **Mientras aparezca ese aviso, el año se mira para ver tendencias, no para reportar cifras.**
 
 ## 3. Ingresos
 
@@ -102,7 +118,7 @@ Son las piezas que las fundiciones le "venden" a Construequipos: **ingreso** par
 
 **FC** — la cuenta **613500** de su estado de resultados: todo lo que ahí sale como materia prima.
 
-> **Enero, febrero y marzo no están en Odoo** (Feisen todavía estaba en SIIGO). Esos meses se escriben a mano.
+> **Esto vale de octubre de 2026 en adelante.** Los meses anteriores no se le piden a Odoo: salen enteros del Excel de Angie (sección 1.1), porque Feisen todavía estaba en SIIGO y en Odoo enero, febrero y marzo quedaron cargados dentro de marzo. Tampoco se escriben a mano: ya están.
 
 ### 5.2 Mano de obra
 
@@ -263,6 +279,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 
 ## 8. Las casillas que se escriben a mano
 
+- **Solo existen de octubre de 2026 en adelante.** En un mes que viene del Excel **no se escribe nada**: las cifras ya están cerradas y todas las casillas se ven como cifras de solo lectura, incluidas la transferencia de aluminio y las quincenas que falten de la mano de obra.
 - Se escriben **en la vista de un centro**, en la columna de la empresa que corresponda. Consolidado solo suma.
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
@@ -275,7 +292,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 
 - **El periodo de nómina de octubre está en borrador.** Al cerrarlo las cifras pueden cambiar.
 - **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro), que se borran desde la pantalla, y la de **nómina administrativa de FC** (una sola para toda la empresa), que **ya no está en la pantalla y hay que pedir que la borren**.
-- **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado.
+- **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado. Esto solo pasa de octubre en adelante: los meses del Excel ya están cerrados y no se mueven.
+- **No hay que "arreglar" los meses viejos leyéndolos de Odoo.** Antes de octubre Odoo está incompleto y daría cifras que parecen buenas y no lo son. Si alguna vez hay que cambiar un mes de enero a septiembre, se cambia el Excel y se vuelve a generar `eeffHistorico.js`.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
 ---
@@ -297,6 +315,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | Nómina administrativa | octubre | Feisen **$63.016.769** (las diez cuentas 5105xx, lista verificada por Angie el 13/11) + FC **$28.538.767** ($17.449.584 del ERP y $11.089.183 de la primera quincena a mano) = **$91.555.536** |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 | Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.374.785 (530507 más el grupo 5395, con un ajuste al peso de −$215) · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.601** |
+| Las dos vistas dan lo mismo | septiembre | **Exacto**: septiembre da igual en la vista de un mes y en la del año, porque las dos leen el Excel. Ingresos netos **$827.138.921** · nómina administrativa **$62.456.739** · otros gastos operacionales **$13.345.564** · utilidad neta **$98,4 M**. Antes del 13/11 la vista de un mes leía Odoo y mostraba $795.901.155 de ingresos netos |
 | Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que **Angie decidió el 13/11/2026 dejar fuera del informe** |
 
 ## 11. Qué cambió y por qué
@@ -327,5 +346,9 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | Con esos dos cambios, el estado de resultados de octubre **no deja ninguna cuenta por fuera salvo la 736000** ("Maquinaria y Equipo Planta", depreciación, $1.151.026) |
 | 13/11 | **Angie decidió que la depreciación (cuenta 736000) queda por fuera del informe.** Su Excel a mano tampoco tenía renglón de depreciación, así que el informe sigue su método. Es una decisión tomada, no un olvido: **no hay que "arreglarlo"**. Consecuencia: la utilidad del informe queda por encima de la contable en el valor de la depreciación (unos $1,15 millones al mes con octubre), y esa es una de las diferencias a tener presente si hay que cuadrar contra la contabilidad o el revisor fiscal. Si alguna vez cambia de opinión, el renglón iría dentro de los CIF |
 | 13/11 | Nuevo modo **"Todo el año"** en la pantalla: los meses en columnas y una columna con el total del año, con el **mismo cálculo** que la vista de un mes (se comprobó octubre renglón por renglón). En el año no se escriben valores a mano. **El total del año todavía no es real y no se debe reportar**: faltan enero, febrero y marzo de Feisen (estaba en SIIGO) y la mano de obra de varios meses. Los meses incompletos van marcados en ámbar |
+
+| 13/11 | **Los meses anteriores a octubre de 2026 salen del Excel de Angie en las dos vistas**, no solo en la del año. Antes el mismo mes mostraba cifras distintas según dónde se mirara: septiembre daba $795.901.155 de ingresos netos en la vista de un mes (leyendo Odoo, incompleto) y $827.138.921 en la del año (leyendo el Excel). **Ya dan iguales: $827.138.921 en las dos.** La regla quedó una sola para toda la pantalla: **hasta septiembre el Excel, desde octubre Odoo y el ERP** |
+| 13/11 | En un mes que viene del Excel **no se escribe nada**: las casillas se vuelven cifras de solo lectura (incluidas la transferencia de aluminio y las quincenas que falten de la mano de obra) y la pantalla avisa con un distintivo que el mes viene del Excel. A esos meses **no se les pide nada a Odoo**, así que abren al instante |
+| 13/11 | **El mes se escoge en una lista** con el nombre del mes ("Septiembre de 2026"), del más nuevo al más viejo, y ya no en un calendario |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
