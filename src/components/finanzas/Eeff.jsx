@@ -147,6 +147,12 @@ const AUTO = {
 }
 const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
 
+// Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
+// Se toma el total devengado, que es lo que cuesta el trabajo; las deducciones (seguridad, anticipos) no
+// bajan el costo, se le descuentan al colaborador. La gente de 'administracion' no entra aquí: va en el
+// renglón de nómina administrativa. Las quincenas que todavía no estén cargadas se escriben a mano.
+const CENTRO_NOMINA = { construequipos: 'construequipos', fundicionHierro: 'hierro', aluminio: 'aluminio' }
+
 // Clasifica las filas de 'pyg' de una empresa en los renglones de ingresos
 function ingresosDe(filas = []) {
   const r = Object.fromEntries(VENTAS.map(v => [v.id, { valor: 0, detalle: [] }]))
@@ -176,7 +182,7 @@ export default function Eeff() {
   const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
 
   // Transferencia de Hierro desde el ERP y valores a mano del mes
-  const [erp, setErp] = useState({ cargando: true, hierro: null, error: '' })
+  const [erp, setErp] = useState({ cargando: true, hierro: null, nomina: null, error: '' })
   const [manual, setManual] = useState({})
   const cargarErp = useCallback(async () => {
     setErp(e => ({ ...e, cargando: true, error: '' }))
@@ -205,9 +211,23 @@ export default function Eeff() {
       } : null
       const { data: man } = await supabase.from('eeff_manual').select('concepto, empresa, valor').eq('mes', mes)
       setManual(Object.fromEntries((man || []).map(x => [`${x.concepto}|${x.empresa}`, Number(x.valor)])))
-      setErp({ cargando: false, error: '', hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso, excluido } })
+
+      // Nómina del mes por centro (solo producción)
+      const { data: liq } = await fetchAllPages((d, h) => supabase.from('nomina_liquidaciones')
+        .select('total_devengado, periodo:nomina_periodos!inner(anio, mes, quincena, estado), empleado:empleados!inner(centro_costo)')
+        .eq('periodo.anio', y).eq('periodo.mes', m).order('id').range(d, h))
+      const porCentro = { construequipos: 0, hierro: 0, aluminio: 0 }
+      const quincenas = new Map()
+      for (const x of liq || []) {
+        quincenas.set(x.periodo.quincena, x.periodo.estado)
+        const c = CENTRO_NOMINA[x.empleado?.centro_costo]
+        if (c) porCentro[c] += Number(x.total_devengado) || 0
+      }
+      const nomina = { porCentro, personas: (liq || []).length, quincenas: [...quincenas.entries()].sort((a, b) => a[0] - b[0]) }
+
+      setErp({ cargando: false, error: '', nomina, hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso, excluido } })
     } catch (e) {
-      setErp({ cargando: false, hierro: null, error: e.message || 'No se pudo leer el ERP.' })
+      setErp({ cargando: false, hierro: null, nomina: null, error: e.message || 'No se pudo leer el ERP.' })
     }
   }, [mes])
   useEffect(() => { cargarErp() }, [cargarErp])
@@ -289,8 +309,13 @@ export default function Eeff() {
   const valorEmpresa = (filaId, empresa) => centro
     ? baseCentro(centro.id, filaId, empresa)
     : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
+  // Nómina de producción que ya está cargada en el ERP, por centro. No se sabe cuál empresa la paga,
+  // así que va aparte en la columna Total; lo que falte de ese mes se escribe en las casillas.
+  const nominaCentro = id => erp.nomina?.porCentro?.[id] || 0
+  const nominaDeLaVista = () => centro ? nominaCentro(centro.id) : CENTROS.reduce((s, c) => s + nominaCentro(c.id), 0)
   const valorFila = filaId => {
     const v = EMPRESAS.reduce((s, e) => s + valorEmpresa(filaId, e.id), 0)
+    if (filaId === 'mano_obra') return v + nominaDeLaVista()
     return centro?.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
   }
   const totalBloque = b => b.filas.reduce((s, f) => s + valorFila(f.id), 0)
@@ -326,6 +351,7 @@ export default function Eeff() {
   // De dónde sale cada renglón, para que se vea en la pantalla
   const notaFila = f => {
     const extra = centro?.id === 'construequipos' && f.id === 'materia_prima' ? 'abajo van las piezas recibidas de Hierro y Aluminio' : ''
+    if (f.id === 'mano_obra') return ['de la nómina del ERP; en las casillas va lo que falte', extra].filter(Boolean).join(' · ')
     const auto = EMPRESAS.filter(e => AUTO[e.id]?.[f.id]).map(e => `${e.nombre}: ${AUTO[e.id][f.id].nota}`)
     return [auto.join(' · '), extra].filter(Boolean).join(' · ') || undefined
   }
@@ -354,6 +380,13 @@ export default function Eeff() {
             <span className="hidden sm:contents">{celda(f, 'feisen')}{celda(f, 'fc')}</span>
             <Cifra v={valorFila(f.id)} fuerte />
           </div>
+          {f.id === 'mano_obra' && (
+            <SoloTotal nombre="Nómina ya cargada en el ERP" sangria valor={erp.nomina ? nominaDeLaVista() : null}
+              nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
+                : erp.nomina?.quincenas?.length
+                  ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de producción, sin administración`
+                  : 'Todavía no hay nómina cargada de este mes: escribe el valor en las casillas'} />
+          )}
           {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
             <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
             <SoloTotal nombre="Transferencia recibida — Aluminio"
