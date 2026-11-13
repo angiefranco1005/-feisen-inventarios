@@ -1,6 +1,6 @@
 // Piezas comunes del módulo Finanzas. Los datos se leen en vivo de Odoo con la función
 // finanzas-odoo (solo ADMIN); no se guarda nada en Supabase. Ver OBSERVACIONES.md (2026-10-30).
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Segmentado } from '../shared/ui'
 
@@ -52,7 +52,9 @@ export function SelectorEmpresa({ empresa, onCambiar }) {
 
 // Llama a finanzas-odoo para una empresa o para las dos (en paralelo).
 // Devuelve { datos: { feisen?, fc? }, cargando, error, recargar }.
-export function useOdoo(accion, empresa, extra = {}) {
+// `activo` en false deja la consulta en pausa: sirve cuando la pantalla tiene dos vistas y
+// la que no se está mirando no debe gastar llamadas a Odoo (se pide apenas se abre).
+export function useOdoo(accion, empresa, extra = {}, activo = true) {
   const [estado, setEstado] = useState({ datos: null, cargando: true, error: '' })
   const llave = JSON.stringify(extra)
   const cargar = useCallback(async () => {
@@ -74,7 +76,13 @@ export function useOdoo(accion, empresa, extra = {}) {
       setEstado({ datos: null, cargando: false, error: e.message || 'No se pudo consultar Odoo.' })
     }
   }, [accion, empresa, llave])
-  useEffect(() => { cargar() }, [cargar])
+  // Se pide una sola vez por consulta: volver a una vista que ya estaba cargada no gasta otra llamada
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    cargar()
+  }, [cargar, activo])
   return { ...estado, recargar: cargar }
 }
 

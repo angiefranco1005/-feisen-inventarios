@@ -1,48 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { fetchAllPages } from '../../utils/fetchAllPages'
 import { EncabezadoPagina, Segmentado, useAviso } from '../shared/ui'
 import { ChevronDown, ChevronRight, RefreshCw } from '../shared/iconos'
-import { useOdoo, Cargando, ErrorOdoo, normCentro, pesos, millones, hoyCol, SIN_CENTRO } from './comun'
+import { useOdoo, Cargando, ErrorOdoo, pesos, millones, hoyCol } from './comun'
+import {
+  AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
+  calcularMes, leerErpMes, leerOdooMes, sinOdooFeisen,
+} from './calculoEeff'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
 //
-// Paso 1 — Ingresos (definido con Angie, 11/11/2026):
-//  - Ventas por centro = cuenta 412000 de cada Odoo por cuenta analítica. Construequipos separa Repuestos y
-//    Mantenimientos. Las demás cuentas de ingreso (no operacionales: 421000, 425502, 429500…) van DENTRO de las
-//    ventas de Construequipos (decisión de Angie).
-//  - Devoluciones y descuentos = descuentos comerciales (530508) + devoluciones en ventas (4175xx).
-//    Ojo: la 530508 no se debe sumar otra vez en gastos financieros.
-//  - Transferencias internas a Construequipos (ingreso de Hierro y Aluminio, materia prima de Construequipos;
-//    en el consolidado se anulan): Hierro = piezas "MATERIAL FUNDIDO HIERRO" que salen de Fundición a otra
-//    bodega en el ERP, kg × $5.500; Aluminio = valor a mano (todavía no registra salidas en el ERP).
+// Esta pantalla solo pinta: **todo el cálculo está en calculoEeff.js** y lo comparten las dos vistas,
+// "Un mes" y "Todo el año". Así no puede pasar que las dos muestren cifras distintas del mismo mes.
+// Los criterios, en palabras, están en EEFF-CRITERIOS.md.
 //
-// Paso 2 — Costos y gastos a mano con utilidad en vivo (13/11/2026): cada renglón de costo o gasto es una
-// casilla en la vista de su centro; al escribirla se recalculan los subtotales y las tres utilidades.
-// Mientras falten renglones la utilidad se marca como parcial. Después, cada renglón se irá conectando a
-// su fuente (Odoo o el ERP) y dejará de escribirse a mano.
-
-const PRECIO_KG_HIERRO = 5500
-const DESCUENTOS = c => c === '530508' || c.startsWith('4175')
-
-// Renglones de ventas: centro de Odoo → renglón (el nombre es el que se ve dentro de su centro)
-const VENTAS = [
-  { id: 'construequipos', nombre: 'Máquinas', centros: ['CONSTRUEQUIPOS', 'Sin centro'] },
-  { id: 'no_operacionales', nombre: 'Ventas no operacionales', noOperacional: true },
-  { id: 'repuestos', nombre: 'Repuestos', centros: ['REPUESTOS'] },
-  { id: 'mantenimientos', nombre: 'Mantenimientos', centros: ['MANTENIMIENTOS'] },
-  { id: 'hierro', nombre: 'Ventas', centros: ['HIERRO'] },
-  { id: 'aluminio', nombre: 'Ventas', centros: ['ALUMINIO'] },
-]
-
-// Centros de costo del P&G y sus renglones de ventas. Las devoluciones y descuentos (530508) hoy son todas
-// de Construequipos, por eso solo ese centro las resta.
-const CENTROS = [
-  { id: 'construequipos', nombre: 'Construequipos', renglones: ['construequipos', 'no_operacionales', 'repuestos', 'mantenimientos'], devoluciones: true },
-  { id: 'hierro', nombre: 'Fundición Hierro', renglones: ['hierro'] },
-  { id: 'aluminio', nombre: 'Aluminio', renglones: ['aluminio'] },
-]
+//  - Un mes: el informe completo, con las casillas que se escriben a mano.
+//  - Todo el año: los mismos renglones con un mes por columna y el total del año al final,
+//    como la hoja del consolidado de su Excel. Ahí no se escribe nada: solo se mira.
 
 // Filtro de vista: consolidado o un centro de costo (se recuerda en este equipo)
 const CLAVE_VISTA = 'feisen-eeff-vista'
@@ -53,6 +28,10 @@ const VISTAS = [
   { valor: 'aluminio', texto: 'Aluminio', titulo: 'Aluminio' },
 ]
 
+// Modo de ver: un mes o el año entero (también se recuerda en este equipo)
+const CLAVE_MODO = 'feisen-eeff-modo'
+const MODOS = [{ valor: 'mes', texto: 'Un mes' }, { valor: 'ano', texto: 'Todo el año' }]
+
 // Columnas de cada renglón: concepto + Feisen / FC / Total (en celular solo concepto + Total)
 const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)_4.5rem] gap-3'
 
@@ -60,305 +39,65 @@ const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)_4.5rem]
 // igual que la hoja "ANÁLISIS VERTICAL" del Excel de Angie.
 const BaseVertical = createContext(0)
 
-// Costos y gastos: todavía se escriben a mano en cada centro (se guardan en eeff_manual, concepto
-// '<centro>:<fila>'). Al escribirlos, los subtotales y la utilidad se recalculan al instante.
-// En Consolidado no se escriben: es la suma de los tres centros, como la hoja consolidada del Excel de Angie.
-const BLOQUES = [
-  { id: 'costos_directos', seccion: 'Costos directos', subtotal: 'Total costos directos', filas: [
-    { id: 'materia_prima', nombre: 'Materia prima' },
-    { id: 'mano_obra', nombre: 'Mano de obra' },
-  ] },
-  { id: 'cif', seccion: 'Costos indirectos (CIF)', subtotal: 'Total CIF', utilidad: 'Utilidad bruta', filas: [
-    { id: 'servicios_publicos', nombre: 'Servicios públicos' },
-    { id: 'mantenimiento', nombre: 'Mantenimiento equipos planta' },
-    { id: 'transporte', nombre: 'Transporte' },
-    { id: 'dotacion', nombre: 'Dotación' },
-    { id: 'insumos', nombre: 'Insumos' },
-  ] },
-  { id: 'gastos_op', seccion: 'Gastos operacionales', subtotal: 'Total gastos operacionales', utilidad: 'Utilidad operacional', filas: [
-    { id: 'viaticos', nombre: 'Viáticos' },
-    { id: 'publicidad', nombre: 'Publicidad' },
-    { id: 'comisiones', nombre: 'Comisiones' },
-    { id: 'nomina_comercial', nombre: 'Nómina asesores y director comercial' },
-    { id: 'arrendamientos', nombre: 'Arrendamientos' },
-    { id: 'honorarios', nombre: 'Honorarios' },
-    { id: 'nomina_admin', nombre: 'Nómina administrativa' },
-    { id: 'otros_operacionales', nombre: 'Otros gastos operacionales' },
-  ] },
-  { id: 'gastos_no_op', seccion: 'Gastos no operacionales', subtotal: 'Total gastos no operacionales', utilidad: 'Utilidad neta', filas: [
-    { id: 'intereses_impuestos', nombre: 'Intereses de impuestos' },
-    { id: 'gravamenes', nombre: 'Gravámenes (4x1000)' },
-    { id: 'intereses_bancarios', nombre: 'Intereses bancarios' },
-    { id: 'comisiones_financieras', nombre: 'Comisiones financieras' },
-  ] },
-]
-const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
+// Los EEFF del ERP arrancan en 2026 (antes todo estaba en SIIGO y en el Excel)
+const ANIOS = Array.from({ length: Math.max(1, Number(hoyCol().slice(0, 4)) - 2025) }, (_, i) => String(2026 + i))
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DE DÓNDE SALE CADA RENGLÓN. El documento con los criterios, en palabras y con
-// el porqué de cada decisión, es EEFF-CRITERIOS.md en la raíz del repo:
-// si se cambia una regla aquí, hay que cambiarla allá en la misma entrega.
-// Los renglones que no aparecen en el mapa AUTO todavía se escriben a mano.
-// ─────────────────────────────────────────────────────────────────────────────
-// Materia prima — en FC: lo que sale en su estado de resultados (cuenta 613500).
-// En Feisen: las compras del mes a la cuenta de inventario (140500), porque contabilidad las lleva a
-// inventario y nunca saca lo consumido; su cuenta de costo de ventas (613500) se registra a saltos y no sirve
-// mes a mes (marzo $919 M, agosto $348 M). Las compras ya traen el centro de costo.
-// Enero a marzo no están en Odoo (Feisen todavía estaba en SIIGO): esos meses se escriben a mano.
-// Proveedores que contabilidad causa como insumos (737001 / 737002 / 730500) pero que para Angie son
-// materia prima. Los marcó ella el 13/11/2026 mirando junio–octubre; el renglón de Insumos los descuenta.
-const PROVEEDORES_MATERIA_PRIMA = [
-  'IMPORTACIONES POWER SAS',
-  'ALAPLUMEZ SAS',
-  'HIDRAULICO A.L SAS',
-  'EQUIPOS TOYAMA DE COLOMBIA S.A.S.',
-  'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
-  'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
-  'IMPORTADORA DE RODAMIENTOS INDUSTRIALES SAS', // rodamientos: van en la máquina (Angie los marcó en octubre)
-  'METAL BARCAS SAS', // insumo de Fundición Hierro, pero en Odoo le quedó el centro Construequipos
-]
-// Decisión de Angie (13/11, después de probar lo contrario): **todo lo que es insumo de las fundiciones
-// cuenta como materia prima**, no como insumos. Ella tiene una razón de fondo que explicará más adelante.
-// Por eso la regla va por centro y no por proveedor: así los proveedores nuevos de las fundiciones entran
-// solos. METAL BARCAS queda arriba, en la lista por proveedor, porque en Odoo tiene el centro equivocado.
-const CENTROS_TODO_MATERIA_PRIMA = ['HIERRO', 'ALUMINIO']
-// Al revés: contabilidad los causa en inventario (140500) pero para Angie no son materia prima.
-// Los revisó el 13/11/2026 sobre octubre: herramienta o insumos, no material.
-const PROVEEDORES_NO_MATERIA_PRIMA = [
-  'IMPORTADORA SUPERIOR',        // insumos
-  'LA ROCA ABRASIVOS S.A.S',     // insumos
-  'WURTH COLOMBIA SAS',          // herramienta
-  'UYUSA COLOMBIA S A S',        // herramienta
-  'FERRETERIA ANGEL Y DG SAS',   // herramienta
-]
-// Se comparan sin tildes, sin puntos y sin espacios, porque el mismo proveedor aparece escrito de varias formas
-const sinAdornos = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-const ES_MATERIA_PRIMA = new Set(PROVEEDORES_MATERIA_PRIMA.map(sinAdornos))
-const NO_ES_MATERIA_PRIMA = new Set(PROVEEDORES_NO_MATERIA_PRIMA.map(sinAdornos))
-const esInsumo = cod => cod.startsWith('7370') || cod === '730500'
-
-const AUTO = {
-  feisen: { materia_prima: {
-    fuente: 'compras', nota: 'compras a inventario (140500), todo lo de las fundiciones y los proveedores que marcaste',
-    filtro: x => {
-      const cod = String(x.cuenta).split(' ')[0]
-      const prov = sinAdornos(x.proveedor)
-      if (cod.startsWith('1405')) return !NO_ES_MATERIA_PRIMA.has(prov)
-      if (!esInsumo(cod)) return false
-      return CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) || ES_MATERIA_PRIMA.has(prov)
-    },
-  } },
-  fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
-}
-// Mano de obra directa de Feisen: las cuentas 7205xx de su estado de resultados (sueldos más prestaciones),
-// **sin la 720511**, que se fue al renglón de Dotación. Por eso ya no coincide exacto con su Excel de
-// septiembre, que la tenía adentro.
-// `sinCentro` dice a qué centro va lo que en Odoo no trae centro, en vez de repartirlo por ventas: la
-// nómina de producción de Feisen es la planta de Construequipos, así que Hierro y Aluminio no llevan nada
-// (sus operarios los paga FC).
-AUTO.feisen.mano_obra = {
-  fuente: 'pyg', nota: 'mano de obra directa con prestaciones (7205xx, sin la dotación)',
-  filtro: x => x.codigo.startsWith('7205') && x.codigo !== '720511', sinCentro: 'construequipos',
-}
-
-// CIF: son gastos compartidos y no se sabe cuánto gasta de luz o de transporte cada centro, así que
-// **se reparten entre los centros en la misma proporción en que vendieron** (método de Angie, 13/11).
-// Eso es `porVentas`: no importa el centro que traiga Odoo, todo el renglón se reparte por ventas.
-const CIF_CUENTAS = {
-  // Angie incluye aquí la luz, el internet y el plan de celular (octubre 2026). La 734001 "Aseo" es el
-  // aseo que viene dentro de la factura de Enel, por eso va con la energía. El teléfono (513503) trae
-  // Starlink y Colombia Móvil: cuando se conecte "otros gastos operacionales", no volver a sumarlo allá.
-  servicios_publicos: { cuentas: ['734000', '734001', '513503'], nota: 'luz, internet y celular (734000, 734001, 513503)' },
-  mantenimiento: { cuentas: ['734500', '734501'], nota: 'mantenimiento de equipos (734500, 734501)' },
-  transporte: { cuentas: ['523500', '513504'], nota: 'transportes, fletes y acarreos (523500, 513504)' },
-  dotacion: { cuentas: ['720511'], nota: 'dotación y suministro a trabajadores (720511)' },
-  // Gastos operacionales: también se reparten por ventas, como en el Excel de Angie
-  viaticos: { cuentas: ['525500', '515500', '519504'], nota: 'viajes, alojamiento, taxis y buses (525500, 515500, 519504)' },
-  publicidad: { cuentas: ['523501'], nota: 'publicidad, propaganda y promoción (523501)' },
-  comisiones: { cuentas: ['529500'], nota: 'comisiones (529500)' },
-}
-for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
-  for (const emp of ['feisen', 'fc']) {
-    AUTO[emp][fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
-  }
-}
-
-// Nómina de asesores y director comercial: las cuentas 5205xx de Feisen (sueldos de ventas más
-// prestaciones: incapacidades, auxilio de transporte, cesantías e intereses, prima, vacaciones, ARL,
-// pensión y caja de compensación). Angie las marcó el 13/11/2026 sobre octubre y dan exacto.
-// **Solo Feisen**: FC no tiene nómina de ventas (su única cuenta de personal es la 510500).
-// Como todo gasto, se reparte entre los centros por su participación en ventas.
-// Ojo: si algún día se paga marketing o community por estas cuentas, cae aquí. Angie quitó el renglón
-// aparte de marketing el 13/11/2026: en Odoo no hay una cuenta propia para eso.
-AUTO.feisen.nomina_comercial = {
-  fuente: 'pyg', nota: 'sueldos de ventas con prestaciones (5205xx)', porVentas: true,
-  filtro: x => x.codigo.startsWith('5205'),
-}
-
-// Nómina administrativa de Feisen: las cuentas 5105xx (sueldos de administración más prestaciones).
-// Angie las verificó el 13/11/2026 contra octubre. Se reparte entre los centros por ventas.
-AUTO.feisen.nomina_admin = {
-  fuente: 'pyg', nota: 'sueldos de administración con prestaciones (5105xx)', porVentas: true,
-  filtro: x => x.codigo.startsWith('5105'),
-}
-
-// Honorarios: las cuentas 5110xx de Feisen (revisoría fiscal, auditoría externa, asesoría jurídica,
-// asesoría técnica y otros) más la 519600 "Honorarios SGST", que es el honorario del asesor de
-// seguridad y salud en el trabajo. No entra la 519601 (exámenes médicos): esa no es honorario.
-// Va por las **dos empresas** (Angie, 13/11/2026): hoy FC no tiene honorarios causados y da $0, pero
-// cuando contabilidad registre ahí los honorarios de FC entran solos, sin tocar nada.
-// Como todo gasto, se reparte entre los centros por su participación en ventas.
-for (const emp of ['feisen', 'fc']) {
-  AUTO[emp].honorarios = {
-    fuente: 'pyg', nota: 'honorarios (5110xx) y el asesor de seguridad y salud (519600)', porVentas: true,
-    filtro: x => x.codigo.startsWith('5110') || x.codigo === '519600',
-  }
-}
-
-// Arrendamientos: las cuentas 5120xx de las dos empresas. Angie lo pidió como renglón aparte el
-// 13/11/2026 porque el arriendo de FC pesa más que publicidad y comisiones juntas.
-// Ojo con octubre de 2026: el arriendo de FC ($3.344.000) todavía está causado en "Otros gastos"
-// (519506), así que aquí no aparece hasta que contabilidad lo pase a la cuenta de arrendamientos.
-for (const emp of ['feisen', 'fc']) {
-  AUTO[emp].arrendamientos = {
-    fuente: 'pyg', nota: 'arrendamientos (5120xx)', porVentas: true,
-    filtro: x => x.codigo.startsWith('5120'),
-  }
-}
-
-// Gastos no operacionales: salen **solo de Odoo Feisen**, como lo pidió Angie el 13/11/2026 ("los gastos
-// no operacionales los saca de Feisen, porque eso sí o sí tiene que ver con Feisen"). La columna de FC
-// queda como casilla a mano. Como todo gasto, se reparten entre los tres centros por participación en ventas.
-// **Ojo:** las cuentas se nombran una por una, nunca por prefijo '5305'. La 530508 "Descuentos comerciales
-// condicionados" también empieza por 5305 y ya está restada arriba, en "Devoluciones y descuentos
-// comerciales": si entra por un filtro de prefijo, esa plata se resta dos veces. No cambiar a startsWith.
-const NO_OPERACIONALES = {
-  // Intereses que cobra la DIAN por impuestos pagados tarde (octubre 2026: $5.375.000)
-  intereses_impuestos: { cuentas: ['530507'], nota: 'intereses de impuestos (530507)' },
-  // El 4x1000 que descuenta el banco de cada movimiento (octubre 2026: $2.894.891)
-  gravamenes: { cuentas: ['530501'], nota: 'gravamen a los movimientos financieros 4x1000 (530501)' },
-  // Intereses de los créditos y sobregiros bancarios (octubre 2026: $8.342.532)
-  intereses_bancarios: { cuentas: ['530504'], nota: 'intereses corrientes bancarios (530504)' },
-  // Lo que cobra el banco por el servicio: cuota de manejo y comisiones (octubre 2026: $1.091.393)
-  comisiones_financieras: { cuentas: ['530502', '530503'], nota: 'cuota de manejo y comisiones bancarias (530502, 530503)' },
-}
-for (const [fila, { cuentas, nota }] of Object.entries(NO_OPERACIONALES)) {
-  AUTO.feisen[fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
-}
-
-// Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
-// (decisión de Angie, 13/11, para no contarlos dos veces). En Feisen se lee de las compras, la misma
-// fuente de su materia prima, para que la exclusión calce exacta; FC no tiene insumos de fundición.
-AUTO.feisen.insumos = {
-  fuente: 'compras', nota: 'insumos de producción que no son de las fundiciones (737001, 737002, 730500)',
-  porVentas: true,
-  filtro: x => {
-    const cod = String(x.cuenta).split(' ')[0]
-    const prov = sinAdornos(x.proveedor)
-    // Lo que contabilidad causó a inventario pero es herramienta o insumo cae aquí, no en materia prima
-    if (cod.startsWith('1405')) return NO_ES_MATERIA_PRIMA.has(prov)
-    if (!esInsumo(cod)) return false
-    return !CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) && !ES_MATERIA_PRIMA.has(prov)
-  },
-}
-AUTO.fc.insumos = {
-  fuente: 'pyg', nota: 'insumos de producción (737001, 737002, 730500)', porVentas: true,
-  filtro: x => esInsumo(x.codigo),
-}
-const EMPRESAS = [{ id: 'feisen', nombre: 'Feisen' }, { id: 'fc', nombre: 'FC' }]
-
-// Mano de obra de producción: nómina del ERP (RRHH › Nómina), por el centro de costo de cada colaborador.
-// Se toma el total devengado, que es lo que cuesta el trabajo; las deducciones (seguridad, anticipos) no
-// bajan el costo, se le descuentan al colaborador. La gente de 'administracion' no entra aquí: va en el
-// renglón de nómina administrativa. Las quincenas que todavía no estén cargadas se escriben a mano.
-const CENTRO_NOMINA = { construequipos: 'construequipos', fundicionHierro: 'hierro', aluminio: 'aluminio' }
-
-// Clasifica las filas de 'pyg' de una empresa en los renglones de ingresos
-function ingresosDe(filas = []) {
-  const r = Object.fromEntries(VENTAS.map(v => [v.id, { valor: 0, detalle: [] }]))
-  r.devoluciones = { valor: 0, detalle: [] }
-  for (const f of filas) {
-    const centro = normCentro(f.centro)
-    let id = null, valor = -f.valor
-    if (DESCUENTOS(f.codigo)) { id = 'devoluciones'; valor = f.valor > 0 ? f.valor : -f.valor }
-    else if (f.codigo.startsWith('412')) id = VENTAS.find(v => v.centros?.includes(centro))?.id || 'construequipos'
-    else if (f.codigo.startsWith('4')) id = 'no_operacionales'
-    if (!id) continue
-    r[id].valor += valor
-    r[id].detalle.push({ ...f, valor })
-  }
-  return r
-}
+const MES_CORTO =['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const nombreLargo = mes => MES_LARGO[Number(mes.slice(5, 7)) - 1]
 
 export default function Eeff() {
   const [mes, setMes] = useState('2026-10')
   const [aviso, avisar] = useAviso()
-  const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes })
-  const compras = useOdoo('resultado', 'feisen', { mes })
   const [abierto, setAbierto] = useState(null)
   const [vista, setVista] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_VISTA); return VISTAS.some(o => o.valor === v) ? v : 'consolidado' } catch { return 'consolidado' }
   })
+  const [modo, setModo] = useState(() => {
+    try { const v = localStorage.getItem(CLAVE_MODO); return MODOS.some(o => o.valor === v) ? v : 'mes' } catch { return 'mes' }
+  })
   const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
+  const cambiarModo = v => { setModo(v); setAbierto(null); try { localStorage.setItem(CLAVE_MODO, v) } catch { /* sin almacenamiento */ } }
+  const verMes = modo === 'mes'
+  const centroId = vista === 'consolidado' ? null : vista
 
-  // Transferencia de Hierro desde el ERP y valores a mano del mes
+  // ── Datos del mes que se está mirando ──
+  const { datos, cargando, error, recargar } = useOdoo('pyg', 'ambas', { mes }, verMes)
+  const compras = useOdoo('resultado', 'feisen', { mes }, verMes)
   const [erp, setErp] = useState({ cargando: true, hierro: null, nomina: null, error: '' })
   const [manual, setManual] = useState({})
   const cargarErp = useCallback(async () => {
     setErp(e => ({ ...e, cargando: true, error: '' }))
-    const [y, m] = mes.split('-').map(Number)
-    const fin = new Date(y, m, 0).getDate()
-    const desde = `${mes}-01`, hasta = `${mes}-${String(fin).padStart(2, '0')}`
     try {
-      const { data: bods } = await supabase.from('bodegas').select('id, nombre').ilike('nombre', '%fundic%')
-      const ids = (bods || []).map(b => b.id)
-      const { data, error: err } = await fetchAllPages((d, h) => supabase.from('movimientos')
-        .select('id, numero, cantidad, precio_costo_snapshot, bodega_origen_id, bodega_destino_id, items(nombre, peso_unitario, categorias(nombre)), bodegas_destino:bodega_destino_id(nombre)')
-        .eq('tipo', 'salida').in('bodega_origen_id', ids).not('bodega_destino_id', 'is', null)
-        .is('revertido_en', null).or('revertido.is.null,revertido.eq.false')
-        .or(`and(fecha_movimiento.gte.${desde},fecha_movimiento.lte.${hasta}),and(fecha_movimiento.is.null,created_at.gte.${desde}T00:00:00,created_at.lte.${hasta}T23:59:59)`)
-        .order('id').range(d, h))
-      if (err) throw err
-      const piezas = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIAL FUNDIDO HIERRO')
-      const kg = piezas.reduce((s, x) => s + Number(x.cantidad) * (Number(x.items?.peso_unitario) || 0), 0)
-      const sinPeso = piezas.filter(x => !Number(x.items?.peso_unitario)).length
-      // Materia prima de Fundición registrada como salida a otra bodega (errores de registro de oct 2026):
-      // no es transferencia interna, se descuenta aquí y se deja la observación (decisión de Angie, 11/11)
-      const mp = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIA PRIMA')
-      const excluido = mp.length ? {
-        valor: mp.reduce((s, x) => s + Number(x.cantidad) * (Number(x.precio_costo_snapshot) || 0), 0),
-        documentos: [...new Set(mp.map(x => x.numero))].sort(),
-      } : null
-      const { data: man } = await supabase.from('eeff_manual').select('concepto, empresa, valor').eq('mes', mes)
-      setManual(Object.fromEntries((man || []).map(x => [`${x.concepto}|${x.empresa}`, Number(x.valor)])))
-
-      // Nómina del mes por centro (solo producción)
-      const { data: liq } = await fetchAllPages((d, h) => supabase.from('nomina_liquidaciones')
-        .select('total_devengado, periodo:nomina_periodos!inner(anio, mes, quincena, estado), empleado:empleados!inner(centro_costo)')
-        .eq('periodo.anio', y).eq('periodo.mes', m).order('id').range(d, h))
-      const porCentro = { construequipos: 0, hierro: 0, aluminio: 0 }
-      let administracion = 0   // la gente de administración no tiene centro: va al renglón de nómina administrativa
-      const quincenas = new Map()
-      for (const x of liq || []) {
-        quincenas.set(x.periodo.quincena, x.periodo.estado)
-        const c = CENTRO_NOMINA[x.empleado?.centro_costo]
-        if (c) porCentro[c] += Number(x.total_devengado) || 0
-        else if (x.empleado?.centro_costo === 'administracion') administracion += Number(x.total_devengado) || 0
-      }
-      const nomina = { porCentro, administracion, personas: (liq || []).length, quincenas: [...quincenas.entries()].sort((a, b) => a[0] - b[0]) }
-
-      setErp({ cargando: false, error: '', nomina, hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso, excluido } })
+      const { manual: man, nomina, hierro } = await leerErpMes(mes)
+      setManual(man)
+      setErp({ cargando: false, error: '', nomina, hierro })
     } catch (e) {
       setErp({ cargando: false, hierro: null, nomina: null, error: e.message || 'No se pudo leer el ERP.' })
     }
   }, [mes])
-  useEffect(() => { cargarErp() }, [cargarErp])
+  // Igual que las consultas de Odoo: solo se pide una vez por mes, no cada vez que se vuelve a esta vista
+  const erpPedido = useRef(null)
+  useEffect(() => {
+    if (!verMes || erpPedido.current === cargarErp) return
+    erpPedido.current = cargarErp
+    cargarErp()
+  }, [cargarErp, verMes])
 
-  const ing = useMemo(() => datos && { feisen: ingresosDe(datos.feisen?.filas), fc: ingresosDe(datos.fc?.filas) }, [datos])
-  const val = (emp, id) => ing?.[emp]?.[id]?.valor || 0
-  const suma = (emp, ids) => ids.reduce((s, id) => s + val(emp, id), 0)
-  const totalVentas = emp => VENTAS.reduce((s, v) => s + val(emp, v.id), 0)
-  const neto = emp => totalVentas(emp) - val(emp, 'devoluciones')
+  // ── Datos del año (se piden mes por mes y se guardan; cambiar de centro no vuelve a pedirlos) ──
+  const [anio, setAnio] = useState(() => hoyCol().slice(0, 4))
+  const ano = useAno(anio, !verMes)
+
+  // El cálculo del mes: la misma función que usa la vista del año
+  const calc = useMemo(() => calcularMes({
+    pyg: datos, compras: compras.datos, hierro: erp.hierro?.valor, nomina: erp.nomina, manual, centroId,
+  }), [datos, compras.datos, erp.hierro, erp.nomina, manual, centroId])
+
+  const {
+    centro, ing, val, suma, totalVentas, neto, transfHierro, transfAluminio,
+    escrito, valorEmpresa, valorFila, nominaDeLaVista,
+    porBloque, ingresoBase, utilidadNeta, UTILIDAD, llenas, parcial,
+  } = calc
 
   // Borrar la casilla devuelve el renglón a lo que trae Odoo; escribir en ella reemplaza ese valor
   async function guardarManual(concepto, empresa, texto) {
@@ -380,92 +119,10 @@ export default function Eeff() {
   const [y, m] = mes.split('-').map(Number)
   const nombreMes = new Date(y, m - 1, 15).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
   const Titulo = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)
-  const transfAluminio = manual['transferencia_aluminio|total']
-  const transfHierro = erp.hierro?.valor || 0
-  const centro = CENTROS.find(c => c.id === vista)
   const tituloVista = VISTAS.find(v => v.valor === vista)?.titulo || 'consolidado'
 
-  // ── Costos y gastos a mano, y utilidad que va quedando ──
-  // En un centro se escriben; en Consolidado se suman los tres (las transferencias internas se anulan:
-  // son ingreso de Hierro/Aluminio y materia prima de Construequipos, y ninguna entra al consolidado).
-  const transfRecibidas = transfHierro + (transfAluminio || 0)
-  const escrito = (centroId, filaId, empresa) => manual[`${centroId}:${filaId}|${empresa}`]
-
-  // Lo que cada renglón saca solo de Odoo, por centro. Lo que viene sin centro se reparte entre los
-  // centros según lo que vendió cada uno en el mes (el mismo criterio de Resultado por centro).
-  const centroDe = c => {
-    const n = normCentro(c)
-    if (n === 'HIERRO') return 'hierro'
-    if (n === 'ALUMINIO') return 'aluminio'
-    return n === SIN_CENTRO ? null : 'construequipos'
-  }
-  const ventasCentro = id => (CENTROS.find(c => c.id === id)?.renglones || []).reduce((s, r) => s + val('feisen', r) + val('fc', r), 0)
-  const ventasCentros = CENTROS.reduce((s, c) => s + ventasCentro(c.id), 0)
-  const peso = id => ventasCentros > 0 ? ventasCentro(id) / ventasCentros : 0
-
-  // Lo único que por ahora sale solo de Odoo: la materia prima de FC. Lo que viene sin centro se reparte
-  // entre los centros según lo que vendió cada uno en el mes (el mismo criterio de Resultado por centro).
-  const auto = useMemo(() => {
-    const auto = {}
-    for (const [empresa, filas] of Object.entries(AUTO)) for (const [filaId, f] of Object.entries(filas)) {
-      const a = auto[`${empresa}:${filaId}`] = { centros: { construequipos: 0, hierro: 0, aluminio: 0 }, sinCentro: 0 }
-      const lineas = f.fuente === 'compras'
-        ? (compras.datos?.[empresa]?.compras || []).filter(f.filtro)
-        : (datos?.[empresa]?.filas || []).filter(f.filtro)
-      for (const l of lineas) {
-        const c = f.porVentas ? null : (centroDe(l.centro) || f.sinCentro)
-        if (c) a.centros[c] += l.valor; else a.sinCentro += l.valor
-      }
-    }
-    return auto
-  }, [datos, compras.datos]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Nómina de producción cargada en el ERP (RRHH › Nómina), por centro. Es la que paga FC.
-  const nominaCentro = id => erp.nomina?.porCentro?.[id] || 0
-  const nominaDeLaVista = () => centro ? nominaCentro(centro.id) : CENTROS.reduce((s, c) => s + nominaCentro(c.id), 0)
-
-  // Nómina administrativa de FC: la de administración cargada en el ERP más las quincenas que falten.
-  // No tiene centro de costo, así que se guarda una sola vez ('todos:nomina_admin') y se reparte por ventas.
-  const adminErp = () => erp.nomina?.administracion || 0
-  const adminAMano = () => manual['todos:nomina_admin|fc'] || 0
-  const adminDeLaVista = () => (adminErp() + adminAMano()) * (centro ? peso(centro.id) : 1)
-
-  const automatico = (centroId, filaId, empresa) => {
-    const a = auto[`${empresa}:${filaId}`]
-    return a ? a.centros[centroId] + a.sinCentro * peso(centroId) : null
-  }
-  const baseCentro = (centroId, filaId, empresa) => {
-    const esc = escrito(centroId, filaId, empresa)
-    return esc != null ? esc : (automatico(centroId, filaId, empresa) || 0)
-  }
-  const valorEmpresa = (filaId, empresa) => {
-    const base = centro ? baseCentro(centro.id, filaId, empresa)
-      : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
-    // La nómina del ERP es la que paga FC; se suma a lo que Angie escriba de las quincenas que falten
-    if (filaId === 'mano_obra' && empresa === 'fc') return base + nominaDeLaVista()
-    if (filaId === 'nomina_admin' && empresa === 'fc') return base + adminDeLaVista()
-    return base
-  }
-  const valorFila = filaId => {
-    const v = EMPRESAS.reduce((s, e) => s + valorEmpresa(filaId, e.id), 0)
-    return centro?.id === 'construequipos' && filaId === 'materia_prima' ? v + transfRecibidas : v
-  }
-  const totalBloque = b => b.filas.reduce((s, f) => s + valorFila(f.id), 0)
-  const porBloque = Object.fromEntries(BLOQUES.map(b => [b.id, totalBloque(b)]))
-  const ingresoBase = !centro ? neto('feisen') + neto('fc')
-    : centro.id === 'construequipos'
-      ? suma('feisen', centro.renglones) + suma('fc', centro.renglones) - val('feisen', 'devoluciones') - val('fc', 'devoluciones')
-      : val('feisen', centro.id) + val('fc', centro.id) + (centro.id === 'hierro' ? transfHierro : (transfAluminio || 0))
-  const utilidadBruta = ingresoBase - porBloque.costos_directos - porBloque.cif
-  const utilidadOperacional = utilidadBruta - porBloque.gastos_op
-  const utilidadNeta = utilidadOperacional - porBloque.gastos_no_op
-  const UTILIDAD = { 'Utilidad bruta': utilidadBruta, 'Utilidad operacional': utilidadOperacional, 'Utilidad neta': utilidadNeta }
-  const llenas = FILAS_COSTO.filter(f => Math.round(valorFila(f.id)) !== 0).length
-  const parcial = llenas < FILAS_COSTO.length
-
   const alternar = id => setAbierto(a => (a === id ? null : id))
-  // Mientras Odoo carga, `ing` es null: los renglones se arman igual (filaDevoluciones es un elemento ya creado)
-  const detalleDe = id => ing ? [...ing.feisen[id].detalle.map(d => ({ ...d, emp: 'Feisen' })), ...ing.fc[id].detalle.map(d => ({ ...d, emp: 'FC' }))] : []
+  const detalleDe = id => [...ing.feisen[id].detalle.map(d => ({ ...d, emp: 'Feisen' })), ...ing.fc[id].detalle.map(d => ({ ...d, emp: 'FC' }))]
   const filaVenta = (id, sangria) => (
     <Fila key={id} nombre={VENTAS.find(v => v.id === id).nombre} feisen={val('feisen', id)} fc={val('fc', id)} sangria={sangria}
       abierto={abierto === id} onClick={() => alternar(id)} detalle={detalleDe(id)} />
@@ -550,34 +207,50 @@ export default function Eeff() {
     </div>
   ))
 
+  const cargandoMes = cargando || compras.cargando
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-24 lg:pb-8">
+    <div className={`${verMes ? 'max-w-5xl' : 'max-w-[90rem]'} mx-auto space-y-5 pb-24 lg:pb-8`}>
       <EncabezadoPagina modulo="Finanzas" titulo="EEFF"
         subtitulo="Estado de resultados de Feisen y FC juntos, armado paso a paso con tu método.">
-        <button type="button" onClick={() => { recargar(); compras.recargar(); cargarErp() }} disabled={cargando || compras.cargando}
+        <button type="button" onClick={() => { if (verMes) { recargar(); compras.recargar(); cargarErp() } else ano.recargar() }}
+          disabled={verMes ? cargandoMes : ano.cargando}
           className="flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60">
-          <RefreshCw size={16} className={cargando || compras.cargando ? 'animate-spin' : ''} /> Actualizar
+          <RefreshCw size={16} className={(verMes ? cargandoMes : ano.cargando) ? 'animate-spin' : ''} /> Actualizar
         </button>
       </EncabezadoPagina>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-feisen-texto-2">
-          Mes
-          <input type="month" value={mes} max={hoyCol().slice(0, 7)} onChange={e => e.target.value && setMes(e.target.value)}
-            className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave" />
-        </label>
+        <div className="w-full sm:w-56"><Segmentado opciones={MODOS} valor={modo} onCambiar={cambiarModo} /></div>
+        {verMes ? (
+          <label className="flex items-center gap-2 text-sm text-feisen-texto-2">
+            Mes
+            <input type="month" value={mes} max={hoyCol().slice(0, 7)} onChange={e => e.target.value && setMes(e.target.value)}
+              className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave" />
+          </label>
+        ) : (
+          <label className="flex items-center gap-2 text-sm text-feisen-texto-2">
+            Año
+            <select value={anio} onChange={e => setAnio(e.target.value)}
+              className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave">
+              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </label>
+        )}
         <div className="w-full sm:w-auto sm:min-w-[32rem]">
           <Segmentado opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
         </div>
-        <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
-          Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
-        </span>
+        {verMes && (
+          <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
+            Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
+          </span>
+        )}
       </div>
 
-      {(cargando && !ing) || (compras.cargando && !compras.datos) ? <Cargando />
-        : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : ing && (
+      {!verMes ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} /> :
+        (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
+        : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
         <BaseVertical.Provider value={ingresoBase}>
-        <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando || compras.cargando ? 'opacity-60' : ''}`}>
+        <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargandoMes ? 'opacity-60' : ''}`}>
           <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · {Titulo}</span>
             <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${utilidadNeta < 0 ? 'bg-feisen-rojo-suave text-feisen-rojo'
@@ -639,14 +312,253 @@ export default function Eeff() {
         Toca un renglón de ingresos para ver de qué cuentas sale.
         La columna "% ventas" es el análisis vertical: cada renglón como porcentaje de los ingresos netos de la vista.
         Los costos y gastos se escriben por centro, en su columna de Feisen o de FC, y Consolidado suma los tres centros.
-        Por ahora el único renglón que sale solo de Odoo es la materia prima: en FC, de su estado de resultados (cuenta 613500);
-        en Feisen, de las compras del mes a inventario (cuenta 140500), que es donde contabilidad las deja.
+        Las dos vistas, "Un mes" y "Todo el año", hacen la misma cuenta: en el año los valores se ven pero no se escriben.
         Lo que viene sin centro se reparte entre los centros según lo que vendió cada uno. Enero, febrero y marzo no están en Odoo.
       </p>
       {aviso}
     </div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TODO EL AÑO
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Trae el año mes por mes: una tanda de llamadas por mes, en fila, pintando lo que ya llegó.
+// Lo que ya se pidió se guarda, así que cambiar el filtro de centro **no vuelve a pedir nada**:
+// el reparto por centro se calcula con los mismos datos.
+function useAno(anio, activo) {
+  const [meses, setMeses] = useState({})       // { '2026-01': { pyg, compras, hierro, nomina, manual } }
+  const [estado, setEstado] = useState({ cargando: false, listos: 0, actual: null, error: '' })
+  const guardados = useRef({})
+  const anioRef = useRef(anio)
+  const tanda = useRef(0)
+
+  const lista = useMemo(() => {
+    const hasta = hoyCol().slice(0, 4) === anio ? Number(hoyCol().slice(5, 7)) : 12
+    return Array.from({ length: hasta }, (_, i) => `${anio}-${String(i + 1).padStart(2, '0')}`)
+  }, [anio])
+
+  const cargar = useCallback(async (forzar) => {
+    const mio = ++tanda.current
+    if (anioRef.current !== anio || forzar) { guardados.current = {}; setMeses({}); anioRef.current = anio }
+    const faltan = lista.filter(m => !guardados.current[m])
+    if (!faltan.length) { setEstado({ cargando: false, listos: lista.length, actual: null, error: '' }); return }
+    setEstado({ cargando: true, listos: lista.length - faltan.length, actual: faltan[0], error: '' })
+    const fallos = []
+    for (const m of faltan) {
+      if (tanda.current !== mio) return              // se cambió de año o se pidió actualizar: se abandona esta tanda
+      setEstado(e => ({ ...e, actual: m }))
+      try {
+        const [odoo, erp] = await Promise.all([leerOdooMes(m), leerErpMes(m)])
+        guardados.current[m] = { ...odoo, hierro: erp.hierro?.valor, nomina: erp.nomina, manual: erp.manual }
+      } catch (e) {
+        fallos.push(`${nombreLargo(m)} (${e.message || 'sin detalle'})`)
+        guardados.current[m] = { fallo: true, manual: {} }
+      }
+      if (tanda.current !== mio) return
+      setMeses({ ...guardados.current })
+      setEstado(e => ({ ...e, listos: e.listos + 1 }))
+    }
+    setEstado({ cargando: false, listos: lista.length, actual: null, error: fallos.length ? `No se pudo leer ${fallos.join(' · ')}` : '' })
+  }, [anio, lista])
+
+  useEffect(() => { if (activo) cargar(false) }, [activo, cargar])
+  return { meses, lista, ...estado, recargar: () => cargar(true) }
+}
+
+// Los renglones de la tabla del año. Cada uno sabe sacar su valor del cálculo de un mes
+// (el mismo `calcularMes` de la vista mensual), así que no hay ninguna cuenta repetida aquí.
+function renglonesAno(centroId) {
+  const centro = CENTROS.find(c => c.id === centroId) || null
+  const filas = [{ tipo: 'seccion', nombre: 'Ingresos' }]
+  if (!centro) {
+    for (const c of CENTROS) filas.push({ tipo: 'dato', nombre: `Ventas ${c.nombre}`, valor: k => k.suma('feisen', c.renglones) + k.suma('fc', c.renglones) })
+    filas.push({ tipo: 'total', nombre: 'Total ventas', valor: k => k.totalVentas('feisen') + k.totalVentas('fc') })
+    filas.push({ tipo: 'dato', nombre: '(−) Devoluciones y descuentos comerciales', valor: k => k.val('feisen', 'devoluciones') + k.val('fc', 'devoluciones') })
+    filas.push({ tipo: 'total', nombre: 'Ingresos netos', valor: k => k.ingresoBase, fuerte: true })
+    filas.push({ tipo: 'dato', nombre: 'Transferencias internas a Construequipos', nota: 'ingreso de las fundiciones y materia prima de Construequipos: en el consolidado se anulan', valor: k => k.transfRecibidas })
+  } else if (centro.id === 'construequipos') {
+    for (const id of centro.renglones) filas.push({ tipo: 'dato', nombre: VENTAS.find(v => v.id === id).nombre, valor: k => k.val('feisen', id) + k.val('fc', id) })
+    filas.push({ tipo: 'total', nombre: 'Total ventas', valor: k => k.suma('feisen', centro.renglones) + k.suma('fc', centro.renglones) })
+    filas.push({ tipo: 'dato', nombre: '(−) Devoluciones y descuentos comerciales', valor: k => k.val('feisen', 'devoluciones') + k.val('fc', 'devoluciones') })
+    filas.push({ tipo: 'total', nombre: 'Ingresos netos', valor: k => k.ingresoBase, fuerte: true })
+  } else {
+    filas.push({ tipo: 'dato', nombre: 'Ventas', valor: k => k.val('feisen', centro.id) + k.val('fc', centro.id) })
+    filas.push({ tipo: 'dato', nombre: 'Transferencia interna (piezas a Construequipos)', valor: k => centro.id === 'hierro' ? k.transfHierro : (k.transfAluminio || 0) })
+    filas.push({ tipo: 'total', nombre: 'Ingresos totales', valor: k => k.ingresoBase, fuerte: true })
+  }
+  for (const b of BLOQUES) {
+    filas.push({ tipo: 'seccion', nombre: b.seccion })
+    for (const f of b.filas) filas.push({ tipo: 'dato', nombre: f.nombre, valor: k => k.valorFila(f.id) })
+    filas.push({ tipo: 'total', nombre: b.subtotal, valor: k => k.porBloque[b.id] })
+    if (b.utilidad) filas.push({ tipo: 'utilidad', nombre: b.utilidad, valor: k => k.UTILIDAD[b.utilidad] })
+  }
+  return filas
+}
+
+// Cómo se ven las cifras del año: en millones (cabe todo), en pesos exactos, o el análisis vertical
+const FORMATOS = [{ valor: 'millones', texto: 'Millones' }, { valor: 'pesos', texto: 'Pesos' }, { valor: 'pct', texto: '% ventas' }]
+
+function VistaAno({ ano, anio, centroId, tituloVista }) {
+  const [formato, setFormato] = useState('millones')
+  // Un cálculo por mes, con la misma función de la vista mensual. Cambiar de centro rehace solo
+  // esta cuenta (es instantánea): no se vuelve a pedir nada a Odoo.
+  const porMes = useMemo(() => ano.lista.map(mes => {
+    const d = ano.meses[mes]
+    return {
+      mes,
+      listo: !!d && !d.fallo,
+      fallo: !!d?.fallo,
+      calc: d ? calcularMes({ pyg: d.pyg, compras: d.compras, hierro: d.hierro, nomina: d.nomina, manual: d.manual, centroId }) : null,
+    }
+  }), [ano.meses, ano.lista, centroId])
+
+  const filas = useMemo(() => renglonesAno(centroId), [centroId])
+  const listos = porMes.filter(x => x.listo)
+  const totalDe = fila => listos.reduce((s, x) => s + (fila.valor(x.calc) || 0), 0)
+  const baseAno = listos.reduce((s, x) => s + x.calc.ingresoBase, 0)
+  const utilidadAno = listos.reduce((s, x) => s + x.calc.utilidadNeta, 0)
+  const incompletos = listos.filter(x => sinOdooFeisen(x.mes))
+  // Un mes sin mano de obra no es un mes barato: es un mes al que le falta el dato. La nómina de
+  // producción se empezó a cargar en el ERP hace poco y antes de eso no quedó en ninguna parte, así
+  // que esos meses muestran una utilidad que no es real. Se marcan igual que los meses sin Odoo.
+  const sinManoObra = x => !!x.calc && x.calc.ingresoBase > 0 && !Math.round(x.calc.valorFila('mano_obra'))
+  const cojo = x => sinOdooFeisen(x.mes) || sinManoObra(x)
+  const mesesSinManoObra = listos.filter(x => !sinOdooFeisen(x.mes) && sinManoObra(x))
+  const anoParcial = listos.some(cojo)
+
+  const texto = (v, base) => {
+    if (formato === 'pct') return base ? `${((v / base) * 100).toFixed(1).replace('.', ',')} %` : '—'
+    if (!v) return '—'
+    return formato === 'pesos' ? pesos(v) : millones(v)
+  }
+  const anchoMes = formato === 'pesos' ? 'min-w-[8.5rem]' : 'min-w-[6rem]'
+
+  if (!listos.length && ano.error) return <ErrorOdoo mensaje={ano.error} onReintentar={ano.recargar} />
+  if (!listos.length) return <Cargando texto={`Trayendo el año mes por mes · vamos por ${nombreLargo(ano.actual || ano.lista[0])}…`} />
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-80"><Segmentado opciones={FORMATOS} valor={formato} onCambiar={setFormato} /></div>
+        {ano.cargando && (
+          <span className="flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
+            <RefreshCw size={14} className="animate-spin" />
+            Vamos por {nombreLargo(ano.actual)}… {ano.listos} de {ano.lista.length} meses
+          </span>
+        )}
+      </div>
+
+      {ano.error && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">{ano.error}</p>}
+
+      <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-feisen-texto">P&amp;G {tituloVista} · año {anio}</span>
+          <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${utilidadAno < 0 ? 'bg-feisen-rojo-suave text-feisen-rojo' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+            Utilidad neta del año{anoParcial ? ' (incompleta)' : ''}: {millones(utilidadAno)}
+          </span>
+        </div>
+
+        <p className="px-4 py-2 text-xs text-feisen-texto-2 sm:hidden border-b border-feisen-borde-suave">
+          Desliza la tabla a los lados para ver los demás meses. El concepto se queda quieto.
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-20 bg-white text-left align-bottom px-4 py-2 min-w-[11rem] sm:min-w-[16rem] border-b border-r border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">
+                  Concepto
+                </th>
+                {porMes.map(x => (
+                  <th key={x.mes} className={`px-3 py-2 text-right align-bottom ${anchoMes} border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide ${cojo(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
+                    {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
+                    {sinOdooFeisen(x.mes) && <span className="block text-[10px] font-medium normal-case">sin Odoo</span>}
+                    {!sinOdooFeisen(x.mes) && sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
+                    {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
+                  </th>
+                ))}
+                <th className={`px-3 py-2 text-right align-bottom ${anchoMes} border-b border-l border-feisen-borde-suave bg-feisen-fondo text-xs font-semibold uppercase tracking-wide text-feisen-texto`}>
+                  Año
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((f, i) => {
+                if (f.tipo === 'seccion') return (
+                  <tr key={i}>
+                    <th scope="colgroup" className="sticky left-0 z-10 text-left px-4 pt-4 pb-1 bg-white border-r border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-azul">
+                      {f.nombre}
+                    </th>
+                    <td colSpan={porMes.length + 1} className="bg-white" />
+                  </tr>
+                )
+                const fondo = f.tipo === 'utilidad' ? 'bg-feisen-azul-suave' : f.tipo === 'total' ? 'bg-feisen-fondo' : 'bg-white'
+                const letra = f.tipo === 'utilidad' ? 'font-semibold text-feisen-azul' : f.tipo === 'total' ? 'font-semibold text-feisen-texto' : 'text-feisen-texto'
+                const total = totalDe(f)
+                return (
+                  <tr key={i}>
+                    <th scope="row" className={`sticky left-0 z-10 text-left px-4 py-2 border-t border-r border-feisen-borde-suave font-normal ${fondo}`}>
+                      <span className={`block ${letra}`}>{f.nombre}</span>
+                      {f.nota && <span className="block text-xs text-feisen-texto-2">{f.nota}</span>}
+                    </th>
+                    {porMes.map(x => (
+                      <td key={x.mes} className={`px-3 py-2 text-right tabular-nums border-t border-feisen-borde-suave ${letra} ${fondo}`}>
+                        {!x.listo ? <span className="text-feisen-texto-2">·</span>
+                          : <Numero v={f.valor(x.calc)} texto={texto(f.valor(x.calc), x.calc.ingresoBase)} />}
+                      </td>
+                    ))}
+                    <td className={`px-3 py-2 text-right tabular-nums border-t border-l border-feisen-borde-suave font-semibold ${f.tipo === 'utilidad' ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-feisen-fondo text-feisen-texto'}`}>
+                      <Numero v={total} texto={texto(total, baseAno)} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {anoParcial && (
+        <p className="text-xs text-amber-800 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
+          <strong>La utilidad del año todavía no es real.</strong> Hay meses a los que les falta el costo,
+          y un mes sin costo muestra una utilidad que no existe. Mientras falten esos datos, el número del
+          año sirve para ver la tendencia, no para reportarlo.
+        </p>
+      )}
+      {!!mesesSinManoObra.length && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
+          {mesesSinManoObra.map(x => nombreLargo(x.mes)).join(', ')} no {mesesSinManoObra.length === 1 ? 'tiene' : 'tienen'} mano
+          de obra: la nómina de producción se empezó a cargar en el ERP hace poco y la de FC nunca se registró en Odoo.
+          Esos meses se ven más rentables de lo que fueron.
+        </p>
+      )}
+      {!!incompletos.length && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
+          {incompletos.map(x => nombreLargo(x.mes)).join(', ')} no están en Odoo para Feisen (todavía estaba en SIIGO):
+          de esos meses solo se ve lo de FC y lo que esté escrito a mano, así que los ceros no son ceros de verdad y la
+          columna del año se queda corta. Las cifras de esos meses están en tu Excel.
+        </p>
+      )}
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        Los renglones y los subtotales son los mismos de la vista de un mes, hechos con la misma cuenta.
+        {formato === 'pct' ? ' Cada celda es el renglón como porcentaje de los ingresos netos de ese mes (la columna del año, sobre los ingresos del año).'
+          : formato === 'millones' ? ' Las cifras están en millones para que quepa el año; cambia a "Pesos" para ver el valor exacto.' : ''}
+        {' '}Para escribir o corregir un valor a mano, vuelve a "Un mes".
+      </p>
+    </div>
+  )
+}
+
+// Cifra de la tabla del año: en rojo si es negativa
+function Numero({ v, texto }) {
+  return <span className={v < 0 ? 'text-feisen-rojo' : ''}>{texto}</span>
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Piezas de la vista de un mes
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Texto del selector: corto en celular, completo desde tableta
 function Corto({ largo, corto }) {
