@@ -110,17 +110,29 @@ const PROVEEDORES_MATERIA_PRIMA = [
   'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
   'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
 ]
+// Al revés: contabilidad los causa en inventario (140500) pero para Angie no son materia prima.
+// Los revisó el 13/11/2026 sobre octubre: herramienta o insumos, no material.
+const PROVEEDORES_NO_MATERIA_PRIMA = [
+  'IMPORTADORA SUPERIOR',        // insumos
+  'LA ROCA ABRASIVOS S.A.S',     // insumos
+  'WURTH COLOMBIA SAS',          // herramienta
+  'UYUSA COLOMBIA S A S',        // herramienta
+  'FERRETERIA ANGEL Y DG SAS',   // herramienta
+]
 // Se comparan sin tildes, sin puntos y sin espacios, porque el mismo proveedor aparece escrito de varias formas
 const sinAdornos = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 const ES_MATERIA_PRIMA = new Set(PROVEEDORES_MATERIA_PRIMA.map(sinAdornos))
+const NO_ES_MATERIA_PRIMA = new Set(PROVEEDORES_NO_MATERIA_PRIMA.map(sinAdornos))
 const esInsumo = cod => cod.startsWith('7370') || cod === '730500'
 
 const AUTO = {
   feisen: { materia_prima: {
-    fuente: 'compras', nota: 'compras a inventario (140500) y los proveedores que marcaste',
+    fuente: 'compras', nota: 'compras a inventario (140500) con las excepciones por proveedor que marcaste',
     filtro: x => {
       const cod = String(x.cuenta).split(' ')[0]
-      return cod.startsWith('1405') || (esInsumo(cod) && ES_MATERIA_PRIMA.has(sinAdornos(x.proveedor)))
+      const prov = sinAdornos(x.proveedor)
+      if (cod.startsWith('1405')) return !NO_ES_MATERIA_PRIMA.has(prov)
+      return esInsumo(cod) && ES_MATERIA_PRIMA.has(prov)
     },
   } },
   fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
