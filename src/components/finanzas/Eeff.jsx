@@ -194,6 +194,13 @@ AUTO.feisen.nomina_comercial = {
   filtro: x => x.codigo.startsWith('5205'),
 }
 
+// Nómina administrativa de Feisen: las cuentas 5105xx (sueldos de administración más prestaciones).
+// Angie las verificó el 13/11/2026 contra octubre. Se reparte entre los centros por ventas.
+AUTO.feisen.nomina_admin = {
+  fuente: 'pyg', nota: 'sueldos de administración con prestaciones (5105xx)', porVentas: true,
+  filtro: x => x.codigo.startsWith('5105'),
+}
+
 // Honorarios: las cuentas 5110xx de Feisen (revisoría fiscal, auditoría externa, asesoría jurídica,
 // asesoría técnica y otros) más la 519600 "Honorarios SGST", que es el honorario del asesor de
 // seguridad y salud en el trabajo. No entra la 519601 (exámenes médicos): esa no es honorario.
@@ -295,13 +302,15 @@ export default function Eeff() {
         .select('total_devengado, periodo:nomina_periodos!inner(anio, mes, quincena, estado), empleado:empleados!inner(centro_costo)')
         .eq('periodo.anio', y).eq('periodo.mes', m).order('id').range(d, h))
       const porCentro = { construequipos: 0, hierro: 0, aluminio: 0 }
+      let administracion = 0   // la gente de administración no tiene centro: va al renglón de nómina administrativa
       const quincenas = new Map()
       for (const x of liq || []) {
         quincenas.set(x.periodo.quincena, x.periodo.estado)
         const c = CENTRO_NOMINA[x.empleado?.centro_costo]
         if (c) porCentro[c] += Number(x.total_devengado) || 0
+        else if (x.empleado?.centro_costo === 'administracion') administracion += Number(x.total_devengado) || 0
       }
-      const nomina = { porCentro, personas: (liq || []).length, quincenas: [...quincenas.entries()].sort((a, b) => a[0] - b[0]) }
+      const nomina = { porCentro, administracion, personas: (liq || []).length, quincenas: [...quincenas.entries()].sort((a, b) => a[0] - b[0]) }
 
       setErp({ cargando: false, error: '', nomina, hierro: { valor: kg * PRECIO_KG_HIERRO, kg, piezas: piezas.reduce((s, x) => s + Number(x.cantidad), 0), movs: piezas.length, sinPeso, excluido } })
     } catch (e) {
@@ -380,6 +389,12 @@ export default function Eeff() {
   const nominaCentro = id => erp.nomina?.porCentro?.[id] || 0
   const nominaDeLaVista = () => centro ? nominaCentro(centro.id) : CENTROS.reduce((s, c) => s + nominaCentro(c.id), 0)
 
+  // Nómina administrativa de FC: la de administración cargada en el ERP más las quincenas que falten.
+  // No tiene centro de costo, así que se guarda una sola vez ('todos:nomina_admin') y se reparte por ventas.
+  const adminErp = () => erp.nomina?.administracion || 0
+  const adminAMano = () => manual['todos:nomina_admin|fc'] || 0
+  const adminDeLaVista = () => (adminErp() + adminAMano()) * (centro ? peso(centro.id) : 1)
+
   const automatico = (centroId, filaId, empresa) => {
     const a = auto[`${empresa}:${filaId}`]
     return a ? a.centros[centroId] + a.sinCentro * peso(centroId) : null
@@ -392,7 +407,9 @@ export default function Eeff() {
     const base = centro ? baseCentro(centro.id, filaId, empresa)
       : CENTROS.reduce((s, c) => s + baseCentro(c.id, filaId, empresa), 0)
     // La nómina del ERP es la que paga FC; se suma a lo que Angie escriba de las quincenas que falten
-    return filaId === 'mano_obra' && empresa === 'fc' ? base + nominaDeLaVista() : base
+    if (filaId === 'mano_obra' && empresa === 'fc') return base + nominaDeLaVista()
+    if (filaId === 'nomina_admin' && empresa === 'fc') return base + adminDeLaVista()
+    return base
   }
   const valorFila = filaId => {
     const v = EMPRESAS.reduce((s, e) => s + valorEmpresa(filaId, e.id), 0)
@@ -441,7 +458,7 @@ export default function Eeff() {
   // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
   const celda = (f, empresa) => {
     // Mano de obra de FC: la columna muestra el total (nómina del ERP + lo escrito); se escribe abajo
-    if (!centro || AUTO[empresa]?.[f.id] || (f.id === 'mano_obra' && empresa === 'fc')) return <Cifra v={valorEmpresa(f.id, empresa)} />
+    if (!centro || AUTO[empresa]?.[f.id] || (empresa === 'fc' && (f.id === 'mano_obra' || f.id === 'nomina_admin'))) return <Cifra v={valorEmpresa(f.id, empresa)} />
     return <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${empresa}-${escrito(centro.id, f.id, empresa)}`}
       valor={escrito(centro.id, f.id, empresa)} onGuardar={t => guardarManual(`${centro.id}:${f.id}`, empresa, t)} />
   }
@@ -479,6 +496,19 @@ export default function Eeff() {
                 valor={escrito(centro.id, 'mano_obra', 'fc')} onGuardar={t => guardarManual(`${centro.id}:mano_obra`, 'fc', t)} />
             </SoloTotal>
           )}
+          {f.id === 'nomina_admin' && (<>
+            <SoloTotal nombre="De esa, la nómina de administración ya cargada en el ERP (FC)" sangria
+              valor={erp.nomina ? adminErp() * (centro ? peso(centro.id) : 1) : null}
+              nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
+                : erp.nomina?.quincenas?.length
+                  ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de administración`
+                  : 'Todavía no hay nómina cargada de este mes: escribe el valor abajo'} />
+            <SoloTotal nombre="Más las quincenas que falten (FC)" sangria
+              nota="Lo que todavía no está en el ERP. Es el valor de toda la empresa: se reparte entre los centros por ventas.">
+              <CasillaPesos key={`${mes}-todos-nomina_admin-fc-${adminAMano()}`}
+                valor={manual['todos:nomina_admin|fc']} onGuardar={t => guardarManual('todos:nomina_admin', 'fc', t)} />
+            </SoloTotal>
+          </>)}
           {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
             <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
             <SoloTotal nombre="Transferencia recibida — Aluminio"

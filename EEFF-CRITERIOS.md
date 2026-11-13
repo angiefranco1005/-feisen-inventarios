@@ -114,6 +114,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 | Comisiones | **529500** |
 | Nómina asesores y director comercial | Todas las **5205xx** de Feisen |
 | Honorarios | Todas las **5110xx** de Feisen más la **519600** |
+| Nómina administrativa | Todas las **5105xx** de Feisen · FC sale del ERP (RRHH › Nómina, centro administración) más las quincenas que falten |
 
 **Nómina de asesores y director comercial.** Sale del estado de resultados de **Feisen**, cuentas **5205xx**: los sueldos de ventas **más todas las prestaciones**. En octubre de 2026 fueron:
 
@@ -155,10 +156,41 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 - En octubre solo dos cuentas tuvieron movimiento; las otras cuatro quedaron en cero.
 - Si algún día Angie prefiere que el asesor de SGST (**519600**) no vaya en honorarios, basta sacarlo del filtro.
 
-**Todavía se escriben a mano:** nómina administrativa y otros gastos operacionales.
+**Nómina administrativa.** Es el personal de administración de las dos empresas. Cada una se saca de un lado distinto, parecido a lo que pasa con la mano de obra:
 
-Queda una cosa por resolver antes de conectar el resto de la nómina:
-- En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre. Hay que confirmar si es la misma plata que ya contamos como mano de obra desde el ERP; si lo es, **no se puede usar**, o se contaría dos veces.
+**Feisen** — del estado de resultados de **Feisen**, cuentas **5105xx**: los sueldos de administración **más todas las prestaciones**. En octubre de 2026 fueron:
+
+| Cuenta | Qué es | Octubre |
+|---|---|---|
+| 510500 | Sueldos | $43.535.000 |
+| 510502 | Incapacidades | $78.333,33 |
+| 510503 | Auxilio de transporte | $1.453.054,16 |
+| 510504 | Cesantías | $3.769.489,44 |
+| 510505 | Intereses sobre cesantías | $452.340,59 |
+| 510506 | Prima de servicios | $3.769.489,44 |
+| 510507 | Vacaciones | $1.886.260,05 |
+| 510514 | ARL | $1.058.442 |
+| 510516 | Pensión | $5.253.720 |
+| 510517 | Caja de compensación | $1.760.639,99 |
+| | **Total octubre** | **$63.016.769** |
+
+Angie revisó esta lista de cuentas el **13/11/2026**.
+
+**FC** — **no sale de Odoo**: sale del **ERP (RRHH › Nómina)**, igual que la mano de obra, y son dos cosas que se suman:
+- El **total devengado** de la gente cuyo centro de costo es **administración** (la que no entra en mano de obra de producción).
+- **Más las quincenas que falten**, escritas a mano, mientras no estén cargadas en el ERP.
+
+En octubre de 2026: **$17.449.584** de la 2.ª quincena ya cargada en el ERP **+ $11.089.183** de la primera quincena, que Angie dio a mano y ya quedó guardada. **Total FC $28.538.767.** Total del renglón en octubre: **$91.555.536**.
+
+- La casilla de "las quincenas que falten" de la nómina administrativa es **una sola para toda la empresa** (se guarda con el concepto `todos:nomina_admin`, no por centro), porque la administración **no tiene centro de costo**. Después se reparte entre los tres centros **por participación en ventas**, como todos los gastos. Esto es distinto de la mano de obra, donde la casilla sí es **por centro**.
+- Todo el renglón, Feisen y FC, se reparte entre los tres centros por participación en ventas.
+
+> **Ojo para los meses siguientes:** igual que con la mano de obra, **cuando la primera quincena quede cargada en el ERP hay que borrar esa casilla**, o la nómina administrativa se cuenta dos veces.
+
+**Todavía se escriben a mano:** otros gastos operacionales.
+
+Queda una cosa por resolver, y no es un olvido sino una decisión a la espera de que Angie confirme:
+- En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre y **hoy no se usa en ningún renglón**. La razón: toda la nómina de FC —producción y administración— se toma del **ERP**, no de Odoo, así que usar además esa cuenta sería contar dos veces la misma plata. Queda pendiente que Angie confirme que efectivamente es la misma nómina; mientras tanto, se deja por fuera.
 
 ## 7.1 Gastos no operacionales
 
@@ -174,7 +206,8 @@ Dos cosas que hay que recordar cuando se conecten:
 
 - Se escriben **en la vista de un centro**, en la columna de la empresa que corresponda. Consolidado solo suma.
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
-- En **mano de obra de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
+- En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
+- La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -182,7 +215,7 @@ Dos cosas que hay que recordar cuando se conecten:
 ## 9. Avisos
 
 - **El periodo de nómina de octubre está en borrador.** Al cerrarlo las cifras pueden cambiar.
-- **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más.
+- **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro) y la de **nómina administrativa de FC** (una sola para toda la empresa).
 - **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
@@ -202,6 +235,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Viáticos, publicidad y comisiones | octubre | Conectados, sin contrastar todavía con su lista: viáticos $0, publicidad $1.816.107, comisiones $5.021.800 |
 | Nómina asesores y director comercial (Feisen) | octubre | **Exacto**: $15.394.169, las diez cuentas 5205xx contra Odoo |
 | Honorarios (Feisen) | octubre | **$4.337.072**: revisoría fiscal $3.061.810 y el asesor de SGST $1.275.262. Las demás 5110xx sin movimiento |
+| Nómina administrativa | octubre | Feisen **$63.016.769** (las diez cuentas 5105xx, lista verificada por Angie el 13/11) + FC **$28.538.767** ($17.449.584 del ERP y $11.089.183 de la primera quincena a mano) = **$91.555.536** |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 
 ## 11. Qué cambió y por qué
@@ -223,5 +257,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | 13/11 | El renglón "Sueldos marketing / community" se llama ahora **"Gastos marketing"** y sigue a mano, para no contar dos veces las 5205xx |
 | 13/11 | **Se eliminó el renglón "Gastos marketing"**: en Odoo no hay una cuenta propia para marketing. Si se paga por las 5205xx, queda dentro de la nómina de asesores y director comercial |
 | 13/11 | Honorarios conectado: cuentas 5110xx de Feisen más la 519600 (asesor de SGST), sin la 519601 (exámenes médicos). Solo Feisen, repartido por ventas |
+| 13/11 | Nómina administrativa conectada: Feisen son las cuentas 5105xx de Odoo; FC sale del ERP (centro administración) más las quincenas que falten, con **una sola casilla para toda la empresa** (`todos:nomina_admin`). Se reparte por ventas |
+| 13/11 | Queda claro que la **510500 de Odoo FC no se usa en ningún renglón**: la nómina de FC, producción y administración, se toma del ERP. Pendiente que Angie lo confirme |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
