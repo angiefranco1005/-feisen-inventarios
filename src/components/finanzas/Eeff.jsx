@@ -109,9 +109,11 @@ const PROVEEDORES_MATERIA_PRIMA = [
   'EQUIPOS TOYAMA DE COLOMBIA S.A.S.',
   'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
   'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
-  'MIFRAN SAS',        // materia prima de Fundición Hierro (Angie, 13/11)
-  'METAL BARCAS SAS',  // materia prima de Fundición Hierro; en Odoo le quedó el centro Construequipos
 ]
+// Decisión de Angie (13/11): en las fundiciones también se separa el material de los insumos, como ya lo
+// hace contabilidad. Antes ella metía todo junto en materia prima. La utilidad bruta no cambia (los dos
+// renglones están arriba de ella) y los tres centros quedan comparables. Por eso MIFRAN y METAL BARCAS
+// (Hierro) y ECOLCIN (Aluminio) se quedan en insumos, y no se agregan a la lista de arriba.
 // Al revés: contabilidad los causa en inventario (140500) pero para Angie no son materia prima.
 // Los revisó el 13/11/2026 sobre octubre: herramienta o insumos, no material.
 const PROVEEDORES_NO_MATERIA_PRIMA = [
