@@ -15,7 +15,6 @@ export const SIN_CENTRO = 'Sin centro'
 // Las dos empresas tienen los mismos centros; FC llama "CONSTRU" a Construequipos
 const ALIAS_CENTRO = { CONSTRU: 'CONSTRUEQUIPOS' }
 export const normCentro = c => ALIAS_CENTRO[c] || c
-export const nombreCentro = c => c === SIN_CENTRO ? c : c.charAt(0) + c.slice(1).toLowerCase()
 
 export const hoyCol = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 export const diasEntre = (desde, hasta) => Math.round((new Date(`${hasta}T12:00:00`) - new Date(`${desde}T12:00:00`)) / 86400000)

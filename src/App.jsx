@@ -63,10 +63,10 @@ import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPers
 import PlanillasProduccion      from './components/ensamble/PlanillasProduccion'
 import SerialesMaquina          from './components/ensamble/SerialesMaquina'
 import Mantenimiento            from './components/mantenimiento/Mantenimiento'
-import ResultadoCentros         from './components/finanzas/ResultadoCentros'
 import PendientesFinanzas       from './components/finanzas/Pendientes'
 import FlujoCaja                from './components/finanzas/FlujoCaja'
 import Eeff                     from './components/finanzas/Eeff'
+import Impuestos                from './components/finanzas/Impuestos'
 import Manuales                 from './components/manuales/Manuales'
 import { MODULOS }              from './permisos/modulos'
 
@@ -122,8 +122,8 @@ function AppRoutes() {
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,
     '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,
     '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
-    '/finanzas/resultado': <ResultadoCentros />, '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
-    '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />, '/finanzas/eeff': <Eeff />,
+    '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
+    '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />, '/finanzas/eeff': <Eeff />, '/finanzas/impuestos': <Impuestos />,
     '/manuales': <Manuales />,
     '/config': <GestionConfig />,
   }
