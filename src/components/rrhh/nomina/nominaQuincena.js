@@ -8,7 +8,7 @@ import { modalidadDe, rangoQuincena, diasLaborales, diasAusente, calcularTotales
 
 export { nombreQuincena, rangoQuincena } from './nominaCalculo'
 
-export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_nocturna, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal, celular'
+export const CAMPOS_PAGO_EMPLEADO = 'id, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, tipo_contrato, tipo_vinculacion, salario_base, valor_dia, valor_quincena, valor_hora_extra, valor_hora_nocturna, valor_hora_recargo, auxilio_quincenal, subsidio_ss, aporte_ss, foto_path, email_corporativo, email_personal, celular, centro_costo'
 
 const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
 
@@ -34,6 +34,7 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
   const horas = valoresHora(valorDiaBase(modalidad, emp.valor_dia, valorFijo))
   const liq = {
     empleado_id: emp.id,
+    centro_costo: emp.centro_costo || null,
     modalidad,
     dias: modalidad === 'dia' ? Math.max(0, laborales - ausente) : null,
     valor_dia: modalidad === 'dia' ? valorNum(emp.valor_dia) : null,
@@ -175,6 +176,7 @@ export async function cambiarQuincena(periodo, { anio, mes, quincena }) {
 export async function guardarLiquidacion(liqId, liq, piezas) {
   const campos = {
     modalidad: liq.modalidad,
+    centro_costo: liq.centro_costo || null,
     dias: valorNum(liq.dias), valor_dia: valorNum(liq.valor_dia),
     horas_extra: valorNum(liq.horas_extra), valor_hora_extra: valorNum(liq.valor_hora_extra),
     horas_extra_nocturna: valorNum(liq.horas_extra_nocturna), valor_hora_nocturna: valorNum(liq.valor_hora_nocturna),

@@ -10,7 +10,7 @@ import {
   MapPin, Users, Building2, Contact, Clock, Shirt, CheckCircle2, Circle, ChevronDown, Plus, CalendarClock, Target,
 } from '../shared/iconos'
 import {
-  BUCKET_RRHH, AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, esAprendiz, tieneFechaFin, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
+  BUCKET_RRHH, AREAS, CENTROS_COSTO, TIPOS_DOCUMENTO, TIPOS_CONTRATO, esAprendiz, tieneFechaFin, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato, preavisoDe, hoyISO,
@@ -84,6 +84,8 @@ const SECCIONES = [
           mostrar: (e, ctx) => ctx?.cargos?.find(c => c.id === e.cargo_id)?.nombre || e.cargo || null,
           nota: (f) => f && !f.cargo_id ? 'Los cargos se crean en el Organigrama.' : null },
         { k: 'area', label: 'Área', tipo: 'select', opciones: AREAS, req: true },
+        { k: 'centro_costo', label: 'Centro de costo', tipo: 'select', opciones: CENTROS_COSTO, req: true,
+          nota: (f) => f && !f.centro_costo ? 'A qué centro se carga su nómina.' : null },
         { k: 'jefe_id', label: 'Jefe inmediato', tipo: 'jefe' },
         { k: 'email_corporativo', label: 'Correo corporativo', tipo: 'email' },
       ] },

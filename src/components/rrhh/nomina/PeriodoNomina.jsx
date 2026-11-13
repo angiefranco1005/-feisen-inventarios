@@ -8,7 +8,7 @@ import Alerta from '../../shared/Alerta'
 import Modal from '../../shared/Modal'
 import { ArrowLeft, Download, Lock, Unlock, ChevronRight, UserPlus, Search, AlertTriangle, FileText, Fingerprint, CalendarRange, CheckCircle2, Mail, MailX, Send, WhatsApp } from '../../shared/iconos'
 import * as E from '../estilos'
-import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas, BUCKET_RRHH } from '../catalogosRRHH'
+import { nombreCompleto, iniciales, formatoPesos, urlsFirmadas, BUCKET_RRHH, CENTROS_COSTO, centroCostoLabel } from '../catalogosRRHH'
 import { MODALIDADES, diasLaborales, calcularTotales } from './nominaCalculo'
 import HuelleroQuincena from './HuelleroQuincena'
 import { generarDesprendibles, desprendibleBase64, nombreArchivoDesprendible } from '../../../utils/desprendiblePagoPDF'
@@ -27,6 +27,7 @@ export default function PeriodoNomina() {
   const [cargando,  setCargando]  = useState(true)
   const [msg,       setMsg]       = useState(null)
   const [fMod,      setFMod]      = useState('')
+  const [fCentro,   setFCentro]   = useState('')   // centro de costo ('' = todos, '_' = sin centro)
   const [busqueda,  setBusqueda]  = useState('')
   const [agregar,   setAgregar]   = useState('')
   const [trabajando, setTrabajando] = useState(false)
@@ -56,15 +57,28 @@ export default function PeriodoNomina() {
   }
 
   const empPorId = useMemo(() => new Map(empleados.map(e => [e.id, e])), [empleados])
+  // Centro de costo de una liquidación; las creadas antes de existir el campo toman el de la ficha
+  const centroDe = (l) => l.centro_costo || empPorId.get(l.empleado_id)?.centro_costo || null
   const filas = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
     return liqs
-      .map(l => ({ ...l, emp: empPorId.get(l.empleado_id) }))
-      .filter(l => (!fMod || l.modalidad === fMod) && (!q || nombreCompleto(l.emp).toLowerCase().includes(q)))
+      .map(l => ({ ...l, emp: empPorId.get(l.empleado_id), centro: centroDe(l) }))
+      .filter(l => (!fMod || l.modalidad === fMod) && (!fCentro || (l.centro || '_') === fCentro)
+        && (!q || nombreCompleto(l.emp).toLowerCase().includes(q)))
       .sort((a, b) => nombreCompleto(a.emp).localeCompare(nombreCompleto(b.emp)))
-  }, [liqs, empPorId, fMod, busqueda])
+  }, [liqs, empPorId, fMod, fCentro, busqueda])
 
-  const suma = (lista, k) => lista.reduce((t, l) => t + (Number(l[k]) || 0), 0)
+  // Totales por centro de costo (sobre toda la quincena, sin filtros)
+  const porCentro = useMemo(() => {
+    const filasC = [...CENTROS_COSTO.map(c => c.value), '']
+      .map(v => {
+        const ls = liqs.filter(l => (centroDe(l) || '') === v)
+        return { value: v, label: centroCostoLabel(v), personas: ls.length, devengado: suma(ls, 'total_devengado'), deducciones: suma(ls, 'total_deducciones'), neto: suma(ls, 'neto') }
+      })
+    return filasC.filter(f => f.value || f.personas)
+  }, [liqs, empPorId])
+
+  function suma(lista, k) { return lista.reduce((t, l) => t + (Number(l[k]) || 0), 0) }
   // borrador → cerrada (RRHH) → aprobada (gerencia). Cerrada o aprobada = solo lectura.
   const cerrada = !!periodo && periodo.estado !== 'borrador'
   const aprobada = periodo?.estado === 'aprobada'
@@ -257,6 +271,7 @@ export default function PeriodoNomina() {
   const paraDocumentos = () => filas.map(l => ({
     ...l, nombre: nombreCompleto(l.emp), documento: l.emp ? `${l.emp.tipo_documento || ''} ${l.emp.numero_documento || ''}`.trim() : '',
     cargo: l.emp?.cargo, area: l.emp?.area, tipo_contrato: l.emp?.tipo_contrato, piezas: piezas.filter(p => p.liquidacion_id === l.id),
+    centro_costo_nombre: centroCostoLabel(l.centro),
   }))
   function exportar() {
     exportarNominaQuincena({ titulo: nombreQuincena(periodo), filas: paraDocumentos() })
@@ -369,6 +384,40 @@ export default function PeriodoNomina() {
             <p className={`text-xl font-semibold mt-0.5 ${k.fuerte ? 'text-feisen-azul' : 'text-feisen-texto'}`}>{k.valor}</p>
           </div>
         ))}
+      </div>
+
+      {/* Por centro de costo */}
+      <div className={E.tarjeta}>
+        <div className={E.cabTarjeta}>
+          <h2 className={E.tituloTarj}>Por centro de costo</h2>
+          {fCentro && <button onClick={() => setFCentro('')} className={`${E.btnTextoAzul} -mr-2`}>Ver todos</button>}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
+            <thead><tr className="text-left text-xs text-feisen-gris-medio border-b border-feisen-borde-suave">
+              <th className="font-medium px-5 py-2">Centro de costo</th><th className="font-medium px-3 py-2 text-right">Personas</th>
+              <th className="font-medium px-3 py-2 text-right">Devengado</th><th className="font-medium px-3 py-2 text-right">Deducciones</th>
+              <th className="font-medium px-5 py-2 text-right">Total a pagar</th>
+            </tr></thead>
+            <tbody className="divide-y divide-feisen-borde-suave">
+              {porCentro.map(c => (
+                <tr key={c.value || '_'} onClick={() => setFCentro(fCentro === (c.value || '_') ? '' : (c.value || '_'))}
+                  className={`cursor-pointer hover:bg-feisen-fondo ${fCentro === (c.value || '_') ? 'bg-feisen-azul-suave' : ''} ${!c.value ? 'text-amber-700' : ''}`}>
+                  <td className="px-5 py-2 font-medium">{!c.value && <AlertTriangle size={13} className="inline -mt-0.5 mr-1 text-amber-500" />}{c.label}</td>
+                  <td className="px-3 py-2 text-right text-feisen-texto-2">{c.personas}</td>
+                  <td className="px-3 py-2 text-right text-feisen-texto-2">{formatoPesos(c.devengado)}</td>
+                  <td className="px-3 py-2 text-right text-feisen-texto-2">{formatoPesos(c.deducciones)}</td>
+                  <td className="px-5 py-2 text-right font-medium text-feisen-texto">{formatoPesos(c.neto)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {porCentro.some(c => !c.value) && (
+          <p className="px-5 py-2.5 text-xs text-amber-700 border-t border-feisen-borde-suave">
+            Hay personas sin centro de costo: ponlo en su ficha (Laboral) o en su liquidación. Clic en una fila para ver solo esas personas.
+          </p>
+        )}
       </div>
 
       <HuelleroQuincena periodo={periodo} liqs={liqs} piezas={piezas} empleados={empleados} cerrada={cerrada} onActualizado={cargar} onMoverQuincena={moverQuincena} />

@@ -745,6 +745,23 @@ export function exportarNominaQuincena({ titulo, filas }) {
       { anchos: [28, 40, 10, 14, 16], fmt: { 2: '#,##0', 3: PESOS, 4: PESOS },
         total: ['Total', '', piezas.reduce((t, p) => t + p[2], 0), '', piezas.reduce((t, p) => t + p[4], 0)] })
   }
+  // Por centro de costo: resumen y detalle por persona
+  if (filas.length) {
+    const centros = [...new Set(filas.map(f => f.centro_costo_nombre || 'Sin centro de costo'))].sort()
+    const resumen = centros.map(c => {
+      const g = filas.filter(f => (f.centro_costo_nombre || 'Sin centro de costo') === c)
+      return [c, g.length, g.reduce((t, f) => t + n(f.total_devengado), 0), g.reduce((t, f) => t + n(f.total_deducciones), 0), g.reduce((t, f) => t + n(f.neto), 0)]
+    })
+    const detalle = [...filas].sort((a, b) => (a.centro_costo_nombre || '').localeCompare(b.centro_costo_nombre || '') || a.nombre.localeCompare(b.nombre))
+      .map(f => [f.centro_costo_nombre || 'Sin centro de costo', f.nombre, f.documento, f.cargo || '', f.area || '', n(f.total_devengado), n(f.total_deducciones), n(f.neto)])
+    hojaTabla(wb, 'Centro de costo', 'Nómina por centro de costo', titulo,
+      ['Centro de costo', 'Personas', 'Total devengado', 'Total deducciones', 'Total a pagar'], resumen,
+      { anchos: [24, 10, 16, 16, 16], fmt: { 1: '0', 2: PESOS, 3: PESOS, 4: PESOS },
+        total: ['Total', filas.length, ...[2, 3, 4].map(c => resumen.reduce((t, r) => t + r[c], 0))] })
+    hojaTabla(wb, 'Detalle por centro', 'Personas por centro de costo', titulo,
+      ['Centro de costo', 'Nombre', 'Documento', 'Cargo', 'Área', 'Total devengado', 'Total deducciones', 'Total a pagar'], detalle,
+      { anchos: [22, 28, 14, 24, 18, 16, 16, 16], fmt: { 5: PESOS, 6: PESOS, 7: PESOS } })
+  }
   if (!wb.SheetNames.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Sin liquidaciones']]), 'Planilla')
   XLSX.writeFile(wb, `nomina_${titulo.replace(/\s+/g, '_').toLowerCase()}.xlsx`)
 }

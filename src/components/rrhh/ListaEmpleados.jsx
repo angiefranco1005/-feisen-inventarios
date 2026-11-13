@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { Users, Plus, Search, ChevronRight, AlertTriangle, Camera, Cake } from '../shared/iconos'
 import * as E from './estilos'
 import {
-  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, etiquetaCargo, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
+  AREAS, TIPOS_DOCUMENTO, TIPOS_CONTRATO, tieneFechaFin, GRUPOS_VINCULO, grupoVinculoDe, etiquetaCargo, CENTROS_COSTO, TIPOS_VINCULACION, ESTADOS_EMPLEADO, calcularFinContrato, proximosCumpleanos, preavisoDe, hoyISO,
   nombreCompleto, iniciales, tiempoDesde, diasParaVencer, formatoFecha, urlsFirmadas,
   subirFotoEmpleado,
 } from './catalogosRRHH'
@@ -20,6 +20,7 @@ const FORM_VACIO = {
   apellidos: '',
   cargo_id: '',
   area: '',
+  centro_costo: '',
   fecha_ingreso: new Date().toISOString().split('T')[0],
   tipo_contrato: 'Indefinido',
   duracion_meses: '',
@@ -38,6 +39,7 @@ export default function ListaEmpleados() {
   const [filtroArea,   setFiltroArea]   = useState('')
   const [filtroEstado, setFiltroEstado] = useState('activo')
   const [filtroVinculo, setFiltroVinculo] = useState('')
+  const [filtroCentro, setFiltroCentro] = useState('')   // '' todos, '_' sin centro de costo
   const [modal,        setModal]        = useState(false)
   const [form,         setForm]         = useState(FORM_VACIO)
   const [guardando,    setGuardando]    = useState(false)
@@ -52,7 +54,7 @@ export default function ListaEmpleados() {
     setCargando(true)
     const [{ data, error }, { data: cats }] = await Promise.all([
       supabase.from('empleados')
-        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento, preaviso_fecha_entrega, preaviso_para_fin, preaviso_documento_id')
+        .select('id, codigo, nombres, apellidos, tipo_documento, numero_documento, cargo, area, estado, fecha_ingreso, tipo_contrato, fecha_fin_contrato, celular, foto_path, fecha_nacimiento, preaviso_fecha_entrega, preaviso_para_fin, preaviso_documento_id, centro_costo')
         .order('nombres'),
       supabase.from('cargos').select('id, nombre, area, subarea').order('nombre'),
     ])
@@ -84,10 +86,11 @@ export default function ListaEmpleados() {
       (!filtroEstado || e.estado === filtroEstado) &&
       (!filtroArea || e.area === filtroArea) &&
       (!filtroVinculo || grupoVinculoDe(e.tipo_contrato) === filtroVinculo) &&
+      (!filtroCentro || (e.centro_costo || '_') === filtroCentro) &&
       (!q || nombreCompleto(e).toLowerCase().includes(q)
           || (e.numero_documento || '').includes(q)
           || (e.cargo || '').toLowerCase().includes(q)))
-  }, [empleados, busqueda, filtroArea, filtroEstado, filtroVinculo])
+  }, [empleados, busqueda, filtroArea, filtroEstado, filtroVinculo, filtroCentro])
 
   function abrirNuevo() {
     setForm(FORM_VACIO); setFoto(null); setMsg(null); setModal(true)
@@ -253,6 +256,11 @@ export default function ListaEmpleados() {
           <option value="">Todas las áreas</option>
           {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
+        <select value={filtroCentro} onChange={e => setFiltroCentro(e.target.value)} className={`${E.input} sm:w-44`}>
+          <option value="">Todo centro de costo</option>
+          {CENTROS_COSTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          <option value="_">Sin centro de costo</option>
+        </select>
         <select value={filtroVinculo} onChange={e => setFiltroVinculo(e.target.value)} className={`${E.input} sm:w-44`}>
           <option value="">Toda vinculación</option>
           {GRUPOS_VINCULO.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
@@ -377,6 +385,13 @@ export default function ListaEmpleados() {
                   {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
+            </div>
+            <div>
+              <label className={E.labelForm}>Centro de costo *</label>
+              <select required value={form.centro_costo} onChange={set('centro_costo')} className={E.input}>
+                <option value="">Seleccionar…</option>
+                {CENTROS_COSTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

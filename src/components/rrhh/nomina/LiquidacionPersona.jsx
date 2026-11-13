@@ -5,7 +5,7 @@ import Spinner from '../../shared/Spinner'
 import Alerta from '../../shared/Alerta'
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, X, Lock, Trash2, CalendarClock, Package, Fingerprint, FileText, ChevronDown } from '../../shared/iconos'
 import * as E from '../estilos'
-import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD } from '../catalogosRRHH'
+import { nombreCompleto, formatoPesos, formatoFecha, TIPOS_NOVEDAD, CENTROS_COSTO } from '../catalogosRRHH'
 import { MODALIDADES, calcularTotales, diasLaborales, diasAusente, valorHorasRecargo, valorHorasNocturna, esContratista, etiquetasPago, valoresHora, valorDiaBase } from './nominaCalculo'
 import { generarDesprendibles } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, guardarLiquidacion, CAMPOS_PAGO_EMPLEADO } from './nominaQuincena'
@@ -107,6 +107,8 @@ export default function LiquidacionPersona() {
     setOrden((todas || []).sort((a, b) => (nom.get(a.empleado_id) || '').localeCompare(nom.get(b.empleado_id) || '')).map(t => t.id))
     setLiq({
       ...l,
+      // Centro de costo de la liquidación; las creadas antes de existir el campo toman el de la ficha
+      centro_costo: l.centro_costo || e?.centro_costo || '',
       dias: aTexto(l.dias), valor_dia: aTexto(l.valor_dia), horas_extra: aTexto(l.horas_extra), valor_hora_extra: aTexto(l.valor_hora_extra),
       horas_extra_nocturna: aTexto(l.horas_extra_nocturna), valor_hora_nocturna: aTexto(l.valor_hora_nocturna),
       horas_extra_recargo: aTexto(l.horas_extra_recargo), valor_hora_recargo: aTexto(l.valor_hora_recargo),
@@ -253,7 +255,13 @@ export default function LiquidacionPersona() {
           <h1 className={E.tituloPagina}>{nombreCompleto(emp)}</h1>
           <p className={E.subtituloPagina}>{emp.cargo || 'Sin cargo'}{emp.area && ` · ${emp.area}`} · {emp.tipo_documento} {emp.numero_documento}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={E.etiqueta}>Centro de costo</span>
+          <select value={liq.centro_costo || ''} disabled={cerrada} onChange={e => set('centro_costo')(e.target.value)}
+            className={`${E.input} w-44 disabled:bg-feisen-fondo ${liq.centro_costo ? '' : 'border-amber-400'}`}>
+            <option value="">Sin centro…</option>
+            {CENTROS_COSTO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
           <span className={E.etiqueta}>Forma de pago</span>
           <select value={m} disabled={cerrada} onChange={e => set('modalidad')(e.target.value)} className={`${E.input} w-40 disabled:bg-feisen-fondo`}>
             {Object.entries(MODALIDADES).map(([k, x]) => <option key={k} value={k}>{x.label}</option>)}

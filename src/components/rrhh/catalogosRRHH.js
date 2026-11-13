@@ -24,6 +24,16 @@ export const TIPOS_DOCUMENTO = [
   { value: 'PA',  label: 'Pasaporte' },
 ]
 
+// Centros de costo para repartir la nómina (pedido de Angie, 2026-11-13). Los ids son los
+// mismos de Finanzas › EEFF (construequipos / hierro / aluminio) para cruzar la mano de obra.
+export const CENTROS_COSTO = [
+  { value: 'construequipos', label: 'Construequipos' },
+  { value: 'hierro',         label: 'Fundición Hierro' },
+  { value: 'aluminio',       label: 'Aluminio' },
+  { value: 'administracion', label: 'Administración' },
+]
+export const centroCostoLabel = (v) => CENTROS_COSTO.find(c => c.value === v)?.label || 'Sin centro de costo'
+
 export const TIPOS_CONTRATO = ['Indefinido', 'Término fijo', 'Contratista', 'Aprendiz SENA · etapa lectiva', 'Aprendiz SENA · etapa práctica']
 
 // Contrato de aprendizaje (Ley 789 de 2002): tiene fecha fin como el término fijo,
