@@ -94,7 +94,7 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 | Servicios públicos | **734000** energía · **734001** el aseo que viene dentro de la factura de Enel · **513503** teléfono (internet Starlink y plan de celular) |
 | Mantenimiento equipos planta | **734500**, **734501** |
 | Transporte | **523500**, **513504**. Incluye los domicilios pequeños (p. ej. Sodimac), como los causa contabilidad |
-| Dotación | **720511** |
+| Dotación | **720511**. Incluye los elementos de protección (p. ej. guantes), además de la dotación de ropa |
 | Insumos | 737001, 737002, 730500, **menos los de las fundiciones**, que ya están en materia prima. En Feisen se leen de las facturas de compra, para que la exclusión calce exacta; FC no tiene insumos de fundición |
 
 ---
@@ -138,6 +138,7 @@ Dos cosas que hay que recordar cuando se conecten:
 | Servicios públicos | octubre | **Exacto**: $9.838.666 contra sus cuatro facturas |
 | Mantenimiento | septiembre | **Exacto**: $7.684.000 |
 | Transporte | octubre | Las cinco facturas coinciden; Odoo trae $11.900 más de un domicilio de Sodimac, que ella acepta como transporte |
+| Dotación | octubre | Sus dos facturas de Metalcab ($1.115.000) más Maxiguantes ($1.723.600), que ella acepta como dotación: **$2.838.600** |
 
 ## 11. Qué cambió y por qué
 
