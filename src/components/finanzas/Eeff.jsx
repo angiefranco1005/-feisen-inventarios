@@ -80,7 +80,7 @@ const BLOQUES = [
     { id: 'publicidad', nombre: 'Publicidad' },
     { id: 'comisiones', nombre: 'Comisiones' },
     { id: 'nomina_comercial', nombre: 'Nómina asesores y director comercial' },
-    { id: 'sueldos_marketing', nombre: 'Sueldos marketing / community' },
+    { id: 'sueldos_marketing', nombre: 'Gastos marketing' },
     { id: 'honorarios', nombre: 'Honorarios' },
     { id: 'nomina_admin', nombre: 'Nómina administrativa' },
     { id: 'otros_operacionales', nombre: 'Otros gastos operacionales' },
@@ -181,6 +181,18 @@ for (const [fila, { cuentas, nota }] of Object.entries(CIF_CUENTAS)) {
   for (const emp of ['feisen', 'fc']) {
     AUTO[emp][fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
   }
+}
+
+// Nómina de asesores y director comercial: las cuentas 5205xx de Feisen (sueldos de ventas más
+// prestaciones: incapacidades, auxilio de transporte, cesantías e intereses, prima, vacaciones, ARL,
+// pensión y caja de compensación). Angie las marcó el 13/11/2026 sobre octubre y dan exacto.
+// **Solo Feisen**: FC no tiene nómina de ventas (su única cuenta de personal es la 510500).
+// Como todo gasto, se reparte entre los centros por su participación en ventas.
+// Ojo: si algún día se paga marketing o community por estas cuentas, caería aquí; el renglón de
+// "Gastos marketing" se escribe a mano para no contarlo dos veces.
+AUTO.feisen.nomina_comercial = {
+  fuente: 'pyg', nota: 'sueldos de ventas con prestaciones (5205xx)', porVentas: true,
+  filtro: x => x.codigo.startsWith('5205'),
 }
 
 // Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
