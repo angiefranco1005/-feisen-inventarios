@@ -363,7 +363,8 @@ export default function Eeff() {
   }
   // Celda de una empresa: casilla para escribir en la vista de un centro, cifra en Consolidado o si sale de Odoo
   const celda = (f, empresa) => {
-    if (!centro || AUTO[empresa]?.[f.id]) return <Cifra v={valorEmpresa(f.id, empresa)} />
+    // Mano de obra de FC: la columna muestra el total (nómina del ERP + lo escrito); se escribe abajo
+    if (!centro || AUTO[empresa]?.[f.id] || (f.id === 'mano_obra' && empresa === 'fc')) return <Cifra v={valorEmpresa(f.id, empresa)} />
     return <CasillaPesos key={`${mes}-${centro.id}-${f.id}-${empresa}-${escrito(centro.id, f.id, empresa)}`}
       valor={escrito(centro.id, f.id, empresa)} onGuardar={t => guardarManual(`${centro.id}:${f.id}`, empresa, t)} />
   }
@@ -391,7 +392,14 @@ export default function Eeff() {
               nota={erp.cargando ? 'Leyendo la nómina…' : erp.error ? `Error: ${erp.error}`
                 : erp.nomina?.quincenas?.length
                   ? `RRHH › Nómina · ${erp.nomina.quincenas.map(([q, e]) => `${q}.ª quincena${e !== 'cerrada' ? ` (${e})` : ''}`).join(' y ')} · total devengado de producción, sin administración`
-                  : 'Todavía no hay nómina cargada de este mes: escribe el valor en las casillas'} />
+                  : 'Todavía no hay nómina cargada de este mes: escribe el valor abajo'} />
+          )}
+          {f.id === 'mano_obra' && centro && (
+            <SoloTotal nombre="Más las quincenas que falten (FC)" sangria
+              nota="Lo que todavía no está en el ERP. Se suma a lo de arriba.">
+              <CasillaPesos key={`${mes}-${centro.id}-mano_obra-fc-${escrito(centro.id, 'mano_obra', 'fc')}`}
+                valor={escrito(centro.id, 'mano_obra', 'fc')} onGuardar={t => guardarManual(`${centro.id}:mano_obra`, 'fc', t)} />
+            </SoloTotal>
           )}
           {centro?.id === 'construequipos' && f.id === 'materia_prima' && (<>
             <SoloTotal nombre="Transferencia recibida — Fundición Hierro" nota={`del ERP · ${notaHierro}`} valor={erp.hierro ? transfHierro : null} sangria />
