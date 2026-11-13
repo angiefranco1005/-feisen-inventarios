@@ -216,7 +216,9 @@ for (const emp of ['feisen', 'fc']) {
 // comerciales": si entra por un filtro de prefijo, esa plata se resta dos veces. No cambiar a startsWith.
 const NO_OPERACIONALES = {
   // Intereses que cobra la DIAN por impuestos pagados tarde (octubre 2026: $5.375.000)
-  intereses_impuestos: { cuentas: ['530507'], nota: 'intereses de impuestos (530507)' },
+  // Intereses que cobra la DIAN por impuestos pagados tarde, más la mora y el ajuste al peso, que en
+  // Odoo viven en el grupo 5395 "Diversos" del mismo bloque de no operacionales (octubre 2026: $5.375.000)
+  intereses_impuestos: { cuentas: ['530507'], prefijos: ['5395'], nota: 'intereses de impuestos y mora (530507, 5395xx)' },
   // El 4x1000 que descuenta el banco de cada movimiento (octubre 2026: $2.894.891)
   gravamenes: { cuentas: ['530501'], nota: 'gravamen a los movimientos financieros 4x1000 (530501)' },
   // Intereses de los créditos y sobregiros bancarios (octubre 2026: $8.342.532)
@@ -224,8 +226,40 @@ const NO_OPERACIONALES = {
   // Lo que cobra el banco por el servicio: cuota de manejo y comisiones (octubre 2026: $1.091.393)
   comisiones_financieras: { cuentas: ['530502', '530503'], nota: 'cuota de manejo y comisiones bancarias (530502, 530503)' },
 }
-for (const [fila, { cuentas, nota }] of Object.entries(NO_OPERACIONALES)) {
-  AUTO.feisen[fila] = { fuente: 'pyg', nota, porVentas: true, filtro: x => cuentas.includes(x.codigo) }
+for (const [fila, { cuentas, prefijos = [], nota }] of Object.entries(NO_OPERACIONALES)) {
+  AUTO.feisen[fila] = {
+    fuente: 'pyg', nota, porVentas: true,
+    filtro: x => cuentas.includes(x.codigo) || prefijos.some(p => x.codigo.startsWith(p)),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Otros gastos operacionales: el renglón de cierre. No es una lista de cuentas, es **todo lo que
+// quedó sin renglón propio** dentro de los grupos 51 y 52 (gastos de administración y de ventas).
+// Se hizo así a propósito: con una lista fija, cada cuenta nueva que abra contabilidad se perdería
+// sin que nadie se diera cuenta —ya pasó con una compra a Würth que no caía en ningún renglón—.
+// Así, lo que no tiene casa cae aquí y siempre se ve.
+// Si algún día uno de estos gastos se vuelve grande y merece su propio renglón, se saca de aquí
+// agregándolo arriba: este filtro lo suelta solo.
+// Se reparte por ventas, como todos los gastos.
+const YA_TIENEN_RENGLON = new Set([
+  '513503', '513504',             // teléfono → servicios públicos; fletes → transporte
+  '515500', '519504', '525500',   // viáticos
+  '523500',                       // transporte
+  '523501',                       // publicidad
+  '529500',                       // comisiones
+  '519600',                       // honorarios del asesor de seguridad y salud
+])
+const TIENEN_RENGLON_PREFIJO = ['5105', '5110', '5120', '5205']  // nómina admin, honorarios, arrendamientos, nómina comercial
+const esOtroGasto = cod => /^5[12]/.test(cod)
+  && !YA_TIENEN_RENGLON.has(cod)
+  && !TIENEN_RENGLON_PREFIJO.some(p => cod.startsWith(p))
+for (const emp of ['feisen', 'fc']) {
+  AUTO[emp].otros_operacionales = {
+    fuente: 'pyg', porVentas: true,
+    nota: 'todo lo demás de administración y ventas que no tiene renglón propio (51xx y 52xx)',
+    filtro: x => esOtroGasto(x.codigo),
+  }
 }
 
 // Insumos: los de las fundiciones ya están contados en materia prima, así que aquí van solo los demás
