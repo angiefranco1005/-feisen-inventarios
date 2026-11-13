@@ -11,9 +11,13 @@ import { Kpi, Cargando, ErrorOdoo, pesos, millones } from './comun'
 
 const TARIFA_POR_DEFECTO = 35
 const CLAVE_TARIFA = 'feisen-impuestos-tarifa'
-const CLAVE_ENEFEB = 'feisen-impuestos-enefeb'
+const CLAVE_AJUSTE = 'feisen-impuestos-ajuste'
 
-// Odoo Feisen solo tiene movimiento desde marzo de 2026 (enero y febrero estaban en SIIGO)
+// Odoo Feisen no tiene asientos con fecha de enero ni de febrero de 2026: contabilidad cargó esos dos
+// meses **dentro de marzo** al pasar de SIIGO a Odoo. Por eso marzo se ve tres veces más grande que los
+// demás meses ($1.235 M de ingresos contra unos $500 M) y por eso el año **sí está completo**:
+// no hay que sumarle nada por enero y febrero, se contarían dos veces. Comprobado el 13/11/2026
+// pidiéndole a Odoo el estado de resultados de enero y de febrero: cero líneas en los dos.
 const PRIMER_MES_ODOO = '2026-03'
 
 // Las mismas cuentas que agrupa la función, para poder repartir el IVA por bimestres
@@ -100,23 +104,22 @@ export default function Impuestos() {
   const anio = String(new Date().getFullYear())
   const { datos, cargando, error, recargar } = useTributario(anio)
   const [tarifaTexto, setTarifaTexto] = useState(() => leer(CLAVE_TARIFA, String(TARIFA_POR_DEFECTO)))
-  const [eneFebTexto, setEneFebTexto] = useState(() => leer(CLAVE_ENEFEB, ''))
+  const [ajusteTexto, setAjusteTexto] = useState(() => leer(CLAVE_AJUSTE, ''))
 
   const cambiarTarifa = v => { setTarifaTexto(v); guardar(CLAVE_TARIFA, v) }
-  const cambiarEneFeb = v => { const t = conPuntos(v); setEneFebTexto(t); guardar(CLAVE_ENEFEB, t) }
+  const cambiarAjuste = v => { const t = conPuntos(v); setAjusteTexto(t); guardar(CLAVE_AJUSTE, t) }
 
   const tarifaPct = Number(String(tarifaTexto).replace(',', '.'))
   const tarifaOk = Number.isFinite(tarifaPct) && tarifaPct > 0 && tarifaPct <= 100
   const tarifa = tarifaOk ? tarifaPct / 100 : TARIFA_POR_DEFECTO / 100
-  const eneFeb = Number(soloDigitos(eneFebTexto) || 0)
-  const faltaEneFeb = eneFeb === 0
+  const ajuste = Number(soloDigitos(ajusteTexto) || 0)
 
   const calc = useMemo(() => {
     if (!datos) return null
     const t = datos.totales || {}
     const utilidadOdoo = datos.resultado?.utilidad || 0
     const ingresos = datos.resultado?.ingresos || 0
-    const utilidad = utilidadOdoo + eneFeb
+    const utilidad = utilidadOdoo + ajuste
     const renta = utilidad * tarifa
     const certificados = t.retenciones_certificados || 0
     const autorretenciones = t.autorretenciones || 0
@@ -174,7 +177,7 @@ export default function Impuestos() {
       ctasAutorretenciones: porCodigo(AUTORRETENCIONES),
       ctasPorPagar: detalle.filter(x => POR_PAGAR(x.codigo)),
     }
-  }, [datos, tarifa, eneFeb])
+  }, [datos, tarifa, ajuste])
 
   const aFavor = calc && calc.neto < 0
   const magnitud = calc ? Math.abs(calc.neto) : 0
@@ -244,22 +247,24 @@ export default function Impuestos() {
               </span>
             </label>
             <label className="block min-w-0">
-              <span className="block text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">Utilidad de enero y febrero</span>
+              <span className="block text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">Ajuste del revisor fiscal</span>
               <span className="mt-1.5 flex items-center gap-2 rounded-lg border border-feisen-borde px-3 focus-within:border-feisen-azul">
                 <span className="text-sm text-feisen-texto-2 shrink-0">$</span>
-                <input value={eneFebTexto} onChange={e => cambiarEneFeb(e.target.value)} inputMode="numeric" placeholder="0"
+                <input value={ajusteTexto} onChange={e => cambiarAjuste(e.target.value)} inputMode="numeric" placeholder="0"
                   className="flex-1 min-w-0 min-h-[44px] text-sm tabular-nums bg-transparent focus:outline-none" />
               </span>
-              <span className={`block text-xs mt-1 ${faltaEneFeb ? 'text-amber-700' : 'text-feisen-texto-2'}`}>
-                {faltaEneFeb
-                  ? 'Faltan enero y febrero: Odoo Feisen solo tiene movimiento desde marzo de 2026 (antes estaba en SIIGO). Pídele esa utilidad al revisor fiscal y escríbela aquí.'
-                  : `Se suma a la utilidad de Odoo (${pesos(calc.utilidadOdoo)}) para que la renta sea del año completo.`}
+              <span className="block text-xs mt-1 text-feisen-texto-2">
+                {ajuste
+                  ? `Se suma a la utilidad de Odoo (${pesos(calc.utilidadOdoo)}).`
+                  : 'Déjalo vacío si no hay nada que ajustar. Sirve para meter una corrección que te dé el revisor fiscal, sin tocar la contabilidad.'}
               </span>
             </label>
           </div>
-          {faltaEneFeb && (
-            <p className="px-4 pb-4 -mt-1 text-xs text-amber-700">
-              Mientras esa casilla esté vacía, la utilidad de arriba está incompleta y la renta queda subestimada: la renta es anual y aquí solo van los meses que tiene Odoo.
+          {true && (
+            <p className="px-4 pb-4 -mt-1 text-xs text-feisen-texto-2">
+              El año está completo: aunque en Odoo no hay asientos con fecha de enero ni de febrero, contabilidad cargó esos dos meses
+              dentro de marzo al pasar de SIIGO a Odoo. Por eso marzo se ve tres veces más grande que los demás meses. No hay que
+              sumarle nada por enero y febrero: se contarían dos veces.
             </p>
           )}
         </Bloque>
