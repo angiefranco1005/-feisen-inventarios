@@ -42,7 +42,8 @@ Desde el **13/11/2026** la pantalla tiene dos modos: **"Un mes"**, el de siempre
 
 - **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con octubre, renglón por renglón.
 - En la vista del año los **meses van en columnas** y al final hay una columna con el **total del año**.
-- Las cifras se pueden ver **en millones, en pesos o como % de ventas** (el análisis vertical de siempre).
+- Las cifras se pueden ver **en pesos (como arranca), en millones o como % de ventas** (el análisis vertical de siempre).
+- En pesos y en millones, la **columna del año** trae además, debajo de cada cifra, **su porcentaje sobre los ingresos netos del año**: es el mismo análisis vertical de la vista de un mes, aplicado al acumulado. Los meses se quedan solo con la cifra.
 - El **filtro de centro de costo funciona igual** que en la vista de un mes.
 - **En la vista del año no se escriben valores a mano.** Las casillas solo existen en la vista de un mes; si hay que escribir o corregir algo, se cambia de modo.
 

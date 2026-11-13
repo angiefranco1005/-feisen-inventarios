@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { EncabezadoPagina, Segmentado, useAviso } from '../shared/ui'
+import { EncabezadoPagina, useAviso } from '../shared/ui'
 import { ChevronDown, ChevronRight, RefreshCw } from '../shared/iconos'
 import { useOdoo, Cargando, ErrorOdoo, pesos, millones, hoyCol } from './comun'
 import {
@@ -22,15 +22,30 @@ import {
 // Filtro de vista: consolidado o un centro de costo (se recuerda en este equipo)
 const CLAVE_VISTA = 'feisen-eeff-vista'
 const VISTAS = [
-  { valor: 'consolidado', texto: <Corto largo="Consolidado" corto="Consolid." />, titulo: 'consolidado' },
-  { valor: 'construequipos', texto: <Corto largo="Construequipos" corto="Constru" />, titulo: 'Construequipos' },
-  { valor: 'hierro', texto: <Corto largo="Fundición Hierro" corto="Hierro" />, titulo: 'Fundición Hierro' },
+  { valor: 'consolidado', texto: 'Consolidado', titulo: 'consolidado' },
+  { valor: 'construequipos', texto: 'Construequipos', titulo: 'Construequipos' },
+  { valor: 'hierro', texto: 'Fundición Hierro', titulo: 'Fundición Hierro' },
   { valor: 'aluminio', texto: 'Aluminio', titulo: 'Aluminio' },
 ]
 
 // Modo de ver: un mes o el año entero (también se recuerda en este equipo)
 const CLAVE_MODO = 'feisen-eeff-modo'
 const MODOS = [{ valor: 'mes', texto: 'Un mes' }, { valor: 'ano', texto: 'Todo el año' }]
+
+// Cómo se ven las cifras de la tabla del año (también se recuerda en este equipo).
+// Arranca en pesos: Angie casi nunca mira las cifras en millones.
+const CLAVE_FORMATO = 'feisen-eeff-formato'
+const FORMATOS = [
+  { valor: 'pesos', texto: 'Pesos' },
+  { valor: 'millones', texto: 'Millones' },
+  { valor: 'pct', texto: '% ventas' },
+]
+
+// Pesos apretados, solo para la tabla del año: sin espacio después del $, para que quepan los doce meses
+const pesosApretado = n => `$${Math.round(n || 0).toLocaleString('es-CO')}`
+
+// Un renglón como porcentaje de los ingresos netos (análisis vertical), con coma decimal
+const porcentaje = (v, base) => (base ? `${((v / base) * 100).toFixed(1).replace('.', ',')} %` : '—')
 
 // Columnas de cada renglón: concepto + Feisen / FC / Total (en celular solo concepto + Total)
 const GRID = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,8rem)_4.5rem] gap-3'
@@ -46,6 +61,41 @@ const MES_CORTO =['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep',
 const MES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const nombreLargo = mes => MES_LARGO[Number(mes.slice(5, 7)) - 1]
 
+// ── Barra de controles ──
+// Cada control es un grupo con su etiqueta chiquita al lado. Los grupos se acomodan solos:
+// en pantalla ancha van en una sola línea y en celular se van bajando, sin cortar los nombres.
+
+// Caja de un control con su etiqueta
+function Grupo({ etiqueta, children }) {
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{etiqueta}</span>
+      {children}
+    </div>
+  )
+}
+
+// Botones en fila para escoger una opción. El escogido queda en azul, como en el resto de la app.
+function Pildoras({ opciones, valor, onCambiar }) {
+  return (
+    <div role="group" className="flex flex-wrap gap-0.5 bg-feisen-fondo border border-feisen-borde rounded-lg p-0.5">
+      {opciones.map(o => {
+        const activo = valor === o.valor
+        return (
+          <button key={o.valor} type="button" aria-pressed={activo} onClick={() => onCambiar(o.valor)}
+            className={`rounded-md px-2.5 min-h-[40px] sm:min-h-[32px] text-[13px] transition-colors active:scale-[.98]
+              ${activo ? 'bg-feisen-azul-suave text-feisen-azul font-semibold' : 'text-feisen-texto-2 font-medium hover:bg-white'}`}>
+            {o.texto}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Mismo alto y mismo borde que las píldoras, para que la barra se vea pareja
+const CAMPO = 'min-h-[42px] sm:min-h-[36px] border border-feisen-borde rounded-lg px-2 bg-white text-[13px] text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave'
+
 export default function Eeff() {
   const [mes, setMes] = useState('2026-10')
   const [aviso, avisar] = useAviso()
@@ -56,8 +106,12 @@ export default function Eeff() {
   const [modo, setModo] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_MODO); return MODOS.some(o => o.valor === v) ? v : 'mes' } catch { return 'mes' }
   })
+  const [formato, setFormato] = useState(() => {
+    try { const v = localStorage.getItem(CLAVE_FORMATO); return FORMATOS.some(o => o.valor === v) ? v : 'pesos' } catch { return 'pesos' }
+  })
   const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
   const cambiarModo = v => { setModo(v); setAbierto(null); try { localStorage.setItem(CLAVE_MODO, v) } catch { /* sin almacenamiento */ } }
+  const cambiarFormato = v => { setFormato(v); try { localStorage.setItem(CLAVE_FORMATO, v) } catch { /* sin almacenamiento */ } }
   const verMes = modo === 'mes'
   const centroId = vista === 'consolidado' ? null : vista
 
@@ -219,34 +273,46 @@ export default function Eeff() {
         </button>
       </EncabezadoPagina>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full sm:w-56"><Segmentado opciones={MODOS} valor={modo} onCambiar={cambiarModo} /></div>
+      {/* Una sola barra de controles: qué período, qué centro y cómo se ven las cifras.
+          En celular cada grupo se va acomodando solo; el escogido se ve en azul. */}
+      <div className="bg-white border border-feisen-borde rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2.5">
+        <Grupo etiqueta="Ver">
+          <Pildoras opciones={MODOS} valor={modo} onCambiar={cambiarModo} />
+        </Grupo>
         {verMes ? (
-          <label className="flex items-center gap-2 text-sm text-feisen-texto-2">
-            Mes
+          <Grupo etiqueta="Mes">
             <input type="month" value={mes} max={hoyCol().slice(0, 7)} onChange={e => e.target.value && setMes(e.target.value)}
-              className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave" />
-          </label>
+              className={CAMPO} />
+          </Grupo>
         ) : (
-          <label className="flex items-center gap-2 text-sm text-feisen-texto-2">
-            Año
-            <select value={anio} onChange={e => setAnio(e.target.value)}
-              className="min-h-[42px] border border-feisen-borde rounded-lg px-3 bg-white text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave">
+          <Grupo etiqueta="Año">
+            <select value={anio} onChange={e => setAnio(e.target.value)} className={CAMPO}>
               {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-          </label>
+          </Grupo>
         )}
-        <div className="w-full sm:w-auto sm:min-w-[32rem]">
-          <Segmentado opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
-        </div>
+        <Grupo etiqueta="Centro de costo">
+          <Pildoras opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
+        </Grupo>
+        {!verMes && (
+          <Grupo etiqueta="Cifras en">
+            <Pildoras opciones={FORMATOS} valor={formato} onCambiar={cambiarFormato} />
+          </Grupo>
+        )}
         {verMes && (
-          <span className="text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-0.5 font-medium">
+          <span className="sm:ml-auto text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-1 font-medium">
             Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
+          </span>
+        )}
+        {!verMes && ano.cargando && (
+          <span className="sm:ml-auto flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
+            <RefreshCw size={14} className="animate-spin" />
+            Vamos por {nombreLargo(ano.actual)}… {ano.listos} de {ano.lista.length} meses
           </span>
         )}
       </div>
 
-      {!verMes ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} /> :
+      {!verMes ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
         <BaseVertical.Provider value={ingresoBase}>
@@ -398,11 +464,7 @@ function renglonesAno(centroId) {
   return filas
 }
 
-// Cómo se ven las cifras del año: en millones (cabe todo), en pesos exactos, o el análisis vertical
-const FORMATOS = [{ valor: 'millones', texto: 'Millones' }, { valor: 'pesos', texto: 'Pesos' }, { valor: 'pct', texto: '% ventas' }]
-
-function VistaAno({ ano, anio, centroId, tituloVista }) {
-  const [formato, setFormato] = useState('millones')
+function VistaAno({ ano, anio, centroId, tituloVista, formato }) {
   // Un cálculo por mes, con la misma función de la vista mensual. Cambiar de centro rehace solo
   // esta cuenta (es instantánea): no se vuelve a pedir nada a Odoo.
   const porMes = useMemo(() => ano.lista.map(mes => {
@@ -431,27 +493,20 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
   const anoParcial = listos.some(cojo)
 
   const texto = (v, base) => {
-    if (formato === 'pct') return base ? `${((v / base) * 100).toFixed(1).replace('.', ',')} %` : '—'
+    if (formato === 'pct') return porcentaje(v, base)
     if (!v) return '—'
-    return formato === 'pesos' ? pesos(v) : millones(v)
+    return formato === 'pesos' ? pesosApretado(v) : millones(v)
   }
-  const anchoMes = formato === 'pesos' ? 'min-w-[8.5rem]' : 'min-w-[6rem]'
+  // El análisis vertical de la columna del año: la cifra y debajo su % de los ingresos netos del año.
+  // Los meses se quedan solo con la cifra para no saturar la tabla.
+  const verticalAno = formato !== 'pct'
+  const anchoMes = formato === 'pesos' ? 'min-w-[5.75rem]' : 'min-w-[4.5rem]'
 
   if (!listos.length && ano.error) return <ErrorOdoo mensaje={ano.error} onReintentar={ano.recargar} />
   if (!listos.length) return <Cargando texto={`Trayendo el año mes por mes · vamos por ${nombreLargo(ano.actual || ano.lista[0])}…`} />
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full sm:w-80"><Segmentado opciones={FORMATOS} valor={formato} onCambiar={setFormato} /></div>
-        {ano.cargando && (
-          <span className="flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
-            <RefreshCw size={14} className="animate-spin" />
-            Vamos por {nombreLargo(ano.actual)}… {ano.listos} de {ano.lista.length} meses
-          </span>
-        )}
-      </div>
-
       {ano.error && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">{ano.error}</p>}
 
       <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
@@ -467,21 +522,22 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
         </p>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-separate border-spacing-0">
+          <table className="w-full text-[13px] border-separate border-spacing-0">
             <thead>
               <tr>
-                <th className="sticky left-0 z-20 bg-white text-left align-bottom px-4 py-2 min-w-[11rem] sm:min-w-[16rem] border-b border-r border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">
+                <th className="sticky left-0 z-20 bg-white text-left align-bottom px-3 py-1.5 min-w-[11rem] sm:min-w-[14rem] border-b border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
                   Concepto
                 </th>
                 {porMes.map(x => (
-                  <th key={x.mes} className={`px-3 py-2 text-right align-bottom ${anchoMes} border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide ${cojo(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
+                  <th key={x.mes} className={`px-1.5 py-1.5 text-right align-bottom ${anchoMes} border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${cojo(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
                     {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
                     {sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
                     {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
                   </th>
                 ))}
-                <th className={`px-3 py-2 text-right align-bottom ${anchoMes} border-b border-l border-feisen-borde-suave bg-feisen-fondo text-xs font-semibold uppercase tracking-wide text-feisen-texto`}>
+                <th className={`px-1.5 py-1.5 text-right align-bottom ${anchoMes} border-b border-l border-feisen-borde-suave bg-feisen-fondo text-[11px] font-semibold uppercase tracking-wide text-feisen-texto`}>
                   Año
+                  {verticalAno && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">y su % de ventas</span>}
                 </th>
               </tr>
             </thead>
@@ -489,7 +545,7 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
               {filas.map((f, i) => {
                 if (f.tipo === 'seccion') return (
                   <tr key={i}>
-                    <th scope="colgroup" className="sticky left-0 z-10 text-left px-4 pt-4 pb-1 bg-white border-r border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-azul">
+                    <th scope="colgroup" className="sticky left-0 z-10 text-left px-3 pt-3.5 pb-1 bg-white border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-azul">
                       {f.nombre}
                     </th>
                     <td colSpan={porMes.length + 1} className="bg-white" />
@@ -500,18 +556,22 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
                 const total = totalDe(f)
                 return (
                   <tr key={i}>
-                    <th scope="row" className={`sticky left-0 z-10 text-left px-4 py-2 border-t border-r border-feisen-borde-suave font-normal ${fondo}`}>
+                    <th scope="row" className={`sticky left-0 z-10 text-left px-3 py-1.5 border-t border-r border-feisen-borde-suave font-normal ${fondo}`}>
                       <span className={`block ${letra}`}>{f.nombre}</span>
-                      {f.nota && <span className="block text-xs text-feisen-texto-2">{f.nota}</span>}
+                      {f.nota && <span className="block text-[11px] text-feisen-texto-2">{f.nota}</span>}
                     </th>
                     {porMes.map(x => (
-                      <td key={x.mes} className={`px-3 py-2 text-right tabular-nums border-t border-feisen-borde-suave ${letra} ${fondo}`}>
+                      <td key={x.mes} className={`px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-feisen-borde-suave ${letra} ${fondo}`}>
                         {!x.listo ? <span className="text-feisen-texto-2">·</span>
                           : <Numero v={f.valor(x.calc)} texto={texto(f.valor(x.calc), x.calc.ingresoBase)} />}
                       </td>
                     ))}
-                    <td className={`px-3 py-2 text-right tabular-nums border-t border-l border-feisen-borde-suave font-semibold ${f.tipo === 'utilidad' ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-feisen-fondo text-feisen-texto'}`}>
+                    <td className={`px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-l border-feisen-borde-suave font-semibold ${f.tipo === 'utilidad' ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-feisen-fondo text-feisen-texto'}`}>
                       <Numero v={total} texto={texto(total, baseAno)} />
+                      {/* Análisis vertical del acumulado: el mismo % que muestra la vista de un mes */}
+                      {verticalAno && !!total && (
+                        <span className="block text-[10px] font-medium text-feisen-texto-2">{porcentaje(total, baseAno)}</span>
+                      )}
                     </td>
                   </tr>
                 )
@@ -544,7 +604,8 @@ function VistaAno({ ano, anio, centroId, tituloVista }) {
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         Los renglones y los subtotales son los mismos de la vista de un mes, hechos con la misma cuenta.
         {formato === 'pct' ? ' Cada celda es el renglón como porcentaje de los ingresos netos de ese mes (la columna del año, sobre los ingresos del año).'
-          : formato === 'millones' ? ' Las cifras están en millones para que quepa el año; cambia a "Pesos" para ver el valor exacto.' : ''}
+          : ` En la columna "Año", debajo de cada cifra va el análisis vertical: ese renglón como porcentaje de los ingresos netos del año.${
+            formato === 'millones' ? ' Las cifras están en millones; cambia a "Pesos" para ver el valor exacto.' : ''}`}
         {' '}Para escribir o corregir un valor a mano, vuelve a "Un mes".
       </p>
     </div>
@@ -559,11 +620,6 @@ function Numero({ v, texto }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Piezas de la vista de un mes
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Texto del selector: corto en celular, completo desde tableta
-function Corto({ largo, corto }) {
-  return <><span className="sm:hidden">{corto}</span><span className="hidden sm:inline">{largo}</span></>
-}
 
 function Encabezado() {
   return (
@@ -585,9 +641,8 @@ function Seccion({ titulo, nota }) {
 // Celda del análisis vertical
 function Pct({ v }) {
   const base = useContext(BaseVertical)
-  const p = base && v ? (v / base) * 100 : null
   return <span className="hidden sm:block text-right tabular-nums text-xs text-feisen-texto-2">
-    {p == null ? '' : `${p.toFixed(1).replace('.', ',')} %`}</span>
+    {base && v ? porcentaje(v, base) : ''}</span>
 }
 
 function Cifra({ v, fuerte }) {
