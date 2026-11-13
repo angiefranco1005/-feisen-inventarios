@@ -58,7 +58,11 @@ export default function PeriodoNomina() {
 
   const empPorId = useMemo(() => new Map(empleados.map(e => [e.id, e])), [empleados])
   // Centro de costo de una liquidación; las creadas antes de existir el campo toman el de la ficha
-  const centroDe = (l) => l.centro_costo || empPorId.get(l.empleado_id)?.centro_costo || null
+  // (un valor que no esté en el catálogo cuenta como "sin centro", para que nadie se salga del resumen)
+  const centroDe = (l) => {
+    const v = l.centro_costo || empPorId.get(l.empleado_id)?.centro_costo || null
+    return CENTROS_COSTO.some(c => c.value === v) ? v : null
+  }
   const filas = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
     return liqs
