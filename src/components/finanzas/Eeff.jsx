@@ -90,18 +90,19 @@ const BLOQUES = [
 ]
 const FILAS_COSTO = BLOQUES.flatMap(b => b.filas)
 
-// Paso 3 (13/11/2026): se va renglón por renglón. Por ahora solo **materia prima**, y solo del lado de FC,
-// que es el fácil: Angie toma lo que sale en el estado de resultados de FC como materia prima = cuenta 613500
-// (la misma que Feisen usa para costo de ventas desde la homologación del 11/11).
-// El lado de Feisen sigue a mano mientras definimos cómo clasificar sus compras. Todo lo demás, a mano.
-// En FC: lo que sale en su estado de resultados como materia prima (cuenta 613500).
+// ─────────────────────────────────────────────────────────────────────────────
+// DE DÓNDE SALE CADA RENGLÓN. El documento con los criterios, en palabras y con
+// el porqué de cada decisión, es EEFF-CRITERIOS.md en la raíz del repo:
+// si se cambia una regla aquí, hay que cambiarla allá en la misma entrega.
+// Los renglones que no aparecen en el mapa AUTO todavía se escriben a mano.
+// ─────────────────────────────────────────────────────────────────────────────
+// Materia prima — en FC: lo que sale en su estado de resultados (cuenta 613500).
 // En Feisen: las compras del mes a la cuenta de inventario (140500), porque contabilidad las lleva a
 // inventario y nunca saca lo consumido; su cuenta de costo de ventas (613500) se registra a saltos y no sirve
 // mes a mes (marzo $919 M, agosto $348 M). Las compras ya traen el centro de costo.
 // Enero a marzo no están en Odoo (Feisen todavía estaba en SIIGO): esos meses se escriben a mano.
 // Proveedores que contabilidad causa como insumos (737001 / 737002 / 730500) pero que para Angie son
-// materia prima. Los marcó ella el 13/11/2026 mirando junio–octubre. Si algún día se conecta el renglón
-// de insumos, hay que descontarlos allá para no contarlos dos veces.
+// materia prima. Los marcó ella el 13/11/2026 mirando junio–octubre; el renglón de Insumos los descuenta.
 const PROVEEDORES_MATERIA_PRIMA = [
   'IMPORTACIONES POWER SAS',
   'ALAPLUMEZ SAS',
@@ -145,17 +146,12 @@ const AUTO = {
   } },
   fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
 }
-// Mano de obra directa de Feisen: todas las cuentas 7205xx de su estado de resultados, que es sueldos más
-// prestaciones (auxilio de transporte, cesantías e intereses, prima, vacaciones, ARL, pensión, caja,
-// dotación, capacitación…). Probado contra el Excel de Angie: septiembre dio $21.608.474 contra sus
-// $21.608.473 de "M.O. nómina planta — SIIGO".
-// OJO: la 720511 (dotación) queda incluida aquí, tal como ella lo hace; al conectar el renglón de Dotación
-// hay que excluirla de allá para no contarla dos veces.
+// Mano de obra directa de Feisen: las cuentas 7205xx de su estado de resultados (sueldos más prestaciones),
+// **sin la 720511**, que se fue al renglón de Dotación. Por eso ya no coincide exacto con su Excel de
+// septiembre, que la tenía adentro.
 // `sinCentro` dice a qué centro va lo que en Odoo no trae centro, en vez de repartirlo por ventas: la
 // nómina de producción de Feisen es la planta de Construequipos, así que Hierro y Aluminio no llevan nada
-// (decisión de Angie, 13/11; sus operarios los paga FC).
-// La 720511 (dotación) sale de aquí y se va al renglón de Dotación (decisión de Angie, 13/11). Por eso
-// la mano de obra de Feisen ya no coincide exacto con su Excel de septiembre, que sí la tenía adentro.
+// (sus operarios los paga FC).
 AUTO.feisen.mano_obra = {
   fuente: 'pyg', nota: 'mano de obra directa con prestaciones (7205xx, sin la dotación)',
   filtro: x => x.codigo.startsWith('7205') && x.codigo !== '720511', sinCentro: 'construequipos',
