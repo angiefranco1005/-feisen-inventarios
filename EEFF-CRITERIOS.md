@@ -28,7 +28,7 @@ Las cuentas contables son **las mismas en las dos empresas** desde la homologaci
 - **Consolidado** = la suma de los tres centros. No se escribe nada ahí.
 - **Centros:** Construequipos, Fundición Hierro, Aluminio.
 - Lo que en Odoo **no trae centro de costo** se reparte entre los tres **según lo que vendió cada uno ese mes**, salvo donde se diga otra cosa abajo.
-- Los renglones de **CIF se reparten siempre por ventas**, sin importar el centro que traigan en Odoo: no se sabe cuánto gasta de luz o de transporte cada centro, así que si Construequipos vendió el 50 %, le toca el 50 % del CIF.
+- **Los CIF y todos los gastos —operacionales y no operacionales— se reparten siempre por ventas**, sin importar el centro que traigan en Odoo: no se sabe cuánto gasta de luz, de transporte o de intereses cada centro, así que si Construequipos vendió el 50 %, le toca el 50 % de esos renglones. Solo la materia prima y la mano de obra se asignan al centro que de verdad las gastó.
 
 ---
 
@@ -121,7 +121,7 @@ Dos cosas por resolver antes de conectar la nómina:
 
 ## 7.1 Gastos no operacionales
 
-**Todavía se escriben a mano.** Las cuentas candidatas son: intereses bancarios **530504** y **530505**, intereses de impuestos **530507** (ella le suma **539502** multas y sanciones), gravamen 4x1000 **530501**, comisiones financieras **530502** y **530503**.
+**También se reparten por ventas. Todavía se escriben a mano.** Las cuentas candidatas son: intereses bancarios **530504** y **530505**, intereses de impuestos **530507** (ella le suma **539502** multas y sanciones), gravamen 4x1000 **530501**, comisiones financieras **530502** y **530503**.
 
 Dos cosas que hay que recordar cuando se conecten:
 - La **530508** (descuentos comerciales) ya está restada en los ingresos: no volver a sumarla.
