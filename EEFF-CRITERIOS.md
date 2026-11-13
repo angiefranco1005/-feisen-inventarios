@@ -226,9 +226,17 @@ En octubre de 2026: **$17.449.584** de la 2.ª quincena ya cargada en el ERP **+
 
 **Ya no queda ningún gasto operacional escribiéndose a mano.** Con "otros gastos operacionales" conectado, toda la sección 7 sale sola de Odoo y del ERP.
 
-Quedan dos cosas por resolver, y no son olvidos sino decisiones a la espera de que Angie confirme:
+### La depreciación queda por fuera del informe (decidido el 13/11/2026)
+
+La cuenta **736000 "Maquinaria y Equipo Planta"**, que es **depreciación** (**$1.151.026** en octubre de 2026), **no entra en ningún renglón del estado de resultados**. **Es la única cuenta con movimiento que el informe deja por fuera**: todo lo demás ya cae en algún renglón.
+
+- **Lo decidió Angie el 13/11/2026 y es a propósito.** No es un olvido ni un error del cálculo: quien lea esto después **no lo tiene que "arreglar"**.
+- **El Excel que ella llevaba a mano tampoco tenía renglón de depreciación**, así que el informe sigue el mismo método de siempre.
+- **Consecuencia:** la utilidad que muestra el informe queda **por encima de la contable** justo en el valor de la depreciación (unos **$1,15 millones al mes** con las cifras de octubre). Si alguna vez hay que cuadrar el informe contra la contabilidad o contra el revisor fiscal, **esa es una de las diferencias** y hay que tenerla presente.
+- **Si algún día Angie cambia de opinión**, el renglón iría dentro de los **CIF**.
+
+Queda una sola cosa por resolver, y no es un olvido sino una decisión a la espera de que Angie confirme:
 - En Odoo FC la cuenta **510500 "Sueldos"** tiene $62.115.139 en octubre y **hoy no se usa en ningún renglón**. La razón: toda la nómina de FC —producción y administración— se toma del **ERP**, no de Odoo, así que usar además esa cuenta sería contar dos veces la misma plata. Queda pendiente que Angie confirme que efectivamente es la misma nómina; mientras tanto, se deja por fuera.
-- La cuenta **736000 "Maquinaria y Equipo Planta"**, que es **depreciación**, **$1.151.026** en octubre, **tampoco entra en ningún renglón**. El Excel de Angie no tiene renglón de depreciación y ella todavía no ha decidido si quiere uno. Mientras no lo decida, esa plata se queda por fuera **a propósito**. **Es la única cuenta que el estado de resultados de octubre deja por fuera**: todo lo demás ya cae en algún renglón.
 
 ## 7.1 Gastos no operacionales
 
@@ -289,7 +297,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | Nómina administrativa | octubre | Feisen **$63.016.769** (las diez cuentas 5105xx, lista verificada por Angie el 13/11) + FC **$28.538.767** ($17.449.584 del ERP y $11.089.183 de la primera quincena a mano) = **$91.555.536** |
 | Insumos | octubre | **Exacto**: $32.889.667, igual a sus 29 facturas. Al revisarlo apareció que Würth ($1.243.364) no quedaba en ningún renglón; ella lo manda a Insumos, que queda en **$34.133.031** |
 | Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.374.785 (530507 más el grupo 5395, con un ajuste al peso de −$215) · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.601** |
-| Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que está pendiente de decisión |
+| Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que **Angie decidió el 13/11/2026 dejar fuera del informe** |
 
 ## 11. Qué cambió y por qué
 
@@ -316,7 +324,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 13/11 | Gastos no operacionales conectados: 530507, 530501, 530504, 530502 y 530503 de Odoo Feisen. Solo Feisen (FC a mano), repartidos por ventas. **La 530508 queda por fuera a propósito**: ya está restada en los ingresos, y por eso las cuentas se nombran una por una y no por prefijo |
 | 13/11 | **"Otros gastos operacionales" conectado como renglón de cierre**: recoge todo lo que quede sin renglón propio dentro de los grupos 51 y 52 de las dos empresas. Se hizo con un filtro de exclusiones y no con una lista de cuentas, para que ninguna cuenta nueva se pierda sin que nadie lo note (ya había pasado con una compra a Würth). Octubre: Feisen $5.831.384 + FC $6.900.241 = **$12.731.625**. Con esto **ya no queda ningún gasto operacional a mano** |
 | 13/11 | "Intereses de impuestos" recoge además el grupo **5395** ("Diversos" en Odoo), donde están la mora y el ajuste al peso. Octubre pasa de $5.375.000 a **$5.374.785** (ajuste al peso de −$215) y el total de no operacionales a **$17.703.601** |
-| 13/11 | Con esos dos cambios, el estado de resultados de octubre **no deja ninguna cuenta por fuera salvo la 736000** ("Maquinaria y Equipo Planta", depreciación, $1.151.026). El Excel de Angie no tiene renglón de depreciación y ella no ha decidido si lo quiere: queda **pendiente de decisión**, no olvidado |
+| 13/11 | Con esos dos cambios, el estado de resultados de octubre **no deja ninguna cuenta por fuera salvo la 736000** ("Maquinaria y Equipo Planta", depreciación, $1.151.026) |
+| 13/11 | **Angie decidió que la depreciación (cuenta 736000) queda por fuera del informe.** Su Excel a mano tampoco tenía renglón de depreciación, así que el informe sigue su método. Es una decisión tomada, no un olvido: **no hay que "arreglarlo"**. Consecuencia: la utilidad del informe queda por encima de la contable en el valor de la depreciación (unos $1,15 millones al mes con octubre), y esa es una de las diferencias a tener presente si hay que cuadrar contra la contabilidad o el revisor fiscal. Si alguna vez cambia de opinión, el renglón iría dentro de los CIF |
 | 13/11 | Nuevo modo **"Todo el año"** en la pantalla: los meses en columnas y una columna con el total del año, con el **mismo cálculo** que la vista de un mes (se comprobó octubre renglón por renglón). En el año no se escriben valores a mano. **El total del año todavía no es real y no se debe reportar**: faltan enero, febrero y marzo de Feisen (estaba en SIIGO) y la mano de obra de varios meses. Los meses incompletos van marcados en ámbar |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
