@@ -110,11 +110,13 @@ const PROVEEDORES_MATERIA_PRIMA = [
   'FERRE CABLES Y CADENAS LOS CRISOLES SAS',
   'HIERROS BOGOTÁ FERRETERIAS & CIA S.A.S.',
   'IMPORTADORA DE RODAMIENTOS INDUSTRIALES SAS', // rodamientos: van en la máquina (Angie los marcó en octubre)
+  'METAL BARCAS SAS', // insumo de Fundición Hierro, pero en Odoo le quedó el centro Construequipos
 ]
-// Decisión de Angie (13/11): en las fundiciones también se separa el material de los insumos, como ya lo
-// hace contabilidad. Antes ella metía todo junto en materia prima. La utilidad bruta no cambia (los dos
-// renglones están arriba de ella) y los tres centros quedan comparables. Por eso MIFRAN y METAL BARCAS
-// (Hierro) y ECOLCIN (Aluminio) se quedan en insumos, y no se agregan a la lista de arriba.
+// Decisión de Angie (13/11, después de probar lo contrario): **todo lo que es insumo de las fundiciones
+// cuenta como materia prima**, no como insumos. Ella tiene una razón de fondo que explicará más adelante.
+// Por eso la regla va por centro y no por proveedor: así los proveedores nuevos de las fundiciones entran
+// solos. METAL BARCAS queda arriba, en la lista por proveedor, porque en Odoo tiene el centro equivocado.
+const CENTROS_TODO_MATERIA_PRIMA = ['HIERRO', 'ALUMINIO']
 // Al revés: contabilidad los causa en inventario (140500) pero para Angie no son materia prima.
 // Los revisó el 13/11/2026 sobre octubre: herramienta o insumos, no material.
 const PROVEEDORES_NO_MATERIA_PRIMA = [
@@ -132,12 +134,13 @@ const esInsumo = cod => cod.startsWith('7370') || cod === '730500'
 
 const AUTO = {
   feisen: { materia_prima: {
-    fuente: 'compras', nota: 'compras a inventario (140500) con las excepciones por proveedor que marcaste',
+    fuente: 'compras', nota: 'compras a inventario (140500), todo lo de las fundiciones y los proveedores que marcaste',
     filtro: x => {
       const cod = String(x.cuenta).split(' ')[0]
       const prov = sinAdornos(x.proveedor)
       if (cod.startsWith('1405')) return !NO_ES_MATERIA_PRIMA.has(prov)
-      return esInsumo(cod) && ES_MATERIA_PRIMA.has(prov)
+      if (!esInsumo(cod)) return false
+      return CENTROS_TODO_MATERIA_PRIMA.includes(normCentro(x.centro)) || ES_MATERIA_PRIMA.has(prov)
     },
   } },
   fc: { materia_prima: { fuente: 'pyg', nota: 'estado de resultados (613500)', filtro: x => x.codigo === '613500' } },
