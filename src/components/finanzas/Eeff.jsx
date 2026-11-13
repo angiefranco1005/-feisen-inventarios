@@ -80,6 +80,7 @@ const BLOQUES = [
     { id: 'publicidad', nombre: 'Publicidad' },
     { id: 'comisiones', nombre: 'Comisiones' },
     { id: 'nomina_comercial', nombre: 'Nómina asesores y director comercial' },
+    { id: 'arrendamientos', nombre: 'Arrendamientos' },
     { id: 'honorarios', nombre: 'Honorarios' },
     { id: 'nomina_admin', nombre: 'Nómina administrativa' },
     { id: 'otros_operacionales', nombre: 'Otros gastos operacionales' },
@@ -204,11 +205,25 @@ AUTO.feisen.nomina_admin = {
 // Honorarios: las cuentas 5110xx de Feisen (revisoría fiscal, auditoría externa, asesoría jurídica,
 // asesoría técnica y otros) más la 519600 "Honorarios SGST", que es el honorario del asesor de
 // seguridad y salud en el trabajo. No entra la 519601 (exámenes médicos): esa no es honorario.
-// **Solo Feisen**, como lo pidió Angie el 13/11/2026: en FC no hay honorarios causados.
+// Va por las **dos empresas** (Angie, 13/11/2026): hoy FC no tiene honorarios causados y da $0, pero
+// cuando contabilidad registre ahí los honorarios de FC entran solos, sin tocar nada.
 // Como todo gasto, se reparte entre los centros por su participación en ventas.
-AUTO.feisen.honorarios = {
-  fuente: 'pyg', nota: 'honorarios (5110xx) y el asesor de seguridad y salud (519600)', porVentas: true,
-  filtro: x => x.codigo.startsWith('5110') || x.codigo === '519600',
+for (const emp of ['feisen', 'fc']) {
+  AUTO[emp].honorarios = {
+    fuente: 'pyg', nota: 'honorarios (5110xx) y el asesor de seguridad y salud (519600)', porVentas: true,
+    filtro: x => x.codigo.startsWith('5110') || x.codigo === '519600',
+  }
+}
+
+// Arrendamientos: las cuentas 5120xx de las dos empresas. Angie lo pidió como renglón aparte el
+// 13/11/2026 porque el arriendo de FC pesa más que publicidad y comisiones juntas.
+// Ojo con octubre de 2026: el arriendo de FC ($3.344.000) todavía está causado en "Otros gastos"
+// (519506), así que aquí no aparece hasta que contabilidad lo pase a la cuenta de arrendamientos.
+for (const emp of ['feisen', 'fc']) {
+  AUTO[emp].arrendamientos = {
+    fuente: 'pyg', nota: 'arrendamientos (5120xx)', porVentas: true,
+    filtro: x => x.codigo.startsWith('5120'),
+  }
 }
 
 // Gastos no operacionales: salen **solo de Odoo Feisen**, como lo pidió Angie el 13/11/2026 ("los gastos
