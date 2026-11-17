@@ -14,6 +14,9 @@ import HuelleroQuincena from './HuelleroQuincena'
 import { generarDesprendibles, desprendibleBase64, nombreArchivoDesprendible } from '../../../utils/desprendiblePagoPDF'
 import { nombreQuincena, contextoQuincena, liquidacionSugerida, cambiarQuincena, rangoQuincena, CAMPOS_PAGO_EMPLEADO, huelleroDeQuincena, cambiosPorHuellero } from './nominaQuincena'
 
+// Envío de desprendibles por correo y WhatsApp: apagado por ahora (solo descarga)
+const ENVIO_DESPRENDIBLES = false
+
 // Planilla de una quincena: todas las personas con lo que se les paga
 export default function PeriodoNomina() {
   const { periodoId } = useParams()
@@ -108,7 +111,20 @@ export default function PeriodoNomina() {
   }
 
   // ── Aprobación de gerencia y envío de desprendibles ──
+  // Por ahora los desprendibles solo se descargan (pedido de Angie, 2026-11-17): aprobar no
+  // envía correos y no se muestran los botones de correo ni WhatsApp. El código del envío
+  // queda listo; para activarlo, ENVIO_DESPRENDIBLES = true (y configurar Resend, ver OBSERVACIONES).
   async function aprobarYEnviar() {
+    if (!ENVIO_DESPRENDIBLES) {
+      if (!window.confirm(`¿Aprobar la nómina ${nombreQuincena(periodo).toLowerCase()}?\n\nDespués de aprobada, nadie de RRHH puede modificarla.`)) return
+      setMsg(null)
+      const { data, error } = await supabase.from('nomina_periodos')
+        .update({ estado: 'aprobada', aprobada_por: perfil?.id, aprobada_en: new Date().toISOString() })
+        .eq('id', periodoId).select('*').single()
+      if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
+      setPeriodo(data)
+      return
+    }
     const conCorreo = liqs.filter(l => correoDe(empPorId.get(l.empleado_id)))
     const sinCorreo = liqs.filter(l => !correoDe(empPorId.get(l.empleado_id)))
     if (!window.confirm(`¿Aprobar la nómina ${nombreQuincena(periodo).toLowerCase()}?\n\n`
@@ -125,7 +141,7 @@ export default function PeriodoNomina() {
   }
 
   async function desaprobar() {
-    if (!window.confirm('¿Quitar la aprobación? La quincena vuelve a "cerrada" y RRHH podrá reabrirla. Los correos ya enviados no se recuperan.')) return
+    if (!window.confirm(`¿Quitar la aprobación? La quincena vuelve a "cerrada" y RRHH podrá reabrirla.${ENVIO_DESPRENDIBLES ? ' Los correos ya enviados no se recuperan.' : ''}`)) return
     const { data, error } = await supabase.from('nomina_periodos')
       .update({ estado: 'cerrada', aprobada_por: null, aprobada_en: null }).eq('id', periodoId).select('*').single()
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
@@ -338,7 +354,7 @@ export default function PeriodoNomina() {
             </button>
           )}
           <button onClick={desprendibles} disabled={!filas.length} className={E.btnSecundario} title="Un PDF con el desprendible de cada persona de la vista">
-            <FileText {...E.ICONO} /> Desprendibles
+            <FileText {...E.ICONO} /> Descargar desprendibles
           </button>
           <button onClick={exportar} className={E.btnSecundario}><Download {...E.ICONO} /> Excel</button>
           {!aprobada && (
@@ -348,10 +364,10 @@ export default function PeriodoNomina() {
           )}
           {cerrada && !aprobada && esAdmin && (
             <button onClick={aprobarYEnviar} disabled={!!envio} className={E.btnPrimario}>
-              <CheckCircle2 {...E.ICONO} /> Aprobar y enviar desprendibles
+              <CheckCircle2 {...E.ICONO} /> {ENVIO_DESPRENDIBLES ? 'Aprobar y enviar desprendibles' : 'Aprobar nómina'}
             </button>
           )}
-          {aprobada && esAdmin && pendientesEnvio.length > 0 && (
+          {ENVIO_DESPRENDIBLES && aprobada && esAdmin && pendientesEnvio.length > 0 && (
             <button onClick={() => enviarDesprendibles(pendientesEnvio)} disabled={!!envio} className={E.btnPrimario}>
               <Send {...E.ICONO} /> Enviar pendientes ({pendientesEnvio.length})
             </button>
@@ -372,7 +388,7 @@ export default function PeriodoNomina() {
         </div>
       )}
       {cerrada && !aprobada && !esAdmin && (
-        <Alerta tipo="info" mensaje="Quincena cerrada. Falta la aprobación de gerencia; al aprobarla se envía a cada persona su desprendible por correo." />
+        <Alerta tipo="info" mensaje={`Quincena cerrada. Falta la aprobación de gerencia${ENVIO_DESPRENDIBLES ? '; al aprobarla se envía a cada persona su desprendible por correo' : ''}.`} />
       )}
 
       {/* Totales */}
@@ -472,12 +488,12 @@ export default function PeriodoNomina() {
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_devengado)}</span>
                     <span className="hidden md:block text-sm text-right text-feisen-texto-2">{formatoPesos(l.total_deducciones)}</span>
                     <span className="text-sm text-right font-medium text-feisen-texto inline-flex items-center justify-end gap-1.5">
-                      {aprobada && (l.email_enviado_en
+                      {ENVIO_DESPRENDIBLES && aprobada && (l.email_enviado_en
                         ? <Mail size={13} strokeWidth={1.8} className="text-green-600" title={`Enviado a ${l.email_enviado_a}`} />
                         : l.email_error
                         ? <MailX size={13} strokeWidth={1.8} className="text-feisen-rojo" title={l.email_error} />
                         : !correoDe(l.emp) && <MailX size={13} strokeWidth={1.8} className="text-feisen-gris-medio" title="Sin correo en la ficha" />)}
-                      {aprobada && (whatsappDe(l.emp) ? (
+                      {ENVIO_DESPRENDIBLES && aprobada && (whatsappDe(l.emp) ? (
                         <span role="button" tabIndex={0}
                           onClick={e => { e.stopPropagation(); enviarWhatsApp(l) }}
                           onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); enviarWhatsApp(l) } }}

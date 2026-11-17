@@ -458,7 +458,6 @@ export default function LiquidacionPersona() {
             )}
             {cerrada && <p className="px-5 pb-4 text-xs text-feisen-gris-medio flex items-center gap-1.5"><Lock size={12} strokeWidth={1.8} /> {periodo.estado === 'aprobada' ? 'Quincena aprobada' : 'Quincena cerrada'}</p>}
             {liq.email_enviado_en && <p className="px-5 pb-3 -mt-2 text-xs text-green-700">Desprendible enviado a {liq.email_enviado_a} el {new Date(liq.email_enviado_en).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
-            {liq.email_error && !liq.email_enviado_en && <p className="px-5 pb-3 -mt-2 text-xs text-feisen-rojo">No se pudo enviar el desprendible: {liq.email_error}</p>}
             <div className="px-5 pb-4 -mt-1">
               <button onClick={desprendible} disabled={cambios && !cerrada} title={cambios ? 'Guarda primero los cambios' : ''} className={`${E.btnTexto} w-full justify-center`}>
                 <FileText size={14} strokeWidth={1.8} /> Desprendible de pago (PDF)
