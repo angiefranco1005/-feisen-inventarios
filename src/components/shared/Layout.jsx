@@ -60,7 +60,6 @@ const NAV_ADMIN = [
   { to: '/of/calendario',                     icon: CalendarDots,    label: 'Calendario',         modulo: 'Ventas' },
   { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
-  { to: '/of/seriales',                       icon: Tag,             label: 'Números de máquina', modulo: 'Ventas' },
   { to: '/costeo',                            icon: Calculator,      label: 'Fichas',             modulo: 'Costeo' },
   { to: '/costeo/etapas',                     icon: UserList,           label: 'Responsables por etapa', modulo: 'Costeo' },
   { to: '/costeo/cif',                        icon: Coins,           label: 'CIF de planta',      modulo: 'Costeo' },
@@ -279,8 +278,6 @@ export default function Layout({ children }) {
   if (itemOF && !propios.some(i => i.to === itemOF.to)) propios.splice(propios[0]?.to === '/dashboard' ? 1 : 0, 0, itemOF)
   const extras = esAdmin ? [] : NAV_ADMIN
     .filter(i => !i.abajo && i.to !== '/dashboard' && permitido(i) && !propios.some(p => p.to === i.to))
-    // Números de máquina: es la misma pantalla en Ensamble y en Ventas; quien la tiene en Ensamble no la ve dos veces
-    .filter(i => !(i.to === '/of/seriales' && propios.some(p => p.to === '/ensamble/seriales')))
     .map(i => ({ to: i.to, icon: i.icon, label: i.label, grupo: i.modulo }))
   // Ventas: Inicio, luego el grupo Ventas y después Inventarios (solo su bodega de motores)
   if (esComercial) extras.sort((a, b) => (b.grupo === 'Ventas') - (a.grupo === 'Ventas'))

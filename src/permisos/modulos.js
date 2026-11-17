@@ -60,7 +60,7 @@ export const MODULOS = [
     rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
     // Dashboard de Ventas: solo la gerente de ventas (y ADMIN), sin importar el nivel (2026-11-10, pedido de Angie)
     rutasRoles: { '/of/dashboard': ['JEFE_VENTAS'] },
-    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes', '/of/seriales'] },
+    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
 
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: elabora borradores · Todo: revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/manuales'] },

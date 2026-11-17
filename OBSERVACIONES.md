@@ -1559,6 +1559,16 @@ trabajo desde la app; se construye por fases ("sobre la marcha").
 
 ## Ensamble = planillas de producción y números de máquina (04/11/2026)
 
+> **17/11/2026 — Angie: todavía NO se enlaza con ventas ni con nómina.** Se quitaron de la app el botón
+> "Traer a las piezas" de la liquidación (`LiquidacionPersona.jsx`), la selección de números en la entrega y
+> la reversión de la OF (`ModalEntrega.jsx` / `ModalReversarEntrega.jsx`, vueltos a como estaban) y la ruta de
+> ventas `/of/seriales`. Ensamble queda solo con Planillas (`/ensamble`) y Máquinas (`/ensamble/seriales`:
+> número, modelo, quién la armó y cuándo). **La base se dejó igual** (migración aplicada el 05/11): las
+> columnas `planilla_lineas.liquidacion_id`, `seriales_maquina.of_entrega_id/item_of_id/estado`, las funciones
+> `marcar_lineas_planilla`, `asignar_seriales_entrega`, `liberar_seriales` y el origen `'planilla'` en
+> `nomina_piezas` siguen ahí sin uso, listas para cuando se decida enlazar (el código se puede recuperar del
+> commit 08295d6c). Al 17/11 no había ninguna planilla ni número registrado.
+
 **Reemplaza** las órdenes de ensamble (OE) y las recetas del 26/10 (sección de abajo, que queda como
 historia): Angie explicó el proceso real y las OE duplicaban las OF.
 

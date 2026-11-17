@@ -1,7 +1,8 @@
 // Planillas de producción (destajo) y seriales de máquina.
 // Ver supabase/migraciones/2026-11-04_planillas_produccion.sql y OBSERVACIONES.md.
-// William (JEFE_ENSAMBLE) pasa a la app la planilla de papel de cada contratista;
-// RRHH carga esas piezas a la nómina y ventas asigna los seriales en la entrega de la OF.
+// William (JEFE_ENSAMBLE) pasa a la app la planilla de papel de cada contratista, con el
+// número de cada máquina completa. Por ahora no se enlaza con nómina ni con ventas
+// (decisión de Angie, 17/11/2026); la base ya tiene las columnas y funciones para hacerlo.
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
@@ -50,12 +51,7 @@ export async function cargarPlanillas() {
   for (const l of lineas || []) (lineasDe[l.planilla_id] ||= []).push({ ...l, cantidad: Number(l.cantidad), seriales: serialesDe[l.id] || [] })
   return (planillas || []).map(p => {
     const ls = lineasDe[p.id] || []
-    return {
-      ...p,
-      lineas: ls,
-      enNomina: ls.filter(l => l.liquidacion_id).length,
-      despachadas: ls.flatMap(l => l.seriales).filter(s => s.estado === 'despachada').length,
-    }
+    return { ...p, lineas: ls }
   })
 }
 
@@ -110,7 +106,7 @@ export async function serialesOcupados(seriales, idsPropios = []) {
 }
 
 // Crea o reemplaza una planilla. Al editar se borran sus líneas (y sus seriales, en
-// cascada) y se vuelven a crear: solo se permite si nada se cargó a nómina ni se despachó.
+// cascada) y se vuelven a crear.
 export async function guardarPlanilla(form, { perfil, persona, tareas, existente }) {
   const lineas = form.lineas.filter(l => l.tarea_id || l.cantidad)
   const todos = lineas.flatMap(l => (l.completa ? l.seriales : []))
@@ -157,20 +153,5 @@ export async function guardarPlanilla(form, { perfil, persona, tareas, existente
 export async function borrarPlanilla(p) {
   const { data, error } = await supabase.from('planillas_produccion').delete().eq('id', p.id).select('id')
   if (error) throw new Error(error.message)
-  if (!data?.length) throw new Error('No se pudo borrar: ya tiene piezas en nómina o máquinas despachadas.')
-}
-
-// ── Ventas: seriales disponibles para una entrega y los ya despachados de una línea de OF ──
-export async function serialesDisponibles() {
-  const { data, error } = await fetchAllPages((d, h) => supabase.from('seriales_maquina')
-    .select('id, serial, modelo, hecha_por, fecha_fabricacion').eq('estado', 'disponible').order('serial').range(d, h))
-  if (error) throw new Error(error.message)
-  return data || []
-}
-
-export async function serialesDeItemOF(itemOfId) {
-  const { data, error } = await supabase.from('seriales_maquina')
-    .select('id, serial, modelo').eq('item_of_id', itemOfId).eq('estado', 'despachada').order('serial')
-  if (error) throw new Error(error.message)
-  return data || []
+  if (!data?.length) throw new Error('No se pudo borrar la planilla.')
 }
