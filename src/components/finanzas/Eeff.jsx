@@ -7,7 +7,7 @@ import {
   AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
   calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
-import { calcularBalance, esDisponibleFc } from './calculoBalance'
+import { calcularBalance, conceptoBanco, esDisponibleFc } from './calculoBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -19,8 +19,10 @@ import { calcularBalance, esDisponibleFc } from './calculoBalance'
 //  - Un mes: el informe completo, con las casillas que se escriben a mano.
 //  - Todo el año: los mismos renglones con un mes por columna y el total del año al final,
 //    como la hoja del consolidado de su Excel. Ahí no se escribe nada: solo se mira.
-//  - Balance: el balance general a hoy. **No comparte cálculo con las otras dos**: tiene su
-//    propio dato (acción `cuentas` de Odoo) y su propia cuenta, en calculoBalance.js.
+//  - Balance: el balance general **a fin del mes que se escoja**. No comparte cálculo con las
+//    otras dos: tiene su propio dato (función `finanzas-balance`) y su propia cuenta, en
+//    calculoBalance.js. El disponible (grupo 11) no sale de Odoo: lo escribe Angie con los
+//    extractos del banco, y se guarda en `eeff_manual` igual que las casillas del P&G.
 
 // Filtro de vista: consolidado o un centro de costo (se recuerda en este equipo)
 const CLAVE_VISTA = 'feisen-eeff-vista'
@@ -158,10 +160,10 @@ export default function Eeff() {
   const ano = useAno(anio, verAno)
 
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
-  // El `saldo` que devuelve la acción `cuentas` es el acumulado de toda la historia, así que
-  // el balance es siempre "a hoy": el año que se le pasa solo le sirve al movimiento del año,
-  // que esta vista no usa.
-  const bal = useOdoo('cuentas', 'ambas', { mes: hoyCol().slice(0, 4) }, verBalance)
+  // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
+  // Odoo: lo escribe Angie con los extractos del banco (useBancos).
+  const bal = useBalance(mes, verBalance)
+  const banc = useBancos(mes, verBalance)
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -192,6 +194,25 @@ export default function Eeff() {
     const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa, valor, updated_at: new Date().toISOString() })
     if (err) { avisar('No se pudo guardar: ' + err.message); return }
     setManual(m => ({ ...m, [`${concepto}|${empresa}`]: valor }))
+    avisar('Guardado')
+  }
+
+  // Las casillas del disponible del balance: mismo patrón que guardarManual (dejar la casilla
+  // vacía borra el renglón), con concepto 'banco:<cuenta>' y empresa 'total'.
+  async function guardarBanco(id, texto) {
+    const concepto = conceptoBanco(id)
+    const limpio = String(texto).replace(/[^\d-]/g, '')
+    if (limpio === '') {
+      const { error: err } = await supabase.from('eeff_manual').delete().eq('mes', mes).eq('concepto', concepto).eq('empresa', 'total')
+      if (err) { avisar('No se pudo borrar: ' + err.message); return }
+      banc.setBancos(b => { const n = { ...b }; delete n[id]; return n })
+      avisar('Casilla vacía')
+      return
+    }
+    const valor = Number(limpio) || 0
+    const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa: 'total', valor, updated_at: new Date().toISOString() })
+    if (err) { avisar('No se pudo guardar: ' + err.message); return }
+    banc.setBancos(b => ({ ...b, [id]: valor }))
     avisar('Guardado')
   }
 
@@ -291,17 +312,17 @@ export default function Eeff() {
   ))
 
   const cargandoMes = cargando || compras.cargando
-  const recargandoAhora = verMes ? cargandoMes : verBalance ? bal.cargando : ano.cargando
+  const recargandoAhora = verMes ? cargandoMes : verBalance ? (bal.cargando || banc.cargando) : ano.cargando
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
-    else if (verBalance) bal.recargar()
+    else if (verBalance) { bal.recargar(); banc.recargar() }
     else ano.recargar()
   }
   return (
     <div className={`${verAno ? 'max-w-[90rem]' : 'max-w-5xl'} mx-auto space-y-5 pb-24 lg:pb-8`}>
       <EncabezadoPagina modulo="Finanzas" titulo="EEFF"
         subtitulo={verBalance
-          ? 'Qué tiene y qué debe la empresa hoy: Feisen y FC, con los saldos que hay en Odoo.'
+          ? 'Qué tenía y qué debía la empresa al cierre del mes: Feisen y FC, con los bancos que escribes tú.'
           : 'Estado de resultados de Feisen y FC juntos, armado paso a paso con tu método.'}>
         <button type="button" onClick={recargarTodo} disabled={recargandoAhora}
           className="flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-60">
@@ -315,8 +336,15 @@ export default function Eeff() {
         <Grupo etiqueta="Ver">
           <Pildoras opciones={MODOS} valor={modo} onCambiar={cambiarModo} />
         </Grupo>
-        {verMes ? (
-          <Grupo etiqueta="Mes">
+        {verAno ? (
+          <Grupo etiqueta="Año">
+            <select value={anio} onChange={e => setAnio(e.target.value)} className={CAMPO}>
+              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </Grupo>
+        ) : (
+          /* El balance usa el mismo selector de mes que "Un mes": se corta a fin de ese mes */
+          <Grupo etiqueta={verBalance ? 'A fin de' : 'Mes'}>
             <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
               {MESES_ELEGIBLES.map(m => (
                 <option key={m} value={m}>
@@ -324,16 +352,6 @@ export default function Eeff() {
                 </option>
               ))}
             </select>
-          </Grupo>
-        ) : verAno ? (
-          <Grupo etiqueta="Año">
-            <select value={anio} onChange={e => setAnio(e.target.value)} className={CAMPO}>
-              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </Grupo>
-        ) : (
-          <Grupo etiqueta="Fecha">
-            <span className="text-[13px] text-feisen-texto">A hoy · saldos acumulados</span>
           </Grupo>
         )}
         {/* Un balance no se divide por centro de costo: el filtro no aparece en ese modo */}
@@ -371,9 +389,10 @@ export default function Eeff() {
       </div>
 
       {verBalance ? (
-        bal.cargando && !bal.datos ? <Cargando texto="Trayendo los saldos de las dos contabilidades…" />
+        (bal.cargando && !bal.datos) || !banc.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
-        : bal.datos && <VistaBalance datos={bal.datos} cargando={bal.cargando} />
+        : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
+            cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco} />
       ) : verAno ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
@@ -682,17 +701,81 @@ function Numero({ v, texto }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // BALANCE GENERAL
 //
-// Qué tiene y qué debe la empresa hoy. No comparte nada con el estado de resultados:
-// el dato viene de la acción `cuentas` de Odoo (saldo acumulado de toda la historia)
-// y la cuenta está en calculoBalance.js.
+// Qué tenía y qué debía la empresa **al cierre del mes que se escoja**. No comparte
+// nada con el estado de resultados: el dato viene de la función `finanzas-balance`
+// (saldos de Odoo cortados a fin de ese mes) y la cuenta está en calculoBalance.js.
+//
+// El disponible (grupo 11) **no sale de Odoo**: lo escribe Angie con los extractos
+// del banco y se guarda en `eeff_manual`, igual que las casillas del P&G. Por eso
+// el balance es de un mes y no "a hoy": los extractos son mensuales y mezclarlos
+// con la cartera de hoy daría un balance falso.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Los saldos de las dos empresas a fin del mes. Solo se piden cuando se abre este modo,
+// y una sola vez por mes: volver a esta vista no gasta otra llamada.
+function useBalance(mes, activo) {
+  const [estado, setEstado] = useState({ datos: null, cargando: true, error: '' })
+  const cargar = useCallback(async () => {
+    setEstado(e => ({ ...e, cargando: true, error: '' }))
+    try {
+      const { data, error } = await supabase.functions.invoke('finanzas-balance', { body: { mes } })
+      if (error) {
+        let msg = error.message
+        try { msg = (await error.context.json()).error || msg } catch { /* sin cuerpo */ }
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(data.error)
+      setEstado({ datos: data, cargando: false, error: '' })
+    } catch (e) {
+      setEstado({ datos: null, cargando: false, error: e.message || 'No se pudo consultar Odoo.' })
+    }
+  }, [mes])
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    cargar()
+  }, [cargar, activo])
+  return { ...estado, recargar: cargar }
+}
+
+// Lo que Angie escribió en las casillas del disponible de ese mes.
+// Misma tabla y mismo patrón que las casillas del P&G: `eeff_manual`, empresa 'total',
+// concepto 'banco:<cuenta>'. Una casilla vacía no tiene renglón en la tabla.
+function useBancos(mes, activo) {
+  const [bancos, setBancos] = useState({})
+  // `listo` evita que la pantalla alcance a decir "todavía no has escrito nada" mientras lee
+  const [estado, setEstado] = useState({ cargando: true, error: '', listo: false })
+  const cargar = useCallback(async () => {
+    setEstado(e => ({ ...e, cargando: true, error: '' }))
+    const { data, error } = await supabase.from('eeff_manual')
+      .select('concepto, valor').eq('mes', mes).eq('empresa', 'total').like('concepto', 'banco:%')
+    if (error) { setBancos({}); setEstado({ cargando: false, listo: true, error: error.message || 'No se pudieron leer los bancos.' }); return }
+    setBancos(Object.fromEntries((data || []).map(x => [String(x.concepto).slice('banco:'.length), Number(x.valor)])))
+    setEstado({ cargando: false, listo: true, error: '' })
+  }, [mes])
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    setEstado(e => ({ ...e, listo: false }))
+    cargar()
+  }, [cargar, activo])
+  return { bancos, setBancos, ...estado, recargar: cargar }
+}
+
+// '2026-10-31' → '31 de octubre de 2026'
+const fechaLarga = iso => {
+  const [a, m, d] = String(iso || '').split('-').map(Number)
+  return d ? `${d} de ${MES_LARGO[m - 1]} de ${a}` : '—'
+}
 
 // Mismas columnas que el P&G (concepto · Feisen · FC · Total), pero sin la de "% ventas":
 // un balance no se lee como porcentaje de las ventas. En celular solo concepto y total.
 const GRID_BAL = 'grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_repeat(3,9rem)] gap-3'
 
-// `heredar` deja que el renglón ponga el color (totales en azul o en rojo);
-// `ceros` muestra "$ 0" en vez de la raya, que es justo lo que tiene que verse en la comprobación.
+// `heredar` deja que el renglón ponga el color (totales en azul, en ámbar o en rojo);
+// `ceros` muestra "$ 0" en vez de la raya, para cuando el cero sí es una cifra.
 function CifraB({ v, fuerte, alerta, tenue, heredar, ceros }) {
   const color = heredar ? '' : alerta ? 'text-amber-700' : v < 0 ? 'text-feisen-rojo' : tenue ? 'text-feisen-texto-2' : 'text-feisen-texto'
   return <span className={`text-right tabular-nums ${fuerte ? 'font-semibold' : ''} ${alerta ? 'font-medium' : ''} ${color}`}>
@@ -756,7 +839,7 @@ function DetalleBalance({ grupo, alertaFc }) {
 
 // Un grupo del PUC. Se abre y muestra el detalle cuenta por cuenta, igual que los
 // renglones de ventas de la vista de un mes.
-function FilaBalance({ grupo, abierto, onClick, alertaFc }) {
+function FilaBalance({ grupo, abierto, onClick, alertaFc, tenue }) {
   const Icono = abierto ? ChevronDown : ChevronRight
   const codigos = grupo.prefijos?.length ? grupo.prefijos.join(' y ') : ''
   return (
@@ -764,24 +847,25 @@ function FilaBalance({ grupo, abierto, onClick, alertaFc }) {
       <button type="button" onClick={onClick}
         className={`w-full ${GRID_BAL} px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo`}>
         <span className="min-w-0">
-          <span className="flex items-center gap-1 text-feisen-texto">
+          <span className={`flex items-center gap-1 ${tenue ? 'text-feisen-texto-2' : 'text-feisen-texto'}`}>
             <Icono size={14} className="text-gray-400 shrink-0" />
             <span className="truncate">{codigos && <span className="tabular-nums text-feisen-texto-2">{codigos} </span>}{grupo.nombre}</span>
           </span>
           {alertaFc ? <span className="block pl-5 text-xs text-amber-700">{alertaFc}</span>
             : grupo.nota && <span className="block pl-5 text-xs text-feisen-texto-2">{grupo.nota}</span>}
         </span>
-        <span className="hidden sm:contents"><CifraB v={grupo.feisen} /><CifraB v={grupo.fc} alerta={!!alertaFc} /></span>
-        <CifraB v={grupo.total} fuerte />
+        <span className="hidden sm:contents"><CifraB v={grupo.feisen} tenue={tenue} /><CifraB v={grupo.fc} tenue={tenue} alerta={!!alertaFc} /></span>
+        <CifraB v={grupo.total} fuerte={!tenue} tenue={tenue} />
       </button>
       {abierto && <DetalleBalance grupo={grupo} alertaFc={!!alertaFc} />}
     </div>
   )
 }
 
-function TotalBalance({ nombre, nota, cifras, destacado, alerta, ceros }) {
-  const pintado = destacado || alerta
+function TotalBalance({ nombre, nota, cifras, destacado, alerta, ambar, ceros, soloTotal }) {
+  const pintado = destacado || alerta || ambar
   const fondo = alerta ? 'bg-feisen-rojo-suave border-y border-feisen-borde text-feisen-rojo'
+    : ambar ? 'bg-amber-50 border-y border-amber-200 text-amber-900'
     : destacado ? 'bg-feisen-azul-suave border-y border-feisen-borde text-feisen-azul'
     : 'bg-feisen-fondo border-y border-feisen-borde-suave text-feisen-texto'
   const c = { fuerte: true, heredar: pintado, ceros }
@@ -791,34 +875,72 @@ function TotalBalance({ nombre, nota, cifras, destacado, alerta, ceros }) {
         <span className="block">{nombre}</span>
         {nota && <span className="block text-xs font-normal opacity-80">{nota}</span>}
       </span>
-      <span className="hidden sm:contents"><CifraB v={cifras.feisen} {...c} /><CifraB v={cifras.fc} {...c} /></span>
+      <span className="hidden sm:contents">
+        {soloTotal ? <><span /><span /></> : <><CifraB v={cifras.feisen} {...c} /><CifraB v={cifras.fc} {...c} /></>}
+      </span>
       <CifraB v={cifras.total} {...c} />
     </div>
   )
 }
 
-function VistaBalance({ datos, cargando }) {
+// El grupo 11 del activo. No sale de Odoo: son las casillas que llena Angie con los
+// extractos del mes. Debajo queda, en un renglón que se abre, lo que dice la contabilidad,
+// que es solo para mirar y no entra a ninguna suma.
+function GrupoDisponible({ disponible, odoo, mes, abierto, onAbrir, alertaFc, onGuardar }) {
+  return (
+    <div className="border-t border-feisen-borde-suave">
+      <div className={`${GRID_BAL} px-4 py-2 text-sm items-center`}>
+        <span className="min-w-0">
+          <span className="block text-feisen-texto"><span className="tabular-nums text-feisen-texto-2">11 </span>Disponible</span>
+          <span className="block text-xs text-feisen-texto-2">lo escribes tú, con los extractos del mes · es el total de las dos empresas</span>
+        </span>
+        <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
+        <CifraB v={disponible.total} fuerte ceros={disponible.hay} />
+      </div>
+
+      {disponible.casillas.map(c => (
+        <div key={c.id} className={`${GRID_BAL} px-4 py-1.5 pl-9 text-sm items-center`}>
+          <span className="text-feisen-texto">{c.nombre}</span>
+          <span className="hidden sm:block" /><span className="hidden sm:block" />
+          <CasillaPesos key={`${mes}-${c.id}-${c.valor}`} alto valor={c.valor} onGuardar={t => onGuardar(c.id, t)} />
+        </div>
+      ))}
+
+      {!disponible.hay && (
+        <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+          <strong>Todavía no has escrito los saldos de este mes.</strong> Copia de cada extracto lo que
+          había el último día del mes. Mientras tanto el disponible queda en blanco —no en $0, que sería
+          decir que no hay plata— y el total del activo está incompleto.
+        </p>
+      )}
+
+      <FilaBalance grupo={odoo} abierto={abierto} onClick={onAbrir} alertaFc={alertaFc} tenue />
+    </div>
+  )
+}
+
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) {
   const [abierto, setAbierto] = useState(null)
-  const b = useMemo(() => calcularBalance(datos), [datos])
+  const b = useMemo(() => calcularBalance(datos, bancos), [datos, bancos])
   const alternar = id => setAbierto(a => (a === id ? null : id))
 
-  const activo = b.secciones.find(s => s.id === 'activo')
-  const descuadre = !b.comprobacion.cuadra
-  // El aviso del banco de FC se arma con la cifra que hay hoy, no con una cifra escrita aquí
-  const pesoBancoFc = activo.fc ? Math.round((b.disponibleFc / activo.fc) * 100) : 0
+  const activo = b.activo
+  const alCierre = fechaLarga(datos.hasta)
+  // Qué parte de los activos de FC es ese "banco" que no es plata real, según lo que dice Odoo
+  const pesoBancoFc = b.activoFcOdoo ? Math.round((b.disponibleFc / b.activoFcOdoo) * 100) : 0
 
   return (
     <div className="space-y-3">
       {/* Lo que hay que saber antes de leer las cifras va arriba, no al pie */}
-      {(b.disponibleFc > 0 || !!b.transitorias.fc || !b.patrimonioRegistrado.fc || descuadre) &&
+      {(b.disponibleFc > 0 || !!b.transitorias.fc || !b.patrimonioRegistrado.fc || b.cuadreOdoo.cuadra) &&
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2 text-xs text-amber-800 leading-relaxed">
         <p className="text-sm font-semibold text-amber-900">Antes de leer estas cifras</p>
         {b.disponibleFc > 0 && (
           <p>
             <strong>El “banco” de FC dice {pesos(b.disponibleFc)} y no es plata real.</strong> Es la cuenta donde caen
-            los movimientos que todavía no se concilian, y hoy son el {pesoBancoFc} % de los activos de FC. Por eso los
-            bancos de FC están excluidos de la pantalla de Flujo de caja. Aquí sí aparecen, porque si no el balance no
-            cuadraría, pero van marcados en ámbar.
+            los movimientos que todavía no se concilian, y era el {pesoBancoFc} % de los activos de FC al cierre del mes.
+            Por eso los bancos de FC están excluidos de la pantalla de Flujo de caja, y por eso aquí el disponible
+            ya no se lee de Odoo sino de lo que tú escribes.
           </p>
         )}
         {!!b.transitorias.fc && (
@@ -830,40 +952,53 @@ function VistaBalance({ datos, cargando }) {
         {!b.patrimonioRegistrado.fc && (
           <p>
             <strong>FC no tiene patrimonio registrado</strong> ni cierre de años anteriores, así que su “resultado del
-            periodo” ({pesos(b.resultado.fc)}) es de varios años acumulados, no de 2026. El de Feisen
+            periodo” ({pesos(b.resultado.fc)}) es de varios años acumulados, no solo de 2026. El de Feisen
             ({pesos(b.resultado.feisen)}) sí es solo de 2026, porque su contabilidad en Odoo empieza en marzo.
           </p>
         )}
-        {!descuadre && (
+        {b.cuadreOdoo.cuadra && (
           <p>
-            <strong>Las dos contabilidades cuadran:</strong> la suma de todas sus cuentas da cero. El problema no es un
-            descuadre sino <strong>dónde está ubicada la plata</strong>.
+            <strong>Las dos contabilidades cuadran consigo mismas:</strong> la suma de todas sus cuentas da cero. El
+            problema no es un descuadre sino <strong>dónde está ubicada la plata</strong>.
           </p>
         )}
       </div>}
 
+      {errorBancos && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">
+        No se pudieron leer los bancos que escribiste: {errorBancos}
+      </p>}
+
       <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
         <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-feisen-texto">Balance general · Feisen y FC · a hoy</span>
-          <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${descuadre
-            ? 'bg-feisen-rojo-suave text-feisen-rojo' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
-            {descuadre ? `Descuadre de ${pesos(b.comprobacion.total)}` : `Total activo: ${millones(activo.total)}`}
+          <span className="text-sm font-semibold text-feisen-texto">Balance general · Feisen y FC · al {alCierre}</span>
+          <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${activo.sinDisponible
+            ? 'bg-amber-50 text-amber-700' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+            {activo.sinDisponible ? 'Falta el disponible del mes' : `Total activo: ${millones(activo.total)}`}
           </span>
         </div>
         <EncabezadoBal />
 
         {b.secciones.map(sec => (
           <div key={sec.id}>
-            <Seccion titulo={sec.titulo} nota={sec.id === 'pasivo' ? 'el pasivo y el patrimonio vienen en negativo de Odoo: aquí se muestran en positivo'
+            <Seccion titulo={sec.titulo} nota={sec.id === 'activo' ? 'el disponible lo escribes tú con los extractos; lo demás sale de Odoo, cortado al último día del mes'
+              : sec.id === 'pasivo' ? 'el pasivo y el patrimonio vienen en negativo de Odoo: aquí se muestran en positivo'
               : sec.id === 'patrimonio' ? 'incluye el resultado del periodo, que es lo que lleva ganado la empresa y todavía no está cerrado en una cuenta de patrimonio'
               : undefined} />
-            {sec.grupos.map(g => (
-              <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)}
-                alertaFc={sec.id === 'activo' && g.id === '11' && b.disponibleFc > 0
+            {sec.id === 'activo' && (
+              <GrupoDisponible disponible={b.disponible} odoo={b.disponibleOdoo} mes={datos.mes}
+                abierto={abierto === 'disponible-odoo'} onAbrir={() => alternar('disponible-odoo')}
+                onGuardar={onGuardarBanco}
+                alertaFc={b.disponibleFc > 0
                   ? `El disponible de FC (${pesos(b.disponibleFc)}) son movimientos sin conciliar, no plata en el banco`
                   : null} />
+            )}
+            {sec.grupos.map(g => (
+              <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
             ))}
-            <TotalBalance nombre={sec.tituloTotal} cifras={sec} destacado={sec.id === 'activo'} />
+            <TotalBalance nombre={sec.tituloTotal} cifras={sec} destacado={sec.id === 'activo'}
+              nota={sec.id !== 'activo' ? undefined
+                : activo.sinDisponible ? 'va sin el disponible: todavía no has escrito los bancos de este mes'
+                : 'incluye el disponible que escribiste, que no se reparte entre Feisen y FC'} />
           </div>
         ))}
 
@@ -872,17 +1007,38 @@ function VistaBalance({ datos, cargando }) {
         <FilaBalance grupo={b.transitorias} abierto={abierto === 'transitorias'} onClick={() => alternar('transitorias')} />
         <TotalBalance nombre="Total cuentas transitorias" cifras={b.transitorias} />
 
-        <Seccion titulo="Comprobación" />
-        <TotalBalance nombre="Activo + transitorias − pasivo − patrimonio" alerta={descuadre} ceros
-          nota={descuadre
-            ? 'Esto debería dar $0. Si no da, hay cuentas que no se están leyendo o algo cambió en el plan de cuentas de Odoo.'
-            : 'Es lo mismo que sumar el saldo de todas las cuentas de la empresa: da $0, o sea que la contabilidad cuadra.'}
-          cifras={b.comprobacion} />
+        <Seccion titulo="Plata mal registrada en bancos"
+          nota="Lo que dicen tus extractos menos lo que dice Odoo. Antes este renglón era una comprobación que tenía que dar $0, porque todo salía de Odoo; ahora que el disponible lo escribes tú, ya no verifica el informe: mide cuánto se equivocó la contabilidad registrando los bancos." />
+        {b.disponible.hay ? (<>
+          <TotalBalance soloTotal ceros ambar={!!b.malRegistrado}
+            nombre="Lo que escribiste − lo que dice Odoo"
+            nota={`Tus extractos: ${pesos(b.disponible.total)} · Odoo: ${pesos(b.disponibleOdoo.total)}`}
+            cifras={{ total: b.malRegistrado }} />
+          <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
+            {!b.malRegistrado
+              ? <>Esta vez coinciden: lo que Odoo tiene registrado en bancos es lo mismo que dicen los extractos.</>
+              : b.malRegistrado > 0
+                ? <>En los extractos hay <strong>{pesos(b.malRegistrado)} más</strong> de lo que la contabilidad tiene
+                  registrado en bancos: plata que existe y Odoo no ve.</>
+                : <>Odoo tiene registrados <strong>{pesos(-b.malRegistrado)} más</strong> de los que hay en los
+                  extractos: plata que la contabilidad da por cierta y no está.</>}
+            {' '}No es un error de este informe: el informe usa tus extractos. Es trabajo para contabilidad.
+          </p>
+        </>) : (
+          <p className="px-4 py-3 text-sm text-feisen-texto-2 leading-relaxed">
+            <strong className="text-feisen-texto">Falta llenar los bancos para poder compararla.</strong> Escribe arriba
+            lo que decían los extractos al cierre del mes y aquí aparece cuánta plata tiene mal registrada la
+            contabilidad. Odoo, por su lado, dice {pesos(b.disponibleOdoo.total)}.
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
-        El balance sale de los saldos de Odoo de las dos empresas ({b.cuentas.toLocaleString('es-CO')} cuentas en total),
-        acumulados desde que arrancó cada contabilidad: por eso es “a hoy” y no de un mes.
+        El balance se corta al <strong>{alCierre}</strong>: cada cuenta trae lo acumulado hasta ese día, no lo de hoy.
+        Se hace así porque los extractos del banco son mensuales, y mezclar un extracto de octubre con la cartera de
+        hoy daría un balance falso. Todo menos el disponible sale de Odoo ({b.cuentas.toLocaleString('es-CO')} cuentas
+        entre las dos empresas); <strong>el disponible lo escribes tú</strong> y las cuentas 11xx de Odoo quedan solo
+        como referencia, dentro del mismo grupo.
         Toca un grupo para ver el detalle cuenta por cuenta.
         En Odoo el pasivo, el patrimonio y los ingresos vienen en negativo; aquí <strong>se les volteó el signo</strong> para
         que se lean en positivo, así que un número en rojo en esas secciones es un saldo al revés de lo normal.
@@ -990,8 +1146,10 @@ function SoloTotal({ nombre, nota, valor, sangria, total, destacado, children })
   )
 }
 
-// Casilla de pesos que guarda al salir del campo o con Enter
-function CasillaPesos({ valor, auto, onGuardar }) {
+// Casilla de pesos que guarda al salir del campo o con Enter.
+// `alto` la deja de 44 px en celular, para las casillas de los bancos: son las que más se tocan
+// con el dedo y las que no se pueden errar.
+function CasillaPesos({ valor, auto, alto, onGuardar }) {
   const [texto, setTexto] = useState(valor != null ? Math.round(valor).toLocaleString('es-CO') : '')
   const guardar = () => {
     const limpio = texto.replace(/[^\d-]/g, '')
@@ -1003,6 +1161,7 @@ function CasillaPesos({ valor, auto, onGuardar }) {
     <input inputMode="numeric" value={texto} placeholder={auto ? `$ ${Math.round(auto).toLocaleString('es-CO')}` : '$ escribe el valor'}
       onChange={e => setTexto(e.target.value)} onBlur={guardar} onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
       onFocus={e => e.target.select()}
-      className="w-full sm:w-32 justify-self-end text-right tabular-nums min-h-[36px] border border-feisen-borde rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave" />
+      className={`w-full sm:w-32 justify-self-end text-right tabular-nums border border-feisen-borde rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave
+        ${alto ? 'min-h-[44px] sm:min-h-[36px] text-base sm:text-sm' : 'min-h-[36px]'}`} />
   )
 }
