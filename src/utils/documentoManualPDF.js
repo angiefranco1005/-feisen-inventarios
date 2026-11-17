@@ -3,10 +3,11 @@ import autoTable from 'jspdf-autotable'
 import { FEISEN_LOGO_PNG, LOGO_ASPECT } from './exportOrdenCompraPDF'
 import { bloquesDocumento, controlCambios, metaDocumento, nombreArchivo, textoCelda } from '../components/manuales/documento'
 import { svgAPng, svgDiagrama } from '../components/manuales/diagrama'
+import { imagenComoDatos } from '../components/manuales/comun'
 
 // PDF de un documento escrito en la app (módulo Manuales). Encabezado ISO en cada página
 // (logo · tipo y título · código, versión, vigencia, página X de Y), contenido numerado,
-// diagrama de flujo, firmas elaboró/revisó/aprobó y control de cambios. Si la versión no está
+// diagrama de flujo, imágenes de los pasos, firmas elaboró/revisó/aprobó y control de cambios. Si la versión no está
 // aprobada sale con marca de agua BORRADOR. Los formatos salen como hoja en blanco para llenar.
 
 const AZUL = [6, 71, 148]
@@ -85,7 +86,7 @@ const tablaBase = (doc, c, head, body, columnStyles = {}, extra = {}) => {
   c.y = doc.lastAutoTable.finalY + 6
 }
 
-async function escribirBloques(doc, c, bloques) {
+async function escribirBloques(doc, c, bloques, meta) {
   for (const b of bloques) {
     if (b.tipo === 'titulo' || b.tipo === 'subtitulo') {
       c.espacio(14)
@@ -114,6 +115,28 @@ async function escribirBloques(doc, c, bloques) {
       c.espacio(h + 4)
       doc.addImage(png.dataUrl, 'PNG', M + (c.ancho - w) / 2, c.y, w, h)
       c.y += h + 6
+    } else if (b.tipo === 'figuras') {
+      const H = doc.internal.pageSize.getHeight()
+      for (const f of b.items) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GRIS)
+        let img = null
+        try { img = await imagenComoDatos(f.imagen) } catch { /* se deja solo el pie */ }
+        if (!img) { c.espacio(8); doc.text(`${f.texto} (no se pudo cargar la imagen)`, M, c.y + 4); c.y += 8; continue }
+        let w = Math.min(165, c.ancho), h = (img.alto / img.ancho) * w
+        const maxH = Math.min(125, H - TOPE - 30)
+        if (h > maxH) { w = w * (maxH / h); h = maxH }
+        c.espacio(h + 12)
+        doc.setDrawColor(...BORDE); doc.rect(M + (c.ancho - w) / 2, c.y, w, h)
+        doc.addImage(img.dataUrl, 'JPEG', M + (c.ancho - w) / 2, c.y, w, h)
+        c.y += h + 4
+        doc.text(doc.splitTextToSize(f.texto, c.ancho), M + c.ancho / 2, c.y + 1.5, { align: 'center' })
+        c.y += 8
+      }
+    } else if (b.tipo === 'video') {
+      c.espacio(12)
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(...TEXTO)
+      for (const l of doc.splitTextToSize(`Este documento tiene un video (${b.video.nombre || 'video'}). Para verlo, abre ${meta.codigo} en la app Feisen ERP, módulo Manuales.`, c.ancho)) { doc.text(l, M, c.y + 3.5); c.y += 4.8 }
+      c.y += 3
     }
   }
 }
@@ -181,7 +204,7 @@ export async function exportarDocumentoPDF({ manual, version, contenido, aprobad
   const c = cursor(doc)
   if (esFormato) escribirFormato(doc, c, contenido)
   else {
-    await escribirBloques(doc, c, bloquesDocumento(manual.tipo, contenido))
+    await escribirBloques(doc, c, bloquesDocumento(manual.tipo, contenido), meta)
     firmasYCambios(doc, c, meta, controlCambios(aprobadas))
   }
   const total = doc.getNumberOfPages()

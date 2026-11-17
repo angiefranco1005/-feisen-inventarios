@@ -5,10 +5,11 @@
 // manual_versiones.contenido como { [clave]: valor }.
 //
 // Editores: 'texto' (string) · 'lista' (string[]) · 'tabla' (objetos con `columnas`) ·
-// 'pasos' (tabla de actividades con decisiones; de ahí sale el diagrama de flujo) · 'numero'.
+// 'pasos' (tabla de actividades con decisiones e imagen opcional por paso; de ahí sale el
+// diagrama de flujo) · 'numero' · 'video' ({ path, nombre, tamano } o null).
 
 const palabras = t => String(t || '').trim().split(/\s+/).filter(Boolean)
-const vacio = v => Array.isArray(v) ? v.length === 0 : !String(v ?? '').trim()
+const vacio = v => Array.isArray(v) ? v.length === 0 : v && typeof v === 'object' ? false : !String(v ?? '').trim()
 // Primera palabra en infinitivo: "Establecer", "Definir", "Recibir"
 export const empiezaConVerbo = t => /^(¿)?[a-záéíóúñ]+(ar|er|ir)(se|lo|la|los|las)?$/i.test(palabras(t)[0] || '')
 
@@ -90,6 +91,7 @@ const PARTE = {
       'Escríbelo con quien hace el trabajo todos los días, no de memoria desde la oficina.',
       'Frases cortas que empiecen con un verbo: «Pesar el material», no «Se procede a realizar el pesaje».',
       'Del paso a paso sale solo el diagrama de flujo del documento.',
+      'Si el paso se hace en la app o en una máquina, agrégale un pantallazo o una foto: vale más que un párrafo.',
     ],
     ejemplo: [
       { actividad: 'Recibir el material', detalle: 'Pedir al transportador la remisión y buscar la orden de compra en la app.', responsable: 'Almacenista', registro: 'Remisión del proveedor' },
@@ -105,6 +107,17 @@ const PARTE = {
       { clave: 'registro', titulo: 'Registro / evidencia', placeholder: 'Formato de inspección de recepción', sugerir: 'registros' },
     ],
     revisa: PASOS_REVISA,
+  },
+  video: {
+    clave: 'video', titulo: 'Video', editor: 'video',
+    pregunta: '¿Hay un video que muestre cómo se hace?',
+    ayuda: 'Un video corto (1 a 2 minutos) grabando la tarea o la pantalla de la app. Se ve dentro de la app; en el PDF y el Word sale un aviso de que el documento tiene video.',
+    consejos: [
+      'Graba en horizontal y con buena luz; explica en voz alta lo que haces.',
+      'Para grabar la pantalla: en iPhone, «Grabar pantalla» del centro de control; en Android, «Grabación de pantalla»; en Mac, Cmd + Shift + 5.',
+      `Máximo 50 MB: con 1 a 2 minutos en calidad normal alcanza.`,
+    ],
+    revisa: [],
   },
   seguridad: {
     clave: 'seguridad', titulo: 'Seguridad y precauciones', editor: 'texto',
@@ -149,7 +162,7 @@ const ESTRUCTURA = {
     nombre: 'Procedimiento',
     que: 'Un procedimiento dice cómo se hace un proceso completo: quién participa, en qué orden y qué evidencia queda. Por ejemplo: cómo se compra, cómo se recibe materia prima o cómo se trata un producto que salió malo.',
     tiempo: '1 a 2 horas',
-    partes: [PARTE.objetivo, PARTE.alcance, PARTE.responsables, PARTE.definiciones, PARTE.recursos, PARTE.pasos, PARTE.seguridad, PARTE.registros],
+    partes: [PARTE.objetivo, PARTE.alcance, PARTE.responsables, PARTE.definiciones, PARTE.recursos, PARTE.pasos, PARTE.video, PARTE.seguridad, PARTE.registros],
   },
   instructivo: {
     nombre: 'Instructivo',
@@ -163,6 +176,7 @@ const ESTRUCTURA = {
         placeholder: 'Gafas de seguridad', ejemplo: ['Gafas de seguridad', 'Botas con puntera', 'Protectores auditivos'], revisa: [minimo(1, 'elemento')] },
       { ...PARTE.recursos, titulo: 'Herramientas y materiales' },
       INSTRUCTIVO_PASOS,
+      PARTE.video,
       PARTE.seguridad,
     ],
   },

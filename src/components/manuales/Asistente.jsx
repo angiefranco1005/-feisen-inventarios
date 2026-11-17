@@ -173,7 +173,7 @@ export default function Asistente({ manual, onCerrar, onCambio }) {
                     <p className="text-sm text-feisen-texto-2 mt-1">{parte.ayuda}</p>
                   </div>
                   <fieldset disabled={!editable} className="contents">
-                    <Editor parte={parte} valor={contenido[parte.clave]} onCambiar={v => cambiar(parte.clave, v)} contenido={contenido} />
+                    <Editor parte={parte} valor={contenido[parte.clave]} onCambiar={v => cambiar(parte.clave, v)} contenido={contenido} manualId={manual.id} />
                   </fieldset>
                   <Revisiones checks={revisarParte(parte, contenido[parte.clave])} />
                   {/* Ayuda en celular */}

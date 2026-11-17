@@ -1,4 +1,5 @@
 // Piezas comunes del módulo Manuales (ver supabase/migraciones/2026-10-30_manuales.sql).
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { sinTildes } from '../../utils/busqueda'
 
@@ -119,6 +120,82 @@ export async function crearDesdeGuia({ item, contenidoInicial, codigo, usuarioId
   if (error) throw new Error(error.message)
   await crearBorradorEscrito({ manual, version: 1, contenido: contenidoInicial, cambios: 'Versión inicial', usuarioId })
   return manual
+}
+
+// ---------- Imágenes y video de los documentos escritos en la app ----------
+// Se guardan en `<manual_id>/media/` del bucket. Un medio es { path } (subido por un usuario) o
+// { url } (imagen fija de la app, p. ej. los pantallazos de las plantillas en public/manuales/).
+export const MAX_VIDEO_MB = 50
+
+// Achica la foto (máx. 1600 px) y la pasa a JPEG: las del celular pesan 4–8 MB
+function reducirImagen(file, max = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      URL.revokeObjectURL(img.src)
+      c.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo procesar la imagen')), 'image/jpeg', 0.85)
+    }
+    img.onerror = () => reject(new Error('El archivo no es una imagen que el navegador pueda abrir (usa JPG o PNG).'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+export async function subirMedio(manualId, file, tipo) {
+  if (tipo === 'video' && file.size > MAX_VIDEO_MB * 1048576) throw new Error(`El video pesa ${tamanoArchivo(file.size)}; el máximo es ${MAX_VIDEO_MB} MB. Grábalo más corto o en menor calidad.`)
+  const cuerpo = tipo === 'imagen' ? await reducirImagen(file) : file
+  const nombre = tipo === 'imagen' ? file.name.replace(/\.[^.]+$/, '') + '.jpg' : file.name
+  const path = `${manualId}/media/${Date.now()}-${sinTildes(nombre).replace(/[^\w.-]+/g, '_')}`
+  const { error } = await supabase.storage.from(BUCKET_MANUALES).upload(path, cuerpo, { contentType: tipo === 'imagen' ? 'image/jpeg' : file.type || undefined })
+  if (error) throw new Error(`No se pudo subir: ${error.message}`)
+  return { path, nombre, tamano: cuerpo.size }
+}
+
+// Todos los medios de un contenido (imágenes de los pasos y el video)
+export const mediosDe = contenido => [
+  ...(contenido?.pasos || []).map(p => p.imagen).filter(Boolean),
+  ...(contenido?.video ? [contenido.video] : []),
+]
+
+// URLs para mostrar los medios: las fijas tal cual; las subidas, con enlace firmado de 1 hora
+export function useUrlsMedios(contenido) {
+  const paths = mediosDe(contenido).map(m => m.path).filter(Boolean)
+  const clave = paths.join('|')
+  const [firmadas, setFirmadas] = useState({})
+  useEffect(() => {
+    const faltan = clave ? clave.split('|').filter(p => !firmadas[p]) : []
+    if (!faltan.length) return
+    let vivo = true
+    supabase.storage.from(BUCKET_MANUALES).createSignedUrls(faltan, 3600).then(({ data }) => {
+      if (vivo && data) setFirmadas(f => ({ ...f, ...Object.fromEntries(data.filter(d => d.signedUrl).map(d => [d.path, d.signedUrl])) }))
+    })
+    return () => { vivo = false }
+  }, [clave]) // eslint-disable-line react-hooks/exhaustive-deps
+  return m => !m ? null : m.url || firmadas[m.path] || null
+}
+
+// Imagen lista para el PDF y el Word: { dataUrl (JPEG), ancho, alto }
+export async function imagenComoDatos(medio) {
+  let src = medio.url
+  if (!src) {
+    const { data, error } = await supabase.storage.from(BUCKET_MANUALES).createSignedUrl(medio.path, 300)
+    if (error) throw new Error(error.message)
+    src = data.signedUrl
+  }
+  const blob = await (await fetch(src)).blob()
+  const url = URL.createObjectURL(blob)
+  try {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('No se pudo leer una imagen')); i.src = url })
+    const c = document.createElement('canvas')
+    c.width = img.naturalWidth; c.height = img.naturalHeight
+    const ctx = c.getContext('2d')
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height)
+    ctx.drawImage(img, 0, 0)
+    return { dataUrl: c.toDataURL('image/jpeg', 0.88), ancho: c.width, alto: c.height }
+  } finally { URL.revokeObjectURL(url) }
 }
 
 // enviar | revisar | aprobar | devolver | cargar_aprobado (las reglas viven en la base)

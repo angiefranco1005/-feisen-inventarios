@@ -10,6 +10,8 @@ export const GRUPOS_GUIA = [
 ]
 
 const p = (actividad, detalle, responsable, registro = '', extra = {}) => ({ actividad, detalle, responsable, registro, ...extra })
+// Pantallazos de la app (datos ficticios) servidos desde public/manuales/
+const pantallazo = archivo => ({ imagen: { url: `/manuales/${archivo}`, nombre: archivo.split('/').pop() } })
 
 export const GUIA_ISO = [
   // ---------------- Base ----------------
@@ -195,11 +197,11 @@ export const GUIA_ISO = [
         { cargo: 'Gerente General', responsabilidad: 'Aprueba las compras mayores a [monto].' },
       ],
       pasos: [
-        p('Solicitar la compra', 'Crear el pedido interno en la app con cantidad y fecha requerida.', 'Jefe de área', 'Pedido interno en la app'),
+        p('Solicitar la compra', 'Crear el pedido interno en la app con cantidad y fecha requerida.', 'Jefe de área', 'Pedido interno en la app', pantallazo('compras/paso2-nuevo-pedido.jpg')),
         p('Cotizar', 'Pedir al menos [2] cotizaciones para compras nuevas o mayores a [monto].', 'Coordinador de Logística', 'Cotizaciones'),
         p('¿Requiere aprobación de gerencia?', 'Compras mayores a [monto] o con proveedores nuevos.', 'Coordinador de Logística', '', { decision: true, siNo: 'Generar la orden de compra directamente.' }),
-        p('Generar la orden de compra', 'Crear la OC en la app y enviarla al proveedor.', 'Coordinador de Logística', 'Orden de compra en la app'),
-        p('Hacer seguimiento a la entrega', 'Confirmar fecha de entrega y avisar a bodega.', 'Coordinador de Logística'),
+        p('Generar la orden de compra', 'Crear la OC en la app y enviarla al proveedor.', 'Coordinador de Logística', 'Orden de compra en la app', pantallazo('compras/paso4-orden-compra.jpg')),
+        p('Hacer seguimiento a la entrega', 'Confirmar fecha de entrega y avisar a bodega.', 'Coordinador de Logística', '', pantallazo('compras/paso5-seguimiento.jpg')),
         p('Evaluar al proveedor', 'Cada [6 meses] calificar calidad, cumplimiento y precio de los proveedores principales.', 'Coordinador de Logística', '[Evaluación de proveedores]'),
       ],
       registros: [
@@ -224,7 +226,7 @@ export const GUIA_ISO = [
         p('Recibir el material', 'Pedir la remisión y buscar la orden de compra en la app.', 'Almacenista', 'Remisión del proveedor'),
         p('Verificar cantidades', 'Contar o pesar y comparar contra la orden de compra.', 'Almacenista', 'Formato de inspección de recepción'),
         p('¿El material cumple?', 'Revisar medidas, estado y certificados. [Lista de materiales críticos que siempre se inspeccionan].', 'Jefe de Calidad', 'Formato de inspección de recepción', { decision: true, siNo: 'Separar el material, marcarlo NO CONFORME, registrar la no conformidad y avisar a Logística para la devolución.' }),
-        p('Registrar la entrada', 'Registrar la entrada en la app para que sume al inventario.', 'Almacenista', 'Movimiento de entrada en la app'),
+        p('Registrar la entrada', 'Registrar la entrada en la app para que sume al inventario.', 'Almacenista', 'Movimiento de entrada en la app', pantallazo('compras/paso8-recibir.jpg')),
         p('Almacenar', 'Ubicarlo en su lugar, identificado.', 'Almacenista'),
       ],
       seguridad: 'Usar botas de seguridad, guantes y casco al descargar. Cargas de más de 25 kg se mueven con montacargas o entre dos personas.',

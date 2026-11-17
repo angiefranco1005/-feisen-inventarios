@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, X } from '../shared/iconos'
+import { Camera, ChevronDown, ChevronUp, Plus, X } from '../shared/iconos'
 import { campo, etiquetaCampo } from '../mantenimiento/comun'
 import { Diagrama } from './VistaDocumento'
+import { MAX_VIDEO_MB, subirMedio, tamanoArchivo, useUrlsMedios } from './comun'
 
 // Editores del asistente de Manuales, uno por tipo de parte (ver estructura.js).
 // Todos reciben `valor` y `onCambiar(nuevoValor)`; la tabla y los pasos se muestran como
@@ -81,11 +82,40 @@ export function EditorTabla({ parte, valor, onCambiar }) {
   )
 }
 
-// Paso a paso: actividad, cómo se hace, responsable, registro y si es una decisión (sí/no).
+// Imagen de un paso: pantallazo de la app o foto de la planta. Se achica antes de subirla.
+function ImagenPaso({ imagen, src, manualId, onCambiar, n }) {
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState('')
+  const elegir = async file => {
+    if (!file) return
+    setSubiendo(true); setError('')
+    try { onCambiar(await subirMedio(manualId, file, 'imagen')) } catch (e) { setError(e.message) }
+    setSubiendo(false)
+  }
+  return (
+    <div>
+      {imagen ? (
+        <div className="relative inline-block max-w-full">
+          {src ? <img src={src} alt={`Imagen del paso ${n}`} className="max-h-48 max-w-full rounded-lg border border-feisen-borde" /> : <div className="w-40 h-24 rounded-lg bg-gray-100 animate-pulse" />}
+          <button type="button" onClick={() => onCambiar(null)} aria-label="Quitar imagen" className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-feisen-borde grid place-items-center text-feisen-texto-2 shadow-sm hover:text-feisen-rojo"><X size={14} /></button>
+        </div>
+      ) : (
+        <label className={`inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg border border-dashed border-feisen-borde text-sm font-medium cursor-pointer ${subiendo ? 'text-feisen-texto-2' : 'text-feisen-azul hover:bg-feisen-azul-suave'}`}>
+          <Camera size={16} /> {subiendo ? 'Subiendo…' : 'Agregar imagen (pantallazo o foto)'}
+          <input type="file" accept="image/*" className="hidden" disabled={subiendo} onChange={e => elegir(e.target.files?.[0])} />
+        </label>
+      )}
+      {error && <p className="text-xs text-feisen-rojo mt-1">{error}</p>}
+    </div>
+  )
+}
+
+// Paso a paso: actividad, cómo se hace, responsable, registro, si es una decisión (sí/no) e imagen.
 // Responsables y registros se sugieren con lo ya escrito en esas partes del documento.
-export function EditorPasos({ parte, valor, onCambiar, contenido }) {
+export function EditorPasos({ parte, valor, onCambiar, contenido, manualId }) {
   const pasos = valor || []
   const [verDiagrama, setVerDiagrama] = useState(false)
+  const urlDe = useUrlsMedios(contenido)
   const sugerencias = {
     responsables: [...new Set([...(contenido.responsables || []).map(r => r.cargo), ...pasos.map(p => p.responsable)].filter(Boolean))],
     registros: [...new Set([...(contenido.registros || []).map(r => r.nombre), ...pasos.map(p => p.registro)].filter(Boolean))],
@@ -119,6 +149,7 @@ export function EditorPasos({ parte, valor, onCambiar, contenido }) {
             <Campo col={{ titulo: '¿Qué se hace si la respuesta es NO?', placeholder: 'Separar el material y avisar a Logística', largo: true }}
               id={`paso-${i}-sino`} valor={p.siNo} onCambiar={v => cambiar(i, 'siNo', v)} />
           )}
+          <ImagenPaso imagen={p.imagen} src={urlDe(p.imagen)} manualId={manualId} n={i + 1} onCambiar={img => cambiar(i, 'imagen', img || undefined)} />
         </div>
       ))}
       <button type="button" onClick={() => onCambiar([...pasos, { actividad: '', detalle: '', responsable: '', registro: '' }])} className={agregar}>
@@ -136,7 +167,41 @@ export function EditorPasos({ parte, valor, onCambiar, contenido }) {
   )
 }
 
-export const EDITOR = { texto: EditorTexto, numero: EditorNumero, lista: EditorLista, tabla: EditorTabla, pasos: EditorPasos }
+// Video del documento (uno solo). Se sube tal cual: máximo MAX_VIDEO_MB.
+export function EditorVideo({ valor, onCambiar, contenido, manualId }) {
+  const [subiendo, setSubiendo] = useState(false)
+  const [error, setError] = useState('')
+  const urlDe = useUrlsMedios(contenido)
+  const elegir = async file => {
+    if (!file) return
+    setSubiendo(true); setError('')
+    try { onCambiar(await subirMedio(manualId, file, 'video')) } catch (e) { setError(e.message) }
+    setSubiendo(false)
+  }
+  return (
+    <div className="space-y-2">
+      {valor ? (
+        <div className="space-y-2">
+          {urlDe(valor) ? <video src={urlDe(valor)} controls preload="metadata" className="w-full max-h-80 rounded-xl bg-black" /> : <div className="h-40 rounded-xl bg-gray-100 animate-pulse" />}
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="truncate text-feisen-texto-2">{valor.nombre} · {tamanoArchivo(valor.tamano)}</span>
+            <button type="button" onClick={() => onCambiar(null)} className="text-feisen-rojo hover:underline shrink-0">Quitar video</button>
+          </div>
+        </div>
+      ) : (
+        <label className={`flex flex-col items-center justify-center gap-1 min-h-[120px] rounded-xl border-2 border-dashed border-feisen-borde text-sm cursor-pointer ${subiendo ? 'text-feisen-texto-2' : 'text-feisen-azul hover:bg-feisen-azul-suave'}`}>
+          <Camera size={22} />
+          <span className="font-medium">{subiendo ? 'Subiendo el video… no cierres esta pantalla' : 'Elegir o grabar un video'}</span>
+          <span className="text-xs text-feisen-texto-2">MP4 o MOV, máximo {MAX_VIDEO_MB} MB</span>
+          <input type="file" accept="video/*" className="hidden" disabled={subiendo} onChange={e => elegir(e.target.files?.[0])} />
+        </label>
+      )}
+      {error && <p className="text-sm text-feisen-rojo">{error}</p>}
+    </div>
+  )
+}
+
+export const EDITOR = { texto: EditorTexto, numero: EditorNumero, lista: EditorLista, tabla: EditorTabla, pasos: EditorPasos, video: EditorVideo }
 
 // Ejemplo de una parte, como se vería ya escrito
 export function Ejemplo({ parte }) {

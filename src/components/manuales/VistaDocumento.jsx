@@ -1,5 +1,6 @@
 import { bloquesDocumento, controlCambios, metaDocumento, textoCelda } from './documento'
 import { svgDiagrama } from './diagrama'
+import { useUrlsMedios } from './comun'
 
 const fechaCO = iso => iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
 
@@ -68,6 +69,7 @@ export default function VistaDocumento({ manual, version, contenido, aprobadas =
   const meta = metaDocumento(manual, version)
   const cambios = controlCambios(aprobadas)
   const esFormato = manual.tipo === 'formato'
+  const urlDe = useUrlsMedios(contenido)
   return (
     <article className="relative bg-white border border-feisen-borde rounded-xl overflow-hidden">
       {meta.borrador && (
@@ -92,6 +94,20 @@ export default function VistaDocumento({ manual, version, contenido, aprobadas =
           if (b.tipo === 'lista') return <ul key={i} className="list-disc pl-5 text-sm space-y-0.5">{b.items.map((t, j) => <li key={j}>{t}</li>)}</ul>
           if (b.tipo === 'tabla') return <Tabla key={i} columnas={b.columnas} filas={b.filas} />
           if (b.tipo === 'diagrama') return <Diagrama key={i} pasos={b.pasos} />
+          if (b.tipo === 'figuras') return (
+            <div key={i} className="space-y-5">
+              {b.items.map(f => (
+                <figure key={f.n} className="space-y-1.5">
+                  {urlDe(f.imagen) ? <img src={urlDe(f.imagen)} alt={f.texto} loading="lazy" className="max-w-full max-h-[70vh] mx-auto rounded-lg border border-feisen-borde" />
+                    : <div className="h-40 rounded-lg bg-gray-100 animate-pulse" />}
+                  <figcaption className="text-xs text-center text-feisen-texto-2">{f.texto}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )
+          if (b.tipo === 'video') return urlDe(b.video)
+            ? <video key={i} src={urlDe(b.video)} controls preload="metadata" className="w-full max-h-[70vh] rounded-xl bg-black" />
+            : <div key={i} className="h-40 rounded-xl bg-gray-100 animate-pulse" />
           return null
         })}
         {!esFormato && (

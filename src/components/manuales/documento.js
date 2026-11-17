@@ -4,7 +4,7 @@
 import ESTRUCTURA from './estructura'
 import { TIPOS } from './comun'
 
-const lleno = v => Array.isArray(v) ? v.length > 0 : !!String(v ?? '').trim()
+const lleno = v => Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? true : !!String(v ?? '').trim()
 
 export function bloquesDocumento(tipo, contenido = {}) {
   const bloques = []
@@ -28,19 +28,28 @@ export function bloquesDocumento(tipo, contenido = {}) {
         tipo: 'tabla', columnas: parte.columnas.map(c => c.titulo), anchos: parte.columnas.map(c => c.ancho || 0),
         filas: v.map(f => parte.columnas.map(c => f[c.clave] || '')),
       })
+    } else if (parte.editor === 'video') {
+      bloques.push({ tipo: 'video', video: v })
     } else if (parte.editor === 'pasos') {
       const conRegistro = v.some(p => String(p.registro || '').trim())
+      // Figuras numeradas en el orden de los pasos que tienen imagen
+      const figura = {}
+      v.forEach((p, i) => { if (p.imagen) figura[i] = Object.keys(figura).length + 1 })
       bloques.push({
         tipo: 'tabla',
         columnas: ['N.º', 'Actividad', 'Responsable', ...(conRegistro ? ['Registro'] : [])],
         anchos: conRegistro ? [7, 51, 20, 22] : [7, 66, 27],
         filas: v.map((p, i) => {
-          const detalle = [p.detalle, p.decision && p.siNo ? `Si NO: ${p.siNo}` : ''].filter(t => String(t || '').trim()).join('\n')
+          const detalle = [p.detalle, p.decision && p.siNo ? `Si NO: ${p.siNo}` : '', figura[i] ? `(ver figura ${figura[i]})` : ''].filter(t => String(t || '').trim()).join('\n')
           return [String(i + 1), { titulo: p.actividad || '', detalle }, p.responsable || '', ...(conRegistro ? [p.registro || ''] : [])]
         }),
       })
       bloques.push({ tipo: 'subtitulo', texto: `${n}.1 Diagrama de flujo` })
       bloques.push({ tipo: 'diagrama', pasos: v })
+      if (Object.keys(figura).length) {
+        bloques.push({ tipo: 'subtitulo', texto: `${n}.2 Imágenes del paso a paso` })
+        bloques.push({ tipo: 'figuras', items: v.map((p, i) => figura[i] && { n: figura[i], texto: `Figura ${figura[i]}. Paso ${i + 1}: ${p.actividad || ''}`, imagen: p.imagen }).filter(Boolean) })
+      }
     }
   }
   return bloques

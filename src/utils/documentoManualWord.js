@@ -5,6 +5,7 @@ import {
 import { FEISEN_LOGO_PNG, LOGO_ASPECT } from './exportOrdenCompraPDF'
 import { bloquesDocumento, controlCambios, metaDocumento, nombreArchivo } from '../components/manuales/documento'
 import { svgAPng, svgDiagrama } from '../components/manuales/diagrama'
+import { imagenComoDatos } from '../components/manuales/comun'
 
 // Word (.docx) de un documento escrito en la app: mismo contenido que el PDF (encabezado ISO,
 // secciones numeradas, diagrama, firmas y control de cambios). Lo que se edite en el Word NO
@@ -79,7 +80,7 @@ const pie = () => new Footer({
   children: [new Paragraph({ children: [run('Documento controlado en Feisen ERP. Impreso, descargado o editado en Word es copia no controlada: verifica la versión vigente en la app.', { size: 14, color: GRIS })] })],
 })
 
-async function cuerpo(bloques) {
+async function cuerpo(bloques, meta) {
   const out = []
   for (const b of bloques) {
     if (b.tipo === 'titulo') out.push(new Paragraph({ spacing: { before: 240, after: 120 }, children: [run(b.texto, { size: 23, bold: true, color: AZUL })] }))
@@ -91,6 +92,19 @@ async function cuerpo(bloques) {
       const png = await svgAPng(svgDiagrama(b.pasos))
       const w = 460, h = Math.round((png.alto / png.ancho) * w)
       out.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: 'png', data: bytes(png.dataUrl), transformation: { width: w, height: h } })] }))
+    } else if (b.tipo === 'figuras') {
+      for (const f of b.items) {
+        let img = null
+        try { img = await imagenComoDatos(f.imagen) } catch { /* se deja solo el pie */ }
+        if (img) {
+          let w = 520, h = Math.round((img.alto / img.ancho) * w)
+          if (h > 460) { w = Math.round(w * 460 / h); h = 460 }
+          out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 160 }, children: [new ImageRun({ type: 'jpg', data: bytes(img.dataUrl), transformation: { width: w, height: h } })] }))
+        }
+        out.push(parrafo(img ? f.texto : `${f.texto} (no se pudo cargar la imagen)`, { size: 17, color: GRIS, align: AlignmentType.CENTER }))
+      }
+    } else if (b.tipo === 'video') {
+      out.push(parrafo(`Este documento tiene un video (${b.video.nombre || 'video'}). Para verlo, abre ${meta.codigo} en la app Feisen ERP, módulo Manuales.`, { italics: true }))
     }
   }
   return out
@@ -145,7 +159,7 @@ export async function exportarDocumentoWord({ manual, version, contenido, aproba
   const horizontal = esFormato && (contenido.columnas || []).length > 6
   const children = [
     ...(meta.borrador ? [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [run('BORRADOR — no es válido hasta que se apruebe en la app', { bold: true, color: 'B4271D' })] })] : []),
-    ...(esFormato ? formato(contenido) : [...await cuerpo(bloquesDocumento(manual.tipo, contenido)), ...firmasYCambios(meta, controlCambios(aprobadas))]),
+    ...(esFormato ? formato(contenido) : [...await cuerpo(bloquesDocumento(manual.tipo, contenido), meta), ...firmasYCambios(meta, controlCambios(aprobadas))]),
   ]
   const doc = new Document({
     creator: 'Feisen ERP', title: `${meta.codigo} ${meta.titulo}`,
