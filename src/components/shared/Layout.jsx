@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -40,6 +40,7 @@ const NAV_ADMIN = [
   { to: '/reportes/corte',                    icon: CalendarCheck,    label: 'Corte de inventario', modulo: 'Inventarios' },
   { to: '/pedidos',                           icon: ShoppingCart,    label: 'Pedidos',            modulo: 'Logística' },
   { to: '/ordenes-compra',                    icon: FileText,        label: 'Órdenes de compra',  modulo: 'Logística' },
+  { to: '/proveedores',                       icon: Storefront,      label: 'Proveedores',        modulo: 'Logística' },
   { to: '/mecanizados/registro',              icon: Wrench,          label: 'Registro',           modulo: 'Mecanizados' },
   { to: '/transferencias',                    icon: Swap,   label: 'Transferencias',     modulo: 'Mecanizados' },
   { to: '/fundidas',                          icon: Flame,           label: 'Fundidas',           modulo: 'Fundición' },
@@ -89,6 +90,7 @@ const NAV_LOGISTICA = [
   { to: '/movimientos/nuevo', icon: ArrowsLeftRight,      label: 'Movimiento' },
   { to: '/pedidos',           icon: ShoppingCart,     label: 'Pedidos' },
   { to: '/ordenes-compra',    icon: FileText,         label: 'Órdenes de compra' },
+  { to: '/proveedores',       icon: Storefront,       label: 'Proveedores' },
   { to: '/calidad',           icon: SealCheck,      label: 'Calidad' },
 ]
 

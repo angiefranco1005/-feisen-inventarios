@@ -16,6 +16,7 @@ import { habilesEntre, hoyColombia, diaColombia } from '../../utils/diasHabiles'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import ModalEvaluarProveedor from './ModalEvaluarProveedor'
 import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial } from '../shared/seriales'
 
 const ESTADO_CONFIG = {
@@ -270,6 +271,7 @@ function TarjetaPedido({ p, permisos, ordenesDelPedido, coberturaPorItem, onAbri
 function accionPrincipal(p, permisos) {
   if (p.estado === 'pendiente' && permisos.generarOC && (p.pedido_items?.length > 0)) return { clave: 'oc', texto: 'Generar OC' }
   if ((p.estado === 'en_transito' || p.estado === 'parcialmente_recibido') && permisos.recibir) return { clave: 'recibir', texto: 'Recibir' }
+  if (permisos.evaluar?.length) return { clave: 'evaluar', texto: 'Evaluar proveedor' }
   return null
 }
 function opcionesMenu(p, permisos, falta = []) {
@@ -280,6 +282,7 @@ function opcionesMenu(p, permisos, falta = []) {
     permisos.transito && p.estado === 'pendiente' && { clave: 'directa', texto: 'Compra directa (sin OC)' },
     permisos.transito && falta.length > 0 && { clave: 'directa', texto: 'Compra directa de lo que falta' },
     permisos.generarOC && p.estado !== 'pendiente' && abierto && (p.pedido_items?.length > 0) && { clave: 'oc', texto: 'Generar otra orden de compra' },
+    permisos.evaluar?.length > 0 && { clave: 'evaluar', texto: 'Evaluar proveedor' },
     permisos.cerrar && p.estado !== 'cerrado' && { clave: 'cerrar', texto: 'Cerrar pedido…', separado: true },
     permisos.eliminar && { clave: 'eliminar', texto: 'Eliminar…', peligro: true, separado: !(permisos.cerrar && p.estado !== 'cerrado') },
   ].filter(Boolean)
@@ -517,6 +520,8 @@ export default function ListaPedidos() {
   const [ordenesCompra, setOrdenesCompra] = useState([])
   const [entradas,       setEntradas]       = useState([]) // movimientos tipo entrada ligados a pedidos
   const [modalGenerarOC, setModalGenerarOC] = useState(null)
+  const [modalEvaluar,   setModalEvaluar]   = useState(null)
+  const [evaluadas,      setEvaluadas]      = useState(new Set()) // órdenes de compra ya evaluadas
   const [modalOCVarios, setModalOCVarios] = useState(null)   // pedidos con algo por comprar
   const [cargando,  setCargando]  = useState(true)
   const [filtro,    setFiltro]    = useState('curso') // 'curso' | etapa | 'atrasados' | 'todos'
@@ -619,6 +624,10 @@ export default function ListaPedidos() {
     setPedidos(peds || [])
     setProductos(prods || [])
     setOrdenesCompra(ocs || [])
+    if (puedeVerDetalleOC) {
+      const { data: evs } = await supabase.from('proveedor_evaluaciones').select('orden_compra_id')
+      setEvaluadas(new Set((evs || []).map(e => e.orden_compra_id)))
+    }
     setCargando(false)
 
     // Entradas de inventario ligadas a pedidos (para mostrar el N° de movimiento en cada pedido).
@@ -935,9 +944,19 @@ export default function ListaPedidos() {
   }
 
   // Permisos por pedido (algunos dependen de si el usuario es quien lo pidió)
+  // Evaluar proveedores: Logística/ADMIN, en pedidos recibidos (o cerrados con algo recibido),
+  // una vez por cada orden de compra con proveedor que aún no se haya evaluado
+  function ocsPorEvaluar(p) {
+    if (!(esAdmin || esLogistica)) return []
+    const llego = p.estado === 'recibido' || (p.estado === 'cerrado' && (p.pedido_items || []).some(it => Number(it.cantidad_recibida) > 0))
+    if (!llego) return []
+    return (ocPorPedido[p.id] || []).filter(oc => oc.proveedor_id && !evaluadas.has(oc.id))
+  }
+
   function permisosDe(p) {
     const esSuyo = p.solicitante_id === perfil?.id
     return {
+      evaluar:      ocsPorEvaluar(p),
       transito:     esAdmin || esLogistica,
       recibir:      esAdmin || esAlmacenista || esSuyo,
       editar:       esAdmin || esSuyo,
@@ -952,6 +971,7 @@ export default function ListaPedidos() {
   function ejecutarAccion(clave, p) {
     if (clave === 'oc')       return setModalGenerarOC(p)
     if (clave === 'recibir')  return iniciarRecibido(p, true)
+    if (clave === 'evaluar')  return setModalEvaluar(p)
     if (clave === 'directa')  {
       const lineas = lineasSinComprar(p, coberturaPorItem)
       setFormTransito({ numero_oc: '', fecha_estimada: p.fecha_estimada_llegada || '', sel: new Set(lineas.map(x => x.it.id)) })
@@ -1259,6 +1279,11 @@ export default function ListaPedidos() {
             onCerrar={() => setDetalleId(null)} onAccion={ejecutarAccion} />
         )
       })()}
+
+      {modalEvaluar && ocsPorEvaluar(modalEvaluar).length > 0 && (
+        <ModalEvaluarProveedor pedido={modalEvaluar} ordenes={ocsPorEvaluar(modalEvaluar)} onCerrar={() => setModalEvaluar(null)}
+          onGuardado={texto => { setModalEvaluar(null); setMsg({ tipo: 'exito', texto }); cargar() }} />
+      )}
 
       {modalGenerarOC && (
         <ModalGenerarOC

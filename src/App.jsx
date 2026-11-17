@@ -47,6 +47,7 @@ import EtapasMaestro        from './components/costeo/EtapasMaestro'
 import CifMaestro           from './components/costeo/CifMaestro'
 import EquiposMaestro       from './components/costeo/EquiposMaestro'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
+import Proveedores               from './components/compras/Proveedores'
 import ListaEmpleados           from './components/rrhh/ListaEmpleados'
 import FichaEmpleado            from './components/rrhh/FichaEmpleado'
 import Organigrama              from './components/rrhh/Organigrama'
@@ -108,7 +109,7 @@ function AppRoutes() {
     '/productos': <GestionProductos />, '/movimientos/nuevo': registrarMov, '/movimientos': <Historial />, '/motores': <MotoresSerial />,
     '/transferencias': <TransferenciasPendientes />, '/mecanizados/paquetes': <GestionPaquetes />,
     '/reportes': <HubReportes />, '/reportes/corte': <CorteInventario />, '/reportes/inventario-fisico': <InventarioFisico />, '/reportes/kardex': <InformeKardex />,
-    '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />,
+    '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />, '/proveedores': <Proveedores />,
     '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
     '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
     '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeTransferenciasInternas origenFundicion />,
