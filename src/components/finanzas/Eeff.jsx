@@ -1055,27 +1055,36 @@ function GrupoDisponible({ disponible, mes, onGuardar, abierto, onClick }) {
 // tres tipos que escogió Angie (materias primas, en proceso, terminado) y, dentro de
 // cada uno, por categoría. Cada categoría tiene casilla: lo que se escribe reemplaza lo
 // del ERP, porque el ERP es de hoy y el balance es a fin de mes.
-function FilaCategoria({ cat, mes, onGuardar }) {
-  const escrito = cat.escrito != null
+function FilaRenglon({ r, mes, onGuardar }) {
+  const escrito = r.escrito != null
   return (
-    <div className={`${GRID_BAL} px-4 py-1.5 pl-9 text-xs items-center`}>
+    <div className={`${GRID_BAL} px-4 py-1.5 pl-9 text-xs items-center ${r.alerta ? 'bg-amber-50' : ''}`}>
       <span className="min-w-0">
-        <span className="block truncate text-feisen-texto">{cat.categoria}</span>
+        <span className="block truncate text-feisen-texto">
+          {r.nombre}{r.bodegaTexto ? <span className="text-feisen-texto-2"> · {r.bodegaTexto}</span> : null}
+        </span>
         <span className="block text-[11px] text-feisen-texto-2">
-          {cat.bodega}
-          {escrito ? ' · escrito por ti' : cat.erp ? ` · el ERP dice ${pesos(cat.erp)}` : ' · el ERP no le pone valor'}
-          {!!cat.sinCosto && (
-            <span className="text-amber-700"> · {cat.sinCosto} de {cat.items} sin costear</span>
+          {escrito ? 'escrito por ti'
+            : r.erp ? `el ERP dice ${pesos(r.erp)}`
+            : 'el ERP no le pone valor'}
+          {!!r.sinCosto && (
+            <span className="text-amber-700"> · {r.sinCosto} de {r.items} sin costear</span>
           )}
+          {r.nota ? ` · ${r.nota}` : ''}
         </span>
       </span>
       <span className="hidden sm:block" /><span className="hidden sm:block" />
-      <CasillaPesos key={`${mes}-${cat.concepto}-${cat.escrito}`} alto valor={cat.escrito}
-        auto={cat.erp || undefined} onGuardar={t => onGuardar(cat.concepto, t)} />
+      <CasillaPesos key={`${mes}-${r.concepto}-${r.escrito}`} alto valor={r.escrito}
+        auto={r.erp || undefined} onGuardar={t => onGuardar(r.concepto, t)} />
     </div>
   )
 }
 
+// El grupo 14 del activo. No sale de Odoo: sale del inventario del ERP, agrupado en los
+// tres tipos que escogió Angie y, dentro de cada uno, en los renglones que ella definió
+// (que no son las categorías del ERP: "Almacén" junta las doce de esa bodega). Cada
+// renglón tiene casilla: lo que se escribe reemplaza lo del ERP, porque el ERP es de hoy
+// y el balance es a fin de mes.
 function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onClick, onGuardar }) {
   const Icono = abierto ? ChevronDown : ChevronRight
   const inv = inventario
@@ -1091,7 +1100,7 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
           <span className="block pl-5 text-xs text-feisen-texto-2">
             {cargando ? 'Leyendo el inventario del ERP…'
               : error ? `No se pudo leer el inventario: ${error}`
-              : `del ERP, por tipo y categoría · la contabilidad dice ${pesos(odoo)}`}
+              : `del ERP, por tipo · la contabilidad dice ${pesos(odoo)}`}
           </span>
         </span>
         <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
@@ -1109,21 +1118,24 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
               <span className="hidden sm:contents"><span /><span /></span>
               <CifraB v={t.total} fuerte tenue={t.fueraDelTotal} ceros />
             </div>
-            {t.categorias.map(c => <FilaCategoria key={c.concepto} cat={c} mes={mes} onGuardar={onGuardar} />)}
+            {t.renglones.map(r => <FilaRenglon key={r.id} r={r} mes={mes} onGuardar={onGuardar} />)}
           </div>
         ))}
 
-        {!inv.sinClasificar.vacio && (
+        {!!inv.sinClasificar.length && (
           <div>
             <div className={`${GRID_BAL} px-4 pt-2 pb-1 pl-9 text-xs items-center font-semibold bg-amber-50`}>
               <span className="min-w-0">
                 <span className="block uppercase tracking-wide text-amber-800">Sin clasificar</span>
-                <span className="block font-normal normal-case tracking-normal text-[11px] text-amber-700">{inv.sinClasificar.nota}</span>
+                <span className="block font-normal normal-case tracking-normal text-[11px] text-amber-700">
+                  categorías del ERP que todavía no tienen renglón. Suman al inventario para que no se pierda la
+                  plata, pero hay que decidir a cuál renglón van
+                </span>
               </span>
               <span className="hidden sm:contents"><span /><span /></span>
-              <CifraB v={inv.sinClasificar.total} fuerte ceros />
+              <CifraB v={inv.totalSinClasificar} fuerte ceros />
             </div>
-            {inv.sinClasificar.categorias.map(c => <FilaCategoria key={c.concepto} cat={c} mes={mes} onGuardar={onGuardar} />)}
+            {inv.sinClasificar.map(r => <FilaRenglon key={r.id} r={r} mes={mes} onGuardar={onGuardar} />)}
           </div>
         )}
 
@@ -1132,7 +1144,7 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
           el de <strong>hoy</strong>, no el del cierre del mes: la tabla de existencias no guarda
           historia y no se puede reconstruir hacia atrás. Y de {inv.items.toLocaleString('es-CO')} artículos
           con existencias, <strong>{inv.sinCosto.toLocaleString('es-CO')} no tienen precio de costo</strong> y
-          entran valiendo cero. Por eso cada categoría tiene casilla: lo que escribas reemplaza lo del ERP.
+          entran valiendo cero. Por eso cada renglón tiene casilla: lo que escribas reemplaza lo del ERP.
         </p>
       </>}
     </div>

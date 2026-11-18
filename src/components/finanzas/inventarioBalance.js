@@ -1,35 +1,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// EL INVENTARIO DEL BALANCE, POR TIPO Y CATEGORÍA
+// EL INVENTARIO DEL BALANCE, POR TIPO Y RENGLÓN
 //
-// El grupo 14 del balance dejó de leerse de Odoo (18/11/2026). Angie: "tengo 3 tipos
-// de inventarios pero cada uno tiene categorías internas, y esas categorías ya se
-// pueden sacar de los inventarios que tenemos en el erp. organicemos los inventarios
-// así por ahora, lo que no tengamos valor déjalo en 0 que yo lo lleno".
+// El grupo 14 del balance no se lee de Odoo (18/11/2026). Angie: "tengo 3 tipos de
+// inventarios pero cada uno tiene categorías internas, y esas categorías ya se pueden
+// sacar de los inventarios que tenemos en el erp".
 //
-// Los tres tipos los escogió ella: materias primas, producto en proceso y producto
-// terminado. Es la división que pide un balance y la que deja ver cuánta plata está
-// parada en cada etapa.
+// **Los renglones no son las categorías del ERP.** Ese fue el segundo ajuste del mismo
+// día: la primera versión mostraba una fila por cada categoría y Angie la paró —"yo
+// materia prima estoy viendo todo por separado, no me tienes que dejar todo por
+// separado, mete almacén (sin sus categorías), lámina, materia prima de la bodega de
+// fundición, ferretería, aceros - fundición - ferretería de mecanizados".
+//
+// Así que un renglón puede juntar varias categorías del ERP: "Almacén" son las doce
+// categorías de esa bodega en una sola línea, y "Mecanizados" son tres. Lo que ella
+// quiere ver son las líneas en las que piensa, no las que el ERP tiene por dentro.
 //
 // De dónde sale: la función `finanzas_inventario()` de Supabase, que devuelve el
-// inventario valorizado de HOY por bodega y categoría, con el número de artículos que
-// tienen existencias y cuántos de ellos no tienen precio de costo cargado.
+// inventario valorizado de HOY por bodega y categoría, con cuántos artículos tienen
+// existencias y cuántos de ellos no tienen precio de costo cargado.
 //
 // DOS ADVERTENCIAS QUE IMPORTAN MÁS QUE EL CÓDIGO:
 //
 //  1. **El valor del ERP es de hoy, no de fin de mes.** La tabla `stock` solo guarda
 //     `cantidad_actual`: no hay historia. Y no se puede reconstruir hacia atrás con
-//     `movimientos` porque hay unos 750 sin fecha. Por eso cada categoría tiene una
-//     casilla para escribir el valor del corte a mano, igual que los bancos: lo que se
-//     escribe **reemplaza** lo del ERP.
+//     `movimientos` porque hay unos 750 sin fecha. Por eso cada renglón tiene una
+//     casilla para escribir el valor del corte a mano: lo escrito **reemplaza** al ERP.
 //
 //  2. **El valor del ERP está incompleto, y no por donde se espera.** Alrededor de un
 //     tercio de los artículos con existencias no tienen precio de costo y entran
 //     valiendo cero (al 18/11/2026 eran 304 de 867). No son categorías enteras en
 //     blanco —esas se verían—: están repartidos dentro de categorías que sí muestran
-//     cifra. Poleas sale en $0 porque sus 12 artículos no tienen costo, pero Herramienta
-//     muestra $1.788.000 con 34 de 42 sin costear. Un número a medias engaña más que un
-//     cero, así que la pantalla muestra cuántos faltan en cada categoría. La cifra que
-//     se ve en pantalla se cuenta en vivo; la de este comentario es solo de referencia.
+//     cifra. Por eso cada renglón dice cuántos artículos le faltan por costear. La
+//     cifra de la pantalla se cuenta en vivo; la de este comentario es de referencia.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Los tres tipos, en el orden en que se leen: de lo que entra a lo que sale.
@@ -37,11 +39,11 @@
 export const TIPOS_INVENTARIO = [
   {
     id: 'prima', nombre: 'Materias primas e insumos',
-    nota: 'lo que se consume para fabricar: lámina, acero, pintura, insumos, tornillería',
+    nota: 'lo que se consume para fabricar',
   },
   {
     id: 'proceso', nombre: 'Producto en proceso',
-    nota: 'lo que ya se fundió o mecanizó y todavía le falta una etapa',
+    nota: 'lo que ya se fundió y todavía le falta una etapa',
   },
   {
     id: 'terminado', nombre: 'Producto terminado y mercancía',
@@ -49,148 +51,167 @@ export const TIPOS_INVENTARIO = [
   },
   {
     id: 'aparte', nombre: 'No es inventario de venta', fueraDelTotal: true,
-    nota: 'herramienta, dotación y consumibles de oficina: son de la empresa pero no se venden, así que no suman al inventario',
+    nota: 'consumibles de oficina y mantenimiento: son de la empresa pero no se venden, así que no suman al inventario',
   },
 ]
 
-// A qué tipo va cada categoría del ERP, por 'BODEGA|CATEGORÍA' tal como vienen escritas.
-// Lo que no esté aquí NO se pierde: cae en "Sin clasificar", que sí suma al total pero
-// sale marcado en ámbar. Es a propósito: si mañana alguien crea una categoría nueva,
-// más vale que se vea fuera de sitio a que desaparezca en silencio.
-export const MAPA_CATEGORIAS = {
+// Los renglones que se ven en pantalla, en orden. Cada uno junta una o varias
+// categorías del ERP:
+//   `bodegas` → se lleva **todas** las categorías de esas bodegas
+//   `claves`  → se lleva solo esas combinaciones 'BODEGA|CATEGORÍA'
+// Lo que no caiga en ningún renglón no se pierde: se muestra en "Sin clasificar", que
+// sí suma al total pero sale marcado. Si alguien crea una categoría nueva, más vale que
+// se vea fuera de sitio a que desaparezca en silencio.
+export const RENGLONES = [
   // ── Materias primas e insumos ──
-  // Angie lo definió así el 18/11/2026: "en Materia prima debe ir 1. Almacén... Adicional
-  // Materia prima también es Lámina, Ferretería, de la bodega de fundición la categoría de
-  // Materia prima, de la bodega de mecanizados (aceros, ferretería, fundición)".
-  //
-  // "Almacén" es **toda la bodega, sin excepciones**. Su informe del ERP daba
-  // $94.094.413, que es la bodega sin la categoría 'FUNDICIÓN - ALMACEN' ($94.078.540
-  // hoy, a $15.873 de deriva). Pero al verlo dijo: "eso de fundición almacén sí debería
-  // contarlo". Así que entra también, y el total de Almacén sube a los $102.885.940 de
-  // la bodega completa.
-  'ALMACEN|PINTURA': 'prima',
-  'ALMACEN|INSUMOS': 'prima',
-  'ALMACEN|TORNILLERÍA': 'prima',
-  'ALMACEN|ACCESORIOS': 'prima',
-  'ALMACEN|RODAMIENTOS Y RETENEDORES': 'prima',
-  'ALMACEN|CORREAS': 'prima',
-  'ALMACEN|POLEAS': 'prima',
-  'ALMACEN|PARA VENTA': 'prima',
-  'ALMACEN|HERRAMIENTA': 'prima',
-  'ALMACEN|DOTACIÓN': 'prima',
-  'ALMACEN|OTROS': 'prima',
-  'ALMACEN|FUNDICIÓN - ALMACEN': 'prima',
-
-  'CORTE Y DOBLEZ|LAMINA': 'prima',
-  // La bodega de Ferretería está casi sin cargar: 2 artículos con existencias de 45.
-  // Angie lo sabe ("este no está en el ERP"), así que aquí la cifra se va a escribir a mano.
-  'FERRETERIA|FERRETERIA': 'prima',
-  'FUNDICIÓN|MATERIA PRIMA': 'prima',
-  'FUNDICIÓN|ALUMINIO - FUNDICIÓN': 'prima',
-  // De Mecanizados entran las tres que nombró. El fundido que llega a Mecanizados es
-  // materia prima de esa etapa, aunque venga de Fundición.
-  'MECANIZADOS|ACEROS': 'prima',
-  'MECANIZADOS|FERRETERIA - MECANIZADOS': 'prima',
-  'MECANIZADOS|FUNDICIÓN - MECANIZADOS': 'prima',
-  'MECANIZADOS|ALUMINIO - MECANIZADOS': 'prima',
+  // Angie, 18/11/2026: "mete almacén (sin sus categorías), lámina, materia prima de la
+  // bodega de fundición, ferretería, aceros - fundición - ferretería de mecanizados".
+  {
+    id: 'almacen', tipo: 'prima', nombre: 'Almacén', bodegas: ['ALMACEN'],
+    nota: 'toda la bodega en una sola línea, incluido el fundido guardado ahí',
+  },
+  { id: 'lamina', tipo: 'prima', nombre: 'Lámina', claves: ['CORTE Y DOBLEZ|LAMINA'] },
+  {
+    id: 'mp_fundicion', tipo: 'prima', nombre: 'Materia prima de Fundición',
+    claves: ['FUNDICIÓN|MATERIA PRIMA', 'FUNDICIÓN|ALUMINIO - FUNDICIÓN'],
+  },
+  {
+    id: 'ferreteria', tipo: 'prima', nombre: 'Ferretería', bodegas: ['FERRETERIA'],
+    aMano: true,
+    nota: 'esta bodega casi no está cargada en el ERP, así que la cifra la escribes tú',
+  },
+  {
+    id: 'mecanizados', tipo: 'prima', nombre: 'Mecanizados',
+    nota: 'aceros, fundición y ferretería de esa bodega, juntos',
+    claves: [
+      'MECANIZADOS|ACEROS',
+      'MECANIZADOS|FUNDICIÓN - MECANIZADOS',
+      'MECANIZADOS|FERRETERIA - MECANIZADOS',
+      'MECANIZADOS|ALUMINIO - MECANIZADOS',
+    ],
+  },
 
   // ── Producto en proceso ──
-  // El hierro ya fundido que todavía no entró a mecanizar ni a ensamblar. Ojo: la misma
-  // categoría aparece en varias bodegas, porque lo que agrupa es **dónde está la
-  // existencia**, no de qué bodega es el artículo.
-  'FUNDICIÓN|MATERIAL FUNDIDO HIERRO': 'proceso',
-  'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO': 'proceso',
-  'ALMACEN|MATERIAL FUNDIDO': 'proceso',
+  // El hierro ya fundido que todavía no entró a mecanizar ni a ensamblar. Ojo: lo que
+  // agrupa es **dónde está la existencia**, no de qué bodega es el artículo.
+  {
+    id: 'fundido', tipo: 'proceso', nombre: 'Material fundido de hierro',
+    nota: 'el que está en Fundición y el que ya pasó a Armado y soldadura',
+    claves: ['FUNDICIÓN|MATERIAL FUNDIDO HIERRO', 'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO'],
+  },
 
   // ── Producto terminado y mercancía ──
-  'MECANIZADOS|PRODUCTO MECANIZADO': 'terminado',
-  'MOTORES|MOTORES CONSTRU': 'terminado',
-  'MOTORES|EQUIPMASTER STORE': 'terminado',
+  {
+    id: 'mecanizado', tipo: 'terminado', nombre: 'Producto mecanizado',
+    claves: ['MECANIZADOS|PRODUCTO MECANIZADO'],
+  },
+  {
+    id: 'motores', tipo: 'terminado', nombre: 'Motores', bodegas: ['MOTORES'],
+    nota: 'Motores Constru y Equipmaster Store',
+  },
 
   // ── No es inventario de venta ──
-  'ADMINISTRACIÓN|Aseo': 'aparte',
-  'ADMINISTRACIÓN|Dotación': 'aparte',
-  'ADMINISTRACIÓN|Papelería': 'aparte',
-  'MANTENIMIENTO|Mantenimiento': 'aparte',
-  'FUNDICIÓN|(sin categoría)': 'aparte',
-}
+  {
+    id: 'consumibles', tipo: 'aparte', nombre: 'Consumibles de oficina y mantenimiento',
+    bodegas: ['ADMINISTRACIÓN', 'MANTENIMIENTO'],
+    claves: ['FUNDICIÓN|(sin categoría)'],
+  },
+]
 
-// La clave de una categoría. Los nombres vienen de Odoo y del ERP con espacios de más
+// La clave de una categoría del ERP. Los nombres vienen con espacios de más
 // ('ALUMINIO - FUNDICIÓN ', 'MOTORES CONSTRU '), así que se recortan antes de comparar.
 export const claveCategoria = (bodega, categoria) =>
   `${String(bodega || '').trim()}|${String(categoria || '').trim()}`
 
-// El concepto con el que se guarda en `eeff_manual`. Se normaliza para que no lleve
-// tildes ni espacios: es una clave, no un texto que alguien vaya a leer.
-export const conceptoInventario = clave => 'inv:' + String(clave)
-  .normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .toLowerCase().replace(/[^a-z0-9|]+/g, '_')
-
+// El concepto con el que se guarda en `eeff_manual`. Es el id del renglón, no la
+// categoría: lo que Angie escribe es la línea que ve.
+export const conceptoInventario = idRenglon => `inv:${idRenglon}`
 export const esConceptoInventario = concepto => String(concepto || '').startsWith('inv:')
 
 const redondear = n => Math.round(Number(n) || 0)
 
-// Arma el inventario por tipo y categoría.
+// A qué renglón va una fila del ERP. null si no cae en ninguno.
+function renglonDe(bodega, clave) {
+  return RENGLONES.find(r =>
+    (r.bodegas || []).includes(bodega) || (r.claves || []).includes(clave),
+  ) || null
+}
+
+// Arma el inventario por tipo y renglón.
 //   `filas`  = lo que devuelve finanzas_inventario(): [{ bodega, categoria, items, sin_costo, valor }]
-//   `manual` = lo que escribió Angie, por concepto: { 'inv:almacen|pintura': 24000000, … }
+//   `manual` = lo que escribió Angie, por concepto: { 'inv:almacen': 94000000, … }
 export function calcularInventario(filas, manual) {
-  const porTipo = new Map(TIPOS_INVENTARIO.map(t => [t.id, []]))
-  porTipo.set('sin_clasificar', [])
+  // Un acumulador por renglón, más uno por cada categoría que no cayó en ninguno
+  const acum = new Map()
+  const sueltas = new Map()
 
   for (const f of filas || []) {
-    const clave = claveCategoria(f.bodega, f.categoria)
-    const tipo = MAPA_CATEGORIAS[clave] || 'sin_clasificar'
-    const concepto = conceptoInventario(clave)
-    const escrito = manual?.[concepto]
-    const delErp = redondear(f.valor)
-    porTipo.get(tipo).push({
-      clave, concepto,
-      bodega: String(f.bodega || '').trim(),
-      categoria: String(f.categoria || '').trim(),
+    const bodega = String(f.bodega || '').trim()
+    const categoria = String(f.categoria || '').trim()
+    const clave = claveCategoria(bodega, categoria)
+    const dato = {
+      clave, bodega, categoria,
+      erp: redondear(f.valor),
       items: Number(f.items) || 0,
       sinCosto: Number(f.sin_costo) || 0,
-      erp: delErp,
-      // Lo escrito reemplaza lo del ERP, igual que en el resto de la pantalla
-      escrito: escrito == null ? null : redondear(escrito),
-      valor: escrito == null ? delErp : redondear(escrito),
-    })
+    }
+    const r = renglonDe(bodega, clave)
+    const destino = r ? acum : sueltas
+    const id = r ? r.id : clave
+    if (!destino.has(id)) destino.set(id, [])
+    destino.get(id).push(dato)
   }
 
-  const armar = (def, lista) => {
-    const cats = lista.sort((a, b) => b.valor - a.valor || a.categoria.localeCompare(b.categoria))
+  const armar = (def, cats) => {
+    const erp = cats.reduce((s, c) => s + c.erp, 0)
+    const concepto = conceptoInventario(def.id)
+    const escrito = manual?.[concepto]
     return {
-      ...def,
-      categorias: cats,
-      total: cats.reduce((s, c) => s + c.valor, 0),
-      sinCosto: cats.reduce((s, c) => s + c.sinCosto, 0),
+      ...def, concepto,
+      categorias: [...cats].sort((a, b) => b.erp - a.erp),
+      erp,
       items: cats.reduce((s, c) => s + c.items, 0),
-      vacio: !cats.length,
+      sinCosto: cats.reduce((s, c) => s + c.sinCosto, 0),
+      // Lo escrito reemplaza lo del ERP
+      escrito: escrito == null ? null : redondear(escrito),
+      valor: escrito == null ? erp : redondear(escrito),
     }
   }
 
-  const tipos = TIPOS_INVENTARIO.map(t => armar(t, porTipo.get(t.id))).filter(t => !t.vacio)
-  const sinClasificar = armar(
-    {
-      id: 'sin_clasificar', nombre: 'Sin clasificar', alerta: true,
-      nota: 'categorías del ERP que todavía no tienen tipo asignado. Suman al inventario para que no se pierda la plata, pero hay que decidir a cuál de los tres tipos van',
-    },
-    porTipo.get('sin_clasificar'),
-  )
+  const renglones = RENGLONES
+    .map(r => armar(r, acum.get(r.id) || []))
+    // Un renglón sin nada en el ERP se sigue mostrando si Angie lo llena a mano
+    // (Ferretería es justo ese caso) o si ya tiene algo escrito
+    .filter(r => r.categorias.length || r.aMano || r.escrito != null)
 
-  // El total del inventario: los tipos que sí son inventario de venta, más lo que falta
-  // por clasificar. Lo de `fueraDelTotal` se muestra pero no suma.
-  const deVenta = tipos.filter(t => !t.fueraDelTotal)
-  const total = deVenta.reduce((s, t) => s + t.total, 0) + sinClasificar.total
+  const porTipo = TIPOS_INVENTARIO.map(t => {
+    const suyos = renglones.filter(r => r.tipo === t.id)
+    return {
+      ...t, renglones: suyos,
+      total: suyos.reduce((s, r) => s + r.valor, 0),
+      items: suyos.reduce((s, r) => s + r.items, 0),
+      sinCosto: suyos.reduce((s, r) => s + r.sinCosto, 0),
+      vacio: !suyos.length,
+    }
+  }).filter(t => !t.vacio)
 
-  const todas = [...tipos, ...(sinClasificar.vacio ? [] : [sinClasificar])]
+  // Lo que no cayó en ningún renglón, una línea por categoría, a la vista
+  const sinClasificar = [...sueltas.entries()].map(([clave, cats]) => armar({
+    id: `suelta:${clave}`, nombre: cats[0].categoria, bodegaTexto: cats[0].bodega, alerta: true,
+  }, cats))
+  const totalSinClasificar = sinClasificar.reduce((s, r) => s + r.valor, 0)
+
+  const deVenta = porTipo.filter(t => !t.fueraDelTotal)
+  const total = deVenta.reduce((s, t) => s + t.total, 0) + totalSinClasificar
+
+  const todos = [...porTipo.flatMap(t => t.renglones), ...sinClasificar]
   return {
-    tipos, sinClasificar, total,
-    aparte: tipos.find(t => t.fueraDelTotal) || null,
-    // Cuántos artículos con existencias no tienen costo: el aviso de arriba
-    sinCosto: todas.reduce((s, t) => s + t.sinCosto, 0),
-    items: todas.reduce((s, t) => s + t.items, 0),
-    // Cuántas categorías tienen un valor escrito a mano
-    escritas: todas.reduce((s, t) => s + t.categorias.filter(c => c.escrito != null).length, 0),
-    categorias: todas.reduce((s, t) => s + t.categorias.length, 0),
+    tipos: porTipo,
+    sinClasificar, totalSinClasificar,
+    total,
+    items: todos.reduce((s, r) => s + r.items, 0),
+    sinCosto: todos.reduce((s, r) => s + r.sinCosto, 0),
+    escritas: todos.filter(r => r.escrito != null).length,
+    renglones: todos.length,
   }
 }
