@@ -8,6 +8,7 @@ import {
   calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
 import { calcularBalance, conceptoBanco } from './calculoBalance'
+import { calcularInventario, conceptoInventario } from './inventarioBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -217,6 +218,7 @@ export default function Eeff() {
   // Odoo: lo escribe Angie con los extractos del banco (useBancos).
   const bal = useBalance(mes, verBalance)
   const banc = useBancos(mes, verBalance)
+  const inv = useInventario(mes, verBalance)
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -266,6 +268,26 @@ export default function Eeff() {
     const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa: 'total', valor, updated_at: new Date().toISOString() })
     if (err) { avisar('No se pudo guardar: ' + err.message); return }
     banc.setBancos(b => ({ ...b, [id]: valor }))
+    avisar('Guardado')
+  }
+
+  // Las casillas del inventario del balance: igual que las de los bancos, con concepto
+  // 'inv:<bodega|categoría>' y empresa 'total'. Vaciar la casilla borra el renglón y la
+  // categoría vuelve a mostrar lo que dice el ERP.
+  async function guardarInventario(concepto, texto) {
+    const limpio = String(texto).replace(/[^\d-]/g, '')
+    const quitar = c => { const n = { ...c }; delete n[concepto]; return n }
+    if (limpio === '') {
+      const { error: err } = await supabase.from('eeff_manual').delete().eq('mes', mes).eq('concepto', concepto).eq('empresa', 'total')
+      if (err) { avisar('No se pudo borrar: ' + err.message); return }
+      inv.setDatos(d => ({ ...d, manual: quitar(d.manual) }))
+      avisar('Casilla vacía · vuelve el valor del ERP')
+      return
+    }
+    const valor = Number(limpio) || 0
+    const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa: 'total', valor, updated_at: new Date().toISOString() })
+    if (err) { avisar('No se pudo guardar: ' + err.message); return }
+    inv.setDatos(d => ({ ...d, manual: { ...d.manual, [concepto]: valor } }))
     avisar('Guardado')
   }
 
@@ -365,10 +387,10 @@ export default function Eeff() {
   ))
 
   const cargandoMes = cargando || compras.cargando
-  const recargandoAhora = verMes ? cargandoMes : verBalance ? (bal.cargando || banc.cargando) : ano.cargando
+  const recargandoAhora = verMes ? cargandoMes : verBalance ? (bal.cargando || banc.cargando || inv.cargando) : ano.cargando
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
-    else if (verBalance) { bal.recargar(); banc.recargar() }
+    else if (verBalance) { bal.recargar(); banc.recargar(); inv.recargar() }
     else ano.recargar()
   }
   return (
@@ -457,10 +479,11 @@ export default function Eeff() {
       </div>
 
       {verBalance ? (
-        (bal.cargando && !bal.datos) || !banc.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
+        (bal.cargando && !bal.datos) || !banc.listo || !inv.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
         : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
-            cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco} />
+            cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
+            inv={inv} onGuardarInventario={guardarInventario} />
       ) : verAno ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
@@ -810,6 +833,41 @@ function useBalance(mes, activo) {
 // Lo que Angie escribió en las casillas del disponible de ese mes.
 // Misma tabla y mismo patrón que las casillas del P&G: `eeff_manual`, empresa 'total',
 // concepto 'banco:<cuenta>'. Una casilla vacía no tiene renglón en la tabla.
+// El inventario del ERP, por bodega y categoría, más lo que Angie haya escrito encima.
+// Son dos lecturas distintas: el ERP (que es de hoy, no del cierre del mes) y las
+// casillas de `eeff_manual`, que sí son del mes.
+function useInventario(mes, activo) {
+  const [datos, setDatos] = useState({ filas: null, manual: {} })
+  const [estado, setEstado] = useState({ cargando: true, error: '', listo: false })
+  const cargar = useCallback(async () => {
+    setEstado(e => ({ ...e, cargando: true, error: '' }))
+    const [inv, man] = await Promise.all([
+      supabase.rpc('finanzas_inventario'),
+      supabase.from('eeff_manual').select('concepto, valor')
+        .eq('mes', mes).eq('empresa', 'total').like('concepto', 'inv:%'),
+    ])
+    const error = inv.error || man.error
+    if (error) {
+      setDatos({ filas: [], manual: {} })
+      setEstado({ cargando: false, listo: true, error: error.message || 'No se pudo leer el inventario.' })
+      return
+    }
+    setDatos({
+      filas: inv.data || [],
+      manual: Object.fromEntries((man.data || []).map(x => [x.concepto, Number(x.valor)])),
+    })
+    setEstado({ cargando: false, listo: true, error: '' })
+  }, [mes])
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    setEstado(e => ({ ...e, listo: false }))
+    cargar()
+  }, [cargar, activo])
+  return { ...datos, setDatos, ...estado, recargar: cargar }
+}
+
 function useBancos(mes, activo) {
   const [bancos, setBancos] = useState({})
   // `listo` evita que la pantalla alcance a decir "todavía no has escrito nada" mientras lee
@@ -952,40 +1010,152 @@ function TotalBalance({ nombre, nota, cifras, destacado, alerta, ambar, ceros, s
 // El grupo 11 del activo. No sale de Odoo: son las casillas que llena Angie con los
 // extractos del mes, y nada más. Desde el 18/11/2026 las cuentas 11xx de Odoo ni
 // siquiera se muestran como referencia: "deja solo lo que yo voy a ingresar".
-function GrupoDisponible({ disponible, mes, onGuardar }) {
+// Se abre y se cierra igual que los demás grupos del balance (FilaBalance): adentro, en vez
+// del detalle de Odoo, están las casillas. Cuando el mes está vacío llega abierto (lo decide
+// VistaBalance), para que la nota en ámbar no quede escondida.
+function GrupoDisponible({ disponible, mes, onGuardar, abierto, onClick }) {
+  const Icono = abierto ? ChevronDown : ChevronRight
   return (
     <div className="border-t border-feisen-borde-suave">
-      <div className={`${GRID_BAL} px-4 py-2 text-sm items-center`}>
+      <button type="button" onClick={onClick}
+        className={`w-full ${GRID_BAL} px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo`}>
         <span className="min-w-0">
-          <span className="block text-feisen-texto"><span className="tabular-nums text-feisen-texto-2">11 </span>Disponible</span>
-          <span className="block text-xs text-feisen-texto-2">lo escribes tú, con los extractos del mes · es el total de las dos empresas</span>
+          <span className="flex items-center gap-1 text-feisen-texto">
+            <Icono size={14} className="text-gray-400 shrink-0" />
+            <span className="truncate"><span className="tabular-nums text-feisen-texto-2">11 </span>Disponible</span>
+          </span>
+          <span className="block pl-5 text-xs text-feisen-texto-2">lo escribes tú, con los extractos del mes · es el total de las dos empresas</span>
         </span>
         <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
         <CifraB v={disponible.total} fuerte ceros={disponible.hay} />
-      </div>
+      </button>
 
-      {disponible.casillas.map(c => (
-        <div key={c.id} className={`${GRID_BAL} px-4 py-1.5 pl-9 text-sm items-center`}>
-          <span className="text-feisen-texto">{c.nombre}</span>
-          <span className="hidden sm:block" /><span className="hidden sm:block" />
-          <CasillaPesos key={`${mes}-${c.id}-${c.valor}`} alto valor={c.valor} onGuardar={t => onGuardar(c.id, t)} />
-        </div>
-      ))}
+      {abierto && <>
+        {disponible.casillas.map(c => (
+          <div key={c.id} className={`${GRID_BAL} px-4 py-1.5 pl-9 text-sm items-center`}>
+            <span className="text-feisen-texto">{c.nombre}</span>
+            <span className="hidden sm:block" /><span className="hidden sm:block" />
+            <CasillaPesos key={`${mes}-${c.id}-${c.valor}`} alto valor={c.valor} onGuardar={t => onGuardar(c.id, t)} />
+          </div>
+        ))}
 
-      {!disponible.hay && (
-        <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
-          <strong>Todavía no has escrito los saldos de este mes.</strong> Copia de cada extracto lo que
-          había el último día del mes. Mientras tanto el disponible queda en blanco —no en $0, que sería
-          decir que no hay plata— y el total del activo está incompleto.
-        </p>
-      )}
+        {!disponible.hay && (
+          <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+            <strong>Todavía no has escrito los saldos de este mes.</strong> Copia de cada extracto lo que
+            había el último día del mes. Mientras tanto el disponible queda en blanco —no en $0, que sería
+            decir que no hay plata— y el total del activo está incompleto.
+          </p>
+        )}
+      </>}
     </div>
   )
 }
 
-function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) {
-  const [abierto, setAbierto] = useState(null)
-  const b = useMemo(() => calcularBalance(datos, bancos), [datos, bancos])
+// El grupo 14 del activo. No sale de Odoo: sale del inventario del ERP, agrupado en los
+// tres tipos que escogió Angie (materias primas, en proceso, terminado) y, dentro de
+// cada uno, por categoría. Cada categoría tiene casilla: lo que se escribe reemplaza lo
+// del ERP, porque el ERP es de hoy y el balance es a fin de mes.
+function FilaCategoria({ cat, mes, onGuardar }) {
+  const escrito = cat.escrito != null
+  return (
+    <div className={`${GRID_BAL} px-4 py-1.5 pl-9 text-xs items-center`}>
+      <span className="min-w-0">
+        <span className="block truncate text-feisen-texto">{cat.categoria}</span>
+        <span className="block text-[11px] text-feisen-texto-2">
+          {cat.bodega}
+          {escrito ? ' · escrito por ti' : cat.erp ? ` · el ERP dice ${pesos(cat.erp)}` : ' · el ERP no le pone valor'}
+          {!!cat.sinCosto && (
+            <span className="text-amber-700"> · {cat.sinCosto} de {cat.items} sin costear</span>
+          )}
+        </span>
+      </span>
+      <span className="hidden sm:block" /><span className="hidden sm:block" />
+      <CasillaPesos key={`${mes}-${cat.concepto}-${cat.escrito}`} alto valor={cat.escrito}
+        auto={cat.erp || undefined} onGuardar={t => onGuardar(cat.concepto, t)} />
+    </div>
+  )
+}
+
+function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onClick, onGuardar }) {
+  const Icono = abierto ? ChevronDown : ChevronRight
+  const inv = inventario
+  return (
+    <div className="border-t border-feisen-borde-suave">
+      <button type="button" onClick={onClick}
+        className={`w-full ${GRID_BAL} px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo`}>
+        <span className="min-w-0">
+          <span className="flex items-center gap-1 text-feisen-texto">
+            <Icono size={14} className="text-gray-400 shrink-0" />
+            <span className="truncate"><span className="tabular-nums text-feisen-texto-2">14 </span>Inventarios</span>
+          </span>
+          <span className="block pl-5 text-xs text-feisen-texto-2">
+            {cargando ? 'Leyendo el inventario del ERP…'
+              : error ? `No se pudo leer el inventario: ${error}`
+              : `del ERP, por tipo y categoría · la contabilidad dice ${pesos(odoo)}`}
+          </span>
+        </span>
+        <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
+        <CifraB v={inv?.total ?? null} fuerte ceros={!!inv} />
+      </button>
+
+      {abierto && !!inv && <>
+        {inv.tipos.map(t => (
+          <div key={t.id}>
+            <div className={`${GRID_BAL} px-4 pt-2 pb-1 pl-9 text-xs items-center font-semibold`}>
+              <span className="min-w-0">
+                <span className="block uppercase tracking-wide text-feisen-texto-2">{t.nombre}</span>
+                {t.nota && <span className="block font-normal normal-case tracking-normal text-[11px] text-feisen-texto-2">{t.nota}</span>}
+              </span>
+              <span className="hidden sm:contents"><span /><span /></span>
+              <CifraB v={t.total} fuerte tenue={t.fueraDelTotal} ceros />
+            </div>
+            {t.categorias.map(c => <FilaCategoria key={c.concepto} cat={c} mes={mes} onGuardar={onGuardar} />)}
+          </div>
+        ))}
+
+        {!inv.sinClasificar.vacio && (
+          <div>
+            <div className={`${GRID_BAL} px-4 pt-2 pb-1 pl-9 text-xs items-center font-semibold bg-amber-50`}>
+              <span className="min-w-0">
+                <span className="block uppercase tracking-wide text-amber-800">Sin clasificar</span>
+                <span className="block font-normal normal-case tracking-normal text-[11px] text-amber-700">{inv.sinClasificar.nota}</span>
+              </span>
+              <span className="hidden sm:contents"><span /><span /></span>
+              <CifraB v={inv.sinClasificar.total} fuerte ceros />
+            </div>
+            {inv.sinClasificar.categorias.map(c => <FilaCategoria key={c.concepto} cat={c} mes={mes} onGuardar={onGuardar} />)}
+          </div>
+        )}
+
+        <p className="mx-4 mb-3 mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+          <strong>Dos cosas antes de fiarte de estas cifras.</strong> El valor que trae el ERP es
+          el de <strong>hoy</strong>, no el del cierre del mes: la tabla de existencias no guarda
+          historia y no se puede reconstruir hacia atrás. Y de {inv.items.toLocaleString('es-CO')} artículos
+          con existencias, <strong>{inv.sinCosto.toLocaleString('es-CO')} no tienen precio de costo</strong> y
+          entran valiendo cero. Por eso cada categoría tiene casilla: lo que escribas reemplaza lo del ERP.
+        </p>
+      </>}
+    </div>
+  )
+}
+
+const ID_DISPONIBLE = 'activo-11'
+const ID_INVENTARIO = 'activo-14'
+
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario }) {
+  const inventario = useMemo(
+    () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
+    [inv.filas, inv.manual],
+  )
+  const b = useMemo(() => calcularBalance(datos, bancos, inventario), [datos, bancos, inventario])
+  // Si el mes llega sin saldos escritos, el disponible arranca abierto para que se vea la nota
+  // en ámbar; al cambiar de mes se vuelve a decidir, pero nunca se le cierra en la cara a Angie
+  // mientras escribe.
+  const [abierto, setAbierto] = useState(() => (b.disponible.hay ? null : ID_DISPONIBLE))
+  useEffect(() => {
+    setAbierto(b.disponible.hay ? null : ID_DISPONIBLE)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datos.mes])
   const alternar = id => setAbierto(a => (a === id ? null : id))
 
   const activo = b.activo
@@ -1038,16 +1208,22 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
               : sec.id === 'pasivo' ? 'el pasivo y el patrimonio vienen en negativo de Odoo: aquí se muestran en positivo'
               : sec.id === 'patrimonio' ? 'incluye el resultado del periodo, que es lo que lleva ganado la empresa y todavía no está cerrado en una cuenta de patrimonio'
               : undefined} />
-            {sec.id === 'activo' && (
-              <GrupoDisponible disponible={b.disponible} mes={datos.mes} onGuardar={onGuardarBanco} />
-            )}
-            {sec.grupos.map(g => (
-              <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
-            ))}
+            {sec.grupos.map(g => {
+              if (g.manual && g.id === '11') {
+                return <GrupoDisponible key={g.id} disponible={b.disponible} mes={datos.mes} onGuardar={onGuardarBanco}
+                  abierto={abierto === ID_DISPONIBLE} onClick={() => alternar(ID_DISPONIBLE)} />
+              }
+              if (g.manual && g.id === '14') {
+                return <GrupoInventario key={g.id} inventario={inventario} odoo={b.inventarioOdoo} mes={datos.mes}
+                  cargando={inv.cargando} error={inv.error} onGuardar={onGuardarInventario}
+                  abierto={abierto === ID_INVENTARIO} onClick={() => alternar(ID_INVENTARIO)} />
+              }
+              return <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
+            })}
             <TotalBalance nombre={sec.tituloTotal} cifras={sec} destacado={sec.id === 'activo'}
               nota={sec.id !== 'activo' ? undefined
                 : activo.sinDisponible ? 'va sin el disponible: todavía no has escrito los bancos de este mes'
-                : 'incluye el disponible que escribiste, que no se reparte entre Feisen y FC'} />
+                : 'incluye el disponible que escribiste y el inventario del ERP, que no se reparten entre Feisen y FC'} />
           </div>
         ))}
 

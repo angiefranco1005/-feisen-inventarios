@@ -66,8 +66,10 @@ export const esConceptoBanco = concepto => String(concepto || '').startsWith('ba
 // Los grupos del PUC, por los dos primeros dígitos del código de cuenta.
 // El último grupo de cada sección lleva `resto: true`: recoge cualquier cuenta de
 // esa clase que no caiga en los grupos de arriba, para que no se pierda nada.
-// El 11 lleva `manual: true`: no se arma con las cuentas de Odoo (que se descartan)
-// sino con las casillas que escribe Angie.
+// El 11 y el 14 llevan `manual: true`: no se arman con las cuentas de Odoo sino con
+// otra fuente. El 11 son las casillas que escribe Angie con los extractos; el 14 es el
+// inventario del ERP por tipo y categoría (ver inventarioBalance.js), que también se
+// puede corregir a mano. En los dos casos las cuentas de Odoo se descartan.
 export const SECCIONES = [
   {
     id: 'activo', titulo: 'Activo', tituloTotal: 'Total activo', clase: '1', signo: 1,
@@ -75,7 +77,7 @@ export const SECCIONES = [
       { id: '11', nombre: 'Disponible', prefijos: ['11'], manual: true },
       { id: '12', nombre: 'Inversiones', prefijos: ['12'] },
       { id: '13', nombre: 'Deudores', prefijos: ['13'] },
-      { id: '14', nombre: 'Inventarios', prefijos: ['14'] },
+      { id: '14', nombre: 'Inventarios', prefijos: ['14'], manual: true },
       {
         id: '15', nombre: 'Propiedad, planta y equipo', prefijos: ['15'],
         nota: 'el grupo muestra el valor neto: el costo menos la depreciación acumulada',
@@ -152,6 +154,9 @@ function ubicar(codigo, empresa) {
   const dos = String(codigo).slice(0, 2)
   // El disponible de Odoo se descarta: el grupo 11 son las casillas que escribe Angie
   if (dos === '11') return { seccion: 'descartado', grupo: 'descartado' }
+  // El inventario de Odoo tampoco entra: el grupo 14 sale del ERP. Se aparta en su
+  // propia bolsa para poder decir, en la nota del grupo, cuánto dice la contabilidad.
+  if (dos === '14') return { seccion: 'inventarioOdoo', grupo: 'inventarioOdoo' }
   const sec = SECCIONES.find(s => s.clase === clase)
   if (!sec) return { seccion: 'transitorias', grupo: 'transitorias' }   // clase 9 y cualquier otra
   const grupo = sec.grupos.find(g => !g.manual && g.prefijos.includes(dos)) || sec.grupos.find(g => g.resto)
@@ -164,7 +169,9 @@ const redondear = n => Math.round(n || 0)
 // `datos`  = lo que devuelve finanzas-balance: { mes, hasta, feisen: [...], fc: [...] }
 // `bancos` = lo que escribió Angie: { bancolombia: 12345, efectivo: 500, … }
 //            (solo vienen las casillas con valor; una casilla vacía no está en el objeto)
-export function calcularBalance(datos, bancos) {
+// `inventario` = lo que devuelve calcularInventario() de inventarioBalance.js, o null
+//            mientras se está leyendo del ERP
+export function calcularBalance(datos, bancos, inventario) {
   // Un acumulador por grupo, con el detalle cuenta por cuenta de las dos empresas
   const bolsas = new Map()      // 'seccion|grupo' → { feisen, fc, cuentas: Map(codigo → fila) }
   const bolsa = llave => {
@@ -217,18 +224,32 @@ export function calcularBalance(datos, bancos) {
     total: escritas.length ? escritas.reduce((s, c) => s + c.valor, 0) : null,
   }
 
+  // Los grupos que no salen de Odoo se quedan en su sitio de la lista (marcados con
+  // `manual`) para que el 14 siga apareciendo entre el 13 y el 15. La pantalla los pinta
+  // con su propio componente; aquí solo se les guarda el puesto.
   const secciones = SECCIONES.map(sec => {
-    const grupos = sec.grupos.filter(g => !g.manual).map(g => armarGrupo(g, `${sec.id}|${g.id}`, sec.signo)).filter(g => !g.vacio)
-    const feisen = grupos.reduce((s, g) => s + g.feisen, 0)
-    const fc = grupos.reduce((s, g) => s + g.fc, 0)
+    const grupos = sec.grupos
+      .map(g => (g.manual ? { ...g, feisen: 0, fc: 0, total: 0, detalle: [], vacio: false } : armarGrupo(g, `${sec.id}|${g.id}`, sec.signo)))
+      .filter(g => !g.vacio)
+    // Los totales de la sección solo suman lo que sí viene de Odoo: el disponible y el
+    // inventario se suman aparte, más abajo, porque no tienen columna por empresa.
+    const deOdoo = grupos.filter(g => !g.manual)
+    const feisen = deOdoo.reduce((s, g) => s + g.feisen, 0)
+    const fc = deOdoo.reduce((s, g) => s + g.fc, 0)
     return { ...sec, grupos, feisen, fc, total: feisen + fc }
   })
 
-  // El activo suma el disponible escrito, que no tiene columna por empresa: lo que
-  // Angie escribe es el total de las dos juntas.
+  // Lo que dice Odoo de inventarios: no entra al activo (el grupo 14 sale del ERP),
+  // pero se guarda para poder compararlo en la nota del grupo.
+  const bolsaInv = bolsas.get('inventarioOdoo|inventarioOdoo') || { feisen: 0, fc: 0 }
+  const inventarioOdoo = redondear(bolsaInv.feisen + bolsaInv.fc)
+
+  // El activo suma el disponible escrito y el inventario del ERP. Ninguno de los dos
+  // tiene columna por empresa: el disponible es el total de las dos juntas y el
+  // inventario del ERP no distingue de qué contabilidad es cada artículo.
   const activo = secciones.find(s => s.id === 'activo')
   activo.sinDisponible = !disponible.hay
-  activo.total = activo.feisen + activo.fc + (disponible.total || 0)
+  activo.total = activo.feisen + activo.fc + (disponible.total || 0) + (inventario?.total || 0)
 
   // El resultado del periodo: menos la suma de las clases 4, 5, 6 y 7
   // (ingresos menos costos y gastos). Va dentro del patrimonio.
@@ -260,14 +281,17 @@ export function calcularBalance(datos, bancos) {
   cuadreOdoo.total = cuadreOdoo.feisen + cuadreOdoo.fc
   cuadreOdoo.cuadra = EMPRESAS_BAL.every(({ id }) => Math.abs(cuadreOdoo[id]) <= TOLERANCIA)
 
-  // Cuántas cuentas de Odoo se leyeron de verdad: las 11xx se descartaron, así que
-  // no se cuentan (si no, el pie diría que se leyeron más cuentas de las que se ven).
-  // Se cuenta renglón por renglón, no por código: la misma cuenta puede estar en las dos.
-  const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n
-    + (datos?.[id] || []).filter(c => !String(c.codigo || '').startsWith('11')).length, 0)
+  // Cuántas cuentas de Odoo se leyeron de verdad. Las 11xx y las 14xx no se cuentan,
+  // porque el disponible y el inventario no salen de Odoo y sus cuentas no se ven en
+  // ninguna parte del balance; si se contaran, el pie diría que se leyeron más cuentas
+  // de las que hay a la vista. Se cuenta renglón por renglón, no por código: la misma
+  // cuenta puede estar en los dos libros.
+  const fuera = c => /^(11|14)/.test(String(c.codigo || ''))
+  const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n + (datos?.[id] || []).filter(c => !fuera(c)).length, 0)
 
   return {
     secciones, transitorias, socios, resultado, patrimonioRegistrado,
-    disponible, cuadreOdoo, activo, cuentas,
+    disponible, inventario: inventario || null, inventarioOdoo,
+    cuadreOdoo, activo, cuentas,
   }
 }
