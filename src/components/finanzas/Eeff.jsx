@@ -1250,34 +1250,6 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
 
   return (
     <div className="space-y-3">
-      {/* Lo que hay que saber antes de leer las cifras va arriba, no al pie */}
-      {(!!b.transitorias.fc || !!b.patrimonioOdoo.length || b.cuadreOdoo.cuadra) &&
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2 text-xs text-amber-800 leading-relaxed">
-        <p className="text-sm font-semibold text-amber-900">Antes de leer estas cifras</p>
-        {!!b.transitorias.fc && (
-          <p>
-            <strong>FC tiene {pesos(b.transitorias.fc)} en partidas por aclarar:</strong> plata ya contabilizada
-            que todavía no tiene cuenta definitiva. Va en su propio bloque, al final, y no suma a ningún total.
-          </p>
-        )}
-        {!!b.patrimonioOdoo.length && (
-          <p>
-            <strong>El patrimonio no sale de Odoo: sale del estado de resultados de esta misma pantalla.</strong> Lo
-            que Odoo tiene registrado —capital {pesos(b.patrimonioOdoo.find(x => x.grupo === '31')?.total || 0)},
-            reservas {pesos(b.patrimonioOdoo.find(x => x.grupo === '33')?.total || 0)} y los resultados de años
-            anteriores— queda fuera. El capital está incompleto (hubo reinversión que nunca se registró) y las
-            reservas nunca existieron de verdad. Odoo, por su lado, calcula un resultado de {pesos(b.resultadoOdoo.total)},
-            que incluye varios años de FC porque allá nunca se hicieron los cierres.
-          </p>
-        )}
-        {b.cuadreOdoo.cuadra && (
-          <p>
-            <strong>Las dos contabilidades cuadran consigo mismas:</strong> la suma de todas sus cuentas da cero. El
-            problema no es un descuadre sino <strong>dónde está ubicada la plata</strong>.
-          </p>
-        )}
-      </div>}
-
       {errorBancos && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">
         No se pudieron leer los bancos que escribiste: {errorBancos}
       </p>}
@@ -1331,10 +1303,28 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
           </div>
         ))}
 
-        <Seccion titulo="Partidas por aclarar"
-          nota="Plata ya contabilizada que todavía no tiene cuenta definitiva (las cuentas transitorias, grupo 9 de Odoo). No es ni activo ni pasivo: queda en el aire hasta que contabilidad la clasifique, así que no entra en ningún total. Se muestra con el signo que trae Odoo: en positivo se comporta como un activo, en negativo como un pasivo." />
-        <FilaBalance grupo={b.transitorias} abierto={abierto === 'transitorias'} onClick={() => alternar('transitorias')} />
-        <TotalBalance nombre="Total partidas por aclarar" cifras={b.transitorias} />
+        {/* La comprobación: pasivo + patrimonio contra activo. Angie pidió dejar solo esto
+            —"si hay diferencia mencionar de cuánto es la diferencia, el resto no lo tengas
+            en cuenta"— así que aquí no se explica la diferencia, solo se dice cuánta es. */}
+        <Seccion titulo="Comprobación" nota="Un balance cuadra cuando el pasivo más el patrimonio dan lo mismo que el activo." />
+        <TotalBalance soloTotal ceros nombre="Pasivo + patrimonio" cifras={{ total: b.ecuacion.pasivoMasPatrimonio }} />
+        <TotalBalance soloTotal ceros nombre="Activo" cifras={{ total: b.ecuacion.activo }} />
+        {b.ecuacion.incompleta ? (
+          <p className="px-4 py-3 text-sm text-feisen-texto-2 leading-relaxed">
+            Faltan datos del mes, así que todavía no tiene sentido comparar: escribe los bancos del
+            disponible y espera a que termine de calcularse el resultado del ejercicio.
+          </p>
+        ) : (<>
+          <TotalBalance soloTotal ceros ambar={!!b.ecuacion.diferencia}
+            destacado={!b.ecuacion.diferencia} nombre="Diferencia"
+            cifras={{ total: b.ecuacion.diferencia }} />
+          <p className="px-4 py-3 text-xs text-feisen-texto-2 leading-relaxed">
+            {b.ecuacion.diferencia
+              ? <>El balance todavía no cuadra: hay <strong>{pesos(Math.abs(b.ecuacion.diferencia))}</strong> de
+                diferencia entre los dos lados.</>
+              : <>El balance cuadra: el pasivo más el patrimonio dan exactamente el activo.</>}
+          </p>
+        </>)}
 
       </div>
 

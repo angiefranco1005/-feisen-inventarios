@@ -320,6 +320,27 @@ export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
     { id: 'socios', nombre: 'Cuentas de socios' }, 'socios|socios', 1,
   )
 
+  // LA ECUACIÓN DEL BALANCE: pasivo + patrimonio contra activo.
+  //
+  // Angie, 18/11/2026: "solo deja la información de la ecuación de pasivo+patrimonio=
+  // activo y si hay diferencia mencionar de cuánto es la diferencia, el resto no lo
+  // tengas en cuenta". Por eso aquí no se explica la diferencia ni se reparte entre
+  // causas: se dice cuánto es y ya.
+  //
+  // Hoy no da cero, y eso es lo esperable: hay bloques que quedan fuera de los totales a
+  // propósito (las partidas por aclarar y las cuentas de socios) y FC tiene su banco sin
+  // conciliar. La diferencia es la medida de lo que todavía no está explicado.
+  const pasivoSec = secciones.find(x => x.id === 'pasivo')
+  const patrimonioSec = secciones.find(x => x.id === 'patrimonio')
+  const ladoDerecho = (pasivoSec?.total || 0) + (patrimonioSec?.total || 0)
+  const ecuacion = {
+    activo: activo.total,
+    pasivoMasPatrimonio: redondear(ladoDerecho),
+    diferencia: activo.total == null ? null : redondear(activo.total - ladoDerecho),
+    // Mientras falte el disponible o el resultado, la comparación no significa nada
+    incompleta: activo.sinDisponible || patrimonioSec?.sinResultado || false,
+  }
+
   // Que la suma de todas las cuentas de Odoo dé cero sigue siendo cierto y sigue
   // sirviendo: dice que la contabilidad cuadra consigo misma.
   const cuadreOdoo = {}
@@ -336,7 +357,7 @@ export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
   const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n + (datos?.[id] || []).filter(c => !fuera(c)).length, 0)
 
   return {
-    secciones, transitorias, socios,
+    secciones, transitorias, socios, ecuacion,
     resultadoOdoo, patrimonioOdoo,
     disponible, inventario: inventario || null, inventarioOdoo,
     cuadreOdoo, activo, cuentas,
