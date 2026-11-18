@@ -109,16 +109,18 @@ export const SECCIONES = [
     ],
   },
   {
+    // EL PATRIMONIO NO SALE DE ODOO (18/11/2026). Angie: "el capital social sé que es
+    // más, mis papás han reinvertido pero eso nunca quedó registrado contablemente; lo
+    // de las reservas nunca hemos tenido reservas reales; solo deberíamos contar el
+    // resultado del ejercicio, del PYG del erp".
+    //
+    // Así que las cuentas de clase 3 de Odoo se descartan enteras y el patrimonio es un
+    // solo renglón: la utilidad acumulada de nuestro P&G hasta el mes del balance. Los
+    // saldos que Odoo sí tiene registrados se guardan en `patrimonioOdoo` para poder
+    // decir en pantalla qué se está dejando fuera.
     id: 'patrimonio', titulo: 'Patrimonio', tituloTotal: 'Total patrimonio', clase: '3', signo: -1,
     grupos: [
-      { id: '31', nombre: 'Capital social', prefijos: ['31'] },
-      { id: '32', nombre: 'Superávit de capital', prefijos: ['32'] },
-      { id: '33', nombre: 'Reservas', prefijos: ['33'] },
-      { id: '34', nombre: 'Revalorización del patrimonio', prefijos: ['34'] },
-      { id: '36', nombre: 'Resultados del ejercicio', prefijos: ['36'] },
-      { id: '37', nombre: 'Resultados de ejercicios anteriores', prefijos: ['37'] },
-      { id: '38', nombre: 'Superávit por valorizaciones', prefijos: ['38'] },
-      { id: '35', nombre: 'Otras cuentas de patrimonio', prefijos: [], resto: true },
+      { id: 'resultado', nombre: 'Resultado del ejercicio', manual: true },
     ],
   },
 ]
@@ -161,6 +163,8 @@ function ubicar(codigo, empresa) {
   // El inventario de Odoo tampoco entra: el grupo 14 sale del ERP. Se aparta en su
   // propia bolsa para poder decir, en la nota del grupo, cuánto dice la contabilidad.
   if (dos === '14') return { seccion: 'inventarioOdoo', grupo: 'inventarioOdoo' }
+  // Y el patrimonio entero: el resultado del ejercicio sale del P&G, no de estas cuentas
+  if (clase === '3') return { seccion: 'patrimonioOdoo', grupo: dos }
   const sec = SECCIONES.find(s => s.clase === clase)
   if (!sec) return { seccion: 'transitorias', grupo: 'transitorias' }   // clase 9 y cualquier otra
   const grupo = sec.grupos.find(g => !g.manual && g.prefijos.includes(dos)) || sec.grupos.find(g => g.resto)
@@ -175,7 +179,9 @@ const redondear = n => Math.round(n || 0)
 //            (solo vienen las casillas con valor; una casilla vacía no está en el objeto)
 // `inventario` = lo que devuelve calcularInventario() de inventarioBalance.js, o null
 //            mientras se está leyendo del ERP
-export function calcularBalance(datos, bancos, inventario) {
+// `resultadoEjercicio` = la utilidad acumulada de nuestro P&G hasta el mes del balance,
+//            o null mientras se está calculando. Es TODO el patrimonio.
+export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
   // Un acumulador por grupo, con el detalle cuenta por cuenta de las dos empresas
   const bolsas = new Map()      // 'seccion|grupo' → { feisen, fc, cuentas: Map(codigo → fila) }
   const bolsa = llave => {
@@ -273,16 +279,32 @@ export function calcularBalance(datos, bancos, inventario) {
 
   // El resultado del periodo: menos la suma de las clases 4, 5, 6 y 7
   // (ingresos menos costos y gastos). Va dentro del patrimonio.
-  const resultado = armarGrupo(
-    { id: 'resultado', nombre: 'Resultado del periodo', nota: 'ingresos menos costos y gastos (cuentas 4, 5, 6 y 7)' },
+  // El resultado según Odoo (clases 4 a 7). Ya no es el patrimonio: se guarda solo para
+  // poder compararlo en pantalla con el de nuestro P&G, que es el que manda.
+  const resultadoOdoo = armarGrupo(
+    { id: 'resultado', nombre: 'Resultado del periodo según Odoo', nota: 'ingresos menos costos y gastos (cuentas 4, 5, 6 y 7)' },
     'resultado|resultado', -1,
   )
+
+  // Lo que Odoo tiene registrado como patrimonio y queda fuera: capital, reservas y
+  // resultados acumulados. Se guarda por grupo para poder decir en pantalla qué se deja
+  // fuera y por qué, en vez de que simplemente desaparezca.
+  const patrimonioOdoo = ['31', '32', '33', '34', '36', '37', '38'].map(g => {
+    const b = bolsas.get(`patrimonioOdoo|${g}`)
+    if (!b) return null
+    const feisen = redondear(b.feisen * -1)
+    const fc = redondear(b.fc * -1)
+    return { grupo: g, feisen, fc, total: feisen + fc }
+  }).filter(x => x && x.total)
+
+  // El patrimonio: un solo renglón con la utilidad de nuestro P&G. No tiene columna por
+  // empresa, porque el P&G es consolidado.
   const patrimonio = secciones.find(s => s.id === 'patrimonio')
-  const patrimonioRegistrado = { feisen: patrimonio.feisen, fc: patrimonio.fc }
-  patrimonio.grupos.push(resultado)
-  patrimonio.feisen += resultado.feisen
-  patrimonio.fc += resultado.fc
-  patrimonio.total = patrimonio.feisen + patrimonio.fc
+  patrimonio.grupos = []
+  patrimonio.feisen = 0
+  patrimonio.fc = 0
+  patrimonio.total = resultadoEjercicio == null ? null : redondear(resultadoEjercicio)
+  patrimonio.sinResultado = resultadoEjercicio == null
 
   // Transitorias: se dejan con el saldo tal como viene de Odoo
   const transitorias = armarGrupo(
@@ -310,7 +332,8 @@ export function calcularBalance(datos, bancos, inventario) {
   const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n + (datos?.[id] || []).filter(c => !fuera(c)).length, 0)
 
   return {
-    secciones, transitorias, socios, resultado, patrimonioRegistrado,
+    secciones, transitorias, socios,
+    resultadoOdoo, patrimonioOdoo,
     disponible, inventario: inventario || null, inventarioOdoo,
     cuadreOdoo, activo, cuentas,
   }

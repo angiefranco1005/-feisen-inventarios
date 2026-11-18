@@ -219,6 +219,7 @@ export default function Eeff() {
   const bal = useBalance(mes, verBalance)
   const banc = useBancos(mes, verBalance)
   const inv = useInventario(mes, verBalance)
+  const resultadoEjercicio = useResultadoEjercicio(mes, verBalance)
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -392,10 +393,12 @@ export default function Eeff() {
   ))
 
   const cargandoMes = cargando || compras.cargando
-  const recargandoAhora = verMes ? cargandoMes : verBalance ? (bal.cargando || banc.cargando || inv.cargando) : ano.cargando
+  const recargandoAhora = verMes ? cargandoMes
+    : verBalance ? (bal.cargando || banc.cargando || inv.cargando || resultadoEjercicio.cargando)
+    : ano.cargando
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
-    else if (verBalance) { bal.recargar(); banc.recargar(); inv.recargar() }
+    else if (verBalance) { bal.recargar(); banc.recargar(); inv.recargar(); resultadoEjercicio.recargar() }
     else ano.recargar()
   }
   return (
@@ -488,7 +491,7 @@ export default function Eeff() {
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
         : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
             cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
-            inv={inv} onGuardarInventario={guardarInventario} />
+            inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio} />
       ) : verAno ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
@@ -879,6 +882,56 @@ function useInventario(mes, activo) {
   return { ...datos, setDatos, ...estado, recargar: cargar }
 }
 
+// El resultado del ejercicio del balance: **la utilidad de nuestro P&G**, acumulada de
+// enero hasta el mes del balance. No sale de las cuentas de patrimonio de Odoo.
+//
+// Decisión de Angie (18/11/2026): "el capital social sé que es más, mis papás han
+// reinvertido pero eso nunca quedó registrado contablemente; lo de las reservas nunca
+// hemos tenido reservas reales; solo deberíamos contar el resultado del ejercicio, del
+// PYG del erp".
+//
+// Por qué sale barato: los meses anteriores a octubre vienen del Excel (eeffHistorico),
+// que no pide nada a la red. Solo octubre en adelante se le piden a Odoo y al ERP, así
+// que un balance de octubre cuesta un mes de consultas, no doce.
+//
+// Y de paso arregla el problema de FC: su "resultado del periodo" en Odoo son varios
+// años acumulados, porque nunca se hicieron los cierres. Nuestro P&G es de 2026.
+function useResultadoEjercicio(mes, activo) {
+  const [estado, setEstado] = useState({ valor: null, cargando: true, error: '', listo: false, meses: 0 })
+  const cargar = useCallback(async () => {
+    setEstado(e => ({ ...e, cargando: true, error: '' }))
+    const anio = mes.slice(0, 4)
+    const hasta = Number(mes.slice(5, 7))
+    const lista = Array.from({ length: hasta }, (_, i) => `${anio}-${String(i + 1).padStart(2, '0')}`)
+    let suma = 0
+    const fallos = []
+    for (const m of lista) {
+      if (hayHistorico(m)) { suma += calcularMesHistorico(m, null).utilidadNeta; continue }
+      try {
+        const [odoo, erp] = await Promise.all([leerOdooMes(m), leerErpMes(m)])
+        suma += calcularMes({
+          pyg: odoo.pyg, compras: odoo.compras,
+          hierro: erp.hierro?.valor, nomina: erp.nomina, manual: erp.manual, centroId: null,
+        }).utilidadNeta
+      } catch (e) {
+        fallos.push(`${nombreLargo(m)} (${e.message || 'sin detalle'})`)
+      }
+    }
+    setEstado({
+      valor: Math.round(suma), cargando: false, listo: true, meses: lista.length,
+      error: fallos.length ? `No se pudo leer ${fallos.join(' · ')}` : '',
+    })
+  }, [mes])
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    setEstado(e => ({ ...e, listo: false }))
+    cargar()
+  }, [cargar, activo])
+  return { ...estado, recargar: cargar }
+}
+
 function useBancos(mes, activo) {
   const [bancos, setBancos] = useState({})
   // `listo` evita que la pantalla alcance a decir "todavía no has escrito nada" mientras lee
@@ -1173,12 +1226,15 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
 const ID_DISPONIBLE = 'activo-11'
 const ID_INVENTARIO = 'activo-14'
 
-function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario }) {
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
   )
-  const b = useMemo(() => calcularBalance(datos, bancos, inventario), [datos, bancos, inventario])
+  const b = useMemo(
+    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null),
+    [datos, bancos, inventario, resultado.listo, resultado.valor],
+  )
   // Si el mes llega sin saldos escritos, el disponible arranca abierto para que se vea la nota
   // en ámbar; al cambiar de mes se vuelve a decidir, pero nunca se le cierra en la cara a Angie
   // mientras escribe.
@@ -1195,7 +1251,7 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
   return (
     <div className="space-y-3">
       {/* Lo que hay que saber antes de leer las cifras va arriba, no al pie */}
-      {(!!b.transitorias.fc || !b.patrimonioRegistrado.fc || b.cuadreOdoo.cuadra) &&
+      {(!!b.transitorias.fc || !!b.patrimonioOdoo.length || b.cuadreOdoo.cuadra) &&
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2 text-xs text-amber-800 leading-relaxed">
         <p className="text-sm font-semibold text-amber-900">Antes de leer estas cifras</p>
         {!!b.transitorias.fc && (
@@ -1204,11 +1260,14 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
             que todavía no tiene cuenta definitiva. Va en su propio bloque, al final.
           </p>
         )}
-        {!b.patrimonioRegistrado.fc && (
+        {!!b.patrimonioOdoo.length && (
           <p>
-            <strong>FC no tiene patrimonio registrado</strong> ni cierre de años anteriores, así que su “resultado del
-            periodo” ({pesos(b.resultado.fc)}) es de varios años acumulados, no solo de 2026. El de Feisen
-            ({pesos(b.resultado.feisen)}) sí es solo de 2026, porque su contabilidad en Odoo empieza en marzo.
+            <strong>El patrimonio no sale de Odoo: sale del estado de resultados de esta misma pantalla.</strong> Lo
+            que Odoo tiene registrado —capital {pesos(b.patrimonioOdoo.find(x => x.grupo === '31')?.total || 0)},
+            reservas {pesos(b.patrimonioOdoo.find(x => x.grupo === '33')?.total || 0)} y los resultados de años
+            anteriores— queda fuera. El capital está incompleto (hubo reinversión que nunca se registró) y las
+            reservas nunca existieron de verdad. Odoo, por su lado, calcula un resultado de {pesos(b.resultadoOdoo.total)},
+            que incluye varios años de FC porque allá nunca se hicieron los cierres.
           </p>
         )}
         {b.cuadreOdoo.cuadra && (
@@ -1237,7 +1296,7 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
           <div key={sec.id}>
             <Seccion titulo={sec.titulo} nota={sec.id === 'activo' ? 'el disponible lo escribes tú con los extractos; lo demás sale de Odoo, cortado al último día del mes'
               : sec.id === 'pasivo' ? 'el pasivo y el patrimonio vienen en negativo de Odoo: aquí se muestran en positivo'
-              : sec.id === 'patrimonio' ? 'incluye el resultado del periodo, que es lo que lleva ganado la empresa y todavía no está cerrado en una cuenta de patrimonio'
+              : sec.id === 'patrimonio' ? 'no sale de Odoo: es la utilidad de tu estado de resultados, acumulada desde enero. El capital y las reservas que Odoo tiene registrados quedan fuera'
               : undefined} />
             {sec.grupos.map(g => {
               if (g.manual && g.id === '11') {
@@ -1251,6 +1310,20 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
               }
               return <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
             })}
+            {sec.id === 'patrimonio' && (
+              <div className={`${GRID_BAL} px-4 py-2 text-sm items-center`}>
+                <span className="min-w-0">
+                  <span className="block text-feisen-texto">Resultado del ejercicio</span>
+                  <span className="block text-xs text-feisen-texto-2">
+                    {resultado.cargando ? 'Sumando la utilidad del año…'
+                      : resultado.error ? `No se pudo calcular: ${resultado.error}`
+                      : `la utilidad de tu estado de resultados, de enero a ${nombreLargo(datos.mes)} · ${resultado.meses} meses`}
+                  </span>
+                </span>
+                <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
+                <CifraB v={resultado.valor} fuerte ceros={resultado.valor != null} />
+              </div>
+            )}
             <TotalBalance nombre={sec.tituloTotal} cifras={sec} destacado={sec.id === 'activo'}
               nota={sec.id !== 'activo' ? undefined
                 : activo.sinDisponible ? 'va sin el disponible: todavía no has escrito los bancos de este mes'
