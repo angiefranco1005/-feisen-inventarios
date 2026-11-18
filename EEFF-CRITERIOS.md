@@ -15,7 +15,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 |---|---|---|
 | **Odoo Feisen y Odoo FC** | Estado de resultados del mes, por cuenta y centro | Función `finanzas-odoo`, acción `pyg`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Facturas de compra del mes, con proveedor, cuenta y centro | Función `finanzas-odoo`, acción `resultado`. **Solo lectura** |
-| **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general**. **Las cuentas de bancos (11xx) no se usan**: ni suman ni se muestran | Función `finanzas-balance`. **Solo lectura** |
+| **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general**. **Las cuentas de bancos (11xx) no se usan**: ni suman ni se muestran. **Las cuentas de socios tampoco suman**: se leen, pero van en su propio bloque, fuera de todos los totales | Función `finanzas-balance`. **Solo lectura** |
 | **A mano** | El **disponible** del balance: los cinco saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
@@ -155,10 +155,32 @@ Esto cambió dos veces en dos días, y conviene saber de dónde viene:
 
 Angie decidió ver las dos empresas juntas **sabiendo estas dos cosas**, y por eso van arriba del balance y no al pie:
 
-1. **FC tiene $575.445.392 en "Movimientos transitorios":** plata ya contabilizada que todavía no tiene cuenta definitiva. No es ni activo ni pasivo, así que va en **su propio bloque**, al final.
+1. **FC tiene $575.445.392 en "Movimientos transitorios":** plata ya contabilizada que todavía no tiene cuenta definitiva. No es ni activo ni pasivo, así que va en **su propio bloque**, al final. Es uno de los **dos bloques que quedan fuera de los totales**: el otro es el de las **cuentas de socios** (ver más abajo).
 2. **FC no tiene patrimonio registrado ni cierre de años anteriores**, así que su "resultado del periodo" (unos **$2.046 millones**) es de **varios años acumulados**, no de 2026. El de **Feisen sí es solo de 2026**, porque su contabilidad en Odoo empieza en marzo.
 
 **La conclusión:** **las dos contabilidades cuadran consigo mismas; el problema no es un descuadre sino dónde está ubicada la plata.**
+
+### Las cuentas de socios quedan fuera de todos los totales
+
+Desde el **18/11/2026** las **cuentas de socios** no cuentan para el balance. Palabras de Angie: *"AFC AVF son las cuentas de socios, eso no lo debemos tener en cuenta para el balance"*.
+
+- Salen del **activo**, del **pasivo**, del **patrimonio** y de **cualquier indicador** que se calcule con esos totales (el endeudamiento, por ejemplo). Es plata que se movió entre el negocio y los socios, no cartera ni deuda con un tercero.
+- **No se borran:** se muestran en un **bloque propio al final**, igual que los movimientos transitorios, y con el **signo tal como viene de Odoo**: en positivo se lo deben al negocio, en negativo el negocio se lo debe al socio.
+
+Cuáles son, con los saldos verificados **al 31 de octubre de 2026**:
+
+| Empresa | Cuenta | Saldo |
+|---|---|---|
+| Feisen | 133002 Otras Cuentas Por Cobrar AVF | $582.808.358 |
+| Feisen | 133003 Otras Cuentas Por Cobrar AFC | $51.814.206 |
+| FC | 233506 Cuentas por pagar a socios Angie | −$25.000 |
+| **Total del bloque** | | **$634.597.564** |
+
+**Se escogen por empresa, no por código, y eso es a propósito.** El mismo código significa cosas distintas en los dos libros: la **233506 de FC** es "Cuentas por pagar a socios Angie", pero la **233506 de Feisen** es "Otras Cuentas Por Pagar", que sí es deuda con terceros y **se queda en el pasivo**. Clasificar por código habría sacado la cuenta equivocada.
+
+**Lo que se ve en pantalla, con octubre:** los **deudores** pasaron de **$1.096.907.111** a **$462.284.547** (Feisen $407.426.943 + FC $54.857.604). Con eso el **total activo** queda en **$2.001.236.418** y el **total pasivo**, en **$1.699.653.878**.
+
+> **Esto hay que decirlo sin suavizar: sacarlas del balance es una decisión de cómo quieres leer el balance para gerenciar, no un cambio en la contabilidad.** En los libros siguen registradas, y para efectos fiscales siguen siendo cuentas con los socios, con su propio tratamiento. **Eso lo tiene que mirar tu contador.** La pantalla lo dice al pie del bloque; queda escrito aquí también.
 
 ### El aviso del banco de FC se quitó del balance, pero el problema sigue ahí
 
@@ -421,6 +443,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **No hay que "arreglar" los meses viejos leyéndolos de Odoo.** Antes de octubre Odoo está incompleto y daría cifras que parecen buenas y no lo son. Si alguna vez hay que cambiar un mes de enero a septiembre, se cambia el Excel y se vuelve a generar `eeffHistorico.js`.
 - **El balance hay que revisarlo la primera vez.** Los cambios del **17 y del 18/11/2026** se publicaron **sin verificarlos contra Odoo**. Y si algún mes se ve raro, lo primero a mirar son los **saldos a fin de mes**, que son una consulta nueva.
 - **Sin los bancos escritos, el balance queda incompleto.** Mientras no se copien los extractos del mes, el disponible sale en "—" y el total del activo va sin él. Y como las cuentas de bancos de Odoo ya no se leen, **no hay ningún otro sitio del balance de donde sacar esa cifra**.
+- **Las cuentas de socios salieron del balance, pero no de la contabilidad.** Desde el 18/11/2026 no suman al activo, al pasivo, al patrimonio ni a ningún indicador, y se ven en su propio bloque al final ($634.597.564 a octubre). En los libros siguen registradas y fiscalmente siguen siendo cuentas con los socios: **eso lo tiene que mirar el contador**.
 - **El banco sin conciliar de FC sigue siendo trabajo pendiente para contabilidad.** Desde el 18/11/2026 ya no se ve en el balance —las cuentas 11xx de Odoo salieron de la pantalla—, pero la plata sin conciliar sigue en su contabilidad y sigue excluida del **Flujo de caja**.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
@@ -507,6 +530,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | **Entró la casilla de "Tarjeta prepago" en el disponible**, en el puesto que dejó libre la caja menor. Palabras de Angie: *"añade una cuenta en el efectivo donde estaba caja menor x tarjeta prepago"*. El disponible queda con **cinco casillas**: Bancolombia, Davivienda, Efectivo, Fiducias y Tarjeta prepago. Se escribe y se guarda igual que las demás, mes por mes |
 | 18/11 | **Este cambio tampoco se verificó contra datos reales de Odoo** antes de publicarlo |
 | 18/11 | **El balance y el estado de resultados se separaron en dos pestañas de carpeta**: **"Estado de resultados"** y **"Balance general"**. Lo pidió Angie: *"separa el informe de eeff el balance y el pyg... para que no se confundan con los mismos botones"*. Antes los tres botones ("Un mes", "Todo el año" y "Balance") iban en la misma fila y el balance parecía una tercera forma de ver el mismo informe. **Cada pestaña trae ahora solo sus propios controles**: el estado de resultados lleva el período, el mes o el año, el centro de costo y el formato de las cifras; el balance, solo "A fin de" con su mes y el aviso de que los bancos los escribe ella. Ver la sección 1.2 |
+| 18/11 | **Las cuentas de socios salieron del balance**: no suman al activo, al pasivo, al patrimonio ni a ningún indicador. Palabras de Angie: *"AFC AVF son las cuentas de socios, eso no lo debemos tener en cuenta para el balance"*. No se borran: van en un **bloque propio al final**, como los movimientos transitorios, con el signo tal como viene de Odoo (positivo = se lo deben al negocio, negativo = el negocio se lo debe al socio). Son Feisen 133002 "Otras Cuentas Por Cobrar AVF" ($582.808.358), Feisen 133003 "Otras Cuentas Por Cobrar AFC" ($51.814.206) y FC 233506 "Cuentas por pagar a socios Angie" (−$25.000); **total del bloque $634.597.564** a octubre. Con eso los **deudores** pasan de $1.096.907.111 a **$462.284.547**, el total activo queda en $2.001.236.418 y el total pasivo en $1.699.653.878. **Se escogen por empresa y no por código**, porque la 233506 de Feisen es "Otras Cuentas Por Pagar" —deuda con terceros— y se queda en el pasivo. Y sin suavizarlo: **es una decisión de cómo leer el balance para gerenciar, no un cambio en la contabilidad**; en los libros siguen registradas y fiscalmente siguen siendo cuentas con los socios, que las tiene que mirar el contador |
 | 18/11 | **Ninguna cifra cambió con las pestañas**: es solo cómo se llega a cada informe. Por dentro, lo que antes se recordaba en un solo dato ahora son dos —**qué informe** y, dentro del estado de resultados, **qué período**—, y el equipo los recuerda por separado: al salir al balance y volver se encuentra el período que se tenía. La preferencia vieja se sigue leyendo una vez para que a nadie se le pierda |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
