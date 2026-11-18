@@ -99,6 +99,11 @@ export const RENGLONES = [
   // Angie, 18/11/2026: "Piezas y partes de máquina · Piezas cortadas en plasma ·
   // Material mecanizado (este sí está en el erp), los otros 2 es lo que yo tengo que
   // sacar". Los dos primeros no existen en el ERP: son conteos suyos.
+  //
+  // El material fundido de hierro no estaba en esa lista y quedó un rato en "Sin
+  // clasificar", hasta que ella lo confirmó: "el material fundido de hierro también es
+  // material en proceso". Va antes del mecanizado porque ese es el orden de la
+  // producción: primero se funde, después se mecaniza.
   {
     id: 'piezas_maquina', tipo: 'proceso', nombre: 'Piezas y partes de máquina',
     aMano: true, nota: 'no está en el ERP: lo sacas tú',
@@ -106,6 +111,11 @@ export const RENGLONES = [
   {
     id: 'piezas_plasma', tipo: 'proceso', nombre: 'Piezas cortadas en plasma',
     aMano: true, nota: 'no está en el ERP: lo sacas tú',
+  },
+  {
+    id: 'fundido', tipo: 'proceso', nombre: 'Material fundido de hierro',
+    nota: 'el que está en Fundición y el que ya pasó a Armado y soldadura',
+    claves: ['FUNDICIÓN|MATERIAL FUNDIDO HIERRO', 'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO'],
   },
   {
     id: 'material_mecanizado', tipo: 'proceso', nombre: 'Material mecanizado',

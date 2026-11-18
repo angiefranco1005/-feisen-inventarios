@@ -287,7 +287,10 @@ export default function Eeff() {
       return
     }
     const valor = Number(limpio) || 0
-    const { error: err } = await supabase.from('eeff_manual').upsert({ mes, concepto, empresa: 'total', valor, updated_at: new Date().toISOString() })
+    // `nota: null` a propósito: si el renglón traía una nota de cuando se llenó desde el
+    // ERP ("cortado al 31/10..."), dejarla sería mentir sobre una cifra que ya es de Angie.
+    const { error: err } = await supabase.from('eeff_manual')
+      .upsert({ mes, concepto, empresa: 'total', valor, nota: null, updated_at: new Date().toISOString() })
     if (err) { avisar('No se pudo guardar: ' + err.message); return }
     inv.setDatos(d => ({ ...d, manual: { ...d.manual, [concepto]: valor } }))
     avisar('Guardado')
