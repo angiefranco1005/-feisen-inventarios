@@ -22,12 +22,14 @@
 //     casilla para escribir el valor del corte a mano, igual que los bancos: lo que se
 //     escribe **reemplaza** lo del ERP.
 //
-//  2. **El valor del ERP está incompleto, y no por donde se espera.** De 869 artículos
-//     con existencias, 304 no tienen precio de costo (35%). No son categorías enteras en
+//  2. **El valor del ERP está incompleto, y no por donde se espera.** Alrededor de un
+//     tercio de los artículos con existencias no tienen precio de costo y entran
+//     valiendo cero (al 18/11/2026 eran 304 de 867). No son categorías enteras en
 //     blanco —esas se verían—: están repartidos dentro de categorías que sí muestran
 //     cifra. Poleas sale en $0 porque sus 12 artículos no tienen costo, pero Herramienta
 //     muestra $1.788.000 con 34 de 42 sin costear. Un número a medias engaña más que un
-//     cero, así que la pantalla muestra cuántos faltan en cada categoría.
+//     cero, así que la pantalla muestra cuántos faltan en cada categoría. La cifra que
+//     se ve en pantalla se cuenta en vivo; la de este comentario es solo de referencia.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Los tres tipos, en el orden en que se leen: de lo que entra a lo que sale.
