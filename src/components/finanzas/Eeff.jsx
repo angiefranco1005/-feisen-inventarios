@@ -7,7 +7,7 @@ import {
   AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
   calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
-import { calcularBalance, conceptoBanco } from './calculoBalance'
+import { SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
 import { calcularInventario, conceptoInventario } from './inventarioBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
@@ -54,6 +54,15 @@ const CLAVE_PERIODO = 'feisen-eeff-periodo'
 const PERIODOS = [
   { valor: 'mes', texto: 'Un mes' },
   { valor: 'ano', texto: 'Todo el año' },
+]
+
+// Dentro de la pestaña del balance: un mes solo, o varios meses lado a lado con el
+// análisis horizontal (decisión de Angie, 18/11/2026: "necesito poder ver cómo se comporta
+// el balance con el comparativo entre meses y tener el análisis horizontal").
+const CLAVE_VISTA_BAL = 'feisen-eeff-vista-balance'
+const VISTAS_BAL = [
+  { valor: 'mes', texto: 'Un mes' },
+  { valor: 'comparar', texto: 'Comparar meses' },
 ]
 
 // Hasta el 18/11/2026 los tres eran un solo botón ('mes' | 'ano' | 'balance') guardado aquí.
@@ -173,6 +182,10 @@ export default function Eeff() {
   const [periodo, setPeriodo] = useState(
     () => recordado(CLAVE_PERIODO, PERIODOS, v => (v === 'ano' ? 'ano' : 'mes')),
   )
+  const [vistaBal, setVistaBal] = useState(() => {
+    try { const v = localStorage.getItem(CLAVE_VISTA_BAL); return VISTAS_BAL.some(o => o.valor === v) ? v : 'mes' } catch { return 'mes' }
+  })
+  const cambiarVistaBal = v => { setVistaBal(v); try { localStorage.setItem(CLAVE_VISTA_BAL, v) } catch { /* sin almacenamiento */ } }
   const [formato, setFormato] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_FORMATO); return FORMATOS.some(o => o.valor === v) ? v : 'pesos' } catch { return 'pesos' }
   })
@@ -181,6 +194,7 @@ export default function Eeff() {
   const cambiarPeriodo = v => { setPeriodo(v); setAbierto(null); try { localStorage.setItem(CLAVE_PERIODO, v) } catch { /* sin almacenamiento */ } }
   const cambiarFormato = v => { setFormato(v); try { localStorage.setItem(CLAVE_FORMATO, v) } catch { /* sin almacenamiento */ } }
   const verBalance = informe === 'balance'
+  const compararBal = verBalance && vistaBal === 'comparar'
   const verMes = !verBalance && periodo === 'mes'
   const verAno = !verBalance && periodo === 'ano'
   const centroId = vista === 'consolidado' ? null : vista
@@ -216,10 +230,11 @@ export default function Eeff() {
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
   // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
   // Odoo: lo escribe Angie con los extractos del banco (useBancos).
-  const bal = useBalance(mes, verBalance)
-  const banc = useBancos(mes, verBalance)
-  const inv = useInventario(mes, verBalance)
-  const resultadoEjercicio = useResultadoEjercicio(mes, verBalance)
+  const bal = useBalance(mes, verBalance && !compararBal)
+  const banc = useBancos(mes, verBalance && !compararBal)
+  const inv = useInventario(mes, verBalance && !compararBal)
+  const resultadoEjercicio = useResultadoEjercicio(mes, verBalance && !compararBal)
+  const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -394,10 +409,12 @@ export default function Eeff() {
 
   const cargandoMes = cargando || compras.cargando
   const recargandoAhora = verMes ? cargandoMes
+    : compararBal ? balMeses.cargando
     : verBalance ? (bal.cargando || banc.cargando || inv.cargando || resultadoEjercicio.cargando)
     : ano.cargando
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
+    else if (compararBal) { balMeses.recargar() }
     else if (verBalance) { bal.recargar(); banc.recargar(); inv.recargar(); resultadoEjercicio.recargar() }
     else ano.recargar()
   }
@@ -422,7 +439,10 @@ export default function Eeff() {
           {verBalance ? (
             /* El balance no tiene período ni centro de costo: solo a fin de qué mes se corta */
             <>
-              <Grupo etiqueta="A fin de">
+              <Grupo etiqueta="Ver">
+                <Pildoras opciones={VISTAS_BAL} valor={vistaBal} onCambiar={cambiarVistaBal} />
+              </Grupo>
+              <Grupo etiqueta={compararBal ? 'Hasta' : 'A fin de'}>
                 <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
                   {MESES_ELEGIBLES.map(m => (
                     <option key={m} value={m}>
@@ -432,7 +452,9 @@ export default function Eeff() {
                 </select>
               </Grupo>
               <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
-                Los bancos los escribes tú · no se divide por centro de costo
+                {compararBal
+                  ? `${mesesComparados(mes).length} meses, terminando en ${nombreLargo(mes)}`
+                  : 'Los bancos los escribes tú · no se divide por centro de costo'}
               </span>
             </>
           ) : (
@@ -486,7 +508,8 @@ export default function Eeff() {
         </div>
       </div>
 
-      {verBalance ? (
+      {compararBal ? <VistaBalanceComparada bal={balMeses} />
+      : verBalance ? (
         (bal.cargando && !bal.datos) || !banc.listo || !inv.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
         : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
@@ -882,6 +905,102 @@ function useInventario(mes, activo) {
   return { ...datos, setDatos, ...estado, recargar: cargar }
 }
 
+// Cuántos meses se comparan en el balance, contando hacia atrás desde el mes elegido.
+// Cuatro caben en pantalla y alcanzan para ver una tendencia; más columnas no se leen.
+const MESES_COMPARA = 4
+
+const ultimoDia = mes => {
+  const [a, m] = mes.split('-').map(Number)
+  return `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}`
+}
+
+// Los meses del comparativo: el elegido y los anteriores, sin salirse del año.
+function mesesComparados(mes) {
+  const [a, m] = mes.split('-').map(Number)
+  const desde = Math.max(1, m - MESES_COMPARA + 1)
+  const lista = []
+  for (let i = desde; i <= m; i++) lista.push(`${a}-${String(i).padStart(2, '0')}`)
+  return lista
+}
+
+// El balance de varios meses a la vez, para el comparativo y el análisis horizontal.
+//
+// Cada mes necesita cuatro cosas: los saldos de Odoo cortados a fin de ese mes, el
+// inventario del ERP cortado igual, las casillas que escribió Angie de ese mes, y el
+// resultado del ejercicio acumulado hasta ahí.
+//
+// El resultado se calcula una sola vez para todos: se recorre el año de enero al último
+// mes pedido sumando la utilidad, y se guarda el acumulado de cada mes por el camino. Así
+// comparar cuatro meses no cuesta cuatro recorridos del año sino uno, y los meses
+// anteriores a octubre salen del Excel sin pedirle nada a la red.
+function useBalanceMeses(meses, activo) {
+  const [estado, setEstado] = useState({ porMes: {}, cargando: false, listos: 0, actual: null, error: '', listo: false })
+  const clave = meses.join(',')
+  const cargar = useCallback(async () => {
+    setEstado({ porMes: {}, cargando: true, listos: 0, actual: meses[0], error: '', listo: false })
+    const fallos = []
+
+    // 1. El resultado acumulado de cada mes, en un solo recorrido del año
+    const anio = meses[0].slice(0, 4)
+    const hastaNum = Number(meses[meses.length - 1].slice(5, 7))
+    const acumulado = {}
+    let suma = 0
+    for (let i = 1; i <= hastaNum; i++) {
+      const m = `${anio}-${String(i).padStart(2, '0')}`
+      try {
+        if (hayHistorico(m)) suma += calcularMesHistorico(m, null).utilidadNeta
+        else {
+          const [odoo, erp] = await Promise.all([leerOdooMes(m), leerErpMes(m)])
+          suma += calcularMes({
+            pyg: odoo.pyg, compras: odoo.compras,
+            hierro: erp.hierro?.valor, nomina: erp.nomina, manual: erp.manual, centroId: null,
+          }).utilidadNeta
+        }
+      } catch (e) {
+        fallos.push(`la utilidad de ${nombreLargo(m)}`)
+      }
+      acumulado[m] = Math.round(suma)
+    }
+
+    // 2. El balance de cada mes del comparativo
+    const porMes = {}
+    for (const m of meses) {
+      setEstado(e => ({ ...e, actual: m }))
+      try {
+        const [bal, inv, man] = await Promise.all([
+          supabase.functions.invoke('finanzas-balance', { body: { mes: m } }),
+          supabase.rpc('finanzas_inventario', { hasta: ultimoDia(m) }),
+          supabase.from('eeff_manual').select('concepto, valor').eq('mes', m).eq('empresa', 'total'),
+        ])
+        const datos = bal.data
+        if (bal.error || datos?.error) throw new Error(datos?.error || bal.error.message)
+        if (inv.error) throw new Error(inv.error.message)
+        const manual = Object.fromEntries((man.data || []).map(x => [x.concepto, Number(x.valor)]))
+        const bancos = Object.fromEntries(
+          Object.entries(manual).filter(([c]) => c.startsWith('banco:')).map(([c, v]) => [c.slice('banco:'.length), v]),
+        )
+        porMes[m] = calcularBalance(datos, bancos, calcularInventario(inv.data || [], manual), acumulado[m] ?? null)
+      } catch (e) {
+        fallos.push(`${nombreLargo(m)} (${e.message || 'sin detalle'})`)
+      }
+      setEstado(e => ({ ...e, porMes: { ...porMes }, listos: Object.keys(porMes).length }))
+    }
+
+    setEstado({
+      porMes, cargando: false, listo: true, listos: Object.keys(porMes).length, actual: null,
+      error: fallos.length ? `No se pudo leer ${fallos.join(' · ')}` : '',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave])
+  const pedido = useRef(null)
+  useEffect(() => {
+    if (!activo || pedido.current === cargar) return
+    pedido.current = cargar
+    cargar()
+  }, [cargar, activo])
+  return { ...estado, meses, recargar: cargar }
+}
+
 // El resultado del ejercicio del balance: **la utilidad de nuestro P&G**, acumulada de
 // enero hasta el mes del balance. No sale de las cuentas de patrimonio de Odoo.
 //
@@ -1225,6 +1344,105 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
 
 const ID_DISPONIBLE = 'activo-11'
 const ID_INVENTARIO = 'activo-14'
+
+// Los renglones del comparativo. Cada uno sabe sacar su valor del cálculo de un mes (el
+// mismo `calcularBalance` de la vista de un mes), así que aquí no se repite ninguna cuenta.
+function renglonesBalance() {
+  const filas = []
+  const grupoDe = (secId, gId) => b => b.secciones.find(s => s.id === secId)?.grupos.find(g => g.id === gId)?.total ?? null
+  for (const sec of SECCIONES) {
+    filas.push({ tipo: 'seccion', nombre: sec.titulo })
+    for (const g of sec.grupos) {
+      if (sec.id === 'activo' && g.id === '11') { filas.push({ tipo: 'dato', nombre: 'Disponible', valor: b => b.disponible.total }); continue }
+      if (sec.id === 'activo' && g.id === '14') { filas.push({ tipo: 'dato', nombre: 'Inventarios', valor: b => b.inventario?.total ?? null }); continue }
+      if (sec.id === 'patrimonio') { filas.push({ tipo: 'dato', nombre: 'Resultado del ejercicio', valor: b => b.secciones.find(s => s.id === 'patrimonio')?.total ?? null }); continue }
+      filas.push({ tipo: 'dato', nombre: g.nombre, codigos: g.prefijos?.join(' y '), valor: grupoDe(sec.id, g.id) })
+    }
+    filas.push({ tipo: 'total', nombre: sec.tituloTotal, valor: b => b.secciones.find(s => s.id === sec.id)?.total ?? null })
+  }
+  filas.push({ tipo: 'seccion', nombre: 'Comprobación' })
+  filas.push({ tipo: 'dato', nombre: 'Pasivo + patrimonio', valor: b => b.ecuacion.pasivoMasPatrimonio })
+  filas.push({ tipo: 'dato', nombre: 'Activo', valor: b => b.ecuacion.activo })
+  filas.push({ tipo: 'total', nombre: 'Diferencia', valor: b => b.ecuacion.diferencia, alerta: true })
+  return filas
+}
+
+// El balance de varios meses, uno por columna, con el análisis horizontal al final:
+// cuánto cambió cada renglón entre el primer mes que se muestra y el último.
+function VistaBalanceComparada({ bal }) {
+  const filas = useMemo(() => renglonesBalance(), [])
+  const meses = bal.meses.filter(m => bal.porMes[m])
+  const primero = meses[0], ultimo = meses[meses.length - 1]
+  const cols = `grid-cols-[minmax(10rem,1fr)_repeat(${meses.length + 2},minmax(6.5rem,8rem))]`
+
+  if (!meses.length) {
+    return <Cargando texto={bal.actual ? `Armando el balance de ${nombreLargo(bal.actual)}…` : 'Armando el comparativo…'} />
+  }
+
+  const cifra = (v, extra = '') => (
+    <span className={`text-right tabular-nums ${extra}`}>{v == null ? '—' : pesos(v)}</span>
+  )
+
+  return (
+    <div className="space-y-3">
+      {bal.error && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">{bal.error}</p>}
+      {bal.cargando && (
+        <p className="flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
+          <RefreshCw size={14} className="animate-spin" />
+          Vamos por {bal.actual ? nombreLargo(bal.actual) : '…'} · {bal.listos} de {bal.meses.length} meses
+        </p>
+      )}
+
+      <div className="bg-white border border-feisen-borde rounded-xl overflow-x-auto">
+        <div className="min-w-max">
+          <div className={`grid ${cols} gap-3 px-4 py-2 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2`}>
+            <span>Concepto</span>
+            {meses.map(m => <span key={m} className="text-right">{nombreLargo(m).slice(0, 3)}</span>)}
+            <span className="text-right">Variación</span>
+            <span className="text-right">%</span>
+          </div>
+
+          {filas.map((f, i) => {
+            if (f.tipo === 'seccion') {
+              return (
+                <div key={i} className="px-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-feisen-texto-2 bg-feisen-fondo border-y border-feisen-borde-suave">
+                  {f.nombre}
+                </div>
+              )
+            }
+            const vals = meses.map(m => f.valor(bal.porMes[m]))
+            const a = vals[0], z = vals[vals.length - 1]
+            const dif = a == null || z == null ? null : z - a
+            const pct = dif == null || !a ? null : (dif / Math.abs(a)) * 100
+            const fuerte = f.tipo === 'total'
+            return (
+              <div key={i} className={`grid ${cols} gap-3 px-4 py-1.5 text-xs items-center border-t border-feisen-borde-suave
+                ${fuerte ? 'font-semibold bg-feisen-fondo' : ''} ${f.alerta ? 'bg-amber-50' : ''}`}>
+                <span className="min-w-0 truncate">
+                  {f.codigos && <span className="tabular-nums text-feisen-texto-2">{f.codigos} </span>}{f.nombre}
+                </span>
+                {vals.map((v, n) => <span key={n} className="text-right tabular-nums">{v == null ? '—' : pesos(v)}</span>)}
+                {cifra(dif, dif == null ? '' : dif < 0 ? 'text-feisen-rojo' : 'text-feisen-texto')}
+                <span className={`text-right tabular-nums ${pct == null ? '' : pct < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
+                  {pct == null ? '—' : `${pct > 0 ? '+' : ''}${pct.toFixed(1).replace('.', ',')} %`}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        El <strong>análisis horizontal</strong> compara el último mes que se muestra ({nombreLargo(ultimo)}) contra
+        el primero ({nombreLargo(primero)}): la columna <strong>Variación</strong> es la diferencia en pesos y la
+        de <strong>%</strong> es esa diferencia sobre el valor de {nombreLargo(primero)}. Un renglón que arranca en
+        cero no tiene porcentaje, porque no se puede dividir por cero.
+        Cada mes se corta a su último día, igual que en la vista de un mes, y trae el disponible y las casillas de
+        inventario que escribiste <strong>para ese mes</strong>: un mes sin escribir sale incompleto.
+      </p>
+    </div>
+  )
+}
 
 function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado }) {
   const inventario = useMemo(
