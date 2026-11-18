@@ -146,6 +146,23 @@ export const RENGLONES = [
     bodegas: ['ADMINISTRACIÓN', 'MANTENIMIENTO'],
     claves: ['FUNDICIÓN|(sin categoría)'],
   },
+
+  // ── Fuera del inventario ──
+  // Un renglón sin `tipo` queda fuera: ni se muestra ni suma. Pero sigue estando aquí a
+  // propósito, porque así la categoría no cae en "Sin clasificar" y, sobre todo, porque
+  // queda escrito que es una decisión y no un olvido.
+  //
+  // Angie, 18/11/2026, viéndolo en el bloque de Sin clasificar: "EQUIPMASTER STORE ·
+  // MOTORES esto quítalo por favor".
+  //
+  // OJO si algún día se le cargan precios a esos artículos: hoy son 12 y ninguno tiene
+  // precio de costo, así que la categoría vale $0 y sacarla no cambia ninguna cifra. Si
+  // se costearan, esa plata **no** entraría al inventario del balance mientras este
+  // renglón siga sin `tipo`.
+  {
+    id: 'equipmaster', nombre: 'Equipmaster Store',
+    claves: ['MOTORES|EQUIPMASTER STORE'],
+  },
 ]
 
 // La clave de una categoría del ERP. Los nombres vienen con espacios de más
@@ -209,6 +226,10 @@ export function calcularInventario(filas, manual) {
   }
 
   const renglones = RENGLONES
+    // Sin `tipo` el renglón está fuera del inventario a propósito (ver Equipmaster Store
+    // al final de RENGLONES). Se empareja igual, para que su categoría no acabe en
+    // "Sin clasificar", pero no se muestra ni suma.
+    .filter(r => r.tipo)
     .map(r => armar(r, acum.get(r.id) || []))
     // Un renglón sin nada en el ERP se sigue mostrando si Angie lo llena a mano
     // (Ferretería es justo ese caso) o si ya tiene algo escrito
