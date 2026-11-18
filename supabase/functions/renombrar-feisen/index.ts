@@ -20,7 +20,25 @@ const CFG = { url: 'https://construequiposfranco.odoo.com', db: 'snva-proyectos-
 const responder = (c: unknown, s = 200) => new Response(JSON.stringify(c), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 // La lista completa de lo que esta función puede tocar. Nada fuera de aquí se cambia.
+// Pasada 2 (18/11/2026): las obligaciones financieras, a partir de un pantallazo de
+// Angie con los nombres buenos ("Mira las obligaciones financieras como deben salir").
+// Lo que reveló y vale más que los nombres: **los tres leasing son Dobladora 566, Torno
+// 962 y Cizalla 833**. La 211500, que se llamaba "Financial corporations", no era una
+// obligación genérica: es el leasing de la dobladora.
+//
+// La lista de la pasada 1 queda arriba comentada como referencia.
 const RENOMBRES: Record<string, string> = {
+  '210500': 'Crédito Bancolombia No. 1000104793 May 2023',
+  '210502': 'Crédito Bancolombia No. 1000109243 Feb 2025',
+  '210508': 'Crédito Bancolombia No. 1000112247 May 2026',
+  '210510': 'Crédito Bancolombia No. 3292 Sept 2026',
+  '210511': 'Crédito Davivienda No. 1403 Oct 2026',
+  '211500': 'Contratos De Arrendamiento Financiero (Leasing Dobladora) 566',
+  '211502': 'Contratos De Arrendamiento Financiero (Leasing Torno) 962',
+  '211503': 'Contratos De Arrendamiento Financiero (Leasing Cizalla) 833',
+  '219500': 'Otras Obligaciones Particulares',
+
+  // ── Pasada 1, ya aplicada ──
   '130500': 'Clientes nacionales',
   '135501': 'Anticipo de impuestos y contribuciones o saldos a favor',
   '135517': 'Impuesto a las ventas retenido',

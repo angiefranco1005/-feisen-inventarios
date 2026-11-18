@@ -97,9 +97,13 @@ export const SECCIONES = [
     grupos: [
       { id: '21', nombre: 'Obligaciones financieras', prefijos: ['21'] },
       { id: '22', nombre: 'Proveedores', prefijos: ['22'] },
-      { id: '23', nombre: 'Cuentas por pagar', prefijos: ['23'] },
-      { id: '24', nombre: 'Impuestos, gravámenes y tasas', prefijos: ['24'] },
-      { id: '25', nombre: 'Obligaciones laborales', prefijos: ['25'] },
+      // Estos tres salen **solo de Feisen** (decisión de Angie, 18/11/2026: "en las
+      // cuentas por pagar 23, usa las cuentas de odoo feisen solamente. lo mismo que la
+      // 24 y la 25"). Lo que FC tenga en esas clases no entra al pasivo; si algún día
+      // tiene algo, se avisa en el grupo en vez de desaparecer sin más.
+      { id: '23', nombre: 'Cuentas por pagar', prefijos: ['23'], soloFeisen: true },
+      { id: '24', nombre: 'Impuestos, gravámenes y tasas', prefijos: ['24'], soloFeisen: true },
+      { id: '25', nombre: 'Obligaciones laborales', prefijos: ['25'], soloFeisen: true },
       { id: '26', nombre: 'Pasivos estimados', prefijos: ['26'] },
       { id: '27', nombre: 'Otros pasivos', prefijos: ['27', '28'], resto: true },
     ],
@@ -179,6 +183,10 @@ export function calcularBalance(datos, bancos, inventario) {
     return bolsas.get(llave)
   }
   const sumaCruda = { feisen: 0, fc: 0 }        // la suma de TODAS las cuentas de Odoo: tiene que dar 0
+  // Lo que FC tiene en los grupos que son solo de Feisen. Hoy está vacío (FC no tiene
+  // ninguna cuenta de las clases 23, 24 ni 25), pero si algún día aparece algo tiene que
+  // verse: una cuenta que se cae del balance en silencio es justo lo que no queremos.
+  const fcFuera = new Map()
 
   for (const { id: emp } of EMPRESAS_BAL) {
     for (const c of datos?.[emp] || []) {
@@ -187,6 +195,14 @@ export function calcularBalance(datos, bancos, inventario) {
       const saldo = Number(c.saldo) || 0
       sumaCruda[emp] += saldo
       const { seccion, grupo } = ubicar(codigo, emp)
+      const def = SECCIONES.find(x => x.id === seccion)?.grupos.find(g => g.id === grupo)
+      if (emp === 'fc' && def?.soloFeisen) {
+        const v = fcFuera.get(grupo) || { total: 0, cuentas: [] }
+        v.total += saldo
+        v.cuentas.push({ codigo, nombre: c.nombre || '' })
+        fcFuera.set(grupo, v)
+        continue
+      }
       const b = bolsa(`${seccion}|${grupo}`)
       b[emp] += saldo
       if (!b.cuentas.has(codigo)) b.cuentas.set(codigo, { codigo, nombre: c.nombre || '', feisen: 0, fc: 0 })
@@ -230,6 +246,10 @@ export function calcularBalance(datos, bancos, inventario) {
   const secciones = SECCIONES.map(sec => {
     const grupos = sec.grupos
       .map(g => (g.manual ? { ...g, feisen: 0, fc: 0, total: 0, detalle: [], vacio: false } : armarGrupo(g, `${sec.id}|${g.id}`, sec.signo)))
+      .map(g => {
+        const f = fcFuera.get(g.id)
+        return f ? { ...g, vacio: false, fcFuera: { total: redondear(f.total * sec.signo), cuentas: f.cuentas } } : g
+      })
       .filter(g => !g.vacio)
     // Los totales de la sección solo suman lo que sí viene de Odoo: el disponible y el
     // inventario se suman aparte, más abajo, porque no tienen columna por empresa.

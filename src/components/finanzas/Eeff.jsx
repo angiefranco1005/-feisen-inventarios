@@ -988,6 +988,13 @@ function FilaBalance({ grupo, abierto, onClick }) {
             <span className="truncate">{codigos && <span className="tabular-nums text-feisen-texto-2">{codigos} </span>}{grupo.nombre}</span>
           </span>
           {grupo.nota && <span className="block pl-5 text-xs text-feisen-texto-2">{grupo.nota}</span>}
+          {grupo.soloFeisen && (
+            <span className={`block pl-5 text-xs ${grupo.fcFuera ? 'text-amber-700' : 'text-feisen-texto-2'}`}>
+              {grupo.fcFuera
+                ? `solo Feisen · ${pesos(grupo.fcFuera.total)} de FC quedaron fuera (${grupo.fcFuera.cuentas.map(c => c.codigo).join(', ')})`
+                : 'solo Feisen · FC no tiene nada en estas cuentas'}
+            </span>
+          )}
         </span>
         <span className="hidden sm:contents"><CifraB v={grupo.feisen} /><CifraB v={grupo.fc} /></span>
         <CifraB v={grupo.total} fuerte />
