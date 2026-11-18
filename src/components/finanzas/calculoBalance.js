@@ -306,9 +306,13 @@ export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
   patrimonio.total = resultadoEjercicio == null ? null : redondear(resultadoEjercicio)
   patrimonio.sinResultado = resultadoEjercicio == null
 
-  // Transitorias: se dejan con el saldo tal como viene de Odoo
+  // Partidas por aclarar: las cuentas transitorias de Odoo (clase 9), con el saldo tal
+  // como viene. Se llamaban "Movimientos transitorios" hasta el 18/11/2026; Angie pidió
+  // el nombre nuevo —"quita lo de cuentas transitorias y reemplázalo por partidas por
+  // aclarar"— porque dice mejor lo que son: plata contabilizada que todavía no tiene
+  // cuenta definitiva. No es ni activo ni pasivo y no entra en ningún total.
   const transitorias = armarGrupo(
-    { id: 'transitorias', nombre: 'Movimientos transitorios' }, 'transitorias|transitorias', 1,
+    { id: 'transitorias', nombre: 'Partidas por aclarar' }, 'transitorias|transitorias', 1,
   )
 
   // Cuentas de socios: igual que las transitorias, con el signo tal como viene
