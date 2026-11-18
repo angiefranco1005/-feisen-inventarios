@@ -272,8 +272,10 @@ export default function Eeff() {
   }
 
   // Las casillas del inventario del balance: igual que las de los bancos, con concepto
-  // 'inv:<bodega|categoría>' y empresa 'total'. Vaciar la casilla borra el renglón y la
-  // categoría vuelve a mostrar lo que dice el ERP.
+  // 'inv:<id del renglón>' y empresa 'total'. Es el id del renglón y no la categoría del
+  // ERP, porque lo que Angie escribe es la línea que ve: "Almacén" es una sola casilla
+  // aunque por dentro sean doce categorías. Vaciarla borra el renglón de `eeff_manual` y
+  // la línea vuelve a mostrar lo que dice el ERP.
   async function guardarInventario(concepto, texto) {
     const limpio = String(texto).replace(/[^\d-]/g, '')
     const quitar = c => { const n = { ...c }; delete n[concepto]; return n }
@@ -1051,10 +1053,9 @@ function GrupoDisponible({ disponible, mes, onGuardar, abierto, onClick }) {
   )
 }
 
-// El grupo 14 del activo. No sale de Odoo: sale del inventario del ERP, agrupado en los
-// tres tipos que escogió Angie (materias primas, en proceso, terminado) y, dentro de
-// cada uno, por categoría. Cada categoría tiene casilla: lo que se escribe reemplaza lo
-// del ERP, porque el ERP es de hoy y el balance es a fin de mes.
+// Una línea del inventario. Puede ser un renglón de los que definió Angie (que junta
+// una o varias categorías del ERP) o una categoría suelta que no cayó en ninguno, que
+// se pinta en ámbar con `alerta`.
 function FilaRenglon({ r, mes, onGuardar }) {
   const escrito = r.escrito != null
   return (
