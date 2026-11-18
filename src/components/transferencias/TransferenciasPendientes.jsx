@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp } from '../shared/iconos'
+import { CheckCircle, XCircle, Clock, ArrowRight, ChevronDown, ChevronUp, Download } from '../shared/iconos'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
@@ -236,6 +237,13 @@ export default function TransferenciasPendientes() {
               ? 'Seguimiento de todo lo que has enviado a Mecanizados.'
               : 'Todo lo que Fundición envía a Mecanizados. Mecanizados las aprueba o rechaza al recibirlas.'}
         </p>
+        {/* Admin: acceso directo al informe de transferencias internas (11/18, Angie no lo encontraba) */}
+        {rolEfectivo === 'ADMIN' && (
+          <Link to="/reportes/transferencias-internas"
+            className="mt-3 inline-flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-semibold text-sm hover:opacity-90">
+            <Download size={16} /> Informe y Excel de transferencias internas
+          </Link>
+        )}
       </div>
 
       {/* Filtros */}
