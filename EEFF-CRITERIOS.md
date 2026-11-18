@@ -47,6 +47,26 @@ Las cuentas contables son **las mismas en las dos empresas** desde la homologaci
 
 ---
 
+## 1.2 La pantalla son dos informes, en dos pestañas
+
+Desde el **18/11/2026** la pantalla tiene arriba **dos pestañas de carpeta**: **"Estado de resultados"** y **"Balance general"**. Sigue siendo **una sola pantalla**, pero son **dos informes distintos**, no dos formas de ver el mismo. La pestaña abierta queda en blanco y se pega a la barra de controles de abajo, como una carpeta.
+
+Lo pidió Angie así: *"separa el informe de eeff el balance y el pyg, no sé si lo muestras como pestañas de carpetas o algo para que no se confundan con los mismos botones"*.
+
+**Antes** los tres botones —"Un mes", "Todo el año" y "Balance"— iban en la misma fila, así que el balance parecía una tercera forma de mirar el mismo informe. Además los controles de al lado cambiaban de significado según cuál se escogiera: el selector de "Mes" pasaba a decir "A fin de" y el filtro de centro de costo desaparecía.
+
+**Ahora cada pestaña trae solo sus propios controles**, así que nunca se ve un botón que no sea de ese informe:
+
+| Pestaña | Qué controles tiene |
+|---|---|
+| **Estado de resultados** | El período (**"Un mes"** / **"Todo el año"**), el selector de mes o de año, el **centro de costo** y, en la vista del año, el **formato de las cifras** (pesos, millones o % de ventas) |
+| **Balance general** | Solo **"A fin de"** con el selector de mes, y un aviso que recuerda que **los bancos los escribes tú** y que **no se divide por centro de costo** |
+
+- **El equipo recuerda las dos cosas por separado:** en qué pestaña estabas y, dentro del estado de resultados, qué período. Si te sales al balance y vuelves, encuentras el período que tenías.
+- **Ninguna cifra cambió con esto.** Ni el estado de resultados ni el balance mueven un solo número: lo único que cambió es cómo se llega a cada informe.
+
+---
+
 ## 2. Vistas y reparto por centro
 
 - **Consolidado** = la suma de los tres centros. No se escribe nada ahí.
@@ -62,15 +82,15 @@ La última columna, **"% ventas"**, es el análisis vertical: cada renglón como
 
 ## 2.2 La vista de todo el año
 
-Desde el **13/11/2026** la pantalla tiene tres modos: **"Un mes"**, el de siempre, **"Todo el año"** y **"Balance"** (el balance general, que se explica en la sección 2.3). Esta sección es de la vista del año.
+Dentro de la pestaña **Estado de resultados** hay dos períodos: **"Un mes"**, el de siempre, y **"Todo el año"**, que existe desde el **13/11/2026**. Esta sección es de la vista del año. (El **balance general** es la **otra pestaña**, y se explica en la sección 2.3.)
 
-- **Los dos modos hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con **octubre** (que viene de Odoo) y con **septiembre** (que viene del Excel), renglón por renglón.
-- **Los dos modos usan la misma fuente para cada mes**, la de la sección 1.1: hasta septiembre el Excel, desde octubre Odoo y el ERP. Esto se arregló el **13/11/2026**; antes el Excel estaba solo en la vista del año y septiembre no daba igual en los dos lados.
+- **Las dos vistas hacen exactamente la misma cuenta.** El cálculo vive en un solo sitio (`src/components/finanzas/calculoEeff.js`) y la vista del año lo que hace es correrlo mes por mes. Un mes da lo mismo mirándolo de un lado o del otro: se comprobó con **octubre** (que viene de Odoo) y con **septiembre** (que viene del Excel), renglón por renglón.
+- **Las dos vistas usan la misma fuente para cada mes**, la de la sección 1.1: hasta septiembre el Excel, desde octubre Odoo y el ERP. Esto se arregló el **13/11/2026**; antes el Excel estaba solo en la vista del año y septiembre no daba igual en los dos lados.
 - En la vista del año los **meses van en columnas** y al final hay una columna con el **total del año**.
 - Las cifras se pueden ver **en pesos (como arranca), en millones o como % de ventas** (el análisis vertical de siempre).
 - En pesos y en millones, la **columna del año** trae además, debajo de cada cifra, **su porcentaje sobre los ingresos netos del año**: es el mismo análisis vertical de la vista de un mes, aplicado al acumulado. Los meses se quedan solo con la cifra.
 - El **filtro de centro de costo funciona igual** que en la vista de un mes.
-- **En la vista del año no se escriben valores a mano.** Las casillas solo existen en la vista de un mes; si hay que escribir o corregir algo, se cambia de modo.
+- **En la vista del año no se escriben valores a mano.** Las casillas solo existen en la vista de un mes; si hay que escribir o corregir algo, se vuelve a "Un mes".
 
 ### Hay que mirar si algún mes quedó cojo antes de reportar el año
 
@@ -82,7 +102,7 @@ La pantalla ya avisa: los meses a los que les falta la mano de obra van **marcad
 
 ## 2.3 El balance general
 
-Desde el **13/11/2026** la pantalla tiene un **tercer modo**, al lado de "Un mes" y "Todo el año": **Balance**. El cálculo vive aparte, en `src/components/finanzas/calculoBalance.js`, y **no comparte nada con el estado de resultados**: tiene su propio dato y su propia cuenta, así que tocar uno no mueve ni un número del otro.
+El **balance general** es la **segunda pestaña** de la pantalla. Existe desde el **13/11/2026**; hasta el 18/11/2026 era un tercer botón al lado de "Un mes" y "Todo el año", y desde ese día tiene pestaña propia con sus propios controles (ver la sección 1.2). El cálculo vive aparte, en `src/components/finanzas/calculoBalance.js`, y **no comparte nada con el estado de resultados**: tiene su propio dato y su propia cuenta, así que tocar uno no mueve ni un número del otro.
 
 > **Esta sección cambió el 17/11/2026 y otra vez el 18/11/2026, y ninguno de los dos cambios se verificó contra datos reales de Odoo antes de publicarlo.** Angie pidió publicarlos sin verificar, así que queda escrito aquí: **la primera vez que abras el balance, revísalo con calma** —escoge un mes que conozcas y mira si los saldos tienen sentido— y avisa si algo no cuadra. El resto del documento sí está contrastado contra Odoo; esto todavía no.
 
@@ -90,7 +110,7 @@ Desde el **13/11/2026** la pantalla tiene un **tercer modo**, al lado de "Un mes
 
 ### Ya no es "a hoy": es a fin del mes que escojas
 
-Hasta el 17/11/2026 el balance era "a hoy" y no tenía mes. **Ahora tiene selector de mes**, el mismo que el modo "Un mes", y la etiqueta de arriba dice **"A fin de"**.
+Hasta el 17/11/2026 el balance era "a hoy" y no tenía mes. **Ahora tiene selector de mes**, el mismo de la vista de un mes del estado de resultados, y la etiqueta de arriba dice **"A fin de"**.
 
 - Lo que muestra son los saldos **cortados al último día del mes elegido**, acumulados desde que arrancó cada contabilidad. Así es como debe leerse un balance: no es lo que pasó en el mes, es cómo quedaron las cosas al cerrar ese mes.
 - **Por qué se cortó a fin de mes:** el disponible lo llena Angie con los extractos del banco, y los extractos son mensuales. Mezclar un extracto de octubre con la cartera de hoy daría un balance falso, así que **todo el balance se corta a la misma fecha**.
@@ -166,7 +186,7 @@ Decisión de Angie del **13/11/2026**, y **no cambió** ni con lo del 17/11 ni c
 
 Conviene que estén escritas, porque el Excel de Angie sí las tenía:
 
-- **No se divide por centro de costo.** Un balance no se reparte por centro —no tiene sentido preguntarse cuánto banco o cuánta cartera le toca a Fundición—, así que en este modo el **filtro de centro se esconde**. Esto sigue igual que el 13/11.
+- **No se divide por centro de costo.** Un balance no se reparte por centro —no tiene sentido preguntarse cuánto banco o cuánta cartera le toca a Fundición—, así que en la pestaña **Balance general** el filtro de centro **ni siquiera aparece**. Esto sigue igual que el 13/11.
 - **No separa corriente de no corriente.** Odoo no trae esa división y deducirla por el número de cuenta **sería adivinar**. Si algún día se quiere, hay que decidirlo **cuenta por cuenta**.
 
 Y sigue siendo un **balance unificado Feisen + FC**: las dos empresas en el mismo informe, cada renglón con su columna y el total.
@@ -387,7 +407,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
 - La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas. **Desde el 13/11/2026 ya no aparece en la pantalla**: el valor sigue guardado y sigue sumando, pero para cambiarlo o borrarlo **hay que pedirlo**.
-- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cuatro saldos del disponible** (Bancolombia, Davivienda, Efectivo y Fiducias), que se escriben en el modo **Balance**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
+- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cuatro saldos del disponible** (Bancolombia, Davivienda, Efectivo y Fiducias), que se escriben en la pestaña **Balance general**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
 - Esas cuatro casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
 - Todo queda guardado en el ERP, mes por mes.
 
@@ -485,5 +505,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | Sin cambios: el balance sigue siendo **a fin del mes escogido**, **unificado Feisen + FC**, **sin centro de costo**, con la **maquinaria al valor en libros**, y las casillas del disponible siguen siendo el **total de las dos empresas juntas** (por eso las columnas de Feisen y FC salen con "—" en ese grupo) |
 | 18/11 | **Se quitó la casilla de "Caja menor" del disponible.** Palabras de Angie: *"elimina en el balance la casilla de 'caja menor', esa no la uso"*. El disponible queda con **cuatro casillas**: Bancolombia, Davivienda, Efectivo y Fiducias. Si algún mes ya tenía escrita una cifra en caja menor, **ese valor deja de verse y deja de sumar al disponible** (el renglón sigue guardado en el ERP, pero la pantalla no lo muestra) |
 | 18/11 | **Este cambio tampoco se verificó contra datos reales de Odoo** antes de publicarlo |
+| 18/11 | **El balance y el estado de resultados se separaron en dos pestañas de carpeta**: **"Estado de resultados"** y **"Balance general"**. Lo pidió Angie: *"separa el informe de eeff el balance y el pyg... para que no se confundan con los mismos botones"*. Antes los tres botones ("Un mes", "Todo el año" y "Balance") iban en la misma fila y el balance parecía una tercera forma de ver el mismo informe. **Cada pestaña trae ahora solo sus propios controles**: el estado de resultados lleva el período, el mes o el año, el centro de costo y el formato de las cifras; el balance, solo "A fin de" con su mes y el aviso de que los bancos los escribe ella. Ver la sección 1.2 |
+| 18/11 | **Ninguna cifra cambió con las pestañas**: es solo cómo se llega a cada informe. Por dentro, lo que antes se recordaba en un solo dato ahora son dos —**qué informe** y, dentro del estado de resultados, **qué período**—, y el equipo los recuerda por separado: al salir al balance y volver se encuentra el período que se tenía. La preferencia vieja se sigue leyendo una vez para que a nadie se le pierda |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
