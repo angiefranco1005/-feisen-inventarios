@@ -47,7 +47,7 @@ export const TIPOS_INVENTARIO = [
   },
   {
     id: 'proceso', nombre: 'Producto en proceso',
-    nota: 'lo que ya se fundió y todavía le falta una etapa',
+    nota: 'lo que ya se trabajó y todavía le falta una etapa',
   },
   {
     id: 'terminado', nombre: 'Producto terminado y mercancía',
@@ -96,19 +96,24 @@ export const RENGLONES = [
   },
 
   // ── Producto en proceso ──
-  // El hierro ya fundido que todavía no entró a mecanizar ni a ensamblar. Ojo: lo que
-  // agrupa es **dónde está la existencia**, no de qué bodega es el artículo.
+  // Angie, 18/11/2026: "Piezas y partes de máquina · Piezas cortadas en plasma ·
+  // Material mecanizado (este sí está en el erp), los otros 2 es lo que yo tengo que
+  // sacar". Los dos primeros no existen en el ERP: son conteos suyos.
   {
-    id: 'fundido', tipo: 'proceso', nombre: 'Material fundido de hierro',
-    nota: 'el que está en Fundición y el que ya pasó a Armado y soldadura',
-    claves: ['FUNDICIÓN|MATERIAL FUNDIDO HIERRO', 'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO'],
+    id: 'piezas_maquina', tipo: 'proceso', nombre: 'Piezas y partes de máquina',
+    aMano: true, nota: 'no está en el ERP: lo sacas tú',
+  },
+  {
+    id: 'piezas_plasma', tipo: 'proceso', nombre: 'Piezas cortadas en plasma',
+    aMano: true, nota: 'no está en el ERP: lo sacas tú',
+  },
+  {
+    id: 'material_mecanizado', tipo: 'proceso', nombre: 'Material mecanizado',
+    claves: ['MECANIZADOS|PRODUCTO MECANIZADO'],
   },
 
   // ── Producto terminado y mercancía ──
-  {
-    id: 'mecanizado', tipo: 'terminado', nombre: 'Producto mecanizado',
-    claves: ['MECANIZADOS|PRODUCTO MECANIZADO'],
-  },
+  // Todavía sin definir con Angie: por ahora queda lo que no cabía en los otros tipos.
   {
     id: 'motores', tipo: 'terminado', nombre: 'Motores', bodegas: ['MOTORES'],
     nota: 'Motores Constru y Equipmaster Store',
