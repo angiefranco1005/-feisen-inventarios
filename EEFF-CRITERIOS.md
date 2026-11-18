@@ -5,7 +5,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 
 - Pantalla: **Finanzas › EEFF** (`src/components/finanzas/Eeff.jsx`). Solo la ve ADMIN.
 - Empresas: **Feisen** (Construequipos Franco S.A.S.) y **FC**. Cada renglón muestra las dos y el total.
-- Última actualización: **17 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
+- Última actualización: **18 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
 
 ---
 
@@ -15,8 +15,8 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 |---|---|---|
 | **Odoo Feisen y Odoo FC** | Estado de resultados del mes, por cuenta y centro | Función `finanzas-odoo`, acción `pyg`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Facturas de compra del mes, con proveedor, cuenta y centro | Función `finanzas-odoo`, acción `resultado`. **Solo lectura** |
-| **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general** | Función `finanzas-balance`. **Solo lectura** |
-| **A mano** | El **disponible** del balance: los cinco saldos de banco de cada mes | Tabla `eeff_manual`, concepto `banco:…` |
+| **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general**. **Las cuentas de bancos (11xx) no se usan**: ni suman ni se muestran | Función `finanzas-balance`. **Solo lectura** |
+| **A mano** | El **disponible** del balance: los cinco saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
 | **A mano** | Lo que todavía no está en ningún sistema | Tabla `eeff_manual` |
@@ -84,9 +84,9 @@ La pantalla ya avisa: los meses a los que les falta la mano de obra van **marcad
 
 Desde el **13/11/2026** la pantalla tiene un **tercer modo**, al lado de "Un mes" y "Todo el año": **Balance**. El cálculo vive aparte, en `src/components/finanzas/calculoBalance.js`, y **no comparte nada con el estado de resultados**: tiene su propio dato y su propia cuenta, así que tocar uno no mueve ni un número del otro.
 
-> **Esta sección cambió el 17/11/2026 y ese cambio NO se verificó contra datos reales de Odoo antes de publicarlo.** Angie pidió publicarlo sin verificar, así que queda escrito aquí: **la primera vez que abras el balance, revísalo con calma** —escoge un mes que conozcas y mira si los saldos tienen sentido— y avisa si algo no cuadra. El resto del documento sí está contrastado contra Odoo; esto todavía no.
+> **Esta sección cambió el 17/11/2026 y otra vez el 18/11/2026, y ninguno de los dos cambios se verificó contra datos reales de Odoo antes de publicarlo.** Angie pidió publicarlos sin verificar, así que queda escrito aquí: **la primera vez que abras el balance, revísalo con calma** —escoge un mes que conozcas y mira si los saldos tienen sentido— y avisa si algo no cuadra. El resto del documento sí está contrastado contra Odoo; esto todavía no.
 
-**De dónde sale.** De los **saldos acumulados de Odoo de las dos empresas**, Feisen y FC, menos el disponible, que lo escribe Angie a mano. Los saldos los trae la función **`finanzas-balance`** (`supabase/functions/finanzas-balance/index.ts`), una llamada por empresa, **solo lectura**. De cada cuenta se usa **solo el saldo**.
+**De dónde sale.** De los **saldos acumulados de Odoo de las dos empresas**, Feisen y FC, menos el disponible, que lo escribe Angie a mano. Los saldos los trae la función **`finanzas-balance`** (`supabase/functions/finanzas-balance/index.ts`), una llamada por empresa, **solo lectura**. De cada cuenta se usa **solo el saldo**, y **las cuentas de bancos (11xx) se descartan de entrada**: no entran a ninguna suma y no se muestran en ninguna parte.
 
 ### Ya no es "a hoy": es a fin del mes que escojas
 
@@ -101,7 +101,7 @@ Hasta el 17/11/2026 el balance era "a hoy" y no tenía mes. **Ahora tiene select
 
 ### El disponible (grupo 11) lo escribe Angie, no sale de Odoo
 
-Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo. Son **cinco casillas que Angie llena a mano** con los extractos bancarios: **Bancolombia, Davivienda, Efectivo, Fiducias y Caja menor**. Una serie de casillas **por cada mes**.
+Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo, y desde el **18/11/2026** las cuentas de bancos de Odoo tampoco se muestran como referencia. El grupo 11 son **cinco casillas que Angie llena a mano** con los extractos bancarios, y nada más: **Bancolombia, Davivienda, Efectivo, Fiducias y Caja menor**. Una serie de casillas **por cada mes**.
 
 Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, no con lo que hay en los odoo, porque casi nunca es verídico"*.
 
@@ -111,43 +111,46 @@ Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, 
 
 **Ojo con esto, que la primera vez se ve raro:** esas cinco casillas son **el total de las dos empresas juntas**. Angie no separa los extractos entre Feisen y FC, así que **en ese grupo las columnas de Feisen y de FC salen con "—" y la única cifra está en el total**. No es un error ni un dato que falte: es que ese renglón no está dividido por empresa. El total del activo lo dice en su nota: "incluye el disponible que escribiste, que no se reparte entre Feisen y FC".
 
-### Lo que dice Odoo de bancos queda como renglón informativo
+### Lo que dice Odoo de bancos ya no se muestra en ninguna parte
 
-Las cuentas **11xx de Odoo** (lo que la contabilidad tiene registrado en bancos) **no desaparecieron**: quedan **dentro del mismo grupo 11**, en un renglón plegado que se abre para ver el detalle cuenta por cuenta. Se llama **"Lo que dice la contabilidad en Odoo"** y va en gris claro, porque **no entra en ninguna suma del balance**: está solo para comparar.
+El 17/11/2026 las cuentas **11xx de Odoo** todavía quedaban a la vista: un renglón plegable dentro del mismo grupo 11, llamado **"Lo que dice la contabilidad en Odoo"**, en gris y sin sumar, solo para comparar.
 
-Ahí siguen las **advertencias en ámbar sobre el banco de FC**, que es la cuenta donde caen los movimientos sin conciliar y no es plata real.
+**Desde el 18/11/2026 ese renglón ya no existe.** Las cuentas 11xx **ni se leen ni se muestran**. Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El grupo 11 Disponible son **únicamente las cinco casillas que ella escribe**, y en el balance no queda rastro de lo que la contabilidad tiene registrado en bancos.
 
-### La fila de comprobación cambió de significado: "Plata mal registrada en bancos"
+Al pie del balance la pantalla dice cuántas cuentas de Odoo se leyeron. **Ese conteo ya no incluye las 11xx descartadas**, porque si no diría que se leyeron más cuentas de las que se ven.
 
-Antes, al pie del balance había una comprobación: **activo + transitorias − pasivo − patrimonio**, que **siempre daba $0** porque todo salía de Odoo y eso era lo mismo que sumar el saldo de todas las cuentas. Ya no sirve para eso, porque el disponible ya no viene de Odoo.
+### Ya no hay fila de comprobación al pie, y desapareció "Plata mal registrada en bancos"
 
-En su lugar hay un renglón que se llama **"Plata mal registrada en bancos"** y que es:
+Esto cambió dos veces en dos días, y conviene saber de dónde viene:
 
-| | |
-|---|---|
-| Lo que dicen tus extractos | el disponible que escribió Angie |
-| (−) Lo que dice Odoo en bancos | el saldo de las cuentas 11xx |
-| **= Plata mal registrada en bancos** | **la diferencia** |
+- **Hasta el 17/11/2026** al pie del balance había una comprobación —**activo + transitorias − pasivo − patrimonio**— que **siempre daba $0**, porque todo salía de Odoo y eso era lo mismo que sumar el saldo de todas las cuentas. Dejó de servir cuando el disponible pasó a escribirse a mano.
+- **El 17/11/2026** se reemplazó por una fila llamada **"Plata mal registrada en bancos"**: el disponible escrito **menos** el saldo de las cuentas 11xx de Odoo. Medía cuánto se había equivocado la contabilidad registrando los bancos.
+- **El 18/11/2026 esa fila desapareció.** Al sacar las 11xx del balance se fue el dato con el que se restaba: **sin lo que dice Odoo no hay resta que hacer**. Hoy el balance **no tiene ninguna fila de comprobación al pie**.
 
-- **No es un error del informe, y así se presenta: en ámbar, como trabajo pendiente para contabilidad.** El informe usa los extractos, que son el dato bueno. La diferencia mide cuánto se equivocó la contabilidad registrando los bancos.
-- Si da **positivo**, en los extractos hay más plata de la que Odoo tiene registrada: plata que existe y Odoo no ve. Si da **negativo**, Odoo registró más de la que hay: plata que la contabilidad da por cierta y no está.
-- **Si Angie todavía no ha escrito nada, la cifra no se muestra.** No hay con qué comparar, y la pantalla lo dice: "falta llenar los bancos para poder compararla".
+**Si algún día se quiere esa comparación, hay que hacerla contra Odoo directamente, fuera de esta pantalla.** El balance ya no la calcula ni la muestra.
 
-**Lo que sí se sigue usando:** que la **suma de todas las cuentas de Odoo dé cero** sigue siendo cierto y sigue comprobándose, pero ya no como fila al pie, sino para el **aviso de arriba** que dice que **cada contabilidad cuadra consigo misma**.
+**Lo que sí se sigue usando:** que la **suma de todas las cuentas de Odoo dé cero**. Esa suma **sí sigue contando las cuentas 11xx** —si no las contara no daría cero— y es la que respalda el **aviso de arriba** que dice que **cada contabilidad cuadra consigo misma**.
 
-### Tres cosas que hay que decir sin suavizar
+### Dos cosas que hay que decir sin suavizar
 
-Angie decidió ver las dos empresas juntas **sabiendo estas tres cosas**, y por eso van arriba del balance y no al pie:
+Angie decidió ver las dos empresas juntas **sabiendo estas dos cosas**, y por eso van arriba del balance y no al pie:
 
-1. **El "banco" de FC dice $1.567.157.555 y no es plata real.** Es la cuenta donde caen los movimientos que todavía no se concilian, y es casi todo el activo de FC. Por eso los bancos de FC están excluidos de la pantalla de **Flujo de caja**, y **por eso desde el 17/11/2026 el disponible del balance tampoco se lee de Odoo**: se escribe con los extractos. El renglón informativo de Odoo lo sigue marcando en **ámbar**.
-2. **FC tiene $575.445.392 en "Movimientos transitorios":** plata ya contabilizada que todavía no tiene cuenta definitiva. No es ni activo ni pasivo, así que va en **su propio bloque**, al final.
-3. **FC no tiene patrimonio registrado ni cierre de años anteriores**, así que su "resultado del periodo" (unos **$2.046 millones**) es de **varios años acumulados**, no de 2026. El de **Feisen sí es solo de 2026**, porque su contabilidad en Odoo empieza en marzo.
+1. **FC tiene $575.445.392 en "Movimientos transitorios":** plata ya contabilizada que todavía no tiene cuenta definitiva. No es ni activo ni pasivo, así que va en **su propio bloque**, al final.
+2. **FC no tiene patrimonio registrado ni cierre de años anteriores**, así que su "resultado del periodo" (unos **$2.046 millones**) es de **varios años acumulados**, no de 2026. El de **Feisen sí es solo de 2026**, porque su contabilidad en Odoo empieza en marzo.
 
 **La conclusión:** **las dos contabilidades cuadran consigo mismas; el problema no es un descuadre sino dónde está ubicada la plata.**
 
+### El aviso del banco de FC se quitó del balance, pero el problema sigue ahí
+
+Hasta el 17/11/2026 arriba del balance había un tercer aviso: **"El banco de FC dice $1.567.157.555 y no es plata real"**, con su porcentaje sobre los activos de FC (el **97 %**). **Se quitó el 18/11/2026**, y por una razón sencilla: esa cifra salía de las cuentas 11xx de Odoo, y esas cuentas ya no se leen. No se puede avisar de un número que el balance ya no tiene.
+
+**Esto hay que decirlo sin suavizarlo: el hecho de fondo no desapareció, solo dejó de verse en el balance.** FC sigue teniendo esa plata sin conciliar en su contabilidad, sigue estando **excluida de la pantalla de Flujo de caja** y sigue siendo **trabajo pendiente para contabilidad**. Lo único que cambió es que **el balance ya no es el sitio donde se ve**.
+
+Los otros avisos de **"Antes de leer estas cifras" siguen igual**: los movimientos transitorios de FC, que FC no tiene patrimonio registrado y que cada contabilidad cuadra consigo misma.
+
 ### La maquinaria va al valor en libros
 
-Decisión de Angie del **13/11/2026**, y **no cambió** con lo del 17/11: la propiedad, planta y equipo se muestra **neta**, al valor en libros, con la depreciación tal como la trae Odoo.
+Decisión de Angie del **13/11/2026**, y **no cambió** ni con lo del 17/11 ni con lo del 18/11: la propiedad, planta y equipo se muestra **neta**, al valor en libros, con la depreciación tal como la trae Odoo.
 
 | | Valor |
 |---|---|
@@ -385,6 +388,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
 - La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas. **Desde el 13/11/2026 ya no aparece en la pantalla**: el valor sigue guardado y sigue sumando, pero para cambiarlo o borrarlo **hay que pedirlo**.
 - **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cinco saldos del disponible** (Bancolombia, Davivienda, Efectivo, Fiducias y Caja menor), que se escriben en el modo **Balance**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
+- Esas cinco casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -395,8 +399,9 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro), que se borran desde la pantalla, y la de **nómina administrativa de FC** (una sola para toda la empresa), que **ya no está en la pantalla y hay que pedir que la borren**.
 - **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado. Esto solo pasa de octubre en adelante: los meses del Excel ya están cerrados y no se mueven.
 - **No hay que "arreglar" los meses viejos leyéndolos de Odoo.** Antes de octubre Odoo está incompleto y daría cifras que parecen buenas y no lo son. Si alguna vez hay que cambiar un mes de enero a septiembre, se cambia el Excel y se vuelve a generar `eeffHistorico.js`.
-- **El balance hay que revisarlo la primera vez.** El cambio del 17/11/2026 se publicó **sin verificarlo contra Odoo**. Y si algún mes se ve raro, lo primero a mirar son los **saldos a fin de mes**, que son una consulta nueva.
-- **Sin los bancos escritos, el balance queda incompleto.** Mientras no se copien los extractos del mes, el disponible sale en "—", el total del activo va sin él y no se puede calcular la plata mal registrada en bancos.
+- **El balance hay que revisarlo la primera vez.** Los cambios del **17 y del 18/11/2026** se publicaron **sin verificarlos contra Odoo**. Y si algún mes se ve raro, lo primero a mirar son los **saldos a fin de mes**, que son una consulta nueva.
+- **Sin los bancos escritos, el balance queda incompleto.** Mientras no se copien los extractos del mes, el disponible sale en "—" y el total del activo va sin él. Y como las cuentas de bancos de Odoo ya no se leen, **no hay ningún otro sitio del balance de donde sacar esa cifra**.
+- **El banco sin conciliar de FC sigue siendo trabajo pendiente para contabilidad.** Desde el 18/11/2026 ya no se ve en el balance —las cuentas 11xx de Odoo salieron de la pantalla—, pero la plata sin conciliar sigue en su contabilidad y sigue excluida del **Flujo de caja**.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
 ---
@@ -420,9 +425,10 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | Gastos no operacionales (Feisen) | octubre | Verificado contra Odoo: intereses de impuestos $5.374.785 (530507 más el grupo 5395, con un ajuste al peso de −$215) · 4x1000 $2.894.891 · intereses bancarios $8.342.532 · comisiones financieras $1.091.393 (cuota de manejo $62.040 y comisiones $1.029.353) = **$17.703.601** |
 | Las dos vistas dan lo mismo | septiembre | **Exacto**: septiembre da igual en la vista de un mes y en la del año, porque las dos leen el Excel. Ingresos netos **$827.138.921** · nómina administrativa **$62.456.739** · otros gastos operacionales **$13.345.564** · utilidad neta **$98,4 M**. Antes del 13/11 la vista de un mes leía Odoo y mostraba $795.901.155 de ingresos netos |
 | Otros gastos operacionales | octubre | Feisen **$5.831.384** + FC **$6.900.241** = **$12.731.625**. Es el renglón de cierre de los grupos 51 y 52: con él, el estado de resultados de octubre **no deja ninguna cuenta por fuera, salvo la 736000** (depreciación, $1.151.026), que **Angie decidió el 13/11/2026 dejar fuera del informe** |
-| Balance: que cada contabilidad cuadre consigo misma | 13/11 | **Exacto**: la suma del saldo de **todas** las cuentas da **$0** en las dos empresas. Desde el 17/11 esto ya no es la fila al pie del balance, sino el aviso de arriba: las dos contabilidades cuadran consigo mismas; el problema no es un descuadre sino dónde está ubicada la plata |
-| Balance: el corte a fin de mes y el disponible a mano | — | **Sin verificar.** El cambio del 17/11/2026 (selector de mes, saldos cortados al último día, disponible escrito a mano y el renglón "Plata mal registrada en bancos") se publicó **sin contrastarlo contra Odoo**, a pedido de Angie. Queda pendiente revisarlo la primera vez que se abra |
-| Balance: banco de FC | 13/11 | **$1.567.157.555**, el **97 % de los activos de FC**, y no es plata real: es donde caen los movimientos sin conciliar. Excluido en Flujo de caja. Desde el 17/11 tampoco entra al activo del balance: queda como renglón informativo dentro del grupo 11, marcado en ámbar, y el disponible pasa a ser el que Angie escribe con los extractos |
+| Balance: que cada contabilidad cuadre consigo misma | 13/11 | **Exacto**: la suma del saldo de **todas** las cuentas da **$0** en las dos empresas. Desde el 17/11 esto ya no es la fila al pie del balance, sino el aviso de arriba: las dos contabilidades cuadran consigo mismas; el problema no es un descuadre sino dónde está ubicada la plata. Desde el 18/11 es **la única comprobación que queda**, y esa suma **sigue contando las cuentas 11xx** aunque el balance ya no las muestre: si no, no daría cero |
+| Balance: el corte a fin de mes y el disponible a mano | — | **Sin verificar.** El cambio del 17/11/2026 (selector de mes, saldos cortados al último día y disponible escrito a mano) se publicó **sin contrastarlo contra Odoo**, a pedido de Angie. Queda pendiente revisarlo la primera vez que se abra |
+| Balance: sacar las cuentas 11xx de Odoo | — | **Sin verificar.** El cambio del 18/11/2026 (las 11xx fuera del balance, sin renglón informativo, sin la fila "Plata mal registrada en bancos" y sin el aviso del banco de FC) tampoco se contrastó contra Odoo antes de publicarlo |
+| Balance: banco de FC | 13/11 | **$1.567.157.555**, el **97 % de los activos de FC**, y no es plata real: es donde caen los movimientos sin conciliar. Excluido en Flujo de caja. El 17/11 dejó de entrar al activo y quedó como renglón informativo; **desde el 18/11 ya no se muestra en el balance**, junto con el aviso de arriba que daba esa cifra. **El problema sigue ahí**: la plata sin conciliar sigue en la contabilidad de FC y sigue siendo trabajo pendiente, solo que el balance ya no es donde se ve |
 | Balance: movimientos transitorios de FC | 13/11 | **$575.445.392** de plata contabilizada sin cuenta definitiva. Va en su propio bloque |
 | Balance: resultado del periodo de FC | 13/11 | Unos **$2.046 millones**, pero son de **varios años acumulados**: FC no tiene patrimonio registrado ni cierre de años anteriores. El de Feisen sí es solo de 2026 |
 | Balance: maquinaria | 13/11 | Verificado contra Odoo: costo **$1.536.355.226** − depreciación acumulada **$757.133.219** = **$779.222.007** de valor en libros. Su Excel la tenía en $1.063.540.000 sin depreciar: **$284 millones** de diferencia |
@@ -472,5 +478,11 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 17/11 | **La fila de comprobación cambió de significado.** Antes era *activo + transitorias − pasivo − patrimonio*, que siempre daba $0 porque todo salía de Odoo. Ahora es **disponible escrito a mano − disponible de Odoo** y se llama **"Plata mal registrada en bancos"**. Se presenta en ámbar, como trabajo pendiente para contabilidad, **no como un error del informe**; si no hay nada escrito, la cifra no se muestra. Que la suma de todas las cuentas de Odoo dé cero se sigue usando, pero solo para el aviso de arriba de que cada contabilidad cuadra consigo misma |
 | 17/11 | Sin cambios: el balance **sigue siendo unificado Feisen + FC**, **no se divide por centro de costo** (un balance por centro no tiene sentido) y la **depreciación y la maquinaria quedan al valor en libros** de Odoo |
 | 17/11 | **Este cambio se publicó sin verificarlo contra datos reales de Odoo**, a pedido de Angie. Queda anotado para que lo revise la primera vez que abra el balance. Si algún mes se ve raro, lo primero a mirar son los **saldos a fin de mes**, que son una consulta nueva |
+| 18/11 | **Las cuentas 11xx de Odoo salieron del balance por completo**: ya no se leen ni se muestran, y con ellas se fue el renglón informativo "Lo que dice la contabilidad en Odoo". Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El **grupo 11 Disponible son únicamente las cinco casillas que ella escribe** |
+| 18/11 | **Desapareció la fila "Plata mal registrada en bancos"** (disponible escrito − disponible de Odoo): sin el dato de Odoo no hay resta que hacer. El balance **ya no tiene fila de comprobación al pie**. Si algún día se quiere esa comparación, toca hacerla **contra Odoo directamente**, fuera de esta pantalla |
+| 18/11 | **Se quitó el aviso de arriba sobre el banco de FC** ($1.567.157.555 y su porcentaje de los activos de FC), porque mostraba justamente esa cifra de Odoo. **El hecho de fondo no desapareció, solo dejó de verse en el balance**: FC sigue teniendo esa plata sin conciliar, sigue excluida del Flujo de caja y sigue siendo trabajo pendiente para contabilidad. Los otros avisos de "Antes de leer estas cifras" siguen igual: los movimientos transitorios de FC, que FC no tiene patrimonio registrado y que cada contabilidad cuadra consigo misma |
+| 18/11 | El **conteo de cuentas del pie del balance ya no cuenta las 11xx descartadas**. La **suma de todas las cuentas de Odoo sí las sigue contando**, porque si no, no daría cero: es la que respalda el aviso de que cada contabilidad cuadra consigo misma |
+| 18/11 | Sin cambios: el balance sigue siendo **a fin del mes escogido**, **unificado Feisen + FC**, **sin centro de costo**, con la **maquinaria al valor en libros**, y las cinco casillas siguen siendo el **total de las dos empresas juntas** (por eso las columnas de Feisen y FC salen con "—" en ese grupo) |
+| 18/11 | **Este cambio tampoco se verificó contra datos reales de Odoo** antes de publicarlo |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
