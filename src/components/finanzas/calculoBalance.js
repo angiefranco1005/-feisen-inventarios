@@ -56,6 +56,9 @@ export const CUENTAS_DISPONIBLE = [
   { id: 'davivienda', nombre: 'Davivienda' },
   { id: 'efectivo', nombre: 'Efectivo' },
   { id: 'fiducias', nombre: 'Fiducias' },
+  // Entra el 18/11/2026, en el puesto que dejó libre la caja menor: "añade una cuenta
+  // en el efectivo donde estaba caja menor x tarjeta prepago"
+  { id: 'tarjeta_prepago', nombre: 'Tarjeta prepago' },
 ]
 export const conceptoBanco = id => `banco:${id}`
 export const esConceptoBanco = concepto => String(concepto || '').startsWith('banco:')
