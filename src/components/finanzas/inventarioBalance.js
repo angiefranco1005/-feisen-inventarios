@@ -21,10 +21,14 @@
 //
 // DOS ADVERTENCIAS QUE IMPORTAN MÁS QUE EL CÓDIGO:
 //
-//  1. **El valor del ERP es de hoy, no de fin de mes.** La tabla `stock` solo guarda
-//     `cantidad_actual`: no hay historia. Y no se puede reconstruir hacia atrás con
-//     `movimientos` porque hay unos 750 sin fecha. Por eso cada renglón tiene una
-//     casilla para escribir el valor del corte a mano: lo escrito **reemplaza** al ERP.
+//  1. **El valor del ERP viene cortado a fin de mes**, con la misma regla que la
+//     pantalla Reportes › Corte de inventario: se parte del stock de hoy y se deshacen
+//     los movimientos posteriores. Yo había dado por hecho que no se podía reconstruir
+//     hacia atrás —la tabla `stock` solo guarda `cantidad_actual` y hay ~750 movimientos
+//     sin fecha— y Angie me corrigió el 18/11/2026: "te vas a inventarios, corte de
+//     inventarios, y debería sacarte la información a la fecha de lo que había". Los
+//     movimientos sin fecha no estorban porque se usa `created_at` como respaldo. La
+//     casilla de cada renglón sigue existiendo, para corregir a mano lo que haga falta.
 //
 //  2. **El valor del ERP está incompleto, y no por donde se espera.** Alrededor de un
 //     tercio de los artículos con existencias no tienen precio de costo y entran

@@ -836,15 +836,21 @@ function useBalance(mes, activo) {
 // Misma tabla y mismo patrón que las casillas del P&G: `eeff_manual`, empresa 'total',
 // concepto 'banco:<cuenta>'. Una casilla vacía no tiene renglón en la tabla.
 // El inventario del ERP, por bodega y categoría, más lo que Angie haya escrito encima.
-// Son dos lecturas distintas: el ERP (que es de hoy, no del cierre del mes) y las
-// casillas de `eeff_manual`, que sí son del mes.
+// El ERP se pide **cortado al último día del mes**, con la misma regla que usa la
+// pantalla Reportes › Corte de inventario: se parte del stock de hoy y se deshacen los
+// movimientos posteriores. Antes se pedía el saldo de hoy y se dejaba la advertencia de
+// que no era el del cierre; eso estaba mal y Angie lo corrigió el 18/11/2026 ("te vas a
+// inventarios, corte de inventarios, y debería sacarte la información a la fecha").
 function useInventario(mes, activo) {
   const [datos, setDatos] = useState({ filas: null, manual: {} })
   const [estado, setEstado] = useState({ cargando: true, error: '', listo: false })
   const cargar = useCallback(async () => {
     setEstado(e => ({ ...e, cargando: true, error: '' }))
+    // Último día del mes: new Date(año, mes, 0) da el día 0 del siguiente, que es ese
+    const [a, m] = mes.split('-').map(Number)
+    const hasta = `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}`
     const [inv, man] = await Promise.all([
-      supabase.rpc('finanzas_inventario'),
+      supabase.rpc('finanzas_inventario', { hasta }),
       supabase.from('eeff_manual').select('concepto, valor')
         .eq('mes', mes).eq('empresa', 'total').like('concepto', 'inv:%'),
     ])
@@ -1101,7 +1107,7 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
           <span className="block pl-5 text-xs text-feisen-texto-2">
             {cargando ? 'Leyendo el inventario del ERP…'
               : error ? `No se pudo leer el inventario: ${error}`
-              : `del ERP, por tipo · la contabilidad dice ${pesos(odoo)}`}
+              : `del ERP a fin de mes, por tipo · la contabilidad dice ${pesos(odoo)}`}
           </span>
         </span>
         <span className="hidden sm:contents"><CifraB v={null} tenue /><CifraB v={null} tenue /></span>
@@ -1141,11 +1147,13 @@ function GrupoInventario({ inventario, odoo, mes, cargando, error, abierto, onCl
         )}
 
         <p className="mx-4 mb-3 mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
-          <strong>Dos cosas antes de fiarte de estas cifras.</strong> El valor que trae el ERP es
-          el de <strong>hoy</strong>, no el del cierre del mes: la tabla de existencias no guarda
-          historia y no se puede reconstruir hacia atrás. Y de {inv.items.toLocaleString('es-CO')} artículos
-          con existencias, <strong>{inv.sinCosto.toLocaleString('es-CO')} no tienen precio de costo</strong> y
-          entran valiendo cero. Por eso cada renglón tiene casilla: lo que escribas reemplaza lo del ERP.
+          <strong>Antes de fiarte de estas cifras.</strong> El valor del ERP viene{' '}
+          <strong>cortado al último día del mes</strong>, con la misma regla que Reportes › Corte de
+          inventario: se parte del stock de hoy y se deshacen los movimientos posteriores. Pero de{' '}
+          {inv.items.toLocaleString('es-CO')} artículos con existencias,{' '}
+          <strong>{inv.sinCosto.toLocaleString('es-CO')} no tienen precio de costo</strong> y entran
+          valiendo cero, así que el inventario sale por debajo de lo que vale. Por eso cada renglón
+          tiene casilla: lo que escribas reemplaza lo del ERP.
         </p>
       </>}
     </div>
