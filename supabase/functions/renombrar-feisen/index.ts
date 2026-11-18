@@ -27,7 +27,19 @@ const responder = (c: unknown, s = 200) => new Response(JSON.stringify(c), { sta
 // obligación genérica: es el leasing de la dobladora.
 //
 // La lista de la pasada 1 queda arriba comentada como referencia.
+// Pasada 3 (18/11/2026): "todo lo que esté en inglés en el balance pásalo a español como
+// se debe". Antes de nombrarlas se abrieron con `finanzas-cuenta`, para no traducir a
+// ciegas: la 220500 tiene 2.077 apuntes con proveedores, la 241200 son seis apuntes del
+// Municipio de Soacha con concepto "ICA por pagar Soacha 2017/2018/2019", y la 135505 son
+// tres apuntes de saldos iniciales con proveedores.
 const RENOMBRES: Record<string, string> = {
+  '220500': 'Proveedores nacionales',
+  '241200': 'Impuesto de industria y comercio',
+  '236800': 'Impuesto de industria y comercio retenido',
+  '135505': 'Saldo a favor de IVA',
+  '139901': 'Provisión de cartera NIIF',
+
+  // ── Pasada 2 ──
   '210500': 'Crédito Bancolombia No. 1000104793 May 2023',
   '210502': 'Crédito Bancolombia No. 1000109243 Feb 2025',
   '210508': 'Crédito Bancolombia No. 1000112247 May 2026',
