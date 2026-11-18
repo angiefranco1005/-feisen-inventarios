@@ -16,7 +16,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 | **Odoo Feisen y Odoo FC** | Estado de resultados del mes, por cuenta y centro | Función `finanzas-odoo`, acción `pyg`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Facturas de compra del mes, con proveedor, cuenta y centro | Función `finanzas-odoo`, acción `resultado`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general**. **Las cuentas de bancos (11xx) no se usan**: ni suman ni se muestran | Función `finanzas-balance`. **Solo lectura** |
-| **A mano** | El **disponible** del balance: los cuatro saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
+| **A mano** | El **disponible** del balance: los cinco saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
 | **A mano** | Lo que todavía no está en ningún sistema | Tabla `eeff_manual` |
@@ -121,7 +121,7 @@ Hasta el 17/11/2026 el balance era "a hoy" y no tenía mes. **Ahora tiene select
 
 ### El disponible (grupo 11) lo escribe Angie, no sale de Odoo
 
-Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo, y desde el **18/11/2026** las cuentas de bancos de Odoo tampoco se muestran como referencia. El grupo 11 son **cuatro casillas que Angie llena a mano** con los extractos bancarios, y nada más: **Bancolombia, Davivienda, Efectivo y Fiducias**. Una serie de casillas **por cada mes**.
+Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo, y desde el **18/11/2026** las cuentas de bancos de Odoo tampoco se muestran como referencia. El grupo 11 son **cinco casillas que Angie llena a mano** con los extractos bancarios, y nada más: **Bancolombia, Davivienda, Efectivo, Fiducias y Tarjeta prepago**. Una serie de casillas **por cada mes**.
 
 Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, no con lo que hay en los odoo, porque casi nunca es verídico"*.
 
@@ -129,7 +129,7 @@ Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, 
 - **Mientras no haya escrito nada, el disponible muestra "—", no $0.** Un cero diría "no hay plata"; la raya dice "falta el dato". Arriba, al lado del título, la pantalla avisa con **"Falta el disponible del mes"** y el total del activo sale marcado como incompleto.
 - Quedan guardadas en el ERP (tabla `eeff_manual`, concepto `banco:<cuenta>`), mes por mes, igual que las demás casillas a mano.
 
-**Ojo con esto, que la primera vez se ve raro:** esas cuatro casillas son **el total de las dos empresas juntas**. Angie no separa los extractos entre Feisen y FC, así que **en ese grupo las columnas de Feisen y de FC salen con "—" y la única cifra está en el total**. No es un error ni un dato que falte: es que ese renglón no está dividido por empresa. El total del activo lo dice en su nota: "incluye el disponible que escribiste, que no se reparte entre Feisen y FC".
+**Ojo con esto, que la primera vez se ve raro:** esas cinco casillas son **el total de las dos empresas juntas**. Angie no separa los extractos entre Feisen y FC, así que **en ese grupo las columnas de Feisen y de FC salen con "—" y la única cifra está en el total**. No es un error ni un dato que falte: es que ese renglón no está dividido por empresa. El total del activo lo dice en su nota: "incluye el disponible que escribiste, que no se reparte entre Feisen y FC".
 
 ### Lo que dice Odoo de bancos ya no se muestra en ninguna parte
 
@@ -407,8 +407,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
 - La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas. **Desde el 13/11/2026 ya no aparece en la pantalla**: el valor sigue guardado y sigue sumando, pero para cambiarlo o borrarlo **hay que pedirlo**.
-- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cuatro saldos del disponible** (Bancolombia, Davivienda, Efectivo y Fiducias), que se escriben en la pestaña **Balance general**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
-- Esas cuatro casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
+- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cinco saldos del disponible** (Bancolombia, Davivienda, Efectivo, Fiducias y Tarjeta prepago), que se escriben en la pestaña **Balance general**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
+- Esas cinco casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -504,6 +504,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | El **conteo de cuentas del pie del balance ya no cuenta las 11xx descartadas**. La **suma de todas las cuentas de Odoo sí las sigue contando**, porque si no, no daría cero: es la que respalda el aviso de que cada contabilidad cuadra consigo misma |
 | 18/11 | Sin cambios: el balance sigue siendo **a fin del mes escogido**, **unificado Feisen + FC**, **sin centro de costo**, con la **maquinaria al valor en libros**, y las casillas del disponible siguen siendo el **total de las dos empresas juntas** (por eso las columnas de Feisen y FC salen con "—" en ese grupo) |
 | 18/11 | **Se quitó la casilla de "Caja menor" del disponible.** Palabras de Angie: *"elimina en el balance la casilla de 'caja menor', esa no la uso"*. El disponible queda con **cuatro casillas**: Bancolombia, Davivienda, Efectivo y Fiducias. Si algún mes ya tenía escrita una cifra en caja menor, **ese valor deja de verse y deja de sumar al disponible** (el renglón sigue guardado en el ERP, pero la pantalla no lo muestra) |
+| 18/11 | **Entró la casilla de "Tarjeta prepago" en el disponible**, en el puesto que dejó libre la caja menor. Palabras de Angie: *"añade una cuenta en el efectivo donde estaba caja menor x tarjeta prepago"*. El disponible queda con **cinco casillas**: Bancolombia, Davivienda, Efectivo, Fiducias y Tarjeta prepago. Se escribe y se guarda igual que las demás, mes por mes |
 | 18/11 | **Este cambio tampoco se verificó contra datos reales de Odoo** antes de publicarlo |
 | 18/11 | **El balance y el estado de resultados se separaron en dos pestañas de carpeta**: **"Estado de resultados"** y **"Balance general"**. Lo pidió Angie: *"separa el informe de eeff el balance y el pyg... para que no se confundan con los mismos botones"*. Antes los tres botones ("Un mes", "Todo el año" y "Balance") iban en la misma fila y el balance parecía una tercera forma de ver el mismo informe. **Cada pestaña trae ahora solo sus propios controles**: el estado de resultados lleva el período, el mes o el año, el centro de costo y el formato de las cifras; el balance, solo "A fin de" con su mes y el aviso de que los bancos los escribe ella. Ver la sección 1.2 |
 | 18/11 | **Ninguna cifra cambió con las pestañas**: es solo cómo se llega a cada informe. Por dentro, lo que antes se recordaba en un solo dato ahora son dos —**qué informe** y, dentro del estado de resultados, **qué período**—, y el equipo los recuerda por separado: al salir al balance y volver se encuentra el período que se tenía. La preferencia vieja se sigue leyendo una vez para que a nadie se le pierda |
