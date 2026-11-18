@@ -26,7 +26,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 
 Las cuentas contables son **las mismas en las dos empresas** desde la homologación del 11/11/2026.
 
-> **Ojo con esto desde el 18/11/2026: el mismo código ya puede llamarse distinto en Feisen y en FC.** Ese día se pasaron al español cinco nombres de cuenta del plan de **Feisen** (ver la sección 2.4). Hasta entonces Feisen era el **molde intocable** de la homologación —todo se arreglaba en FC y nunca en Feisen—, y esta es **la primera vez que se escribe en el plan de Feisen**. La **130500**, por ejemplo, ahora se llama **"Clientes nacionales"** en Feisen y sigue llamándose **"Cuentas por Cobrar a Clientes"** en FC. **Para juntar las dos empresas manda el código, no el nombre**, así que ninguna cifra se mueve por esto; pero si algún día se comparan los dos planes nombre contra nombre, hay que saberlo.
+> **Ojo con esto desde el 18/11/2026: el mismo código ya puede llamarse distinto en Feisen y en FC.** Ese día se cambiaron **diecinueve** nombres de cuenta del plan de **Feisen**, en tres pasadas (ver la sección 2.4). Hasta entonces Feisen era el **molde intocable** de la homologación —todo se arreglaba en FC y nunca en Feisen—, y esta es **la primera vez que se escribe en el plan de Feisen**. La **130500**, por ejemplo, ahora se llama **"Clientes nacionales"** en Feisen y sigue llamándose **"Cuentas por Cobrar a Clientes"** en FC. **Para juntar las dos empresas manda el código, no el nombre**, así que ninguna cifra se mueve por esto; pero si algún día se comparan los dos planes nombre contra nombre, hay que saberlo.
 
 ---
 
@@ -497,6 +497,14 @@ Los saldos de esos tres grupos **al 31 de octubre de 2026**, todos de Feisen:
 
 **La regla queda puesta, y hecha de modo que no pueda esconder nada.** Si algún día FC llega a tener algo en esas clases, **el grupo lo avisa en ámbar, con los códigos y el monto**, en vez de dejarlo caer en silencio. Es el mismo criterio del "Sin clasificar" del inventario: lo que se saca de un total se muestra. Hoy el grupo dice *"solo Feisen · FC no tiene nada en estas cuentas"*.
 
+#### Dentro de esos impuestos hay $113.655.000 de ICA de Soacha sin pagar, de 2017, 2018 y 2019
+
+Esto apareció el **18/11/2026 de rebote**: la cuenta **241200** se iba a renombrar y, antes de ponerle nombre, se abrió con `finanzas-cuenta` para ver qué tenía adentro. Lo que tiene no son impuestos del año en curso.
+
+Son **seis apuntes**, todos con tercero **"MUNICIPIO DE SOACHA"** y concepto **"ICA por pagar Soacha 2017 / 2018 / 2019"**, y **todos entraron con los saldos iniciales de marzo de 2026**, o sea que **vienen de antes de Odoo**. Entre los tres años suman **$113.655.000**, que son el **42 % de los $267.749.816** del grupo 24.
+
+Dicho sin rodeos: es una **deuda vieja con una entidad pública**, de hasta nueve años atrás, que sigue registrada como por pagar. **No se tocó nada.** Lo que hay que averiguar con la contadora son dos cosas: **si eso está dentro de algún acuerdo de pago con el municipio**, o **si sigue corriendo por su cuenta** —porque en impuestos municipales los intereses y las sanciones siguen creciendo—.
+
 ### El aviso del banco de FC se quitó del balance, pero el problema sigue ahí
 
 Hasta el 17/11/2026 arriba del balance había un tercer aviso: **"El banco de FC dice $1.567.157.555 y no es plata real"**, con su porcentaje sobre los activos de FC (el **97 %**). **Se quitó el 18/11/2026**, y por una razón sencilla: esa cifra salía de las cuentas 11xx de Odoo, y esas cuentas ya no se leen. No se puede avisar de un número que el balance ya no tiene.
@@ -538,9 +546,9 @@ Son dos causas:
 
 Por eso el balance del ERP **no se arma copiando esa hoja**, sino desde Odoo.
 
-## 2.4 Catorce cuentas de Feisen cambiaron de nombre (18/11/2026)
+## 2.4 Diecinueve cuentas de Feisen cambiaron de nombre (18/11/2026)
 
-El plan de cuentas de Feisen traía **nombres en inglés** de cuando se instaló Odoo, y además los **"(copia)"** que había dejado la duplicación de cuentas. Se arreglaron en **dos pasadas el mismo día**.
+El plan de cuentas de Feisen traía **nombres en inglés** de cuando se instaló Odoo, y además los **"(copia)"** que había dejado la duplicación de cuentas. Se arreglaron en **tres pasadas el mismo día**.
 
 #### Primera pasada: cinco nombres del inglés al español
 
@@ -572,11 +580,31 @@ Angie mandó un pantallazo con los nombres buenos: *"Mira las obligaciones finan
 
 **Lo que reveló ese pantallazo vale más que los nombres:** que la 211500 fuera el **leasing de la dobladora** es lo que permitió saber que **hay tres leasing y no dos**. Eso está explicado arriba, en el punto 2.3.
 
-#### Lo que vale para las dos pasadas
+#### Tercera pasada: lo que todavía se veía en inglés en el balance
+
+Angie lo pidió así: *"todo lo que esté en inglés en el balance pásalo a español como se debe"*. Se buscaron las cuentas con nombre en inglés **que de verdad se alcanzan a ver en el balance** —o sea, las que tienen saldo y están en las clases que la pantalla muestra— y quedaron cinco:
+
+| Código | Antes | Ahora | Saldo al 31/10 |
+|---|---|---|---|
+| 220500 | National | Proveedores nacionales | $553.126.138 |
+| 241200 | On industry and commerce | Impuesto de industria y comercio | $113.655.000 |
+| 236800 | Industry and commerce tax withheld | Impuesto de industria y comercio retenido | $37.300 |
+| 135505 | VAT Receivable | Saldo a favor de IVA | $6.000 |
+| 139901 | Provision de Cartera NIIF | Provisión de cartera NIIF | $53.917.269 |
+
+La última no estaba en inglés: lo que le faltaba era la tilde.
+
+**Antes de ponerles nombre se abrieron una por una con `finanzas-cuenta`, para no traducir a ciegas**, y menos mal: la **220500** tiene **2.077 apuntes con proveedores** (GYJ Ferreterías, Ferreoxi, Aceros Mapa), así que lo que hay ahí son **proveedores nacionales**; y la **135505** son **tres apuntes de saldos iniciales con proveedores**, así que es un **saldo a favor de IVA**. Traducir el nombre en inglés palabra por palabra habría dado otra cosa.
+
+**Con esta pasada ya no queda ninguna cuenta en inglés en el balance.**
+
+**Y aquí salió lo que más importa de todo el día en esta cuenta:** al abrir la **241200** se vio que esos **$113.655.000 son ICA del municipio de Soacha de 2017, 2018 y 2019, todavía sin pagar**. Está explicado arriba, en el punto 2.3, y está en los avisos.
+
+#### Lo que vale para las tres pasadas
 
 - **Solo cambió el nombre.** Ni los códigos, ni los saldos, ni los apuntes. En Odoo todo apunta al identificador interno de la cuenta, así que cambiarle el nombre no mueve un solo asiento.
 - **Verificado después:** se volvió a leer el balance y **los saldos quedaron idénticos**.
-- Se hizo con una función de un solo uso (`renombrar-feisen`), que **volvió a quedar apagada** después de la segunda pasada, igual que se hizo en su día con la de la homologación.
+- Se hizo con una función de un solo uso (`renombrar-feisen`), que **volvió a quedar apagada** después de la tercera pasada, igual que se hizo en su día con la de la homologación.
 
 **Lo importante para quien venga después:** el 18/11/2026 es **la primera vez que se escribe en el plan de cuentas de Feisen**. Hasta el 18/11/2026 Feisen era el **molde**: todo se arreglaba en FC copiando a Feisen, y a Feisen no se le tocaba nada. Desde hoy **las dos empresas pueden tener nombres distintos para el mismo código** —la 130500 es "Clientes nacionales" en Feisen y "Cuentas por Cobrar a Clientes" en FC—, y eso **no es un error**: la pantalla junta las dos empresas **por el código**.
 
@@ -819,6 +847,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **Hay un apunte de "FEISEN SAS" dentro de la cartera fiscal de Feisen (−$31.300.553).** La empresa aparece como tercero de sí misma, que es imposible; parece arrastre de la migración y hay que revisarlo con contabilidad.
 - **Las "consignaciones sin identificar" (130501, −$70.593.236) están a la espera de un informe.** Son consignaciones de remisiones que no se han logrado identificar; Angie ya se lo pidió a la contadora y **hasta que llegue no se reclasifica nada**.
 - **La deuda del leasing de la cizalla puede estar duplicada ($58.861.575).** En la cuenta 211503 hay **dos movimientos por exactamente el mismo valor**: el saldo inicial del 31/03/2026 con tercero Bancolombia y una "COMPRA CIZALLA" del 21/08/2026 con tercero INOMAQ. **No se tocó nada**: hay que mirar el contrato y el soporte de la compra con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones**.
+- **Hay $113.655.000 de ICA del municipio de Soacha sin pagar, de 2017, 2018 y 2019.** Están en la cuenta **241200** de Feisen y son el **42 % de los $267.749.816** del grupo 24 de impuestos: **seis apuntes**, todos con tercero **"MUNICIPIO DE SOACHA"** y concepto "ICA por pagar Soacha 2017 / 2018 / 2019", **todos de los saldos iniciales de marzo de 2026**, o sea de antes de Odoo. Apareció al abrir la cuenta para renombrarla. Es una **deuda vieja con una entidad pública**: hay que mirar con la contadora **si está dentro de algún acuerdo de pago** o si sigue corriendo con intereses y sanciones. **No se tocó nada.** Ver la sección 2.3.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
 ---
@@ -969,5 +998,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | **El bloque de cuentas de socios vive ahora en Finanzas › Impuestos**, al final de esa pantalla y **fuera de todos sus cálculos**: no suma a la renta, ni a los anticipos, ni a los impuestos por pagar. Muestra cada cuenta con su saldo, cuántos movimientos tiene y su **reparto por tercero**. Angie: *"según la DIAN esa plata todavía se debe, pero me gusta tenerlo presente"*. **Un detalle que la propia pantalla advierte:** ahí el saldo es **a hoy y de toda la historia**, no al corte del mes, **así que no coincide con la cifra que el balance deja fuera** |
 | 18/11 | **AVF y AFC son dos personas, y eso corrige algo que estaba escrito.** Con el reparto por tercero se vio que la **133002 "Otras Cuentas Por Cobrar AVF"** es de **ANGIE VIVIANA FRANCO CADENA** ($598.783.358 a hoy, 557 movimientos) y la **133003 "Otras Cuentas Por Cobrar AFC"**, de **ALFONSO FRANCO CASTAÑEDA** ($67.120.706, 137 movimientos). **Yo había supuesto que "AFC" quería decir *"a FC"***, o sea que era el puente entre la contabilidad de Feisen y la de FC: **era falso**, son iniciales de personas. **Conecta con lo del patrimonio**: son los mismos que reinvirtieron sin que quedara registrado contablemente |
 | 18/11 | **Se corrigió un defecto de `finanzas-cuenta`, la función con la que se abren las cuentas por dentro.** Calculaba el total **sumando los apuntes que devolvía**, y los apuntes vienen **topados en 500**, así que una cuenta con más movimientos daba **un total truncado que parecía bueno**: la **133002** reportó **$215.378.221** cuando el saldo real es **$598.783.358**. Ahora el total y el reparto por tercero los agrega Odoo en el servidor, sin tope, y la respuesta avisa cuando los apuntes listados son solo una muestra. **Lo que ya se había concluido con esta función no cambia** —la 1365, las dos cuentas de cartera y los tres leasing—, porque todas tienen menos de 500 apuntes |
+| 18/11 | **Cinco cuentas más de Feisen pasaron al español, y con eso ya no queda ninguna en inglés en el balance** (tercera pasada del día; en total van diecinueve): 220500 National → **Proveedores nacionales** ($553.126.138) · 241200 On industry and commerce → **Impuesto de industria y comercio** ($113.655.000) · 236800 Industry and commerce tax withheld → **Impuesto de industria y comercio retenido** ($37.300) · 135505 VAT Receivable → **Saldo a favor de IVA** ($6.000) · 139901 "Provision de Cartera NIIF" → **Provisión de cartera NIIF** ($53.917.269; esa no estaba en inglés, le faltaba la tilde). Palabras de Angie: *"todo lo que esté en inglés en el balance pásalo a español como se debe"*. Se buscaron solo las que **se ven en el balance**: con saldo y en las clases que la pantalla muestra. **Antes de nombrarlas se abrieron con `finanzas-cuenta`, para no traducir a ciegas**: la 220500 tiene **2.077 apuntes con proveedores**, así que son proveedores nacionales, y la 135505 son **tres apuntes de saldos iniciales con proveedores**, así que es un saldo a favor de IVA. **Solo cambió el nombre**: ni códigos, ni saldos, ni apuntes, y se comprobó después leyendo el balance. `renombrar-feisen` volvió a quedar apagada como cascarón 410. Ver la sección 2.4 |
+| 18/11 | **Aparecieron $113.655.000 de ICA del municipio de Soacha sin pagar, de 2017, 2018 y 2019.** Salió al abrir la cuenta **241200** para renombrarla: son **seis apuntes**, todos con tercero "MUNICIPIO DE SOACHA" y concepto "ICA por pagar Soacha 2017 / 2018 / 2019", y **todos entraron con los saldos iniciales de marzo de 2026**, así que vienen de antes de Odoo. Son el **42 % de los $267.749.816** del grupo 24. **No se tocó nada**: hay que mirar con la contadora **si está dentro de algún acuerdo de pago** o si sigue corriendo con intereses y sanciones. Ver la sección 2.3 |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
