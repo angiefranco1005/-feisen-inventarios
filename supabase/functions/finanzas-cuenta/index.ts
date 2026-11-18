@@ -4,6 +4,14 @@
 // contabilidades: hay cuentas cuyo nombre no dice qué tienen ("Cartera Fiscal", "Deudores varios",
 // "Movimientos transitorios") y la única forma de saberlo es abrir los apuntes.
 //
+// **El total NO se calcula sumando los apuntes que se devuelven.** La primera versión lo hacía y
+// estaba mal: los apuntes vienen topados (500 por cuenta) y una cuenta con más movimientos
+// devolvía un total truncado que parecía bueno. Pasó de verdad con la 133002, que tiene más de
+// 500 apuntes: decía $215.378.221 cuando el saldo real es $598.783.358. Ahora el total y el
+// reparto por tercero salen de `formatted_read_group`, que agrega en el servidor y no tiene tope,
+// y los apuntes que se listan son solo una muestra de los más grandes. `muestra: true` avisa
+// cuando se alcanzó el tope, para que nadie vuelva a leer esa lista como si fuera todo.
+//
 // Se le pasan { empresa, codigos, hasta } y devuelve, por cada cuenta, el total y los apuntes
 // más grandes con fecha, tercero, documento y concepto. **No escribe nada en Odoo.**
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -15,6 +23,7 @@ const ODOO: Record<string, { url: string; db: string; secreto: string }> = {
   fc: { url: 'https://fc-sas.odoo.com', db: 'fc-sas', secreto: 'ODOO_FC_APIKEY' },
 }
 const responder = (c: unknown, s = 200) => new Response(JSON.stringify(c), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
+const TOPE_APUNTES = 500
 
 async function odoo(cfg: { url: string; db: string }, clave: string, modelo: string, metodo: string, cuerpo: unknown) {
   const res = await fetch(`${cfg.url}/json/2/${modelo}/${metodo}`, {
@@ -59,27 +68,36 @@ serve(async (req) => {
     for (const cta of cuentas) {
       const dominio: unknown[] = [['parent_state', '=', 'posted'], ['account_id', '=', cta.id]]
       if (corte) dominio.push(['date', '<=', corte])
-      const lineas = await odoo(cfg, clave, 'account.move.line', 'search_read', {
-        domain: dominio,
-        fields: ['date', 'move_name', 'partner_id', 'name', 'balance', 'journal_id'],
-        order: 'date desc', limit: 500,
-      })
-      const total = lineas.reduce((a: number, l: any) => a + (Number(l.balance) || 0), 0)
-      const porTercero: Record<string, number> = {}
-      for (const l of lineas) {
-        const t = nombreDe(l.partner_id) || '(sin tercero)'
-        porTercero[t] = (porTercero[t] || 0) + (Number(l.balance) || 0)
-      }
+      // El total y el reparto por tercero, agregados en el servidor: sin tope y sin truncar
+      const [totalG, porTerceroG, lineas] = await Promise.all([
+        odoo(cfg, clave, 'account.move.line', 'formatted_read_group', {
+          domain: dominio, groupby: [], aggregates: ['balance:sum', '__count'],
+        }),
+        odoo(cfg, clave, 'account.move.line', 'formatted_read_group', {
+          domain: dominio, groupby: ['partner_id'], aggregates: ['balance:sum'],
+        }),
+        odoo(cfg, clave, 'account.move.line', 'search_read', {
+          domain: dominio,
+          fields: ['date', 'move_name', 'partner_id', 'name', 'balance', 'journal_id'],
+          order: 'date desc', limit: TOPE_APUNTES,
+        }),
+      ])
+
+      const total = totalG?.[0]?.['balance:sum'] || 0
+      const apuntes = totalG?.[0]?.['__count'] || lineas.length
+
       salida.push({
         codigo: cta.code, nombre: cta.name,
-        apuntes: lineas.length,
+        apuntes,
         total: Math.round(total * 100) / 100,
+        // true = los apuntes listados son solo una muestra, no la cuenta entera
+        muestra: apuntes > TOPE_APUNTES,
         desde: lineas.length ? lineas[lineas.length - 1].date : null,
         ultimo: lineas.length ? lineas[0].date : null,
-        terceros: Object.entries(porTercero)
-          .map(([tercero, valor]) => ({ tercero, valor: Math.round(valor) }))
-          .filter(x => x.valor)
-          .sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor)).slice(0, 15),
+        terceros: (porTerceroG || [])
+          .map((g: any) => ({ tercero: nombreDe(g.partner_id) || '(sin tercero)', valor: Math.round(g['balance:sum'] || 0) }))
+          .filter((x: any) => x.valor)
+          .sort((a: any, b: any) => Math.abs(b.valor) - Math.abs(a.valor)).slice(0, 15),
         mayores: lineas
           .map((l: any) => ({
             fecha: l.date, documento: l.move_name, diario: nombreDe(l.journal_id),
