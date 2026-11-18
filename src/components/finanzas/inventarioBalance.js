@@ -123,10 +123,21 @@ export const RENGLONES = [
   },
 
   // ── Producto terminado y mercancía ──
-  // Todavía sin definir con Angie: por ahora queda lo que no cabía en los otros tipos.
+  // Angie, 18/11/2026: "en productos terminados va: Poleas de aluminio, Máquinas
+  // terminadas y motores constru". Los dos primeros no están en el ERP —no hay ninguna
+  // categoría de aluminio con existencias, y las máquinas armadas no se registran—, así
+  // que los escribe ella. El tercero sí está.
   {
-    id: 'motores', tipo: 'terminado', nombre: 'Motores', bodegas: ['MOTORES'],
-    nota: 'Motores Constru y Equipmaster Store',
+    id: 'poleas_aluminio', tipo: 'terminado', nombre: 'Poleas de aluminio',
+    aMano: true, nota: 'no está en el ERP: lo sacas tú',
+  },
+  {
+    id: 'maquinas', tipo: 'terminado', nombre: 'Máquinas terminadas',
+    aMano: true, nota: 'no está en el ERP: lo sacas tú',
+  },
+  {
+    id: 'motores', tipo: 'terminado', nombre: 'Motores Constru',
+    claves: ['MOTORES|MOTORES CONSTRU'],
   },
 
   // ── No es inventario de venta ──
