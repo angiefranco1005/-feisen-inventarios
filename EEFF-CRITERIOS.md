@@ -16,7 +16,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 | **Odoo Feisen y Odoo FC** | Estado de resultados del mes, por cuenta y centro | Función `finanzas-odoo`, acción `pyg`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Facturas de compra del mes, con proveedor, cuenta y centro | Función `finanzas-odoo`, acción `resultado`. **Solo lectura** |
 | **Odoo Feisen y Odoo FC** | Saldos de todas las cuentas **a fin del mes escogido**, para el **balance general**. **Las cuentas de bancos (11xx) no se usan**: ni suman ni se muestran | Función `finanzas-balance`. **Solo lectura** |
-| **A mano** | El **disponible** del balance: los cinco saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
+| **A mano** | El **disponible** del balance: los cuatro saldos de banco de cada mes. Es la **única** fuente del disponible | Tabla `eeff_manual`, concepto `banco:…` |
 | **ERP (Supabase)** | Salidas de Fundición, para la transferencia interna de Hierro | Tabla `movimientos` |
 | **ERP (Supabase)** | Nómina de producción | RRHH › Nómina (`nomina_liquidaciones`) |
 | **A mano** | Lo que todavía no está en ningún sistema | Tabla `eeff_manual` |
@@ -101,7 +101,7 @@ Hasta el 17/11/2026 el balance era "a hoy" y no tenía mes. **Ahora tiene select
 
 ### El disponible (grupo 11) lo escribe Angie, no sale de Odoo
 
-Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo, y desde el **18/11/2026** las cuentas de bancos de Odoo tampoco se muestran como referencia. El grupo 11 son **cinco casillas que Angie llena a mano** con los extractos bancarios, y nada más: **Bancolombia, Davivienda, Efectivo, Fiducias y Caja menor**. Una serie de casillas **por cada mes**.
+Desde el **17/11/2026** el grupo **11 Disponible** ya no se lee de Odoo, y desde el **18/11/2026** las cuentas de bancos de Odoo tampoco se muestran como referencia. El grupo 11 son **cuatro casillas que Angie llena a mano** con los extractos bancarios, y nada más: **Bancolombia, Davivienda, Efectivo y Fiducias**. Una serie de casillas **por cada mes**.
 
 Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, no con lo que hay en los odoo, porque casi nunca es verídico"*.
 
@@ -109,13 +109,13 @@ Palabras de ella: *"el banco yo lo lleno a mano, con lo de los extractos y eso, 
 - **Mientras no haya escrito nada, el disponible muestra "—", no $0.** Un cero diría "no hay plata"; la raya dice "falta el dato". Arriba, al lado del título, la pantalla avisa con **"Falta el disponible del mes"** y el total del activo sale marcado como incompleto.
 - Quedan guardadas en el ERP (tabla `eeff_manual`, concepto `banco:<cuenta>`), mes por mes, igual que las demás casillas a mano.
 
-**Ojo con esto, que la primera vez se ve raro:** esas cinco casillas son **el total de las dos empresas juntas**. Angie no separa los extractos entre Feisen y FC, así que **en ese grupo las columnas de Feisen y de FC salen con "—" y la única cifra está en el total**. No es un error ni un dato que falte: es que ese renglón no está dividido por empresa. El total del activo lo dice en su nota: "incluye el disponible que escribiste, que no se reparte entre Feisen y FC".
+**Ojo con esto, que la primera vez se ve raro:** esas cuatro casillas son **el total de las dos empresas juntas**. Angie no separa los extractos entre Feisen y FC, así que **en ese grupo las columnas de Feisen y de FC salen con "—" y la única cifra está en el total**. No es un error ni un dato que falte: es que ese renglón no está dividido por empresa. El total del activo lo dice en su nota: "incluye el disponible que escribiste, que no se reparte entre Feisen y FC".
 
 ### Lo que dice Odoo de bancos ya no se muestra en ninguna parte
 
 El 17/11/2026 las cuentas **11xx de Odoo** todavía quedaban a la vista: un renglón plegable dentro del mismo grupo 11, llamado **"Lo que dice la contabilidad en Odoo"**, en gris y sin sumar, solo para comparar.
 
-**Desde el 18/11/2026 ese renglón ya no existe.** Las cuentas 11xx **ni se leen ni se muestran**. Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El grupo 11 Disponible son **únicamente las cinco casillas que ella escribe**, y en el balance no queda rastro de lo que la contabilidad tiene registrado en bancos.
+**Desde el 18/11/2026 ese renglón ya no existe.** Las cuentas 11xx **ni se leen ni se muestran**. Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El grupo 11 Disponible son **únicamente las casillas que ella escribe**, y en el balance no queda rastro de lo que la contabilidad tiene registrado en bancos.
 
 Al pie del balance la pantalla dice cuántas cuentas de Odoo se leyeron. **Ese conteo ya no incluye las 11xx descartadas**, porque si no diría que se leyeron más cuentas de las que se ven.
 
@@ -387,8 +387,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - En casi todos los renglones, **lo que escribas reemplaza** lo que trae Odoo; si borras la casilla, vuelve el valor automático.
 - En **mano de obra de FC**, en **nómina administrativa de FC** y en **transferencia de Aluminio** la casilla **se suma** a lo automático, porque es para completar lo que falta.
 - La de **nómina administrativa de FC** es **una sola para toda la empresa** (concepto `todos:nomina_admin`), no una por centro: se escribe una vez y se reparte por ventas. **Desde el 13/11/2026 ya no aparece en la pantalla**: el valor sigue guardado y sigue sumando, pero para cambiarlo o borrarlo **hay que pedirlo**.
-- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cinco saldos del disponible** (Bancolombia, Davivienda, Efectivo, Fiducias y Caja menor), que se escriben en el modo **Balance**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
-- Esas cinco casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
+- **El balance tiene sus propias casillas**, aparte de todo lo anterior: los **cuatro saldos del disponible** (Bancolombia, Davivienda, Efectivo y Fiducias), que se escriben en el modo **Balance**, una serie por mes, y son **el total de las dos empresas juntas**. No tienen nada que ver con el estado de resultados. Ver la sección 2.3.
+- Esas cuatro casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -478,11 +478,12 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 17/11 | **La fila de comprobación cambió de significado.** Antes era *activo + transitorias − pasivo − patrimonio*, que siempre daba $0 porque todo salía de Odoo. Ahora es **disponible escrito a mano − disponible de Odoo** y se llama **"Plata mal registrada en bancos"**. Se presenta en ámbar, como trabajo pendiente para contabilidad, **no como un error del informe**; si no hay nada escrito, la cifra no se muestra. Que la suma de todas las cuentas de Odoo dé cero se sigue usando, pero solo para el aviso de arriba de que cada contabilidad cuadra consigo misma |
 | 17/11 | Sin cambios: el balance **sigue siendo unificado Feisen + FC**, **no se divide por centro de costo** (un balance por centro no tiene sentido) y la **depreciación y la maquinaria quedan al valor en libros** de Odoo |
 | 17/11 | **Este cambio se publicó sin verificarlo contra datos reales de Odoo**, a pedido de Angie. Queda anotado para que lo revise la primera vez que abra el balance. Si algún mes se ve raro, lo primero a mirar son los **saldos a fin de mes**, que son una consulta nueva |
-| 18/11 | **Las cuentas 11xx de Odoo salieron del balance por completo**: ya no se leen ni se muestran, y con ellas se fue el renglón informativo "Lo que dice la contabilidad en Odoo". Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El **grupo 11 Disponible son únicamente las cinco casillas que ella escribe** |
+| 18/11 | **Las cuentas 11xx de Odoo salieron del balance por completo**: ya no se leen ni se muestran, y con ellas se fue el renglón informativo "Lo que dice la contabilidad en Odoo". Palabras de Angie: *"quita eso de lo que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos"*. El **grupo 11 Disponible son únicamente las casillas que ella escribe** |
 | 18/11 | **Desapareció la fila "Plata mal registrada en bancos"** (disponible escrito − disponible de Odoo): sin el dato de Odoo no hay resta que hacer. El balance **ya no tiene fila de comprobación al pie**. Si algún día se quiere esa comparación, toca hacerla **contra Odoo directamente**, fuera de esta pantalla |
 | 18/11 | **Se quitó el aviso de arriba sobre el banco de FC** ($1.567.157.555 y su porcentaje de los activos de FC), porque mostraba justamente esa cifra de Odoo. **El hecho de fondo no desapareció, solo dejó de verse en el balance**: FC sigue teniendo esa plata sin conciliar, sigue excluida del Flujo de caja y sigue siendo trabajo pendiente para contabilidad. Los otros avisos de "Antes de leer estas cifras" siguen igual: los movimientos transitorios de FC, que FC no tiene patrimonio registrado y que cada contabilidad cuadra consigo misma |
 | 18/11 | El **conteo de cuentas del pie del balance ya no cuenta las 11xx descartadas**. La **suma de todas las cuentas de Odoo sí las sigue contando**, porque si no, no daría cero: es la que respalda el aviso de que cada contabilidad cuadra consigo misma |
-| 18/11 | Sin cambios: el balance sigue siendo **a fin del mes escogido**, **unificado Feisen + FC**, **sin centro de costo**, con la **maquinaria al valor en libros**, y las cinco casillas siguen siendo el **total de las dos empresas juntas** (por eso las columnas de Feisen y FC salen con "—" en ese grupo) |
+| 18/11 | Sin cambios: el balance sigue siendo **a fin del mes escogido**, **unificado Feisen + FC**, **sin centro de costo**, con la **maquinaria al valor en libros**, y las casillas del disponible siguen siendo el **total de las dos empresas juntas** (por eso las columnas de Feisen y FC salen con "—" en ese grupo) |
+| 18/11 | **Se quitó la casilla de "Caja menor" del disponible.** Palabras de Angie: *"elimina en el balance la casilla de 'caja menor', esa no la uso"*. El disponible queda con **cuatro casillas**: Bancolombia, Davivienda, Efectivo y Fiducias. Si algún mes ya tenía escrita una cifra en caja menor, **ese valor deja de verse y deja de sumar al disponible** (el renglón sigue guardado en el ERP, pero la pantalla no lo muestra) |
 | 18/11 | **Este cambio tampoco se verificó contra datos reales de Odoo** antes de publicarlo |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.

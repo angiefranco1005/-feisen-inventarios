@@ -56,7 +56,6 @@ export const CUENTAS_DISPONIBLE = [
   { id: 'davivienda', nombre: 'Davivienda' },
   { id: 'efectivo', nombre: 'Efectivo' },
   { id: 'fiducias', nombre: 'Fiducias' },
-  { id: 'caja_menor', nombre: 'Caja menor' },
 ]
 export const conceptoBanco = id => `banco:${id}`
 export const esConceptoBanco = concepto => String(concepto || '').startsWith('banco:')

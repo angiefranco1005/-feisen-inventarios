@@ -16,11 +16,17 @@ import { calcularBalance, conceptoBanco } from './calculoBalance'
 // "Un mes" y "Todo el año". Así no puede pasar que las dos muestren cifras distintas del mismo mes.
 // Los criterios, en palabras, están en EEFF-CRITERIOS.md.
 //
-//  - Un mes: el informe completo, con las casillas que se escriben a mano.
-//  - Todo el año: los mismos renglones con un mes por columna y el total del año al final,
-//    como la hoja del consolidado de su Excel. Ahí no se escribe nada: solo se mira.
-//  - Balance: el balance general **a fin del mes que se escoja**. No comparte cálculo con las
-//    otras dos: tiene su propio dato (función `finanzas-balance`) y su propia cuenta, en
+// La pantalla tiene **dos pestañas de carpeta**, porque son dos informes distintos y no dos
+// vistas del mismo (decisión de Angie, 18/11/2026: "separa el informe de eeff el balance y el
+// pyg... para que no se confundan con los mismos botones"). Cada pestaña trae **solo sus
+// propios controles**, así que nunca se ve un botón que no sea de ese informe:
+//
+//  - **Estado de resultados**, con dos períodos:
+//     · Un mes: el informe completo, con las casillas que se escriben a mano.
+//     · Todo el año: los mismos renglones con un mes por columna y el total del año al final,
+//       como la hoja del consolidado de su Excel. Ahí no se escribe nada: solo se mira.
+//  - **Balance general**, a fin del mes que se escoja. No comparte cálculo con el estado de
+//    resultados: tiene su propio dato (función `finanzas-balance`) y su propia cuenta, en
 //    calculoBalance.js. El disponible (grupo 11) no sale de Odoo: lo escribe Angie con los
 //    extractos del banco, y se guarda en `eeff_manual` igual que las casillas del P&G.
 
@@ -33,13 +39,32 @@ const VISTAS = [
   { valor: 'aluminio', texto: 'Aluminio', titulo: 'Aluminio' },
 ]
 
-// Modo de ver: un mes, el año entero o el balance general (también se recuerda en este equipo)
-const CLAVE_MODO = 'feisen-eeff-modo'
-const MODOS = [
+// Qué informe se está mirando. Son dos documentos distintos, por eso van en pestañas de
+// carpeta y no en la misma fila de botones que el período (se recuerda en este equipo).
+const CLAVE_INFORME = 'feisen-eeff-informe'
+const INFORMES = [
+  { valor: 'resultados', texto: 'Estado de resultados' },
+  { valor: 'balance', texto: 'Balance general' },
+]
+
+// Dentro del estado de resultados: un mes o el año entero. El balance no tiene período:
+// siempre se corta a fin del mes escogido.
+const CLAVE_PERIODO = 'feisen-eeff-periodo'
+const PERIODOS = [
   { valor: 'mes', texto: 'Un mes' },
   { valor: 'ano', texto: 'Todo el año' },
-  { valor: 'balance', texto: 'Balance' },
 ]
+
+// Hasta el 18/11/2026 los tres eran un solo botón ('mes' | 'ano' | 'balance') guardado aquí.
+// Se lee una última vez para que a quien ya tenía una preferencia no se le pierda.
+const CLAVE_MODO = 'feisen-eeff-modo'
+function recordado(clave, opciones, viejo) {
+  try {
+    const v = localStorage.getItem(clave)
+    if (opciones.some(o => o.valor === v)) return v
+    return viejo(localStorage.getItem(CLAVE_MODO))
+  } catch { return viejo(null) }
+}
 
 // Cómo se ven las cifras de la tabla del año (también se recuerda en este equipo).
 // Arranca en pesos: Angie casi nunca mira las cifras en millones.
@@ -107,6 +132,30 @@ function Pildoras({ opciones, valor, onCambiar }) {
   )
 }
 
+// Las dos pestañas de arriba. El estado de resultados y el balance son dos informes
+// distintos —no dos vistas del mismo—, así que se ven como carpetas: la abierta queda
+// en blanco y se pega a la barra de controles de abajo, tapándole el borde.
+function Carpetas({ valor, onCambiar }) {
+  return (
+    <div role="tablist" aria-label="Informe" className="relative z-10 -mb-px flex gap-1 pl-1">
+      {INFORMES.map(o => {
+        const activo = valor === o.valor
+        return (
+          <button key={o.valor} type="button" role="tab" aria-selected={activo}
+            onClick={() => onCambiar(o.valor)}
+            className={`rounded-t-xl border border-feisen-borde px-4 min-h-[44px] sm:min-h-[38px] text-[13px] font-semibold
+              transition-colors active:scale-[.99]
+              ${activo
+                ? 'bg-white border-b-white text-feisen-azul shadow-[inset_0_2px_0_0_#064794]'
+                : 'bg-feisen-fondo text-feisen-texto-2 hover:bg-white hover:text-feisen-texto'}`}>
+            {o.texto}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // Mismo alto y mismo borde que las píldoras, para que la barra se vea pareja
 const CAMPO = 'min-h-[42px] sm:min-h-[36px] border border-feisen-borde rounded-lg px-2 bg-white text-[13px] text-feisen-texto focus:outline-none focus:ring-2 focus:ring-feisen-azul-suave'
 
@@ -117,18 +166,22 @@ export default function Eeff() {
   const [vista, setVista] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_VISTA); return VISTAS.some(o => o.valor === v) ? v : 'consolidado' } catch { return 'consolidado' }
   })
-  const [modo, setModo] = useState(() => {
-    try { const v = localStorage.getItem(CLAVE_MODO); return MODOS.some(o => o.valor === v) ? v : 'mes' } catch { return 'mes' }
-  })
+  const [informe, setInforme] = useState(
+    () => recordado(CLAVE_INFORME, INFORMES, v => (v === 'balance' ? 'balance' : 'resultados')),
+  )
+  const [periodo, setPeriodo] = useState(
+    () => recordado(CLAVE_PERIODO, PERIODOS, v => (v === 'ano' ? 'ano' : 'mes')),
+  )
   const [formato, setFormato] = useState(() => {
     try { const v = localStorage.getItem(CLAVE_FORMATO); return FORMATOS.some(o => o.valor === v) ? v : 'pesos' } catch { return 'pesos' }
   })
   const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
-  const cambiarModo = v => { setModo(v); setAbierto(null); try { localStorage.setItem(CLAVE_MODO, v) } catch { /* sin almacenamiento */ } }
+  const cambiarInforme = v => { setInforme(v); setAbierto(null); try { localStorage.setItem(CLAVE_INFORME, v) } catch { /* sin almacenamiento */ } }
+  const cambiarPeriodo = v => { setPeriodo(v); setAbierto(null); try { localStorage.setItem(CLAVE_PERIODO, v) } catch { /* sin almacenamiento */ } }
   const cambiarFormato = v => { setFormato(v); try { localStorage.setItem(CLAVE_FORMATO, v) } catch { /* sin almacenamiento */ } }
-  const verMes = modo === 'mes'
-  const verAno = modo === 'ano'
-  const verBalance = modo === 'balance'
+  const verBalance = informe === 'balance'
+  const verMes = !verBalance && periodo === 'mes'
+  const verAno = !verBalance && periodo === 'ano'
   const centroId = vista === 'consolidado' ? null : vista
 
   // ── Datos del mes que se está mirando ──
@@ -330,62 +383,77 @@ export default function Eeff() {
         </button>
       </EncabezadoPagina>
 
-      {/* Una sola barra de controles: qué período, qué centro y cómo se ven las cifras.
-          En celular cada grupo se va acomodando solo; el escogido se ve en azul. */}
-      <div className="bg-white border border-feisen-borde rounded-xl px-3 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2.5">
-        <Grupo etiqueta="Ver">
-          <Pildoras opciones={MODOS} valor={modo} onCambiar={cambiarModo} />
-        </Grupo>
-        {verAno ? (
-          <Grupo etiqueta="Año">
-            <select value={anio} onChange={e => setAnio(e.target.value)} className={CAMPO}>
-              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </Grupo>
-        ) : (
-          /* El balance usa el mismo selector de mes que "Un mes": se corta a fin de ese mes */
-          <Grupo etiqueta={verBalance ? 'A fin de' : 'Mes'}>
-            <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
-              {MESES_ELEGIBLES.map(m => (
-                <option key={m} value={m}>
-                  {`${nombreLargo(m).charAt(0).toUpperCase()}${nombreLargo(m).slice(1)} de ${m.slice(0, 4)}`}
-                </option>
-              ))}
-            </select>
-          </Grupo>
-        )}
-        {/* Un balance no se divide por centro de costo: el filtro no aparece en ese modo */}
-        {!verBalance && (
-          <Grupo etiqueta="Centro de costo">
-            <Pildoras opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
-          </Grupo>
-        )}
-        {verAno && (
-          <Grupo etiqueta="Cifras en">
-            <Pildoras opciones={FORMATOS} valor={formato} onCambiar={cambiarFormato} />
-          </Grupo>
-        )}
-        {verMes && esHistorico && (
-          <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
-            De tu Excel de EEFF 2026 · desde octubre las cifras salen solas de Odoo
-          </span>
-        )}
-        {verMes && !esHistorico && (
-          <span className="sm:ml-auto text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-1 font-medium">
-            Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
-          </span>
-        )}
-        {verBalance && (
-          <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
-            El balance no se divide por centro de costo
-          </span>
-        )}
-        {verAno && ano.cargando && (
-          <span className="sm:ml-auto flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
-            <RefreshCw size={14} className="animate-spin" />
-            Vamos por {nombreLargo(ano.actual)}… {ano.listos} de {ano.lista.length} meses
-          </span>
-        )}
+      {/* Dos pestañas de carpeta, una por informe, y debajo **solo** los controles de ese
+          informe: así no se ve nunca un botón que no sea suyo. En celular cada grupo se va
+          acomodando solo; el escogido se ve en azul. */}
+      <div>
+        <Carpetas valor={informe} onCambiar={cambiarInforme} />
+        <div className="bg-white border border-feisen-borde rounded-xl rounded-tl-none px-3 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2.5">
+          {verBalance ? (
+            /* El balance no tiene período ni centro de costo: solo a fin de qué mes se corta */
+            <>
+              <Grupo etiqueta="A fin de">
+                <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
+                  {MESES_ELEGIBLES.map(m => (
+                    <option key={m} value={m}>
+                      {`${nombreLargo(m).charAt(0).toUpperCase()}${nombreLargo(m).slice(1)} de ${m.slice(0, 4)}`}
+                    </option>
+                  ))}
+                </select>
+              </Grupo>
+              <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
+                Los bancos los escribes tú · no se divide por centro de costo
+              </span>
+            </>
+          ) : (
+            <>
+              <Grupo etiqueta="Ver">
+                <Pildoras opciones={PERIODOS} valor={periodo} onCambiar={cambiarPeriodo} />
+              </Grupo>
+              {verAno ? (
+                <Grupo etiqueta="Año">
+                  <select value={anio} onChange={e => setAnio(e.target.value)} className={CAMPO}>
+                    {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </Grupo>
+              ) : (
+                <Grupo etiqueta="Mes">
+                  <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
+                    {MESES_ELEGIBLES.map(m => (
+                      <option key={m} value={m}>
+                        {`${nombreLargo(m).charAt(0).toUpperCase()}${nombreLargo(m).slice(1)} de ${m.slice(0, 4)}`}
+                      </option>
+                    ))}
+                  </select>
+                </Grupo>
+              )}
+              <Grupo etiqueta="Centro de costo">
+                <Pildoras opciones={VISTAS} valor={vista} onCambiar={cambiarVista} />
+              </Grupo>
+              {verAno && (
+                <Grupo etiqueta="Cifras en">
+                  <Pildoras opciones={FORMATOS} valor={formato} onCambiar={cambiarFormato} />
+                </Grupo>
+              )}
+              {verMes && esHistorico && (
+                <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
+                  De tu Excel de EEFF 2026 · desde octubre las cifras salen solas de Odoo
+                </span>
+              )}
+              {verMes && !esHistorico && (
+                <span className="sm:ml-auto text-xs bg-amber-50 text-amber-700 rounded-md px-2 py-1 font-medium">
+                  Vamos por partes · {llenas} de {FILAS_COSTO.length} renglones de costos y gastos con valor
+                </span>
+              )}
+              {verAno && ano.cargando && (
+                <span className="sm:ml-auto flex items-center gap-2 text-xs font-medium text-feisen-texto-2">
+                  <RefreshCw size={14} className="animate-spin" />
+                  Vamos por {nombreLargo(ano.actual)}… {ano.listos} de {ano.lista.length} meses
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {verBalance ? (
@@ -1002,7 +1070,7 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
         que vienen en negativo); ábrelo para ver la resta.
         <strong> El balance no se divide entre corriente y no corriente</strong>, como sí lo hacía tu Excel: Odoo no trae esa
         división y deducirla por el código de la cuenta sería adivinar.
-        Un balance tampoco se divide por centro de costo, por eso ese filtro no aparece en este modo.
+        Un balance tampoco se divide por centro de costo, por eso ese filtro no aparece en esta pestaña.
       </p>
     </div>
   )
