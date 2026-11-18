@@ -7,7 +7,7 @@ import {
   AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
   calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
-import { calcularBalance, conceptoBanco, esDisponibleFc } from './calculoBalance'
+import { calcularBalance, conceptoBanco } from './calculoBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -791,16 +791,16 @@ function EncabezadoBal() {
 }
 
 // Una cuenta del detalle: código, nombre y saldo. En celular, Feisen y FC van debajo del nombre.
-function FilaCuenta({ c, alerta }) {
+function FilaCuenta({ c }) {
   return (
-    <div className={`${GRID_BAL} px-4 py-1 pl-9 text-xs items-center ${alerta ? 'bg-amber-50' : ''}`}>
+    <div className={`${GRID_BAL} px-4 py-1 pl-9 text-xs items-center`}>
       <span className="min-w-0">
         <span className="block truncate text-feisen-texto-2"><span className="tabular-nums">{c.codigo}</span> · {c.nombre}</span>
         <span className="block sm:hidden tabular-nums text-[11px] text-feisen-texto-2">
           Feisen {pesos(c.feisen)} · FC {pesos(c.fc)}
         </span>
       </span>
-      <span className="hidden sm:contents"><CifraB v={c.feisen} tenue /><CifraB v={c.fc} tenue alerta={alerta} /></span>
+      <span className="hidden sm:contents"><CifraB v={c.feisen} tenue /><CifraB v={c.fc} tenue /></span>
       <CifraB v={c.total} />
     </div>
   )
@@ -808,15 +808,14 @@ function FilaCuenta({ c, alerta }) {
 
 // El detalle de un grupo. Propiedad, planta y equipo trae `partes` para que se vea la resta
 // (costo menos depreciación acumulada) y no solo el neto.
-function DetalleBalance({ grupo, alertaFc }) {
-  const marca = c => alertaFc && esDisponibleFc('fc', c.codigo) && !!c.fc
+function DetalleBalance({ grupo }) {
   if (!grupo.detalle.length) {
     return <p className="px-4 pb-2 pl-9 text-xs text-feisen-texto-2">Ninguna de las dos empresas tiene saldo en este grupo.</p>
   }
   const partes = grupo.partes
     ? grupo.partes.map(p => ({ ...p, cuentas: grupo.detalle.filter(c => p.test(c.codigo)) })).filter(p => p.cuentas.length)
     : null
-  if (!partes) return <div className="pb-2">{grupo.detalle.map(c => <FilaCuenta key={c.codigo} c={c} alerta={marca(c)} />)}</div>
+  if (!partes) return <div className="pb-2">{grupo.detalle.map(c => <FilaCuenta key={c.codigo} c={c} />)}</div>
   return (
     <div className="pb-2">
       {partes.map(p => {
@@ -829,7 +828,7 @@ function DetalleBalance({ grupo, alertaFc }) {
               <span className="hidden sm:contents"><CifraB v={feisen} fuerte /><CifraB v={fc} fuerte /></span>
               <CifraB v={feisen + fc} fuerte />
             </div>
-            {p.cuentas.map(c => <FilaCuenta key={c.codigo} c={c} alerta={marca(c)} />)}
+            {p.cuentas.map(c => <FilaCuenta key={c.codigo} c={c} />)}
           </div>
         )
       })}
@@ -839,7 +838,7 @@ function DetalleBalance({ grupo, alertaFc }) {
 
 // Un grupo del PUC. Se abre y muestra el detalle cuenta por cuenta, igual que los
 // renglones de ventas de la vista de un mes.
-function FilaBalance({ grupo, abierto, onClick, alertaFc, tenue }) {
+function FilaBalance({ grupo, abierto, onClick }) {
   const Icono = abierto ? ChevronDown : ChevronRight
   const codigos = grupo.prefijos?.length ? grupo.prefijos.join(' y ') : ''
   return (
@@ -847,17 +846,16 @@ function FilaBalance({ grupo, abierto, onClick, alertaFc, tenue }) {
       <button type="button" onClick={onClick}
         className={`w-full ${GRID_BAL} px-4 py-2 text-sm items-center text-left hover:bg-feisen-fondo`}>
         <span className="min-w-0">
-          <span className={`flex items-center gap-1 ${tenue ? 'text-feisen-texto-2' : 'text-feisen-texto'}`}>
+          <span className="flex items-center gap-1 text-feisen-texto">
             <Icono size={14} className="text-gray-400 shrink-0" />
             <span className="truncate">{codigos && <span className="tabular-nums text-feisen-texto-2">{codigos} </span>}{grupo.nombre}</span>
           </span>
-          {alertaFc ? <span className="block pl-5 text-xs text-amber-700">{alertaFc}</span>
-            : grupo.nota && <span className="block pl-5 text-xs text-feisen-texto-2">{grupo.nota}</span>}
+          {grupo.nota && <span className="block pl-5 text-xs text-feisen-texto-2">{grupo.nota}</span>}
         </span>
-        <span className="hidden sm:contents"><CifraB v={grupo.feisen} tenue={tenue} /><CifraB v={grupo.fc} tenue={tenue} alerta={!!alertaFc} /></span>
-        <CifraB v={grupo.total} fuerte={!tenue} tenue={tenue} />
+        <span className="hidden sm:contents"><CifraB v={grupo.feisen} /><CifraB v={grupo.fc} /></span>
+        <CifraB v={grupo.total} fuerte />
       </button>
-      {abierto && <DetalleBalance grupo={grupo} alertaFc={!!alertaFc} />}
+      {abierto && <DetalleBalance grupo={grupo} />}
     </div>
   )
 }
@@ -884,9 +882,9 @@ function TotalBalance({ nombre, nota, cifras, destacado, alerta, ambar, ceros, s
 }
 
 // El grupo 11 del activo. No sale de Odoo: son las casillas que llena Angie con los
-// extractos del mes. Debajo queda, en un renglón que se abre, lo que dice la contabilidad,
-// que es solo para mirar y no entra a ninguna suma.
-function GrupoDisponible({ disponible, odoo, mes, abierto, onAbrir, alertaFc, onGuardar }) {
+// extractos del mes, y nada más. Desde el 18/11/2026 las cuentas 11xx de Odoo ni
+// siquiera se muestran como referencia: "deja solo lo que yo voy a ingresar".
+function GrupoDisponible({ disponible, mes, onGuardar }) {
   return (
     <div className="border-t border-feisen-borde-suave">
       <div className={`${GRID_BAL} px-4 py-2 text-sm items-center`}>
@@ -913,8 +911,6 @@ function GrupoDisponible({ disponible, odoo, mes, abierto, onAbrir, alertaFc, on
           decir que no hay plata— y el total del activo está incompleto.
         </p>
       )}
-
-      <FilaBalance grupo={odoo} abierto={abierto} onClick={onAbrir} alertaFc={alertaFc} tenue />
     </div>
   )
 }
@@ -926,23 +922,13 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
 
   const activo = b.activo
   const alCierre = fechaLarga(datos.hasta)
-  // Qué parte de los activos de FC es ese "banco" que no es plata real, según lo que dice Odoo
-  const pesoBancoFc = b.activoFcOdoo ? Math.round((b.disponibleFc / b.activoFcOdoo) * 100) : 0
 
   return (
     <div className="space-y-3">
       {/* Lo que hay que saber antes de leer las cifras va arriba, no al pie */}
-      {(b.disponibleFc > 0 || !!b.transitorias.fc || !b.patrimonioRegistrado.fc || b.cuadreOdoo.cuadra) &&
+      {(!!b.transitorias.fc || !b.patrimonioRegistrado.fc || b.cuadreOdoo.cuadra) &&
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2 text-xs text-amber-800 leading-relaxed">
         <p className="text-sm font-semibold text-amber-900">Antes de leer estas cifras</p>
-        {b.disponibleFc > 0 && (
-          <p>
-            <strong>El “banco” de FC dice {pesos(b.disponibleFc)} y no es plata real.</strong> Es la cuenta donde caen
-            los movimientos que todavía no se concilian, y era el {pesoBancoFc} % de los activos de FC al cierre del mes.
-            Por eso los bancos de FC están excluidos de la pantalla de Flujo de caja, y por eso aquí el disponible
-            ya no se lee de Odoo sino de lo que tú escribes.
-          </p>
-        )}
         {!!b.transitorias.fc && (
           <p>
             <strong>FC tiene {pesos(b.transitorias.fc)} en “Movimientos transitorios”:</strong> plata ya contabilizada
@@ -985,12 +971,7 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
               : sec.id === 'patrimonio' ? 'incluye el resultado del periodo, que es lo que lleva ganado la empresa y todavía no está cerrado en una cuenta de patrimonio'
               : undefined} />
             {sec.id === 'activo' && (
-              <GrupoDisponible disponible={b.disponible} odoo={b.disponibleOdoo} mes={datos.mes}
-                abierto={abierto === 'disponible-odoo'} onAbrir={() => alternar('disponible-odoo')}
-                onGuardar={onGuardarBanco}
-                alertaFc={b.disponibleFc > 0
-                  ? `El disponible de FC (${pesos(b.disponibleFc)}) son movimientos sin conciliar, no plata en el banco`
-                  : null} />
+              <GrupoDisponible disponible={b.disponible} mes={datos.mes} onGuardar={onGuardarBanco} />
             )}
             {sec.grupos.map(g => (
               <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
@@ -1006,39 +987,14 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
           nota="Plata ya contabilizada que todavía no tiene cuenta definitiva (cuentas del grupo 9). No es ni activo ni pasivo: queda en el aire hasta que contabilidad la clasifique. Se muestra con el signo que trae Odoo: en positivo se comporta como un activo, en negativo como un pasivo." />
         <FilaBalance grupo={b.transitorias} abierto={abierto === 'transitorias'} onClick={() => alternar('transitorias')} />
         <TotalBalance nombre="Total cuentas transitorias" cifras={b.transitorias} />
-
-        <Seccion titulo="Plata mal registrada en bancos"
-          nota="Lo que dicen tus extractos menos lo que dice Odoo. Antes este renglón era una comprobación que tenía que dar $0, porque todo salía de Odoo; ahora que el disponible lo escribes tú, ya no verifica el informe: mide cuánto se equivocó la contabilidad registrando los bancos." />
-        {b.disponible.hay ? (<>
-          <TotalBalance soloTotal ceros ambar={!!b.malRegistrado}
-            nombre="Lo que escribiste − lo que dice Odoo"
-            nota={`Tus extractos: ${pesos(b.disponible.total)} · Odoo: ${pesos(b.disponibleOdoo.total)}`}
-            cifras={{ total: b.malRegistrado }} />
-          <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
-            {!b.malRegistrado
-              ? <>Esta vez coinciden: lo que Odoo tiene registrado en bancos es lo mismo que dicen los extractos.</>
-              : b.malRegistrado > 0
-                ? <>En los extractos hay <strong>{pesos(b.malRegistrado)} más</strong> de lo que la contabilidad tiene
-                  registrado en bancos: plata que existe y Odoo no ve.</>
-                : <>Odoo tiene registrados <strong>{pesos(-b.malRegistrado)} más</strong> de los que hay en los
-                  extractos: plata que la contabilidad da por cierta y no está.</>}
-            {' '}No es un error de este informe: el informe usa tus extractos. Es trabajo para contabilidad.
-          </p>
-        </>) : (
-          <p className="px-4 py-3 text-sm text-feisen-texto-2 leading-relaxed">
-            <strong className="text-feisen-texto">Falta llenar los bancos para poder compararla.</strong> Escribe arriba
-            lo que decían los extractos al cierre del mes y aquí aparece cuánta plata tiene mal registrada la
-            contabilidad. Odoo, por su lado, dice {pesos(b.disponibleOdoo.total)}.
-          </p>
-        )}
       </div>
 
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         El balance se corta al <strong>{alCierre}</strong>: cada cuenta trae lo acumulado hasta ese día, no lo de hoy.
         Se hace así porque los extractos del banco son mensuales, y mezclar un extracto de octubre con la cartera de
         hoy daría un balance falso. Todo menos el disponible sale de Odoo ({b.cuentas.toLocaleString('es-CO')} cuentas
-        entre las dos empresas); <strong>el disponible lo escribes tú</strong> y las cuentas 11xx de Odoo quedan solo
-        como referencia, dentro del mismo grupo.
+        entre las dos empresas); <strong>el disponible es solo lo que tú escribes</strong> y las cuentas de bancos de
+        Odoo (las 11xx) no se usan ni se muestran, porque lo que tienen registrado casi nunca es verídico.
         Toca un grupo para ver el detalle cuenta por cuenta.
         En Odoo el pasivo, el patrimonio y los ingresos vienen en negativo; aquí <strong>se les volteó el signo</strong> para
         que se lean en positivo, así que un número en rojo en esas secciones es un saldo al revés de lo normal.

@@ -27,15 +27,17 @@
 // EL DISPONIBLE NO SALE DE ODOO. Palabras de Angie: "el banco yo lo lleno a mano,
 // con lo de los extractos y eso, no con lo que hay en los odoo, porque casi nunca
 // es verídico". Así que el grupo 11 se arma con las casillas que ella escribe
-// (tabla `eeff_manual`, concepto 'banco:…', empresa 'total') y las cuentas 11xx de
-// Odoo **no entran al activo**: se muestran aparte, solo para saber qué dice la
-// contabilidad.
+// (tabla `eeff_manual`, concepto 'banco:…', empresa 'total').
 //
-// Y por eso la vieja fila de comprobación cambia de significado: antes todo salía
-// de Odoo y tenía que dar $0. Ahora la resta
-//     (disponible escrito) − (disponible de Odoo)
-// ya no verifica nada: **es la plata que la contabilidad tiene mal registrada en
-// bancos**. Se presenta así, no como un error del informe.
+// Las cuentas 11xx de Odoo **se descartan del todo** (18/11/2026): "quita eso de lo
+// que hay en odoo y deja solo lo que yo voy a ingresar en efectivo y bancos". No
+// entran al activo y tampoco se muestran como referencia. Con ellas se fue la fila
+// "Plata mal registrada en bancos", que era (disponible escrito) − (disponible de
+// Odoo): sin el dato de Odoo no hay resta que hacer. Esa comparación, si algún día
+// se quiere, hay que hacerla contra Odoo directamente.
+//
+// Ojo: la suma de TODAS las cuentas de Odoo (`cuadreOdoo`) sí las sigue contando,
+// porque es lo que dice que cada contabilidad cuadra consigo misma.
 //
 // Signos: en Odoo los activos vienen positivos y los pasivos, el patrimonio y
 // los ingresos vienen negativos. Para que se lean números positivos, aquí se les
@@ -62,8 +64,8 @@ export const esConceptoBanco = concepto => String(concepto || '').startsWith('ba
 // Los grupos del PUC, por los dos primeros dígitos del código de cuenta.
 // El último grupo de cada sección lleva `resto: true`: recoge cualquier cuenta de
 // esa clase que no caiga en los grupos de arriba, para que no se pierda nada.
-// El 11 lleva `manual: true`: no se arma con las cuentas de Odoo sino con las
-// casillas que escribe Angie.
+// El 11 lleva `manual: true`: no se arma con las cuentas de Odoo (que se descartan)
+// sino con las casillas que escribe Angie.
 export const SECCIONES = [
   {
     id: 'activo', titulo: 'Activo', tituloTotal: 'Total activo', clase: '1', signo: 1,
@@ -113,12 +115,6 @@ export const SECCIONES = [
   },
 ]
 
-// El banco de FC no es plata real: es donde caen los movimientos sin conciliar.
-// Misma decisión que ya tomó Angie en Flujo de caja (30/10/2026), donde el banco y
-// la caja de FC están excluidos. Aquí tampoco entra al activo desde el 17/11/2026,
-// pero el renglón informativo se marca en ámbar para que no se lea como disponible.
-export const esDisponibleFc = (empresa, codigo) => empresa === 'fc' && codigo.startsWith('11')
-
 // Hasta qué diferencia se considera que la suma de Odoo da cero (los saldos vienen
 // con dos decimales y aquí todo se redondea a pesos)
 export const TOLERANCIA = 2
@@ -128,8 +124,8 @@ function ubicar(codigo) {
   const clase = String(codigo).charAt(0)
   if (clase >= '4' && clase <= '7') return { seccion: 'resultado', grupo: 'resultado' }
   const dos = String(codigo).slice(0, 2)
-  // El disponible de Odoo se aparta: no entra al activo, solo se muestra como referencia
-  if (dos === '11') return { seccion: 'disponibleOdoo', grupo: 'disponibleOdoo' }
+  // El disponible de Odoo se descarta: el grupo 11 son las casillas que escribe Angie
+  if (dos === '11') return { seccion: 'descartado', grupo: 'descartado' }
   const sec = SECCIONES.find(s => s.clase === clase)
   if (!sec) return { seccion: 'transitorias', grupo: 'transitorias' }   // clase 9 y cualquier otra
   const grupo = sec.grupos.find(g => !g.manual && g.prefijos.includes(dos)) || sec.grupos.find(g => g.resto)
@@ -195,15 +191,6 @@ export function calcularBalance(datos, bancos) {
     total: escritas.length ? escritas.reduce((s, c) => s + c.valor, 0) : null,
   }
 
-  // ── Lo que dice Odoo del disponible: NO entra al activo, se muestra aparte ──
-  const disponibleOdoo = armarGrupo(
-    {
-      id: 'disponibleOdoo', nombre: 'Lo que dice la contabilidad en Odoo', prefijos: ['11'],
-      nota: 'no entra al balance: el disponible es el que escribes arriba',
-    },
-    'disponibleOdoo|disponibleOdoo', 1,
-  )
-
   const secciones = SECCIONES.map(sec => {
     const grupos = sec.grupos.filter(g => !g.manual).map(g => armarGrupo(g, `${sec.id}|${g.id}`, sec.signo)).filter(g => !g.vacio)
     const feisen = grupos.reduce((s, g) => s + g.feisen, 0)
@@ -235,12 +222,6 @@ export function calcularBalance(datos, bancos) {
     { id: 'transitorias', nombre: 'Movimientos transitorios' }, 'transitorias|transitorias', 1,
   )
 
-  // ── La plata mal registrada en bancos ──
-  // (disponible escrito) − (disponible de Odoo). Ya no es una verificación: es
-  // cuánto se equivocó la contabilidad al registrar los bancos. Si Angie no ha
-  // escrito nada, no hay con qué comparar y queda en null.
-  const malRegistrado = disponible.hay ? disponible.total - disponibleOdoo.total : null
-
   // Que la suma de todas las cuentas de Odoo dé cero sigue siendo cierto y sigue
   // sirviendo: dice que la contabilidad cuadra consigo misma.
   const cuadreOdoo = {}
@@ -248,14 +229,14 @@ export function calcularBalance(datos, bancos) {
   cuadreOdoo.total = cuadreOdoo.feisen + cuadreOdoo.fc
   cuadreOdoo.cuadra = EMPRESAS_BAL.every(({ id }) => Math.abs(cuadreOdoo[id]) <= TOLERANCIA)
 
+  // Cuántas cuentas de Odoo se leyeron de verdad: las 11xx se descartaron, así que
+  // no se cuentan (si no, el pie diría que se leyeron más cuentas de las que se ven).
+  // Se cuenta renglón por renglón, no por código: la misma cuenta puede estar en las dos.
+  const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n
+    + (datos?.[id] || []).filter(c => !String(c.codigo || '').startsWith('11')).length, 0)
+
   return {
     secciones, transitorias, resultado, patrimonioRegistrado,
-    disponible, disponibleOdoo, malRegistrado, cuadreOdoo,
-    // El 11xx de FC, que es el que no es plata real (hoy $1.567 millones)
-    disponibleFc: disponibleOdoo.fc,
-    activo,
-    // Los activos de FC tal como los ve Odoo, para poder decir qué parte es ese "banco"
-    activoFcOdoo: activo.fc + disponibleOdoo.fc,
-    cuentas: EMPRESAS_BAL.reduce((n, { id }) => n + (datos?.[id]?.length || 0), 0),
+    disponible, cuadreOdoo, activo, cuentas,
   }
 }
