@@ -405,6 +405,50 @@ Son **dos provisiones sobre la misma deuda** porque **la norma contable y la fis
 
 Son **consignaciones de remisiones que no se han logrado identificar**: entró la plata y no se sabe a qué venta corresponde. Angie ya le **pidió un informe de esa cuenta a la contadora**, así que **no se toca ni se reclasifica hasta que llegue ese informe**.
 
+### Las obligaciones financieras de Feisen: hay tres leasing, no dos
+
+El **18/11/2026** Angie mandó un pantallazo con los nombres que deben tener las obligaciones financieras y, de paso, preguntó **cuántos leasing tenía**. La respuesta es **tres**, y uno estaba escondido detrás de un nombre de fábrica.
+
+| Leasing | Máquina | Saldo al 31/10/2026 |
+|---|---|---|
+| 566 | Dobladora | $116.149.760 |
+| 962 | Torno | $85.256.752 |
+| 833 | Cizalla | $115.138.828 |
+| **Total** | | **$316.545.340** |
+
+Dos de ellos ya lo decían en el nombre (el torno 962 y la cizalla 833). El tercero, la cuenta **211500**, se llamaba **"Financial corporations"** —el nombre que trae Odoo de fábrica— y parecía una obligación cualquiera. **Es el leasing de la dobladora**, y lo confirma todo lo que tiene adentro: está en el grupo de corporaciones financieras, es todo con Bancolombia, abrió con un **saldo inicial de $123.000.000 en marzo de 2026** y desde entonces abona **$856.280 puntuales todos los meses**.
+
+**FC no tiene ningún leasing**: los tres son de Feisen.
+
+#### Ojo con el leasing de la cizalla: dos movimientos por exactamente el mismo valor
+
+Esto hay que revisarlo. La cuenta del leasing de la cizalla (**211503**) tiene **dos movimientos por el mismo valor al peso, $58.861.575**:
+
+| Fecha | Documento | Tercero | Valor |
+|---|---|---|---|
+| 31/03/2026 | Saldo inicial | Bancolombia | $58.861.575 |
+| 21/08/2026 | COMPRA CIZALLA | INOMAQ | $58.861.575 |
+
+Que dos movimientos coincidan **al peso**, con **distinta fecha** y **distinto tercero**, no suele ser casualidad: **puede ser la misma operación registrada dos veces**, una al migrar los saldos iniciales y otra al contabilizar la compra. Si fuera así, **esa deuda estaría inflada en $58,8 millones**.
+
+**No se tocó nada.** Lo que hay que hacer es mirar el **contrato del leasing** y el **soporte de la compra** con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones** y el endeudamiento mejora de verdad: no por un cambio de criterio, sino porque esa deuda no existía.
+
+### Las cuentas por pagar, los impuestos y las obligaciones laborales (23, 24 y 25) se leen solo de Feisen
+
+Decisión de Angie del **18/11/2026**: *"en las cuentas por pagar 23, usa las cuentas de odoo feisen solamente. lo mismo que la 24 y la 25"*.
+
+**Hoy no cambia ninguna cifra**, y vale la pena saber por qué: **FC no tiene ninguna cuenta de las clases 23, 24 ni 25**. La única suya que empieza por 23 es la **233506** de socios, que ya estaba fuera de todos los totales por lo que se explicó más arriba.
+
+Los saldos de esos tres grupos **al 31 de octubre de 2026**, todos de Feisen:
+
+| Grupo | Saldo |
+|---|---|
+| 23 Cuentas por pagar | $58.947.554 |
+| 24 Impuestos, gravámenes y tasas | $267.749.816 |
+| 25 Obligaciones laborales | $85.769.597 |
+
+**La regla queda puesta, y hecha de modo que no pueda esconder nada.** Si algún día FC llega a tener algo en esas clases, **el grupo lo avisa en ámbar, con los códigos y el monto**, en vez de dejarlo caer en silencio. Es el mismo criterio del "Sin clasificar" del inventario: lo que se saca de un total se muestra. Hoy el grupo dice *"solo Feisen · FC no tiene nada en estas cuentas"*.
+
 ### El aviso del banco de FC se quitó del balance, pero el problema sigue ahí
 
 Hasta el 17/11/2026 arriba del balance había un tercer aviso: **"El banco de FC dice $1.567.157.555 y no es plata real"**, con su porcentaje sobre los activos de FC (el **97 %**). **Se quitó el 18/11/2026**, y por una razón sencilla: esa cifra salía de las cuentas 11xx de Odoo, y esas cuentas ya no se leen. No se puede avisar de un número que el balance ya no tiene.
@@ -446,9 +490,13 @@ Son dos causas:
 
 Por eso el balance del ERP **no se arma copiando esa hoja**, sino desde Odoo.
 
-## 2.4 Cinco cuentas de Feisen se pasaron al español (18/11/2026)
+## 2.4 Catorce cuentas de Feisen cambiaron de nombre (18/11/2026)
 
-El plan de cuentas de Feisen traía **nombres en inglés** de cuando se instaló Odoo. Angie pidió arreglarlos: *"Cambia eso de 'customers' por clientes nacionales... la 135501, ponle el nombre en español. la 135517 también en español, la 18 también, la 20 también"*.
+El plan de cuentas de Feisen traía **nombres en inglés** de cuando se instaló Odoo, y además los **"(copia)"** que había dejado la duplicación de cuentas. Se arreglaron en **dos pasadas el mismo día**.
+
+#### Primera pasada: cinco nombres del inglés al español
+
+Angie pidió arreglarlos: *"Cambia eso de 'customers' por clientes nacionales... la 135501, ponle el nombre en español. la 135517 también en español, la 18 también, la 20 también"*.
 
 | Código | Antes | Ahora |
 |---|---|---|
@@ -458,11 +506,31 @@ El plan de cuentas de Feisen traía **nombres en inglés** de cuando se instaló
 | 135518 | Industry and commerce tax withheld | Impuesto de industria y comercio retenido |
 | 135520 | Withheld at source | Retención en la fuente |
 
+#### Segunda pasada: las nueve obligaciones financieras
+
+Angie mandó un pantallazo con los nombres buenos: *"Mira las obligaciones financieras como deben salir"*. Eran cinco créditos que seguían en inglés o con "(copia)" pegado al nombre, y las tres cuentas de leasing.
+
+| Código | Antes | Ahora | Saldo al 31/10 |
+|---|---|---|---|
+| 210500 | National banks | Crédito Bancolombia No. 1000104793 May 2023 | $0 |
+| 210502 | Crédito Bancolombia No. 1000104293 Feb 2025 | Crédito Bancolombia No. 1000109243 Feb 2025 | $0 |
+| 210508 | …Feb 2026 (copia) | Crédito Bancolombia No. 1000112247 May 2026 | $11.666.670 |
+| 210510 | …(copia) (copia) (copia) | Crédito Bancolombia No. 3292 Sept 2026 | −$6.666.666 |
+| 210511 | …(copia) ×4 | Crédito Davivienda No. 1403 Oct 2026 | $13.650.000 |
+| 211500 | Financial corporations | Contratos De Arrendamiento Financiero (Leasing Dobladora) 566 | $116.149.760 |
+| 211502 | …(Leasing) 962 | Contratos De Arrendamiento Financiero (Leasing Torno) 962 | $85.256.752 |
+| 211503 | …(Leasing) 833 | Contratos De Arrendamiento Financiero (Leasing Cizalla) 833 | $115.138.828 |
+| 219500 | Others | Otras Obligaciones Particulares | $69.498.000 |
+
+**Lo que reveló ese pantallazo vale más que los nombres:** que la 211500 fuera el **leasing de la dobladora** es lo que permitió saber que **hay tres leasing y no dos**. Eso está explicado arriba, en el punto 2.3.
+
+#### Lo que vale para las dos pasadas
+
 - **Solo cambió el nombre.** Ni los códigos, ni los saldos, ni los apuntes. En Odoo todo apunta al identificador interno de la cuenta, así que cambiarle el nombre no mueve un solo asiento.
 - **Verificado después:** se volvió a leer el balance y **los saldos quedaron idénticos**.
-- Se hizo con una función de un solo uso (`renombrar-feisen`), que **ya quedó apagada**, igual que se hizo en su día con la de la homologación.
+- Se hizo con una función de un solo uso (`renombrar-feisen`), que **volvió a quedar apagada** después de la segunda pasada, igual que se hizo en su día con la de la homologación.
 
-**Lo importante para quien venga después:** esta es **la primera vez que se escribe en el plan de cuentas de Feisen**. Hasta el 18/11/2026 Feisen era el **molde**: todo se arreglaba en FC copiando a Feisen, y a Feisen no se le tocaba nada. Desde hoy **las dos empresas pueden tener nombres distintos para el mismo código** —la 130500 es "Clientes nacionales" en Feisen y "Cuentas por Cobrar a Clientes" en FC—, y eso **no es un error**: la pantalla junta las dos empresas **por el código**.
+**Lo importante para quien venga después:** el 18/11/2026 es **la primera vez que se escribe en el plan de cuentas de Feisen**. Hasta el 18/11/2026 Feisen era el **molde**: todo se arreglaba en FC copiando a Feisen, y a Feisen no se le tocaba nada. Desde hoy **las dos empresas pueden tener nombres distintos para el mismo código** —la 130500 es "Clientes nacionales" en Feisen y "Cuentas por Cobrar a Clientes" en FC—, y eso **no es un error**: la pantalla junta las dos empresas **por el código**.
 
 ---
 
@@ -698,6 +766,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **La nómina está mandando los anticipos a la cuenta equivocada.** Los anticipos de nómina están cayendo en la **1365 "Cuentas Por Cobrar A Trabajadores"** y no en la **136500 "Préstamo a trabajadores"**, que es la correcta. Ahí quedó una sola punta del movimiento, por eso la cuenta está en **−$1.050.000** (siete apuntes de cinco trabajadores). **Pendiente para la contadora:** apuntar la regla de nómina a la 136500 y reclasificar esos siete apuntes; mientras no se haga, **cada quincena vuelve a ensuciar la misma cuenta**. Ver la sección 2.3.
 - **Hay un apunte de "FEISEN SAS" dentro de la cartera fiscal de Feisen (−$31.300.553).** La empresa aparece como tercero de sí misma, que es imposible; parece arrastre de la migración y hay que revisarlo con contabilidad.
 - **Las "consignaciones sin identificar" (130501, −$70.593.236) están a la espera de un informe.** Son consignaciones de remisiones que no se han logrado identificar; Angie ya se lo pidió a la contadora y **hasta que llegue no se reclasifica nada**.
+- **La deuda del leasing de la cizalla puede estar duplicada ($58.861.575).** En la cuenta 211503 hay **dos movimientos por exactamente el mismo valor**: el saldo inicial del 31/03/2026 con tercero Bancolombia y una "COMPRA CIZALLA" del 21/08/2026 con tercero INOMAQ. **No se tocó nada**: hay que mirar el contrato y el soporte de la compra con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones**.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
 ---
@@ -833,5 +902,9 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | **Equipmaster Store salió del inventario del balance, a pedido de Angie**, que lo vio en el bloque de "Sin clasificar": *"EQUIPMASTER STORE · MOTORES esto quítalo por favor"*. Se hizo con un **renglón sin tipo** al final de la lista: **no se muestra ni suma**, pero **sigue emparejando la categoría** para que no caiga en "Sin clasificar" y, sobre todo, **para que quede escrito que es una decisión y no un olvido**. **Hoy no mueve ninguna cifra** —12 artículos, ninguno con precio de costo, **$0**—, pero **si algún día se les cargan precios, esa plata no entraría al inventario del balance** mientras el renglón siga sin tipo. Con esto **"Sin clasificar" quedó vacío**: todas las categorías del ERP con existencias tienen renglón o exclusión escrita. Ver la sección 2.3 |
 | 18/11 | **Angie terminó de llenar las doce casillas del inventario de octubre**, así que el grupo 14 del balance de ese mes **ya no es del ERP: es su conteo** (`eeff_manual`, mes `2026-10`, empresa `total`). Materias primas: Almacén $94.094.413 · Lámina $43.810.244 · Materia prima de Fundición $20.237.600 · Ferretería $51.472.269 · Mecanizados $37.328.138. En proceso: Piezas y partes de máquina $74.494.000 · Piezas cortadas en plasma $21.861.159 · Material fundido de hierro $46.794.990 · Material mecanizado $42.142.162. Terminado: Poleas de aluminio $25.859.147 · Máquinas terminadas $106.620.000 · Motores Constru $40.163.403. Totales: **$246.942.664** + **$185.292.311** + **$172.642.550** = **inventario total $604.877.525** |
 | 18/11 | **El inventario y la contabilidad quedaron a 2,4 %.** Odoo dice **$619.510.345** en el grupo 14 y el inventario de Angie da **$604.877.525**: **$14.632.820** de diferencia. Al empezar el día el inventario del ERP daba **$333 millones** y la diferencia era de **$286 millones**. Lo que cerró esa brecha fue **que ella definiera los renglones y contara lo que el ERP no tiene** |
+| 18/11 | **Nueve cuentas de obligaciones financieras de Feisen cambiaron de nombre**, con el pantallazo que mandó Angie (*"Mira las obligaciones financieras como deben salir"*): cinco créditos que seguían en inglés o con "(copia)" —210500, 210502, 210508, 210510 y 210511— y las tres de leasing (211500, 211502 y 211503), más la 219500 "Others" → **Otras Obligaciones Particulares**. **Solo cambió el nombre**: ni códigos, ni saldos, ni apuntes, y se comprobó después leyendo el balance |
+| 18/11 | **Hay tres leasing, no dos: Dobladora 566, Torno 962 y Cizalla 833, $316.545.340 al 31/10.** La cuenta **211500**, que se llamaba "Financial corporations", **no era una obligación genérica: es el leasing de la dobladora** (todo con Bancolombia, saldo inicial de $123.000.000 en marzo de 2026 y abonos de $856.280 puntuales cada mes). **FC no tiene ningún leasing** |
+| 18/11 | **Señalado para revisar: el leasing de la cizalla (211503) puede estar duplicado.** Tiene **dos movimientos por exactamente $58.861.575** —saldo inicial del 31/03/2026 con tercero Bancolombia y "COMPRA CIZALLA" del 21/08/2026 con tercero INOMAQ—, que es lo que pasa cuando una misma operación se registra dos veces. **No se tocó nada**; hay que mirar el contrato y el soporte de la compra. Si resulta duplicado, **el pasivo baja $58,8 millones** |
+| 18/11 | **Los grupos 23 (cuentas por pagar), 24 (impuestos) y 25 (obligaciones laborales) del pasivo se leen solo de Feisen.** Palabras de Angie: *"en las cuentas por pagar 23, usa las cuentas de odoo feisen solamente. lo mismo que la 24 y la 25"*. **Hoy no cambia ninguna cifra** porque FC no tiene cuentas de esas clases (su única 23 es la 233506 de socios, ya fuera de los totales). Al 31/10, todo de Feisen: $58.947.554 · $267.749.816 · $85.769.597. Si algún día FC tiene algo ahí, **el grupo lo avisa en ámbar con los códigos y el monto** en vez de dejarlo caer en silencio |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
