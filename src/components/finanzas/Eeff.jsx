@@ -1055,6 +1055,19 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco }) 
           nota="Plata ya contabilizada que todavía no tiene cuenta definitiva (cuentas del grupo 9). No es ni activo ni pasivo: queda en el aire hasta que contabilidad la clasifique. Se muestra con el signo que trae Odoo: en positivo se comporta como un activo, en negativo como un pasivo." />
         <FilaBalance grupo={b.transitorias} abierto={abierto === 'transitorias'} onClick={() => alternar('transitorias')} />
         <TotalBalance nombre="Total cuentas transitorias" cifras={b.transitorias} />
+
+        {!b.socios.vacio && (<>
+          <Seccion titulo="Cuentas de socios"
+            nota="Plata que salió del negocio hacia los socios, o que los socios le deben. No es cartera ni deuda con un tercero, así que desde el 18/11/2026 queda fuera del activo, del pasivo y de todos los indicadores: no suma al total activo ni cuenta para el endeudamiento. Se muestra aquí para que no desaparezca de la vista. En positivo se lo deben al negocio; en negativo el negocio se lo debe al socio." />
+          <FilaBalance grupo={b.socios} abierto={abierto === 'socios'} onClick={() => alternar('socios')} />
+          <TotalBalance nombre="Total cuentas de socios" cifras={b.socios} />
+          <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
+            Angie pidió dejarlas fuera: <em>"son las cuentas de socios, eso no lo debemos tener en cuenta para el
+            balance"</em>. Ojo con una cosa: sacarlas de aquí es una decisión de cómo quieres leer el balance para
+            gerenciar, no un cambio en la contabilidad. En los libros siguen registradas, y para efectos fiscales
+            siguen siendo cuentas con los socios, con su propio tratamiento. Eso lo tiene que mirar tu contador.
+          </p>
+        </>)}
       </div>
 
       <p className="text-xs text-feisen-texto-2 leading-relaxed">

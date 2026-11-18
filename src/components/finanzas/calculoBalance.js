@@ -117,12 +117,36 @@ export const SECCIONES = [
   },
 ]
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CUENTAS DE SOCIOS: fuera de todos los totales (18/11/2026)
+//
+// Angie: "AFC AVF son las cuentas de socios, eso no lo debemos tener en cuenta
+// para el balance". Son plata que salió del negocio hacia los socios, así que no
+// es cartera ni deuda con un tercero y no puede contar para el activo ni para los
+// indicadores de endeudamiento.
+//
+// **Van por empresa, no por código**, y eso es a propósito: el mismo código
+// significa cosas distintas en los dos libros. La 233506 de FC es "Cuentas por
+// pagar a socios Angie", pero la 233506 de Feisen es "Otras Cuentas Por Pagar",
+// que sí es deuda con terceros y tiene que quedarse en el pasivo. Clasificar por
+// código solo sacaría la cuenta equivocada.
+//
+// No se borran: se muestran en su propio bloque al final, como las transitorias,
+// con el signo tal como viene de Odoo (positivo = se lo deben al negocio,
+// negativo = el negocio se lo debe al socio).
+export const CUENTAS_SOCIOS = {
+  feisen: ['133002', '133003'],   // Otras cuentas por cobrar AVF y AFC
+  fc: ['233506'],                 // Cuentas por pagar a socios Angie
+}
+
 // Hasta qué diferencia se considera que la suma de Odoo da cero (los saldos vienen
 // con dos decimales y aquí todo se redondea a pesos)
 export const TOLERANCIA = 2
 
-// A qué sección y grupo va cada cuenta, por su código
-function ubicar(codigo) {
+// A qué sección y grupo va cada cuenta, por su código y por el libro del que sale
+function ubicar(codigo, empresa) {
+  // Las de socios salen de todos los totales, sea cual sea su clase
+  if (CUENTAS_SOCIOS[empresa]?.includes(String(codigo))) return { seccion: 'socios', grupo: 'socios' }
   const clase = String(codigo).charAt(0)
   if (clase >= '4' && clase <= '7') return { seccion: 'resultado', grupo: 'resultado' }
   const dos = String(codigo).slice(0, 2)
@@ -155,7 +179,7 @@ export function calcularBalance(datos, bancos) {
       if (!codigo) continue
       const saldo = Number(c.saldo) || 0
       sumaCruda[emp] += saldo
-      const { seccion, grupo } = ubicar(codigo)
+      const { seccion, grupo } = ubicar(codigo, emp)
       const b = bolsa(`${seccion}|${grupo}`)
       b[emp] += saldo
       if (!b.cuentas.has(codigo)) b.cuentas.set(codigo, { codigo, nombre: c.nombre || '', feisen: 0, fc: 0 })
@@ -224,6 +248,11 @@ export function calcularBalance(datos, bancos) {
     { id: 'transitorias', nombre: 'Movimientos transitorios' }, 'transitorias|transitorias', 1,
   )
 
+  // Cuentas de socios: igual que las transitorias, con el signo tal como viene
+  const socios = armarGrupo(
+    { id: 'socios', nombre: 'Cuentas de socios' }, 'socios|socios', 1,
+  )
+
   // Que la suma de todas las cuentas de Odoo dé cero sigue siendo cierto y sigue
   // sirviendo: dice que la contabilidad cuadra consigo misma.
   const cuadreOdoo = {}
@@ -238,7 +267,7 @@ export function calcularBalance(datos, bancos) {
     + (datos?.[id] || []).filter(c => !String(c.codigo || '').startsWith('11')).length, 0)
 
   return {
-    secciones, transitorias, resultado, patrimonioRegistrado,
+    secciones, transitorias, socios, resultado, patrimonioRegistrado,
     disponible, cuadreOdoo, activo, cuentas,
   }
 }
