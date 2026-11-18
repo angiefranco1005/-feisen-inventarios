@@ -36,6 +36,16 @@ const BIMESTRES = [
   { texto: 'Nov–Dic', meses: ['11', '12'] },
 ]
 
+// Las cuentas de socios. Salieron del balance el 18/11/2026 —no son cartera ni deuda con
+// un tercero— y Angie pidió verlas aquí: "quita lo de cuentas de socios en el balance y
+// déjala en el módulo de impuestos aparte... según la DIAN esa plata todavía se debe,
+// pero me gusta tenerlo presente".
+//
+// No entran en ningún cálculo de esta pantalla: no suman a la renta, ni a los anticipos,
+// ni a los impuestos por pagar. Están para tenerlas delante, porque plata que se mueve
+// por cuentas de socios tiene tratamiento fiscal propio y es conversación con el contador.
+const SOCIOS = ['133002', '133003']
+
 const CERTIFICADOS = ['135501', '135503', '135504', '135508']
 const AUTORRETENCIONES = ['135509', '135510']
 const POR_PAGAR = c => /^(2365|2367|2368)/.test(c) || c === '241200'
@@ -44,6 +54,26 @@ const soloDigitos = s => String(s).replace(/[^\d]/g, '')
 const conPuntos = s => { const d = soloDigitos(s); return d ? Number(d).toLocaleString('es-CO') : '' }
 const leer = (clave, pordefecto) => { try { return localStorage.getItem(clave) ?? pordefecto } catch { return pordefecto } }
 const guardar = (clave, v) => { try { localStorage.setItem(clave, v) } catch { /* sin almacenamiento */ } }
+
+// Las cuentas de socios, con su reparto por tercero. Usa `finanzas-cuenta`, que agrega
+// en el servidor: el total NO se saca sumando los apuntes, porque vienen topados.
+function useSocios() {
+  const [estado, setEstado] = useState({ cuentas: null, cargando: true, error: '' })
+  useEffect(() => {
+    let vivo = true
+    supabase.functions.invoke('finanzas-cuenta', { body: { empresa: 'feisen', codigos: SOCIOS, limite: 1 } })
+      .then(({ data, error }) => {
+        if (!vivo) return
+        if (error || data?.error) {
+          setEstado({ cuentas: null, cargando: false, error: data?.error || error?.message || 'No se pudo leer.' })
+          return
+        }
+        setEstado({ cuentas: data.cuentas || [], cargando: false, error: '' })
+      })
+    return () => { vivo = false }
+  }, [])
+  return estado
+}
 
 // Llama a finanzas-tributario (una sola empresa: Feisen)
 function useTributario(anio) {
@@ -103,6 +133,7 @@ function Renglon({ codigo, nombre, valor, fuerte }) {
 export default function Impuestos() {
   const anio = String(new Date().getFullYear())
   const { datos, cargando, error, recargar } = useTributario(anio)
+  const socios = useSocios()
   const [tarifaTexto, setTarifaTexto] = useState(() => leer(CLAVE_TARIFA, String(TARIFA_POR_DEFECTO)))
   const [ajusteTexto, setAjusteTexto] = useState(() => leer(CLAVE_AJUSTE, ''))
 
@@ -397,8 +428,47 @@ export default function Impuestos() {
             : <div className="divide-y divide-feisen-borde-suave">{calc.ctasPorPagar.map(x => <Renglon key={x.codigo} codigo={x.codigo} nombre={x.nombre} valor={Math.abs(x.saldo)} />)}</div>}
         </Bloque>
 
+        {/* 6. Cuentas de socios: a la vista, fuera de todo cálculo */}
+        <Bloque titulo="Cuentas de socios"
+          descripcion="Fuera del balance y fuera de las cuentas de esta pantalla. Están aquí para tenerlas presentes: según la DIAN esa plata todavía se debe, y moverla por cuentas de socios tiene tratamiento fiscal propio."
+          derecha={socios.cuentas?.length
+            ? <span className="text-base font-semibold tabular-nums text-feisen-texto">
+                {pesos(socios.cuentas.reduce((s, c) => s + c.total, 0))}
+              </span>
+            : null}>
+          {socios.cargando ? <p className="px-4 py-6 text-center text-sm text-feisen-texto-2">Leyendo las cuentas de socios…</p>
+            : socios.error ? <p className="px-4 py-6 text-center text-sm text-feisen-rojo">No se pudieron leer: {socios.error}</p>
+            : !socios.cuentas?.length ? <p className="px-4 py-6 text-center text-sm text-feisen-texto-2">No hay saldo en las cuentas de socios.</p>
+            : <div className="divide-y divide-feisen-borde-suave">
+                {socios.cuentas.map(c => (
+                  <div key={c.codigo} className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-feisen-texto truncate">{c.nombre}</span>
+                        <span className="block text-xs text-feisen-texto-2 tabular-nums">
+                          Cuenta {c.codigo} · {c.apuntes.toLocaleString('es-CO')} movimientos
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-feisen-texto">{pesos(c.total)}</span>
+                    </div>
+                    {!!c.terceros?.length && (
+                      <div className="mt-2 space-y-1">
+                        {c.terceros.slice(0, 4).map(t => (
+                          <div key={t.tercero} className="flex items-center justify-between gap-3 text-xs">
+                            <span className="truncate text-feisen-texto-2">{t.tercero}</span>
+                            <span className="shrink-0 tabular-nums text-feisen-texto-2">{pesos(t.valor)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>}
+        </Bloque>
+
         <p className="text-xs text-feisen-texto-2 px-1">
           Todo sale de Odoo Feisen, año {anio}, desde {PRIMER_MES_ODOO.slice(5)}/{PRIMER_MES_ODOO.slice(0, 4)}. No incluye FC ni lo que estaba en SIIGO.
+          Las cuentas de socios son la excepción: traen el saldo acumulado **a hoy**, de toda la historia y no solo de este año, así que no coinciden con la cifra que el balance dejó fuera a fin de mes.
         </p>
       </>}
     </div>

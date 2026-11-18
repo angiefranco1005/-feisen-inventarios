@@ -1308,34 +1308,7 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
                   cargando={inv.cargando} error={inv.error} onGuardar={onGuardarInventario}
                   abierto={abierto === ID_INVENTARIO} onClick={() => alternar(ID_INVENTARIO)} />
               }
-              const fila = <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
-              // Las cuentas de socios van a la vista dentro de impuestos, pero **sin sumar**.
-              // Angie, 18/11/2026: "lo de cuenta de socios, métinelo en impuestos, que según
-              // la DIAN esa plata todavía se debe. Pero me gusta tenerlo presente"; y al
-              // precisarlo: "a la vista sin sumar como 'cuentas socios', solo de carácter
-              // informativo". Por eso es un renglón aparte y no un grupo del pasivo: si
-              // sumara, el balance estaría afirmando una deuda que todavía no está decidida.
-              if (g.id !== '24' || b.socios.vacio) return fila
-              return (
-                <div key={g.id}>
-                  {fila}
-                  <button type="button" onClick={() => alternar('socios')}
-                    className={`w-full ${GRID_BAL} px-4 py-1.5 pl-9 text-xs items-center text-left bg-amber-50 hover:bg-amber-100`}>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1 text-amber-900">
-                        {abierto === 'socios' ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
-                        <span className="truncate font-medium">Cuentas socios</span>
-                      </span>
-                      <span className="block pl-4 text-[11px] text-amber-700">
-                        informativo · no suma al pasivo · según la DIAN esa plata todavía se debe
-                      </span>
-                    </span>
-                    <span className="hidden sm:contents"><CifraB v={b.socios.feisen} tenue /><CifraB v={b.socios.fc} tenue /></span>
-                    <CifraB v={b.socios.total} tenue />
-                  </button>
-                  {abierto === 'socios' && <DetalleBalance grupo={b.socios} />}
-                </div>
-              )
+              return <FilaBalance key={g.id} grupo={g} abierto={abierto === `${sec.id}-${g.id}`} onClick={() => alternar(`${sec.id}-${g.id}`)} />
             })}
             {sec.id === 'patrimonio' && (
               <div className={`${GRID_BAL} px-4 py-2 text-sm items-center`}>
