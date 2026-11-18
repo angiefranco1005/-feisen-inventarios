@@ -59,41 +59,55 @@ export const TIPOS_INVENTARIO = [
 // más vale que se vea fuera de sitio a que desaparezca en silencio.
 export const MAPA_CATEGORIAS = {
   // ── Materias primas e insumos ──
-  'CORTE Y DOBLEZ|LAMINA': 'prima',
-  'FUNDICIÓN|MATERIA PRIMA': 'prima',
-  'MECANIZADOS|ACEROS': 'prima',
+  // Angie lo definió así el 18/11/2026: "en Materia prima debe ir 1. Almacén... Adicional
+  // Materia prima también es Lámina, Ferretería, de la bodega de fundición la categoría de
+  // Materia prima, de la bodega de mecanizados (aceros, ferretería, fundición)".
+  //
+  // "Almacén" es **toda la bodega, sin excepciones**. Su informe del ERP daba
+  // $94.094.413, que es la bodega sin la categoría 'FUNDICIÓN - ALMACEN' ($94.078.540
+  // hoy, a $15.873 de deriva). Pero al verlo dijo: "eso de fundición almacén sí debería
+  // contarlo". Así que entra también, y el total de Almacén sube a los $102.885.940 de
+  // la bodega completa.
   'ALMACEN|PINTURA': 'prima',
   'ALMACEN|INSUMOS': 'prima',
   'ALMACEN|TORNILLERÍA': 'prima',
+  'ALMACEN|ACCESORIOS': 'prima',
+  'ALMACEN|RODAMIENTOS Y RETENEDORES': 'prima',
+  'ALMACEN|CORREAS': 'prima',
+  'ALMACEN|POLEAS': 'prima',
+  'ALMACEN|PARA VENTA': 'prima',
+  'ALMACEN|HERRAMIENTA': 'prima',
+  'ALMACEN|DOTACIÓN': 'prima',
+  'ALMACEN|OTROS': 'prima',
+  'ALMACEN|FUNDICIÓN - ALMACEN': 'prima',
+
+  'CORTE Y DOBLEZ|LAMINA': 'prima',
+  // La bodega de Ferretería está casi sin cargar: 2 artículos con existencias de 45.
+  // Angie lo sabe ("este no está en el ERP"), así que aquí la cifra se va a escribir a mano.
   'FERRETERIA|FERRETERIA': 'prima',
-  'MECANIZADOS|FERRETERIA - MECANIZADOS': 'prima',
+  'FUNDICIÓN|MATERIA PRIMA': 'prima',
   'FUNDICIÓN|ALUMINIO - FUNDICIÓN': 'prima',
+  // De Mecanizados entran las tres que nombró. El fundido que llega a Mecanizados es
+  // materia prima de esa etapa, aunque venga de Fundición.
+  'MECANIZADOS|ACEROS': 'prima',
+  'MECANIZADOS|FERRETERIA - MECANIZADOS': 'prima',
+  'MECANIZADOS|FUNDICIÓN - MECANIZADOS': 'prima',
   'MECANIZADOS|ALUMINIO - MECANIZADOS': 'prima',
 
   // ── Producto en proceso ──
-  // Ojo: la misma categoría aparece en varias bodegas, porque lo que agrupa es **dónde
-  // está la existencia**, no de qué bodega es el artículo. El material fundido que está
-  // en Armado y soldadura ya va camino de ensamblarse, así que también es proceso.
+  // El hierro ya fundido que todavía no entró a mecanizar ni a ensamblar. Ojo: la misma
+  // categoría aparece en varias bodegas, porque lo que agrupa es **dónde está la
+  // existencia**, no de qué bodega es el artículo.
   'FUNDICIÓN|MATERIAL FUNDIDO HIERRO': 'proceso',
   'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO': 'proceso',
-  'MECANIZADOS|FUNDICIÓN - MECANIZADOS': 'proceso',
-  'ALMACEN|FUNDICIÓN - ALMACEN': 'proceso',
   'ALMACEN|MATERIAL FUNDIDO': 'proceso',
 
   // ── Producto terminado y mercancía ──
   'MECANIZADOS|PRODUCTO MECANIZADO': 'terminado',
   'MOTORES|MOTORES CONSTRU': 'terminado',
   'MOTORES|EQUIPMASTER STORE': 'terminado',
-  'ALMACEN|PARA VENTA': 'terminado',
-  'ALMACEN|ACCESORIOS': 'terminado',
-  'ALMACEN|CORREAS': 'terminado',
-  'ALMACEN|RODAMIENTOS Y RETENEDORES': 'terminado',
-  'ALMACEN|POLEAS': 'terminado',
 
   // ── No es inventario de venta ──
-  'ALMACEN|HERRAMIENTA': 'aparte',
-  'ALMACEN|DOTACIÓN': 'aparte',
-  'ALMACEN|OTROS': 'aparte',
   'ADMINISTRACIÓN|Aseo': 'aparte',
   'ADMINISTRACIÓN|Dotación': 'aparte',
   'ADMINISTRACIÓN|Papelería': 'aparte',
