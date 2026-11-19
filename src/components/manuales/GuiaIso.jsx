@@ -9,7 +9,7 @@ import { TIPOS, codigoSugerido, crearDesdeGuia } from './comun'
 
 // Guía ISO 9001: qué documentos necesita Feisen, en qué orden, por qué los pide la norma y en
 // qué va cada uno. «Empezar» crea el documento con su plantilla y abre el asistente.
-export default function GuiaIso({ manuales, codigosUsados, onCerrar, onEmpezado, onAbrir }) {
+export default function GuiaIso({ manuales, codigosUsados, plantillasDeOtros = new Set(), onCerrar, onEmpezado, onAbrir }) {
   const { perfil, nivel } = useAuth()
   const elabora = ['registra', 'todo'].includes(nivel('manuales'))
   const [abierto, setAbierto] = useState(null)
@@ -67,6 +67,7 @@ export default function GuiaIso({ manuales, codigosUsados, onCerrar, onEmpezado,
                       <span className="block text-xs text-feisen-texto-2">{TIPOS[item.tipo].texto} · {item.area} · ISO {item.clausula}</span>
                     </span>
                     {est && <Etiqueta clase={est.clase}>{est.texto}</Etiqueta>}
+                    {!m && plantillasDeOtros.has(item.clave) && <Etiqueta clase="bg-gray-100 text-feisen-texto-2">Otra área</Etiqueta>}
                     {ver ? <ChevronUp size={16} className="text-gray-400 shrink-0 mt-0.5" /> : <ChevronDown size={16} className="text-gray-400 shrink-0 mt-0.5" />}
                   </button>
                   {ver && (
@@ -77,6 +78,8 @@ export default function GuiaIso({ manuales, codigosUsados, onCerrar, onEmpezado,
                         <button type="button" onClick={() => onAbrir(m)} className="min-h-[40px] px-3 rounded-lg border border-feisen-borde text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
                           Ver {m.codigo}
                         </button>
+                      ) : plantillasDeOtros.has(item.clave) ? (
+                        <p className="text-xs text-feisen-texto-2">Ya lo está elaborando otra área.</p>
                       ) : elabora ? (
                         <button type="button" onClick={() => empezar(item)} disabled={!!creando}
                           className="flex items-center gap-1.5 min-h-[40px] px-4 rounded-lg bg-feisen-azul text-white text-sm font-semibold disabled:opacity-50">

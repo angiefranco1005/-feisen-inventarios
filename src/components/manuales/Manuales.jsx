@@ -36,6 +36,7 @@ export default function Manuales() {
   const [manuales, setManuales] = useState([])
   const [leidas, setLeidas] = useState(new Set())      // versiones que yo confirmé
   const [lecturas, setLecturas] = useState({})         // manual_id → { leidos, total } (nivel 'todo')
+  const [ocupados, setOcupados] = useState([])         // { codigo, plantilla, mio } de todos los documentos, también los que no veo
   const [busqueda, setBusqueda] = useState('')
   const [area, setArea] = useState('')
   const [filtro, setFiltro] = useState('todos') // todos | revision | sinarchivo | recientes | porleer | obsoletos
@@ -46,10 +47,13 @@ export default function Manuales() {
 
   const cargar = useCallback(async () => {
     setError('')
-    const [ma, le, re] = await Promise.all([
+    const [ma, le, re, oc] = await Promise.all([
       supabase.from('manuales').select('*, manual_versiones(id, version, estado, vigente_desde, created_at, subido_por, revisado_por, aprobado_por, comentario_revision, aprobado_externo)').order('codigo'),
       supabase.from('manual_lecturas').select('version_id').eq('usuario_id', perfil?.id),
       gestiona ? supabase.rpc('manual_lecturas_resumen') : Promise.resolve({ data: [] }),
+      // Con nivel 'registra' solo se ven los documentos propios: los códigos y plantillas de los
+      // demás vienen de manual_codigos_usados() para no repetirlos
+      elabora ? supabase.rpc('manual_codigos_usados') : Promise.resolve({ data: [] }),
     ])
     if (ma.error) setError(ma.error.message)
     const versiones = await ponerNombres((ma.data || []).flatMap(m => m.manual_versiones))
@@ -64,9 +68,10 @@ export default function Manuales() {
     }))
     setLeidas(new Set((le.data || []).map(l => l.version_id)))
     setLecturas(Object.fromEntries((re.data || []).map(r => [r.manual_id, r])))
+    setOcupados(oc.data || [])
     setCargando(false)
     avisarCambioManuales()
-  }, [perfil?.id, gestiona])
+  }, [perfil?.id, gestiona, elabora])
   useEffect(() => { cargar() }, [cargar])
 
   const hoy = hoyCol()
@@ -79,7 +84,8 @@ export default function Manuales() {
   const sinArchivo = activos.filter(m => !m.vigente)
   const recientes = conArchivo.filter(m => (m.vigente.vigente_desde || '') >= hace30)
   const obsoletos = manuales.filter(m => !m.activo)
-  const codigosUsados = useMemo(() => new Set(manuales.map(m => m.codigo)), [manuales])
+  const codigosUsados = useMemo(() => new Set([...manuales.map(m => m.codigo), ...ocupados.map(o => o.codigo)]), [manuales, ocupados])
+  const plantillasDeOtros = useMemo(() => new Set(ocupados.filter(o => o.plantilla && !manuales.some(m => m.plantilla === o.plantilla)).map(o => o.plantilla)), [manuales, ocupados])
 
   // Lo que le toca a esta persona: aprobar (ADMIN), revisar ('todo', no lo suyo), corregir o enviar
   // (lo suyo), revisiones periódicas vencidas ('todo') y documentos por leer
@@ -331,7 +337,7 @@ export default function Manuales() {
           onCerrar={cerrarPanel} onGuardado={alGuardar} />
       )}
       {params.get('guia') && (
-        <GuiaIso manuales={manuales} codigosUsados={codigosUsados} onCerrar={cerrarPanel} onEmpezado={alEmpezarGuia} onAbrir={m => abrir('manual', m.id)} />
+        <GuiaIso manuales={manuales} codigosUsados={codigosUsados} plantillasDeOtros={plantillasDeOtros} onCerrar={cerrarPanel} onEmpezado={alEmpezarGuia} onAbrir={m => abrir('manual', m.id)} />
       )}
       {redactando && (
         <Asistente manual={redactando} onCerrar={() => { abrir('manual', redactando.id); cargar() }}
