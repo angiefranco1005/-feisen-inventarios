@@ -5,7 +5,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 
 - Pantalla: **Finanzas › EEFF** (`src/components/finanzas/Eeff.jsx`). Solo la ve ADMIN.
 - Empresas: **Feisen** (Construequipos Franco S.A.S.) y **FC**. Cada renglón muestra las dos y el total.
-- Última actualización: **18 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
+- Última actualización: **19 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
 
 > **Antes de comparar dos cifras de este documento, ten esto en cuenta: los datos de Odoo se mueven mientras contabilidad trabaja.** Dos números tomados con horas de diferencia pueden **no coincidir sin que ninguno esté mal**. Pasó **tres veces el 18/11/2026**: el **inventario**, las **cuentas de socios** y el **IVA por pagar** (la cuenta 240814 subió $10.000.000 en medio de la sesión y con eso cambió el pasivo del balance). Así que si ves dos cifras que no cuadran, **mira primero la fecha y la hora de cada una** antes de concluir que algo está mal calculado. Esto vale solo de **octubre en adelante**: los meses que salen del Excel ya están cerrados y no se mueven.
 
@@ -490,6 +490,59 @@ Que dos movimientos coincidan **al peso**, con **distinta fecha** y **distinto t
 
 **No se tocó nada.** Lo que hay que hacer es mirar el **contrato del leasing** y el **soporte de la compra** con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones** y el endeudamiento mejora de verdad: no por un cambio de criterio, sino porque esa deuda no existía.
 
+### Cuánto de la deuda financiera vence en doce meses (19/11/2026)
+
+El grupo **21 Obligaciones financieras** es el único del balance que se parte a mano entre **corriente** (lo que hay que pagar dentro de los próximos doce meses) y **no corriente** (lo que vence después). Odoo no trae esa división, y el número de cuenta no la dice, así que la cifra se escribe en una casilla: **`corriente:deuda_financiera`** en la tabla `eeff_manual`, con el mes del balance y `empresa = 'total'`.
+
+**Para octubre de 2026 ya está escrita: $155.919.009.** Sale de los extractos y las cuentas de cobro que Angie entregó el **19/11/2026**, y se calculó **obligación por obligación**, no con un porcentaje ni a ojo.
+
+#### El método no es el mismo para los créditos que para los leasing
+
+Son dos tipos de papel distintos y cada uno dice cosas distintas, así que hay dos formas de llegar al mismo dato:
+
+- **Créditos bancarios.** El extracto de Bancolombia **separa el abono a capital del interés**, así que la cuenta es directa: la parte corriente es el **abono a capital del mes × 12**, **topado al saldo**. Si al crédito le quedan menos de doce cuotas, **todo es corriente**. **Los intereses no entran**: todavía no se han causado, no se deben hoy.
+- **Leasing.** Las cuentas de cobro de Leasing Bancolombia **no traen el saldo a capital**, solo lo que se paga ese mes, así que el saldo **hay que despejarlo**: se divide el **interés del mes** entre la **tasa mensual equivalente** (la tasa efectiva anual del documento elevada a 1/12). Con ese saldo y el **canon fijo** (capital + interés, **sin seguros**) se amortizan **doce meses hacia adelante**; **lo que baje el saldo en esos doce meses es la parte corriente**.
+
+#### El detalle, obligación por obligación (corte octubre 2026)
+
+**Créditos**
+
+| Obligación | Línea | Saldo | Abono mensual | Cuotas | Corriente | No corriente |
+|---|---|---|---|---|---|---|
+| 1000112247 | Ordinaria IBR | $11.666.670 | $1.666.666 | 7 | $11.666.670 | — |
+| 1000111602 | Cesantías IBR | $15.863.336 | $3.965.833 | 4 | $15.863.336 | — |
+| 1000111089 | Ordinaria IBR | $83.333.337 | $3.333.333 | 25 | $39.999.996 | $43.333.341 |
+| 1000110545 | Ordinaria IBR | $59.183.478 | $2.573.194 | 23 | $30.878.328 | $28.305.150 |
+| Credipago 10081012737 | — | $8.333.336 | vence 27/11/2026 | — | $8.333.336 | — |
+| Credipago 10081013292 | — | $3.333.334 | vence 27/11/2026 | — | $3.333.334 | — |
+| **Subtotal créditos** | | **$181.713.491** | | | **$110.075.000** | **$71.638.491** |
+
+Los dos primeros y los dos Credipago quedan **enteros en corriente** porque les faltan menos de doce meses. Los dos últimos sí se parten.
+
+**Leasing (maquinaria y equipo)**
+
+| Operación | Canon | Tasa | Saldo | Corriente | No corriente |
+|---|---|---|---|---|---|
+| 2-10-379566 | 8 | 20,17 % EA | $116.155.392 | $11.366.491 | $104.788.901 |
+| 2-10-382883 | 2 | 22,52 % EA | $115.120.283 | $17.338.746 | $97.781.537 |
+| 2-10-369662 | 15 | 18,70 % EA | $85.070.244 | $17.138.772 | $67.931.472 |
+| **Subtotal leasing** | | | **$316.345.919** | **$45.844.009** | **$270.501.911** |
+
+**Total de las nueve obligaciones: saldo $498.059.410 · corriente $155.919.009 · no corriente $342.140.402.**
+
+#### Una comprobación que vale la pena dejar escrita
+
+Los **libros** traen los tres leasing en **$316.545.340** y el saldo **despejado desde los intereses de los extractos** dio **$316.345.919**: se diferencian en **$199.421**, un **0,06 %**. Son **dos caminos independientes** —la contabilidad por un lado, el documento del banco por el otro— que llegan prácticamente al mismo número, así que **el método de despejar el saldo desde el interés es confiable** y lo que se calculó con él se puede usar sin desconfianza.
+
+#### Dos advertencias que hay que leer antes de usar esta cifra
+
+- **Faltan $88.391.205 por identificar, y hoy están contados como no corrientes sin que nadie lo haya confirmado.** El grupo 21 del balance de octubre trae **$586.450.615** y los nueve documentos solo explican **$498.059.410**. Al escribir la casilla en $155.919.009, esos **$88.391.205** quedan automáticamente del lado **no corriente**, **por descarte, no porque se haya revisado**. Lo que falta hacer es **preguntarle a la contadora qué cuentas componen el grupo 21** y cotejarlas contra esta lista de nueve. Una posibilidad es el **presunto doble registro de $58.861.575 del leasing de la cizalla**, que ya estaba anotado como pendiente más arriba; si fuera eso, no sería deuda nueva sino deuda que no existe.
+- **El cupo CrediExpress de Davivienda 6700456801301403 está en CERO y no debe entrar al balance.** Es un **cupo aprobado de $50.000.000 sin usar**: un cupo disponible **no es deuda**, así que no se registra como pasivo ni corriente ni no corriente. Queda escrito para que nadie lo sume al verlo en los papeles del banco.
+
+#### La casilla es por mes, y solo hace falta de octubre en adelante
+
+Lo calculado aquí **vale para octubre de 2026 y nada más**: cada mes tiene su propia casilla, porque la deuda se abona y las cuotas que faltan cambian. **De enero a septiembre no se usa**: esos meses salen del **Excel de Angie**, que ya trae la deuda financiera partida entre corto y largo plazo.
+
 ### Las cuentas por pagar, los impuestos y las obligaciones laborales (23, 24 y 25) se leen solo de Feisen
 
 Decisión de Angie del **18/11/2026**: *"en las cuentas por pagar 23, usa las cuentas de odoo feisen solamente. lo mismo que la 24 y la 25"*.
@@ -541,7 +594,7 @@ Decisión de Angie del **13/11/2026**, y **no cambió** ni con lo del 17/11 ni c
 Conviene que estén escritas, porque el Excel de Angie sí las tenía:
 
 - **No se divide por centro de costo.** Un balance no se reparte por centro —no tiene sentido preguntarse cuánto banco o cuánta cartera le toca a Fundición—, así que en la pestaña **Balance general** el filtro de centro **ni siquiera aparece**. Esto sigue igual que el 13/11.
-- **No separa corriente de no corriente.** Odoo no trae esa división y deducirla por el número de cuenta **sería adivinar**. Si algún día se quiere, hay que decidirlo **cuenta por cuenta**.
+- **La división entre corriente y no corriente no sale de Odoo.** Odoo no la trae y deducirla por el número de cuenta **sería adivinar**, así que se decidió **cuenta por cuenta**. El caso que no se puede resolver así es el de las **obligaciones financieras (grupo 21)**, que se parten con una **casilla que se escribe a mano**, mes por mes: ver "Cuánto de la deuda financiera vence en doce meses" más arriba.
 
 Y sigue siendo un **balance unificado Feisen + FC**: las dos empresas en el mismo informe, cada renglón con su columna y el total.
 
@@ -829,6 +882,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - Esas cinco casillas son la **única** fuente del disponible: desde el **18/11/2026** el balance **no lee ni muestra las cuentas de bancos de Odoo**, así que lo que no se escriba ahí no aparece en ningún lado.
 - **Desde el 18/11/2026 el balance también tiene casillas de inventario**: una por cada **renglón** del grupo 14, dentro de los tres tipos (doce renglones, que **no son las categorías del ERP**: "Almacén" es toda la bodega en una línea). Funcionan igual que las del disponible —una serie por mes, el total de las dos empresas juntas, guardadas en `eeff_manual` con el concepto del renglón, `inv:almacen`, `inv:lamina`…— con una diferencia: **la casilla de inventario no arranca vacía**, muestra lo que trae el ERP. **Lo que escribas reemplaza esa cifra**; si borras la casilla, vuelve la del ERP. Cinco renglones se muestran **aunque el ERP no traiga nada**, porque esa cifra la escribes tú entera: **Ferretería**, **Piezas y partes de máquina**, **Piezas cortadas en plasma**, **Poleas de aluminio** y **Máquinas terminadas**.
 - **Para el inventario, la casilla ya no hace falta para tener el corte del mes:** desde el 18/11/2026 el ERP sí da el valor al último día del mes que estés mirando. Las casillas quedan para **corregir a mano** lo que el ERP no tenga bien (Ferretería, Lámina) y para los **cuatro renglones que no están en el ERP**: los dos de producto en proceso y los dos de producto terminado. Ver la sección 2.3.
+- **El balance tiene además una casilla sola para la deuda financiera**: cuánto del grupo 21 vence **dentro de los próximos doce meses** (`corriente:deuda_financiera`, una por mes, el total de las dos empresas juntas). Es la única parte del corriente / no corriente que no se puede deducir de la contabilidad. **Octubre de 2026 ya está escrita: $155.919.009**, calculada obligación por obligación con los extractos del 19/11/2026. **De enero a septiembre no se usa**: esos meses vienen del Excel, que ya trae la deuda partida. Ver la sección 2.3.
 - Todo queda guardado en el ERP, mes por mes.
 
 ---
@@ -858,6 +912,8 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **Las "consignaciones sin identificar" (130501, −$70.593.236) están a la espera de un informe.** Son consignaciones de remisiones que no se han logrado identificar; Angie ya se lo pidió a la contadora y **hasta que llegue no se reclasifica nada**.
 - **La deuda del leasing de la cizalla puede estar duplicada ($58.861.575).** En la cuenta 211503 hay **dos movimientos por exactamente el mismo valor**: el saldo inicial del 31/03/2026 con tercero Bancolombia y una "COMPRA CIZALLA" del 21/08/2026 con tercero INOMAQ. **No se tocó nada**: hay que mirar el contrato y el soporte de la compra con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones**.
 - **Hay $113.655.000 de ICA del municipio de Soacha sin pagar, de 2017, 2018 y 2019.** Están en la cuenta **241200** de Feisen y son el **42 % de los $267.749.816** del grupo 24 de impuestos: **seis apuntes**, todos con tercero **"MUNICIPIO DE SOACHA"** y concepto "ICA por pagar Soacha 2017 / 2018 / 2019", **todos de los saldos iniciales de marzo de 2026**, o sea de antes de Odoo. Apareció al abrir la cuenta para renombrarla. Es una **deuda vieja con una entidad pública**: hay que mirar con la contadora **si está dentro de algún acuerdo de pago** o si sigue corriendo con intereses y sanciones. **No se tocó nada.** Ver la sección 2.3.
+- **Del grupo 21 quedan $88.391.205 sin identificar, y hoy se están leyendo como deuda de largo plazo.** El balance de octubre trae **$586.450.615** en obligaciones financieras y los nueve documentos que entregó Angie el 19/11/2026 explican **$498.059.410**. Como la casilla dice que lo corriente son $155.919.009, **esa diferencia queda del lado no corriente por descarte, sin que nadie lo haya confirmado**. **Pendiente para la contadora:** qué cuentas componen el grupo 21, para cotejarlas contra la lista de nueve. Una posibilidad es el **presunto doble registro de $58.861.575 del leasing de la cizalla**. Ver la sección 2.3.
+- **El cupo CrediExpress de Davivienda (6700456801301403) está en cero: no es deuda.** Son **$50.000.000 de cupo aprobado y sin usar**. Un cupo disponible **no se registra como pasivo**, ni corriente ni no corriente; queda dicho aquí para que no se sume al ver los papeles del banco. Ver la sección 2.3.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
 ---
@@ -1014,5 +1070,10 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 18/11 | **Al final del balance entró la sección "Comprobación", y es lo único que queda al pie.** Palabras de Angie: *"no coloques nada de partidas por aclarar entonces, por ahora. Solo deja la información de la ecuación de pasivo+patrimonio=activo y si hay diferencia mencionar de cuánto es la diferencia, el resto no lo tengas en cuenta"*. Son **tres renglones** —**Pasivo + patrimonio**, **Activo** y **Diferencia**— más una **frase corta** que dice de cuánto es la diferencia. Al 31/10: **$2.318.299.242** contra **$1.986.603.598**, o sea **$331.695.644**. **No se explica la diferencia ni se reparte entre causas**: eso es justo lo que ella pidió quitar. **Si faltan datos del mes** —los bancos del disponible sin escribir o el resultado del ejercicio todavía calculándose— **la sección no muestra la diferencia** y dice que falta información y que no tiene sentido comparar |
 | 18/11 | **Salió del balance el bloque "Partidas por aclarar"** (las cuentas de clase 9: los $575.445.392 de FC y el residuo de los saldos iniciales). **Esto hay que leerlo con cuidado, porque es deliberado y no es obvio:** esas cuentas **siguen fuera de todos los totales, exactamente igual que antes**, pero ahora **ya no se ven en ninguna parte del balance**; entran dentro de la **diferencia** de la Comprobación y nada más. El cálculo **las sigue devolviendo**, así que **volver a mostrarlas es cosa de la pantalla, no de las cifras** |
 | 18/11 | **Se quitó el recuadro ámbar de "Antes de leer estas cifras" que iba arriba del balance.** Lo pidió Angie junto con lo anterior. Con él se fueron sus tres avisos: las **partidas por aclarar de FC**, que el **patrimonio no sale de Odoo** (con lo que queda fuera: capital $100.000.000, reservas $50.000.000 y resultados de años anteriores, más el resultado que Odoo calcula por su cuenta) y que **cada contabilidad cuadra consigo misma**. **Las tres siguen siendo ciertas y están escritas en este documento**: lo único que cambió es que **la pantalla ya no las dice**. Arriba del balance queda solo el título con el mes y el total del activo |
+
+| 19/11 | **La deuda financiera de octubre quedó partida entre corriente y no corriente: $155.919.009 vencen dentro de doce meses.** Se escribió en la casilla `corriente:deuda_financiera` de `eeff_manual` (mes `2026-10`, empresa `total`), calculada **obligación por obligación** con los extractos y las cuentas de cobro que entregó Angie ese día. **El método es distinto según el papel:** en los **créditos** el extracto separa capital de interés, así que lo corriente es el **abono a capital × 12 topado al saldo** (y si faltan menos de doce cuotas, todo es corriente), **sin los intereses**, que aún no se causan; en los **leasing** la cuenta de cobro no trae el saldo, así que se **despeja dividiendo el interés del mes entre la tasa mensual equivalente** (la EA elevada a 1/12) y se amortizan doce meses con el canon fijo, sin seguros. Seis créditos por $181.713.491 (corriente $110.075.000) y tres leasing por $316.345.919 (corriente $45.844.009). Ver la sección 2.3 |
+| 19/11 | **El saldo de los leasing despejado desde los intereses coincide con los libros: $316.345.919 contra $316.545.340, $199.421 de diferencia (0,06 %).** Dos caminos independientes dan el mismo número, así que el método de despejar el saldo desde el interés **se puede usar con confianza** para los meses que vengan |
+| 19/11 | **Quedan $88.391.205 del grupo 21 sin identificar, clasificados como no corrientes por descarte.** El balance trae $586.450.615 y los nueve documentos explican $498.059.410. **Nadie ha confirmado que esa diferencia sea de largo plazo**: hay que pedirle a la contadora las cuentas que componen el grupo 21 y cotejarlas. Una posibilidad es el presunto doble registro de $58.861.575 del leasing de la cizalla |
+| 19/11 | **El cupo CrediExpress de Davivienda 6700456801301403 no entra al balance**: está en cero, son $50.000.000 de cupo aprobado y sin usar, y un cupo disponible **no es deuda** |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.

@@ -10,6 +10,7 @@ import {
 import { CONCEPTO_DEUDA_CORRIENTE, SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
 import { calcularInventario, conceptoInventario } from './inventarioBalance'
 import { calcularBalanceHistorico, hayBalanceHistorico } from './balanceHistorico'
+import { INDICADORES_PYG, calcularIndicadoresPyg, formatearIndicador } from './indicadoresResultados'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -241,7 +242,9 @@ export default function Eeff() {
 
   // ── Datos del año (se piden mes por mes y se guardan; cambiar de centro no vuelve a pedirlos) ──
   const [anio, setAnio] = useState(() => hoyCol().slice(0, 4))
-  const ano = useAno(anio, verAno)
+  // Indicadores también necesita el año entero: los del estado de resultados se muestran mes
+  // a mes, y salen del mismo cálculo que la tabla del año (ver indicadoresResultados.js).
+  const ano = useAno(anio, verAno || verIndicadores)
 
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
   // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
@@ -459,10 +462,10 @@ export default function Eeff() {
     else ano.recargar()
   }
   return (
-    <div className={`${verAno ? 'max-w-[90rem]' : 'max-w-5xl'} mx-auto space-y-5 pb-24 lg:pb-8`}>
+    <div className={`${verAno || verIndicadores ? 'max-w-[90rem]' : 'max-w-5xl'} mx-auto space-y-5 pb-24 lg:pb-8`}>
       <EncabezadoPagina modulo="Finanzas" titulo="EEFF"
         subtitulo={verIndicadores
-          ? 'Qué dice el balance del mes en cuatro cifras: si alcanza para pagar lo del año y cuánto está financiado con deuda.'
+          ? 'Cómo va el negocio en cifras: la liquidez y el endeudamiento del balance, y los márgenes del estado de resultados mes a mes.'
           : verBalance
           ? 'Qué tenía y qué debía la empresa al cierre del mes: Feisen y FC, con los bancos que escribes tú.'
           : 'Estado de resultados de Feisen y FC juntos, armado paso a paso con tu método.'}>
@@ -491,7 +494,7 @@ export default function Eeff() {
                 </select>
               </Grupo>
               <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
-                Salen del balance de ese mes · no se dividen por centro de costo
+                El mes que escojas manda en los de liquidez · los del P&amp;G van del año entero
               </span>
             </>
           ) : verBalance ? (
@@ -571,7 +574,8 @@ export default function Eeff() {
         !histBal ? <Cargando texto={`Armando el balance de ${nombreLargo(mes)} con tus cifras del Excel…`} />
         : verIndicadores
           ? <VistaIndicadores historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} cargando={false}
-              inv={{ filas: [], manual: {} }} resultado={resultadoEjercicio} deuda={null} onGuardarDeuda={guardarDeuda} />
+              inv={{ filas: [], manual: {} }} resultado={resultadoEjercicio} deuda={null} onGuardarDeuda={guardarDeuda}
+              ano={ano} anio={anio} />
           : <VistaBalance historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} errorBancos=""
               cargando={false} onGuardarBanco={guardarBanco}
               inv={{ filas: [], manual: {} }} onGuardarInventario={guardarInventario}
@@ -583,7 +587,8 @@ export default function Eeff() {
         : !bal.datos ? null
         : verIndicadores
           ? <VistaIndicadores datos={bal.datos} bancos={banc.bancos} cargando={bal.cargando || banc.cargando}
-              inv={inv} resultado={resultadoEjercicio} deuda={banc.deuda} onGuardarDeuda={guardarDeuda} />
+              inv={inv} resultado={resultadoEjercicio} deuda={banc.deuda} onGuardarDeuda={guardarDeuda}
+              ano={ano} anio={anio} />
           : <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
               cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
               inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio}
@@ -1687,7 +1692,7 @@ function Tarjeta({ titulo, valor, explica, falta, alerta }) {
   )
 }
 
-function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico }) {
+function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, ano, anio }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
@@ -1791,8 +1796,166 @@ function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGu
         ({pesos(activoTotal)}); entre más alto, más de la empresa está financiada con plata de terceros y no con la
         de los socios. Ninguno de estos indicadores se divide por centro de costo, porque un balance tampoco.
       </p>
+
+      {ano && <TablaIndicadoresPyg ano={ano} anio={anio} />}
     </div>
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOS INDICADORES DEL ESTADO DE RESULTADOS, MES A MES
+//
+// Los de arriba son del balance y se cortan a una fecha. Estos son del P&G y son del mes
+// entero, así que tiene sentido verlos en fila: lo que Angie quería ver es si el margen
+// viene mejorando o empeorando. Las fórmulas y el porqué de cada una están en
+// indicadoresResultados.js; aquí solo se pinta.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// La flechita de cada celda: verde si ese mes mejoró frente al anterior, roja si empeoró.
+function Flecha({ mejora }) {
+  if (mejora == null || mejora === 0) return null
+  const sube = mejora === 1
+  return (
+    <span className={`ml-0.5 text-[9px] align-middle ${sube ? 'text-emerald-600' : 'text-feisen-rojo'}`}
+      title={sube ? 'mejoró frente al mes anterior' : 'empeoró frente al mes anterior'}>
+      {sube ? '▲' : '▼'}
+    </span>
+  )
+}
+
+function TablaIndicadoresPyg({ ano, anio }) {
+  // Mismo patrón que la tabla del año: los meses del Excel se calculan aquí mismo y los de
+  // Odoo salen de lo que `useAno` ya trajo. Nunca se vuelve a pedir nada.
+  const porMes = useMemo(() => ano.lista.map(mes => {
+    if (hayHistorico(mes)) return { mes, listo: true, historico: true, calc: calcularMesHistorico(mes, null) }
+    const d = ano.meses[mes]
+    return {
+      mes,
+      listo: !!d && !d.fallo,
+      fallo: !!d?.fallo,
+      calc: d ? calcularMes({ pyg: d.pyg, compras: d.compras, hierro: d.hierro, nomina: d.nomina, manual: d.manual, centroId: null }) : null,
+    }
+  }), [ano.meses, ano.lista])
+
+  const filas = useMemo(() => calcularIndicadoresPyg(porMes), [porMes])
+  const listos = porMes.filter(x => x.listo)
+
+  // Un mes sin mano de obra muestra un margen que no es real: se marca igual que en la
+  // tabla del año, porque aquí el engaño es peor (un margen bruto inflado se ve como mejora).
+  const sinManoObra = x => !!x.calc && x.calc.ingresoBase > 0 && !Math.round(x.calc.valorFila('mano_obra'))
+  const mesesSinManoObra = listos.filter(sinManoObra)
+
+  if (!listos.length) {
+    return (
+      <div className="bg-white border border-feisen-borde rounded-xl p-4">
+        <Cargando texto={`Trayendo el año mes por mes · vamos por ${nombreLargo(ano.actual || ano.lista[0])}…`} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {ano.error && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">{ano.error}</p>}
+
+      <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-feisen-texto">Indicadores del estado de resultados · año {anio}</span>
+          <span className="text-xs text-feisen-texto-2">▲ mejoró · ▼ empeoró, frente al mes anterior</span>
+        </div>
+
+        <p className="px-4 py-2 text-xs text-feisen-texto-2 sm:hidden border-b border-feisen-borde-suave">
+          Desliza la tabla a los lados para ver los demás meses. El indicador se queda quieto.
+        </p>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px] border-separate border-spacing-0">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-20 bg-white text-left align-bottom px-3 py-1.5 min-w-[11rem] sm:min-w-[15rem] border-b border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
+                  Indicador
+                </th>
+                {porMes.map(x => (
+                  <th key={x.mes} className={`px-1.5 py-1.5 text-right align-bottom min-w-[5rem] border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${sinManoObra(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
+                    {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
+                    {sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
+                    {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
+                  </th>
+                ))}
+                <th className="px-1.5 py-1.5 text-right align-bottom min-w-[5.5rem] border-b border-l border-feisen-borde-suave bg-feisen-fondo text-[11px] font-semibold uppercase tracking-wide text-feisen-texto">
+                  Año
+                  <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">sobre el total</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {renglonesIndicadores(filas, porMes)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {!!mesesSinManoObra.length && (
+        <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
+          {mesesSinManoObra.map(x => nombreLargo(x.mes)).join(', ')} {mesesSinManoObra.length === 1 ? 'no tiene' : 'no tienen'} mano
+          de obra cargada, así que su margen sale mejor de lo que fue. Las flechas de esos meses y de los que vienen
+          justo después no significan nada.
+        </p>
+      )}
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        <strong>La columna "Año" no es el promedio de los meses:</strong> es el indicador calculado sobre los totales
+        del año, igual que en tu Excel. Es lo correcto, porque así cada mes pesa lo que vendió y no lo mismo que los
+        demás. El <strong>margen neto</strong> de aquí sí descuenta los intereses y el 4x1000 de verdad (en tu Excel
+        era un estimado, la utilidad operacional por 0,67), y va antes del impuesto de renta. Los indicadores salen
+        del mismo cálculo que el P&amp;G: para ver de dónde sale cada cifra, vuelve a <strong>Estado de resultados</strong>.
+      </p>
+    </div>
+  )
+}
+
+// Los renglones de la tabla: los grupos van como encabezado y los datos como fila con sus celdas.
+function renglonesIndicadores(filas, porMes) {
+  const salida = []
+  let i = 0
+  for (const item of INDICADORES_PYG) {
+    if (item.tipo === 'grupo') {
+      salida.push(
+        <tr key={`g-${item.nombre}`}>
+          <th scope="colgroup" className="sticky left-0 z-10 text-left px-3 pt-3.5 pb-1 bg-white border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-azul">
+            {item.nombre}
+          </th>
+          <td colSpan={porMes.length + 1} className="bg-white" />
+        </tr>,
+      )
+      continue
+    }
+    const f = filas[i++]
+    salida.push(
+      <tr key={item.id}>
+        <th scope="row" className="sticky left-0 z-10 text-left px-3 py-1.5 border-t border-r border-feisen-borde-suave font-normal bg-white align-top">
+          <span className="block text-feisen-texto">{item.nombre}</span>
+          <span className="block text-[11px] text-feisen-texto-2 leading-snug">{item.explica}</span>
+        </th>
+        {porMes.map((x, j) => (
+          <td key={x.mes} className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-feisen-borde-suave bg-white align-top">
+            {!x.listo ? <span className="text-feisen-texto-2">·</span> : (
+              <>
+                <span className={f.valores[j] != null && f.valores[j] < 0 ? 'text-feisen-rojo' : ''}>
+                  {formatearIndicador(f.valores[j], item.formato)}
+                </span>
+                <Flecha mejora={f.mejoras[j]} />
+              </>
+            )}
+          </td>
+        ))}
+        <td className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-l border-feisen-borde-suave bg-feisen-fondo font-semibold text-feisen-texto align-top">
+          <span className={f.ano != null && f.ano < 0 ? 'text-feisen-rojo' : ''}>
+            {formatearIndicador(f.ano, item.formato)}
+          </span>
+        </td>
+      </tr>,
+    )
+  }
+  return salida
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
