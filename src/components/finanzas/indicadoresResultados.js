@@ -159,8 +159,9 @@ export function mejoraFrenteA(indicador, valor, valorPrevio) {
   return (dif > 0) === (indicador.mejorEs === 'alto') ? 1 : -1
 }
 
-// La tabla completa, lista para pintar: por cada indicador, su valor en cada mes, si mejoró
-// o empeoró frente al mes anterior, y la columna del año.
+// La tabla completa, lista para pintar: por cada indicador, su valor en cada mes y la
+// columna del año. Si mejoró o empeoró lo decide la pantalla con `mejoraFrenteA`, porque
+// la flecha necesita además saber para dónde se movió la cifra.
 export function calcularIndicadoresPyg(porMes) {
   const resumenes = porMes.map(x => (x.listo ? resumenDe(x.calc) : null))
   const ano = sumarResumenes(resumenes)
@@ -175,7 +176,6 @@ export function calcularIndicadoresPyg(porMes) {
     return {
       indicador: ind,
       valores,
-      mejoras: valores.map((v, i) => (i > 0 ? mejoraFrenteA(ind, v, valores[i - 1]) : null)),
       ano: ind.sinAno || !ano ? null : ind.valor(ano, null),
     }
   })

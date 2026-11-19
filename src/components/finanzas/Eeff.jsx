@@ -1785,11 +1785,13 @@ function Chispa({ valores, mejorEs }) {
 
 // Una tarjeta: el nombre, la última cifra en grande, cómo viene, y la cifra de cierre
 // (el año en los del resultado, el último mes cerrado en los del balance).
-function TarjetaIndicador({ ind, valores, etiquetas, cierre, etiquetaCierre }) {
+function TarjetaIndicador({ ind, valores, etiquetas, cierre, etiquetaCierre, indiceAviso = -1 }) {
   const vivos = valores.map((v, i) => ({ v, i })).filter(x => x.v != null && Number.isFinite(x.v))
   const ultimo = vivos[vivos.length - 1]
   const previo = vivos[vivos.length - 2]
-  const mejora = ultimo && previo ? mejoraFrenteA(ind, ultimo.v, previo.v) : null
+  // La cifra grande es la del último mes con dato; si ese mes va a medias, hay que decirlo
+  // aquí mismo y no solo en una nota al pie, porque es la cifra que se lee primero.
+  const avisoUltimo = !!ultimo && ultimo.i === indiceAviso
 
   return (
     <div className="border border-feisen-borde rounded-xl p-3 flex flex-col gap-1.5 min-w-0">
@@ -1798,8 +1800,10 @@ function TarjetaIndicador({ ind, valores, etiquetas, cierre, etiquetaCierre }) {
         <span className={`text-xl font-bold tabular-nums tracking-tight ${ultimo && ultimo.v < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
           {formatearIndicador(ultimo ? ultimo.v : null, ind.formato)}
         </span>
-        <span className="text-[11px] text-feisen-texto-2">{ultimo ? etiquetas[ultimo.i] : ''}</span>
-        <Flecha mejora={mejora} />
+        <span className={`text-[11px] ${avisoUltimo ? 'text-amber-700 font-medium' : 'text-feisen-texto-2'}`}>
+          {ultimo ? etiquetas[ultimo.i] : ''}{avisoUltimo ? ' · va a mitad' : ''}
+        </span>
+        {ultimo && previo && <Flecha ind={ind} v={ultimo.v} vPrev={previo.v} />}
       </span>
       <Chispa valores={valores} mejorEs={ind.mejorEs} />
       <span className="flex justify-between gap-2 text-[11px] text-feisen-texto-2">
@@ -1974,12 +1978,16 @@ function IndicadoresResultado({ ano, anio }) {
       <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-semibold text-feisen-texto">Indicadores del estado de resultados · año {anio}</span>
-          <span className="text-xs text-feisen-texto-2">▲ mejoró · ▼ empeoró, frente al mes anterior</span>
+          <span className="text-xs text-feisen-texto-2">
+            la flecha dice para dónde se movió · <span className="text-emerald-600 font-semibold">verde</span> mejoró,
+            <span className="text-feisen-rojo font-semibold"> rojo</span> empeoró
+          </span>
         </div>
         <div className={REJILLA_TARJETAS}>
           {filas.map(f => (
             <TarjetaIndicador key={f.indicador.id} ind={f.indicador} valores={f.valores} etiquetas={etiquetas}
-              cierre={f.ano} etiquetaCierre="Año" />
+              cierre={f.ano} etiquetaCierre="Año"
+              indiceAviso={porMes.findIndex(x => x.mes === mesEnCurso)} />
           ))}
         </div>
       </div>
@@ -2084,7 +2092,7 @@ function TablaIndicadores({ titulo, filas, etiquetas, columnas, cierre, etiqueta
                       <span className={f.valores[i] != null && f.valores[i] < 0 ? 'text-feisen-rojo' : ''}>
                         {formatearIndicador(f.valores[i], item.formato)}
                       </span>
-                      {f.mejoras && <Flecha mejora={f.mejoras[i]} />}
+                      {i > 0 && <Flecha ind={item} v={f.valores[i]} vPrev={f.valores[i - 1]} />}
                     </td>
                   ))}
                   {cierre && (
@@ -2104,14 +2112,20 @@ function TablaIndicadores({ titulo, filas, etiquetas, columnas, cierre, etiqueta
   )
 }
 
-// La flechita de cada celda: verde si ese mes mejoró frente al anterior, roja si empeoró.
-function Flecha({ mejora }) {
+// La flechita de cada celda. **La flecha dice para dónde se movió la cifra y el color dice
+// si eso fue bueno**, que es como se leen en todas partes. Importa en los renglones de
+// costos: que "costos directos / ventas" baje es una mejora, así que ahí se ve una flecha
+// hacia abajo pintada de verde. Si la flecha dijera "mejoró" se vería una flecha hacia
+// arriba en una cifra que bajó, y eso confunde.
+function Flecha({ ind, v, vPrev }) {
+  const mejora = mejoraFrenteA(ind, v, vPrev)
   if (mejora == null || mejora === 0) return null
-  const sube = mejora === 1
+  const subio = v > vPrev
+  const bien = mejora === 1
   return (
-    <span className={`ml-0.5 text-[9px] align-middle ${sube ? 'text-emerald-600' : 'text-feisen-rojo'}`}
-      title={sube ? 'mejoró frente al mes anterior' : 'empeoró frente al mes anterior'}>
-      {sube ? '▲' : '▼'}
+    <span className={`ml-0.5 text-[9px] align-middle ${bien ? 'text-emerald-600' : 'text-feisen-rojo'}`}
+      title={`${subio ? 'subió' : 'bajó'} frente al mes anterior · ${bien ? 'mejoró' : 'empeoró'}`}>
+      {subio ? '▲' : '▼'}
     </span>
   )
 }
