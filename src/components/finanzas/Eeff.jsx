@@ -273,7 +273,14 @@ export default function Eeff() {
   const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
   // Los indicadores del balance se dibujan mes a mes, así que necesitan el año entero.
   // Hasta septiembre sale del Excel sin pedir nada; solo octubre en adelante cuesta red.
-  const balAno = useBalanceMeses(ano.lista, verIndicadores && grupoInd === 'balance')
+  // Un balance es el corte a fin de mes, así que el mes en curso no tiene balance todavía:
+  // sale casi vacío y dispara los indicadores (el 19/11/2026 noviembre daba 10.287 % de
+  // endeudamiento). La serie va hasta el último mes cerrado.
+  const mesesBalAno = useMemo(() => {
+    const cerrados = ano.lista.filter(m => m < hoyCol().slice(0, 7))
+    return cerrados.length ? cerrados : ano.lista
+  }, [ano.lista])
+  const balAno = useBalanceMeses(mesesBalAno, verIndicadores && grupoInd === 'balance')
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
