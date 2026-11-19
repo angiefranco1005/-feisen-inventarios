@@ -68,6 +68,8 @@ Lo pidió Angie así: *"separa el informe de eeff el balance y el pyg, no sé si
 | **Estado de resultados** | El período (**"Un mes"** / **"Todo el año"**), el selector de mes o de año, el **centro de costo** y, en la vista del año, el **formato de las cifras** (pesos, millones o % de ventas) |
 | **Balance general** | Solo **"A fin de"** con el selector de mes, y un aviso que recuerda que **los bancos los escribes tú** y que **no se divide por centro de costo** |
 
+> **Desde el 19/11/2026 son tres pestañas:** entró **"Indicadores"**, que trae los del **balance** —cortados a fin del mes que escojas— y, debajo, los del **estado de resultados** mes a mes. Sus únicos controles son **"A fin de"** y el selector de mes. Se explica en la **sección 2.5**.
+
 - **El equipo recuerda las dos cosas por separado:** en qué pestaña estabas y, dentro del estado de resultados, qué período. Si te sales al balance y vuelves, encuentras el período que tenías.
 - **Ninguna cifra cambió con esto.** Ni el estado de resultados ni el balance mueven un solo número: lo único que cambió es cómo se llega a cada informe.
 
@@ -672,6 +674,155 @@ La última no estaba en inglés: lo que le faltaba era la tilde.
 
 ---
 
+## 2.5 La pestaña de Indicadores: dos sub-pestañas, mes a mes (19/11/2026)
+
+Hasta el 19/11/2026 la pestaña **Indicadores** mostraba solo cuatro cifras del **balance**, cortadas a fin del mes que se escogiera arriba. Ese mismo día Angie pidió los del estado de resultados: *"necesito mirar indicadores del estado de resultados, y no solo del balance, así como en el excel, necesito el comparativo de dichos indicadores mes a mes a ver si han mejorado y el promedio del año"*.
+
+Al final del día la pestaña quedó **partida en dos sub-pestañas**:
+
+| Sub-pestaña | Qué trae | Periodo |
+|---|---|---|
+| **Del resultado** | Los **diez** indicadores del estado de resultados | Todos los meses del año **+ columna del año** |
+| **Del balance** | Los **cuatro** de liquidez y endeudamiento | Todos los meses del año, **sin columna del año** |
+
+**Por qué así.** Le mostré a Angie tres formas: la **A** separaba los dos grupos en sub-pestañas, la **B** los mostraba en tarjetas con minigráfico y la **C** los dejaba todos en una sola tabla larga. Ella escogió *"una combinación entre la A y la B"*. Así quedó: **dentro de cada sub-pestaña van primero las tarjetas con minigráfico** —el nombre, la última cifra en grande, cómo viene y la frase que explica qué quiere decir— **y debajo la tabla mes a mes**.
+
+- Las fórmulas del resultado viven en **`src/components/finanzas/indicadoresResultados.js`**.
+- Las del balance, en **`src/components/finanzas/indicadoresBalance.js`** (archivo nuevo del mismo día).
+- **Las dos tablas las pinta un solo componente, `TablaIndicadores`**, dentro de `src/components/finanzas/Eeff.jsx`. (Al principio hubo un `TablaIndicadoresPyg` aparte, con su propia lista de renglones; ya no existe, y eso es a propósito: una sola tabla es una sola forma de leer las flechas, los avisos y los "—".)
+
+### Los del estado de resultados ("Del resultado")
+
+#### De dónde salen
+
+Son **los mismos diez indicadores de la hoja `📊 INDICADORES`** del Excel `EEFF 2026.xlsx` de Angie, **con las mismas fórmulas**, pero calculados **sobre nuestro propio estado de resultados**, no sobre el de esa hoja.
+
+**Ninguno de ellos vuelve a sumar cuentas.** Todos salen del objeto que devuelve **`calcularMes`** —o **`calcularMesHistorico`** para los meses que vienen del Excel, enero a septiembre—, que es el mismo cálculo que pinta el P&G y la vista del año. Esto es a propósito y es lo que importa de todo el diseño: **la tabla de indicadores no puede decir algo distinto del estado de resultados**, y si algún día cambia una regla de costos allá, estos indicadores cambian solos.
+
+#### Los diez, agrupados como en la pantalla
+
+| Grupo | Indicador | Cómo se calcula |
+|---|---|---|
+| **Rentabilidad** | Margen bruto | Utilidad bruta ÷ ingresos |
+| | Margen operativo | Utilidad operacional ÷ ingresos |
+| | Margen neto | Utilidad neta ÷ ingresos |
+| **Estructura de costos** | Costos directos / ventas | Costos directos ÷ ingresos |
+| | CIF / ventas | CIF ÷ ingresos |
+| | Gastos operacionales / ventas | Gastos operacionales ÷ ingresos |
+| **Eficiencia operativa** | Punto de equilibrio | (CIF + gastos operacionales) ÷ (1 − costos directos/ingresos) |
+| | Apalancamiento operativo | Margen bruto ÷ margen operativo |
+| **Comparativo con el mes anterior** | Crecimiento de las ventas | Cuánto subieron o bajaron las ventas frente al mes anterior |
+| | Variación del margen bruto | Cuántos **puntos** ganó o perdió el margen bruto frente al mes anterior |
+
+Cada renglón trae debajo del nombre **una frase que explica qué quiere decir**, para no tener que acordarse de la fórmula.
+
+#### Tres decisiones que hay que entender antes de usar la tabla
+
+##### a) La columna "Año" **no es el promedio de los meses**
+
+Es **el indicador calculado sobre los totales del año**: la utilidad del año dividida entre las ventas del año. Es lo que hace el Excel (su columna "AÑO 2026" apunta a la columna de totales del P&G, no al promedio de las otras columnas) y **es lo correcto**: si en un mes se vendieron $200 millones y en otro $700, promediar los dos márgenes le daría al mes flojo el mismo peso que al bueno. Haciéndolo sobre los totales, **cada mes pesa lo que vendió**.
+
+##### b) El margen neto es distinto al del Excel, **a propósito**
+
+En el Excel el margen neto es **un estimado**: toma la utilidad operacional y la multiplica por **0,67**, como si lo único que faltara fuera el **33 % de renta**. Lo hace porque esa hoja no baja de la utilidad operacional.
+
+El nuestro es el de verdad: **descuenta los gastos no operacionales reales** —intereses bancarios, gravámenes (el 4x1000) e intereses de impuestos— y va **antes del impuesto de renta**. Por eso no coincide con el del Excel, y **el de aquí es el bueno**.
+
+##### c) Los márgenes no dan exactamente iguales a los del Excel, y **no es error de ninguno de los dos**
+
+En la hoja consolidada del Excel **los ingresos netos dejan por fuera las ventas no operacionales**; en nuestro P&G **entran**, porque para nosotros también son plata que entró por vender (ver la sección 3).
+
+**Comprobado en enero de 2026:** nuestros ingresos son **$459.595.504** y los del Excel **$455.130.004**. La diferencia son **exactamente los $4.465.500** de la fila de ventas no operacionales. Eso solo sube el **margen bruto de enero de 20,6 % a 21,6 %**.
+
+> **Queda un resto pequeño sin explicar:** unos **$910.000** en la utilidad bruta de enero. No mueve la lectura del indicador, pero **conviene revisarlo algún día** y dejarlo cerrado.
+
+### Los del balance ("Del balance")
+
+Son los cuatro de siempre, pero **ya no solo del mes que se escoja arriba: ahora se calculan para todos los meses del año**, para poder ver de dónde vienen.
+
+| Grupo | Indicador | Cómo se calcula | Qué quiere decir |
+|---|---|---|---|
+| **Liquidez** | Razón corriente | Activo corriente ÷ pasivo corriente | Por cada peso que hay que pagar en doce meses, cuántos hay para hacerlo. **Por debajo de 1 no alcanza.** |
+| | Prueba ácida | (Activo corriente − inventario) ÷ pasivo corriente | Lo mismo, pero sin contar con vender el inventario, que es lo más lento de volverse plata |
+| | Capital de trabajo | Activo corriente − pasivo corriente | Lo que queda después de pagar todo lo que vence en doce meses. En negativo, es lo que falta |
+| **Endeudamiento** | Razón de endeudamiento | Pasivo total ÷ activo total | De todo lo que tiene la empresa, qué parte está financiada con deuda y no con plata de los socios |
+
+**De dónde salen.** Igual que los del resultado, **no vuelven a sumar cuentas**: cada mes entra ya resuelto por **`calcularBalance`** (o `calcularBalanceHistorico`), que es el mismo cálculo del balance de la sección 2.3, y aquí solo se dividen cifras ya hechas. Los trae el enganche **`useBalanceMeses`**, el mismo del comparativo del balance; **hasta septiembre esos meses salen del Excel de Angie sin pedirle nada a la red**, y solo de octubre en adelante se consulta Odoo.
+
+**Cifras verificadas en pantalla el 19/11/2026, octubre 2026:**
+
+| Indicador | Octubre 2026 |
+|---|---|
+| Razón corriente | **0,94** |
+| Prueba ácida | **0,47** |
+| Capital de trabajo | **−$76.796.516** |
+| Razón de endeudamiento | **86,1 %** |
+
+#### Estos NO llevan columna de año, y es a propósito
+
+Un indicador del estado de resultados **suma meses**, así que "el margen del año" existe. **Un balance no: es una foto de un día.** No existe "la razón corriente del año" —no se pueden sumar doce fotos—, así que en esta sub-pestaña **la cifra de cierre de la tarjeta es la del último mes cerrado, no un total del año**.
+
+Esto además explica algo que estaba en el Excel de Angie y nadie había escrito: **en su hoja esa casilla quedaba en blanco todos los años**. No era un olvido.
+
+#### La serie llega solo hasta el último mes cerrado
+
+**El mes en curso no tiene balance todavía**, y meterlo dañaba la lectura. Un balance a mitad de mes sale casi vacío: **sin los saldos de bancos escritos, sin la casilla de deuda corriente y con el activo a medias**, mientras el pasivo ya está casi completo. El 19/11/2026 **noviembre daba 10.287 % de endeudamiento**, y con eso el minigráfico de la tarjeta no servía para nada.
+
+Es una diferencia real entre los dos grupos, y conviene decirla así: **un margen de medio mes al menos es un margen; un balance de medio mes no es nada.** Por eso en "Del resultado" el mes en curso **sí aparece** (marcado "va a mitad") y en "Del balance" **no aparece**: la serie termina en el último mes cerrado.
+
+### Lo que avisa la pantalla
+
+- **La flechita de cada celda: la flecha dice para dónde se movió la cifra y el color dice si eso conviene.** Son dos cosas distintas y se leen por separado: **▲** = la cifra subió, **▼** = bajó; **verde** = fue bueno, **rojo** = fue malo. En "costos directos / ventas", que bajó de **67,4 % a 53,7 %**, se ve una **flecha hacia abajo pintada de verde**.
+  > **Esto cambió el mismo 19/11/2026 y corrige lo que decía antes esta sección.** Al principio la flecha apuntaba hacia arriba cuando el indicador **mejoraba**, y el color repetía exactamente lo mismo. El resultado era una flecha hacia **arriba** encima de una cifra que había **bajado**, que es justo lo que uno no espera ver. Ahora la flecha sigue el movimiento de la cifra y el color hace el juicio.
+- **Un movimiento menor a la décima que se muestra no pinta flecha**, porque eso es redondeo y no un cambio.
+- **La tarjeta avisa en la cifra misma cuando el último mes con dato va a mitad de camino:** al lado de la cifra grande aparece **"Nov · va a mitad"** en ámbar. La advertencia ya estaba al pie, pero quedaba lejos: **la cifra grande es lo primero que se lee**, y tenía que avisar ahí.
+- **Los meses sin mano de obra cargada van marcados en ámbar**, igual que en la tabla del año (ver la sección 2.2). Su **margen bruto sale inflado**, así que la flecha de ese mes —y la del que viene justo después— **se leería como una mejora que no existe**. La pantalla lo dice con el nombre de los meses.
+- **El mes en curso va marcado "va a mitad"** en la tabla del resultado, con su propio aviso: todavía le **faltan ventas por entrar**, pero **los gastos fijos del mes ya pesan casi completos**. Su margen **no se puede comparar** con el de los meses cerrados y su flecha no quiere decir que la cosa haya mejorado ni empeorado.
+- **El apalancamiento operativo sale "—"** cuando el **margen operativo es cero o negativo**. No es un dato que falte: es que ahí el indicador **no significa nada**. En el Excel ese caso daba cifras sin sentido, como **−18,14 en junio**.
+
+### Cada sub-pestaña pide solo sus datos
+
+Cuál de las dos sub-pestañas está puesta **no vive dentro de la vista, sino arriba, en el componente `Eeff`** (la variable `grupoInd`), y **de ella depende qué se carga**:
+
+- **"Del resultado"** llama a **`useAno`**, el mismo enganche de la vista de "Todo el año". No toca el balance.
+- **"Del balance"** llama a **`useBalanceMeses`**. No toca el estado de resultados del año.
+
+**Por qué quedó así, y no es un detalle técnico.** Cuando la pestaña cargaba las dos cosas de una, **Odoo contestó "Rate limit exceeded"**: son dos lecturas pesadas disparadas al mismo tiempo. Y además la pantalla **exigía el balance del mes aunque uno estuviera parado en la sub-pestaña del resultado**, así que un error de Odoo en el balance **tapaba una vista que no lo necesita**. Ahora cada sub-pestaña se defiende sola: si el balance falla, los indicadores del resultado se siguen viendo.
+
+**La sub-pestaña que se deja puesta se recuerda** para la próxima vez que se entre.
+
+**Dos cortes de tiempo distintos conviven en la pestaña**, y hay que tenerlo claro:
+
+- **El mes que se escoge arriba** sigue mandando en el **balance de un mes** (pestaña Balance) y, dentro de Indicadores, en nada: los del balance van del año completo.
+- **Las dos sub-pestañas de Indicadores van siempre del año**, mes por mes, sin importar qué mes esté escogido arriba. La de resultado llega hasta el mes en curso; la de balance, hasta el último mes cerrado.
+
+**No se le pide nada de más a la red:** los meses de enero a septiembre salen del **Excel** y se calculan ahí mismo —tanto el P&G como el balance—, y los de octubre en adelante salen de lo que el enganche de esa sub-pestaña ya trajo. Mientras el año termina de llegar, la tabla muestra "cargando…" en las columnas que faltan.
+
+### Dos errores de cálculo que se encontraron y se arreglaron (19/11/2026)
+
+Quedan escritos los dos, porque **uno de ellos venía de antes y alcanzó a verse en otra pantalla**.
+
+#### a) El endeudamiento salía multiplicado por cien (error del mismo día)
+
+La razón de endeudamiento **se multiplicaba por 100 en el cálculo**, y después el formato de porcentaje de la pantalla **volvía a multiplicarla**. Octubre salía en **8.606 %** en vez de **86,1 %**. Se quitó la multiplicación del cálculo: ahora el valor se guarda como fracción y **el único que multiplica es el formato**. Error nuevo, nacido y muerto el mismo día.
+
+#### b) `useBalanceMeses` no pasaba la casilla de deuda corriente — **este venía de antes**
+
+En el balance de un mes hay una **casilla escrita a mano con cuánto de la deuda financiera vence en doce meses** (está explicada arriba, en el punto 2.3). **`useBalanceMeses` no se la estaba pasando a `calcularBalance`**, así que para esos meses **toda la deuda financiera contaba como no corriente**: el pasivo corriente salía más chico de lo que es y la liquidez, mucho mejor de lo que es.
+
+Lo que se vio en pantalla, octubre 2026:
+
+| Indicador | Decía (malo) | Es (bueno) |
+|---|---|---|
+| Razón corriente | 1,07 | **0,94** |
+| Capital de trabajo | +$79.122.493 | **−$76.796.516** |
+
+O sea: decía que **sobraban $79 millones** cuando en realidad **faltan $77 millones**. El error se notó porque **la misma cifra daba distinto en dos pantallas**: 1,07 en las tarjetas nuevas y 0,94 en el balance del mes, que sí pasaba la casilla. La buena era la del balance del mes.
+
+> **Lo que hay que leer de esto:** `useBalanceMeses` es el mismo enganche que arma **el comparativo del balance entre meses**, así que **el error también estaba ahí**. **Cualquier cifra de liquidez (razón corriente, prueba ácida, capital de trabajo) que se haya mirado en ese comparativo antes del 19/11/2026 se veía mejor de lo que era.** Las cifras de hoy ya están buenas; las que se hayan copiado a un correo o a una presentación antes de esa fecha, no.
+
+---
+
 ## 3. Ingresos
 
 | Renglón | De dónde sale |
@@ -1075,5 +1226,11 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 19/11 | **El saldo de los leasing despejado desde los intereses coincide con los libros: $316.345.919 contra $316.545.340, $199.421 de diferencia (0,06 %).** Dos caminos independientes dan el mismo número, así que el método de despejar el saldo desde el interés **se puede usar con confianza** para los meses que vengan |
 | 19/11 | **Quedan $88.391.205 del grupo 21 sin identificar, clasificados como no corrientes por descarte.** El balance trae $586.450.615 y los nueve documentos explican $498.059.410. **Nadie ha confirmado que esa diferencia sea de largo plazo**: hay que pedirle a la contadora las cuentas que componen el grupo 21 y cotejarlas. Una posibilidad es el presunto doble registro de $58.861.575 del leasing de la cizalla |
 | 19/11 | **El cupo CrediExpress de Davivienda 6700456801301403 no entra al balance**: está en cero, son $50.000.000 de cupo aprobado y sin usar, y un cupo disponible **no es deuda** |
+| 19/11 | **La pestaña de Indicadores muestra también los del estado de resultados, mes a mes y con columna del año.** Pedido de Angie: *"necesito mirar indicadores del estado de resultados, y no solo del balance, así como en el excel, necesito el comparativo de dichos indicadores mes a mes a ver si han mejorado y el promedio del año"*. Son **los mismos diez** de la hoja `📊 INDICADORES` de su Excel y **con las mismas fórmulas**, pero calculados sobre **nuestro** P&G: salen del objeto que devuelve `calcularMes` (o `calcularMesHistorico` de enero a septiembre), así que **no hay ninguna cuenta repetida** y la tabla **no puede decir algo distinto del estado de resultados**. Fórmulas en `src/components/finanzas/indicadoresResultados.js` (nuevo); las pinta `TablaIndicadoresPyg` en `Eeff.jsx`. Ver la sección 2.5 |
+| 19/11 | **La columna "Año" de esos indicadores no es el promedio de los meses**: es el indicador calculado **sobre los totales del año**, igual que en el Excel (su columna "AÑO 2026" apunta a la columna de totales del P&G). Es lo correcto, porque así **cada mes pesa lo que vendió** y no lo mismo que los demás |
+| 19/11 | **El margen neto de aquí es distinto al del Excel, a propósito.** En el Excel es un **estimado** —utilidad operacional × **0,67**, como si lo único que faltara fuera el 33 % de renta—, porque esa hoja no baja de la utilidad operacional. El nuestro **descuenta los gastos no operacionales reales** (intereses bancarios, 4x1000 e intereses de impuestos) y va **antes del impuesto de renta**. **El de aquí es el bueno** |
+| 19/11 | **Los márgenes tampoco dan exactamente iguales a los del Excel, y no es error de ninguno de los dos:** en la hoja consolidada los ingresos netos **dejan por fuera las ventas no operacionales** y en nuestro P&G **entran**. Comprobado en **enero**: nuestros ingresos son **$459.595.504** y los del Excel **$455.130.004**, y la diferencia son **exactamente los $4.465.500** de esa fila; con eso el margen bruto de enero pasa de **20,6 % a 21,6 %**. **Queda un resto pequeño sin explicar** —unos **$910.000** en la utilidad bruta de enero— **que conviene revisar algún día** |
+| 19/11 | **Avisos de la tabla de indicadores:** cada celda lleva **flecha verde (▲ mejoró) o roja (▼ empeoró)** frente al mes anterior, **mirando para el lado que le convenga al indicador** (en un margen subir es bueno; en un costo sobre ventas, malo), y **un movimiento menor a la décima que se muestra no pinta flecha** porque es redondeo. Los meses **sin mano de obra cargada** van **en ámbar**, igual que en la tabla del año, porque su margen bruto sale inflado y la flecha se leería como una mejora que no existe. El **mes en curso** queda marcado **"va a mitad"**, también en ámbar: le faltan ventas por entrar pero los gastos fijos ya pesan casi completos, así que su margen no se puede comparar con el de los meses cerrados. Y el **apalancamiento operativo** sale **"—"** cuando el margen operativo es **cero o negativo** (en el Excel ese caso daba cifras sin sentido, como **−18,14 en junio**) |
+| 19/11 | **La pestaña de Indicadores carga ahora el año entero** (`useAno`), no solo el mes escogido. Dentro conviven **dos cortes de tiempo**: el mes que se escoge arriba manda en los **indicadores de liquidez del balance**, y los del **estado de resultados van siempre del año completo**. No pide nada de más a la red: enero a septiembre salen del Excel y de octubre en adelante, de lo que `useAno` ya trajo |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
