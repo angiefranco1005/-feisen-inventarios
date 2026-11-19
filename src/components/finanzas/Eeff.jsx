@@ -200,6 +200,16 @@ export default function Eeff() {
   })
   const cambiarVista = v => { setVista(v); setAbierto(null); try { localStorage.setItem(CLAVE_VISTA, v) } catch { /* sin almacenamiento */ } }
   const cambiarInforme = v => { setInforme(v); setAbierto(null); try { localStorage.setItem(CLAVE_INFORME, v) } catch { /* sin almacenamiento */ } }
+  // Cuál de las dos sub-pestañas de Indicadores está puesta. Vive aquí arriba y no dentro
+  // de la vista porque de ella depende qué se carga: cada grupo pide cosas distintas y
+  // Odoo tiene límite de consultas. Pedir las dos a la vez nos lo hizo saltar (19/11/2026).
+  const [grupoInd, setGrupoInd] = useState(() => {
+    try {
+      const v = localStorage.getItem(CLAVE_GRUPO_IND)
+      return GRUPOS_IND.some(g => g.valor === v) ? v : 'resultado'
+    } catch { return 'resultado' }
+  })
+  const cambiarGrupoInd = v => { setGrupoInd(v); try { localStorage.setItem(CLAVE_GRUPO_IND, v) } catch { /* sin almacenamiento */ } }
   const cambiarPeriodo = v => { setPeriodo(v); setAbierto(null); try { localStorage.setItem(CLAVE_PERIODO, v) } catch { /* sin almacenamiento */ } }
   const cambiarFormato = v => { setFormato(v); try { localStorage.setItem(CLAVE_FORMATO, v) } catch { /* sin almacenamiento */ } }
   const verBalance = informe === 'balance'
@@ -209,7 +219,9 @@ export default function Eeff() {
   const verMes = verResultados && periodo === 'mes'
   const verAno = verResultados && periodo === 'ano'
   // Indicadores usa exactamente los mismos datos que el balance de un mes
-  const pideBalance = (verBalance && !compararBal) || verIndicadores
+  // Los indicadores del resultado no tocan el balance, así que no hay por qué pedirlo ni
+  // dejar que un error de Odoo en el balance tape una pantalla que no lo necesita.
+  const pideBalance = (verBalance && !compararBal) || (verIndicadores && grupoInd === 'balance')
   // Hasta septiembre el balance sale del Excel de Angie, igual que el P&G: a Odoo no se
   // le pide nada. El resultado del ejercicio sí se sigue calculando, porque el patrimonio
   // no sale de ese archivo (ver balanceHistorico.js).
@@ -245,7 +257,7 @@ export default function Eeff() {
   const [anio, setAnio] = useState(() => hoyCol().slice(0, 4))
   // Indicadores también necesita el año entero: los del estado de resultados se muestran mes
   // a mes, y salen del mismo cálculo que la tabla del año (ver indicadoresResultados.js).
-  const ano = useAno(anio, verAno || verIndicadores)
+  const ano = useAno(anio, verAno || (verIndicadores && grupoInd === 'resultado'))
 
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
   // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
@@ -261,7 +273,7 @@ export default function Eeff() {
   const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
   // Los indicadores del balance se dibujan mes a mes, así que necesitan el año entero.
   // Hasta septiembre sale del Excel sin pedir nada; solo octubre en adelante cuesta red.
-  const balAno = useBalanceMeses(ano.lista, verIndicadores)
+  const balAno = useBalanceMeses(ano.lista, verIndicadores && grupoInd === 'balance')
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -573,11 +585,14 @@ export default function Eeff() {
         </div>
       </div>
 
-      {compararBal ? <VistaBalanceComparada bal={balMeses} />
+      {verIndicadores && grupoInd === 'resultado'
+        ? <VistaIndicadores grupo={grupoInd} onCambiarGrupo={cambiarGrupoInd} ano={ano} anio={anio} />
+      : compararBal ? <VistaBalanceComparada bal={balMeses} />
       : balDelExcel ? (
         !histBal ? <Cargando texto={`Armando el balance de ${nombreLargo(mes)} con tus cifras del Excel…`} />
         : verIndicadores
-          ? <VistaIndicadores historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} cargando={false}
+          ? <VistaIndicadores grupo={grupoInd} onCambiarGrupo={cambiarGrupoInd}
+              historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} cargando={false}
               inv={{ filas: [], manual: {} }} resultado={resultadoEjercicio} deuda={null} onGuardarDeuda={guardarDeuda}
               ano={ano} anio={anio} balAno={balAno} />
           : <VistaBalance historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} errorBancos=""
@@ -590,7 +605,8 @@ export default function Eeff() {
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
         : !bal.datos ? null
         : verIndicadores
-          ? <VistaIndicadores datos={bal.datos} bancos={banc.bancos} cargando={bal.cargando || banc.cargando}
+          ? <VistaIndicadores grupo={grupoInd} onCambiarGrupo={cambiarGrupoInd}
+              datos={bal.datos} bancos={banc.bancos} cargando={bal.cargando || banc.cargando}
               inv={inv} resultado={resultadoEjercicio} deuda={banc.deuda} onGuardarDeuda={guardarDeuda}
               ano={ano} anio={anio} balAno={balAno} />
           : <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
@@ -1797,21 +1813,12 @@ function TarjetaIndicador({ ind, valores, etiquetas, cierre, etiquetaCierre }) {
 
 const REJILLA_TARJETAS = 'grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3'
 
-function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, ano, anio, balAno }) {
-  const [grupo, setGrupo] = useState(() => {
-    try {
-      const v = localStorage.getItem(CLAVE_GRUPO_IND)
-      return GRUPOS_IND.some(g => g.valor === v) ? v : 'resultado'
-    } catch { return 'resultado' }
-  })
-  const cambiarGrupo = v => {
-    setGrupo(v)
-    try { localStorage.setItem(CLAVE_GRUPO_IND, v) } catch { /* sin almacenamiento */ }
-  }
-
+// `grupo` lo manda la pantalla, no esta vista: de él depende qué datos se piden, y los dos
+// grupos piden cosas distintas (ver el comentario de `grupoInd` más arriba).
+function VistaIndicadores({ grupo, onCambiarGrupo, datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, ano, anio, balAno }) {
   return (
     <div className="space-y-3">
-      <SubPestanas valor={grupo} onCambiar={cambiarGrupo} />
+      <SubPestanas valor={grupo} onCambiar={onCambiarGrupo} />
       {grupo === 'resultado'
         ? (ano ? <IndicadoresResultado ano={ano} anio={anio} /> : null)
         : <IndicadoresBalance datos={datos} bancos={bancos} cargando={cargando} inv={inv}
