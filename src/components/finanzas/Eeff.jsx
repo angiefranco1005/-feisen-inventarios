@@ -9,6 +9,7 @@ import {
 } from './calculoEeff'
 import { CONCEPTO_DEUDA_CORRIENTE, SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
 import { calcularInventario, conceptoInventario } from './inventarioBalance'
+import { calcularBalanceHistorico, hayBalanceHistorico } from './balanceHistorico'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -207,6 +208,11 @@ export default function Eeff() {
   const verAno = verResultados && periodo === 'ano'
   // Indicadores usa exactamente los mismos datos que el balance de un mes
   const pideBalance = (verBalance && !compararBal) || verIndicadores
+  // Hasta septiembre el balance sale del Excel de Angie, igual que el P&G: a Odoo no se
+  // le pide nada. El resultado del ejercicio sí se sigue calculando, porque el patrimonio
+  // no sale de ese archivo (ver balanceHistorico.js).
+  const balDelExcel = pideBalance && hayBalanceHistorico(mes)
+  const pideOdooBal = pideBalance && !balDelExcel
   const centroId = vista === 'consolidado' ? null : vista
 
   // ── Datos del mes que se está mirando ──
@@ -240,10 +246,14 @@ export default function Eeff() {
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
   // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
   // Odoo: lo escribe Angie con los extractos del banco (useBancos).
-  const bal = useBalance(mes, pideBalance)
-  const banc = useBancos(mes, pideBalance)
-  const inv = useInventario(mes, pideBalance)
+  const bal = useBalance(mes, pideOdooBal)
+  const banc = useBancos(mes, pideOdooBal)
+  const inv = useInventario(mes, pideOdooBal)
   const resultadoEjercicio = useResultadoEjercicio(mes, pideBalance)
+  const histBal = useMemo(
+    () => (balDelExcel && resultadoEjercicio.listo ? calcularBalanceHistorico(mes, resultadoEjercicio.valor) : null),
+    [balDelExcel, mes, resultadoEjercicio.listo, resultadoEjercicio.valor],
+  )
   const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
 
   // El cálculo del mes: la misma función que usa la vista del año
@@ -444,6 +454,7 @@ export default function Eeff() {
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
     else if (compararBal) { balMeses.recargar() }
+    else if (balDelExcel) { resultadoEjercicio.recargar() }
     else if (pideBalance) { bal.recargar(); banc.recargar(); inv.recargar(); resultadoEjercicio.recargar() }
     else ano.recargar()
   }
@@ -556,6 +567,16 @@ export default function Eeff() {
       </div>
 
       {compararBal ? <VistaBalanceComparada bal={balMeses} />
+      : balDelExcel ? (
+        !histBal ? <Cargando texto={`Armando el balance de ${nombreLargo(mes)} con tus cifras del Excel…`} />
+        : verIndicadores
+          ? <VistaIndicadores historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} cargando={false}
+              inv={{ filas: [], manual: {} }} resultado={resultadoEjercicio} deuda={null} onGuardarDeuda={guardarDeuda} />
+          : <VistaBalance historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} errorBancos=""
+              cargando={false} onGuardarBanco={guardarBanco}
+              inv={{ filas: [], manual: {} }} onGuardarInventario={guardarInventario}
+              resultado={resultadoEjercicio} deuda={null} />
+      )
       : pideBalance ? (
         (bal.cargando && !bal.datos) || !banc.listo || !inv.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
@@ -1018,6 +1039,12 @@ function useBalanceMeses(meses, activo) {
     const porMes = {}
     for (const m of meses) {
       setEstado(e => ({ ...e, actual: m }))
+      // Hasta septiembre mandan las cifras del Excel de Angie, igual que en el P&G
+      if (hayBalanceHistorico(m)) {
+        porMes[m] = calcularBalanceHistorico(m, acumulado[m] ?? null)
+        setEstado(e => ({ ...e, porMes: { ...porMes }, listos: Object.keys(porMes).length }))
+        continue
+      }
       try {
         const [bal, inv, man] = await Promise.all([
           supabase.functions.invoke('finanzas-balance', { body: { mes: m } }),
@@ -1507,14 +1534,14 @@ function VistaBalanceComparada({ bal }) {
   )
 }
 
-function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado, deuda }) {
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado, deuda, historico }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
   )
   const b = useMemo(
-    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
-    [datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
+    () => historico || calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
+    [historico, datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
   )
   // Si el mes llega sin saldos escritos, el disponible arranca abierto para que se vea la nota
   // en ámbar; al cambiar de mes se vuelve a decidir, pero nunca se le cierra en la cara a Angie
@@ -1660,14 +1687,14 @@ function Tarjeta({ titulo, valor, explica, falta, alerta }) {
   )
 }
 
-function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda }) {
+function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
   )
   const b = useMemo(
-    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
-    [datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
+    () => historico || calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
+    [historico, datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
   )
 
   const alCierre = fechaLarga(datos.hasta)
