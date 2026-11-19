@@ -17,8 +17,8 @@ import { calcularInventario, conceptoInventario } from './inventarioBalance'
 // "Un mes" y "Todo el año". Así no puede pasar que las dos muestren cifras distintas del mismo mes.
 // Los criterios, en palabras, están en EEFF-CRITERIOS.md.
 //
-// La pantalla tiene **dos pestañas de carpeta**, porque son dos informes distintos y no dos
-// vistas del mismo (decisión de Angie, 18/11/2026: "separa el informe de eeff el balance y el
+// La pantalla tiene **tres pestañas de carpeta**, porque son informes distintos y no vistas
+// del mismo (decisión de Angie, 18/11/2026: "separa el informe de eeff el balance y el
 // pyg... para que no se confundan con los mismos botones"). Cada pestaña trae **solo sus
 // propios controles**, así que nunca se ve un botón que no sea de ese informe:
 //
@@ -30,6 +30,11 @@ import { calcularInventario, conceptoInventario } from './inventarioBalance'
 //    resultados: tiene su propio dato (función `finanzas-balance`) y su propia cuenta, en
 //    calculoBalance.js. El disponible (grupo 11) no sale de Odoo: lo escribe Angie con los
 //    extractos del banco, y se guarda en `eeff_manual` igual que las casillas del P&G.
+//  - **Indicadores**, también a fin del mes que se escoja. Usa exactamente los mismos datos
+//    del balance de un mes (decisión de Angie, 19/11/2026: llevar la división de corriente y
+//    no corriente a su propia pestaña). Arriba van los cuatro indicadores —razón corriente,
+//    prueba ácida, capital de trabajo y endeudamiento— y abajo la división de corriente y no
+//    corriente con la casilla de la deuda financiera, que es de donde salen.
 
 // Filtro de vista: consolidado o un centro de costo (se recuerda en este equipo)
 const CLAVE_VISTA = 'feisen-eeff-vista'
@@ -46,6 +51,7 @@ const CLAVE_INFORME = 'feisen-eeff-informe'
 const INFORMES = [
   { valor: 'resultados', texto: 'Estado de resultados' },
   { valor: 'balance', texto: 'Balance general' },
+  { valor: 'indicadores', texto: 'Indicadores' },
 ]
 
 // Dentro del estado de resultados: un mes o el año entero. El balance no tiene período:
@@ -147,7 +153,7 @@ function Pildoras({ opciones, valor, onCambiar }) {
 // en blanco y se pega a la barra de controles de abajo, tapándole el borde.
 function Carpetas({ valor, onCambiar }) {
   return (
-    <div role="tablist" aria-label="Informe" className="relative z-10 -mb-px flex gap-1 pl-1">
+    <div role="tablist" aria-label="Informe" className="relative z-10 -mb-px flex flex-wrap gap-1 pl-1">
       {INFORMES.map(o => {
         const activo = valor === o.valor
         return (
@@ -194,9 +200,13 @@ export default function Eeff() {
   const cambiarPeriodo = v => { setPeriodo(v); setAbierto(null); try { localStorage.setItem(CLAVE_PERIODO, v) } catch { /* sin almacenamiento */ } }
   const cambiarFormato = v => { setFormato(v); try { localStorage.setItem(CLAVE_FORMATO, v) } catch { /* sin almacenamiento */ } }
   const verBalance = informe === 'balance'
+  const verIndicadores = informe === 'indicadores'
   const compararBal = verBalance && vistaBal === 'comparar'
-  const verMes = !verBalance && periodo === 'mes'
-  const verAno = !verBalance && periodo === 'ano'
+  const verResultados = !verBalance && !verIndicadores
+  const verMes = verResultados && periodo === 'mes'
+  const verAno = verResultados && periodo === 'ano'
+  // Indicadores usa exactamente los mismos datos que el balance de un mes
+  const pideBalance = (verBalance && !compararBal) || verIndicadores
   const centroId = vista === 'consolidado' ? null : vista
 
   // ── Datos del mes que se está mirando ──
@@ -230,10 +240,10 @@ export default function Eeff() {
   // ── Datos del balance (solo se piden cuando se abre el modo Balance) ──
   // Los saldos vienen cortados a fin del mes escogido, no a hoy, y el disponible no viene de
   // Odoo: lo escribe Angie con los extractos del banco (useBancos).
-  const bal = useBalance(mes, verBalance && !compararBal)
-  const banc = useBancos(mes, verBalance && !compararBal)
-  const inv = useInventario(mes, verBalance && !compararBal)
-  const resultadoEjercicio = useResultadoEjercicio(mes, verBalance && !compararBal)
+  const bal = useBalance(mes, pideBalance)
+  const banc = useBancos(mes, pideBalance)
+  const inv = useInventario(mes, pideBalance)
+  const resultadoEjercicio = useResultadoEjercicio(mes, pideBalance)
   const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
 
   // El cálculo del mes: la misma función que usa la vista del año
@@ -429,18 +439,20 @@ export default function Eeff() {
   const cargandoMes = cargando || compras.cargando
   const recargandoAhora = verMes ? cargandoMes
     : compararBal ? balMeses.cargando
-    : verBalance ? (bal.cargando || banc.cargando || inv.cargando || resultadoEjercicio.cargando)
+    : pideBalance ? (bal.cargando || banc.cargando || inv.cargando || resultadoEjercicio.cargando)
     : ano.cargando
   const recargarTodo = () => {
     if (verMes) { recargar(); compras.recargar(); cargarErp() }
     else if (compararBal) { balMeses.recargar() }
-    else if (verBalance) { bal.recargar(); banc.recargar(); inv.recargar(); resultadoEjercicio.recargar() }
+    else if (pideBalance) { bal.recargar(); banc.recargar(); inv.recargar(); resultadoEjercicio.recargar() }
     else ano.recargar()
   }
   return (
     <div className={`${verAno ? 'max-w-[90rem]' : 'max-w-5xl'} mx-auto space-y-5 pb-24 lg:pb-8`}>
       <EncabezadoPagina modulo="Finanzas" titulo="EEFF"
-        subtitulo={verBalance
+        subtitulo={verIndicadores
+          ? 'Qué dice el balance del mes en cuatro cifras: si alcanza para pagar lo del año y cuánto está financiado con deuda.'
+          : verBalance
           ? 'Qué tenía y qué debía la empresa al cierre del mes: Feisen y FC, con los bancos que escribes tú.'
           : 'Estado de resultados de Feisen y FC juntos, armado paso a paso con tu método.'}>
         <button type="button" onClick={recargarTodo} disabled={recargandoAhora}
@@ -455,7 +467,23 @@ export default function Eeff() {
       <div>
         <Carpetas valor={informe} onCambiar={cambiarInforme} />
         <div className="bg-white border border-feisen-borde rounded-xl rounded-tl-none px-3 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2.5">
-          {verBalance ? (
+          {verIndicadores ? (
+            /* Indicadores: ni período, ni centro de costo, ni comparativo. Solo a fin de qué mes. */
+            <>
+              <Grupo etiqueta="A fin de">
+                <select value={mes} onChange={e => setMes(e.target.value)} className={CAMPO}>
+                  {MESES_ELEGIBLES.map(m => (
+                    <option key={m} value={m}>
+                      {`${nombreLargo(m).charAt(0).toUpperCase()}${nombreLargo(m).slice(1)} de ${m.slice(0, 4)}`}
+                    </option>
+                  ))}
+                </select>
+              </Grupo>
+              <span className="sm:ml-auto text-xs bg-feisen-azul-suave text-feisen-azul rounded-md px-2 py-1 font-medium">
+                Salen del balance de ese mes · no se dividen por centro de costo
+              </span>
+            </>
+          ) : verBalance ? (
             /* El balance no tiene período ni centro de costo: solo a fin de qué mes se corta */
             <>
               <Grupo etiqueta="Ver">
@@ -528,13 +556,17 @@ export default function Eeff() {
       </div>
 
       {compararBal ? <VistaBalanceComparada bal={balMeses} />
-      : verBalance ? (
+      : pideBalance ? (
         (bal.cargando && !bal.datos) || !banc.listo || !inv.listo ? <Cargando texto={`Trayendo los saldos de las dos contabilidades a fin de ${nombreLargo(mes)}…`} />
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
-        : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
-            cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
-            inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio}
-            deuda={banc.deuda} onGuardarDeuda={guardarDeuda} />
+        : !bal.datos ? null
+        : verIndicadores
+          ? <VistaIndicadores datos={bal.datos} bancos={banc.bancos} cargando={bal.cargando || banc.cargando}
+              inv={inv} resultado={resultadoEjercicio} deuda={banc.deuda} onGuardarDeuda={guardarDeuda} />
+          : <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
+              cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
+              inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio}
+              deuda={banc.deuda} />
       ) : verAno ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
@@ -595,7 +627,7 @@ export default function Eeff() {
         </BaseVertical.Provider>
       )}
 
-      {!verBalance && <p className="text-xs text-feisen-texto-2 leading-relaxed">
+      {verResultados && <p className="text-xs text-feisen-texto-2 leading-relaxed">
         Ventas = cuenta 412000 de cada Odoo por centro; las demás cuentas de ingreso (no operacionales) van dentro de Construequipos.
         Devoluciones = descuentos comerciales (530508) y devoluciones en ventas; hoy todas son de Construequipos. Las notas crédito ya vienen restadas en las ventas.
         Toca un renglón de ingresos para ver de qué cuentas sale.
@@ -1475,7 +1507,7 @@ function VistaBalanceComparada({ bal }) {
   )
 }
 
-function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado, deuda, onGuardarDeuda }) {
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado, deuda }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
@@ -1552,40 +1584,6 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
           </div>
         ))}
 
-        {/* Corriente y no corriente: la división que hace falta para los indicadores */}
-        <Seccion titulo="Corriente y no corriente"
-          nota="Corriente es lo que se vuelve plata, o hay que pagar, dentro de los próximos doce meses. Esta división no está en Odoo: se arma clasificando cada cuenta, y es la que permite calcular razón corriente, prueba ácida y capital de trabajo." />
-        <div className={`${GRID_BAL} px-4 py-1.5 text-xs items-center`}>
-          <span className="min-w-0">
-            <span className="block text-feisen-texto">De la deuda financiera, ¿cuánto vence en doce meses?</span>
-            <span className="block text-[11px] text-feisen-texto-2">
-              sale de las tablas de amortización de los créditos y los leasings · hoy el grupo 21 son {pesos(b.secciones.find(s => s.id === 'pasivo')?.grupos.find(g => g.id === '21')?.total || 0)}
-            </span>
-          </span>
-          <span className="hidden sm:block" /><span className="hidden sm:block" />
-          <CasillaPesos key={`${datos.mes}-deuda-${deuda}`} alto valor={deuda} onGuardar={onGuardarDeuda} />
-        </div>
-        {b.corriente.sinDeuda && (
-          <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
-            <strong>Mientras no la escribas, toda la deuda financiera cuenta como no corriente.</strong> Es el
-            supuesto prudente: no infla el pasivo de corto plazo con cuotas que a lo mejor vencen dentro de tres
-            años. Pero la razón corriente que ves abajo está mejor de lo que de verdad es.
-          </p>
-        )}
-        <TotalBalance soloTotal ceros nombre="Activo corriente" cifras={{ total: b.corriente.activoCorriente }} />
-        <TotalBalance soloTotal ceros nombre="Activo no corriente" cifras={{ total: b.corriente.activoNoCorriente }} />
-        <TotalBalance soloTotal ceros nombre="Pasivo corriente" cifras={{ total: b.corriente.pasivoCorriente }} />
-        <TotalBalance soloTotal ceros nombre="Pasivo no corriente" cifras={{ total: b.corriente.pasivoNoCorriente }} />
-        <TotalBalance soloTotal ceros destacado nombre="Capital de trabajo"
-          nota="activo corriente menos pasivo corriente: lo que queda después de pagar lo que vence en doce meses"
-          cifras={{ total: b.corriente.capitalTrabajo }} />
-        <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
-          <strong>Razón corriente: {b.corriente.razon == null ? '—' : b.corriente.razon.toFixed(2).replace('.', ',')}</strong>
-          {b.corriente.razon != null && <> · por cada peso que debes pagar en doce meses tienes {b.corriente.razon.toFixed(2).replace('.', ',')} para hacerlo.</>}
-          {' '}Los anticipos de impuestos y las deudas de difícil cobro están puestos como <strong>no corrientes</strong>:
-          es una propuesta mía, pendiente de que tú y la contadora la confirmen.
-        </p>
-
         {/* La comprobación: pasivo + patrimonio contra activo. Angie pidió dejar solo esto
             —"si hay diferencia mencionar de cuánto es la diferencia, el resto no lo tengas
             en cuenta"— así que aquí no se explica la diferencia, solo se dice cuánta es. */}
@@ -1622,9 +1620,149 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
         que se lean en positivo, así que un número en rojo en esas secciones es un saldo al revés de lo normal.
         Propiedad, planta y equipo se muestra <strong>neta</strong>: el costo menos la depreciación acumulada (las cuentas 159xxx,
         que vienen en negativo); ábrelo para ver la resta.
-        <strong> El balance no se divide entre corriente y no corriente</strong>, como sí lo hacía tu Excel: Odoo no trae esa
-        división y deducirla por el código de la cuenta sería adivinar.
+        <strong> Aquí el balance va sin dividir entre corriente y no corriente</strong>, como sí lo hacía tu Excel: esa
+        división no viene de Odoo, se arma clasificando cada cuenta, y está en la pestaña <strong>Indicadores</strong>,
+        junto con la razón corriente, la prueba ácida, el capital de trabajo y el endeudamiento que salen de ella.
         Un balance tampoco se divide por centro de costo, por eso ese filtro no aparece en esta pestaña.
+      </p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INDICADORES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Los indicadores salen del mismo balance del mes: los mismos datos, la misma cuenta
+// (calcularBalance), solo que leídos de otra manera. Por eso esta pestaña no pide nada
+// nuevo —ni un dato más que escribir, fuera de la casilla de la deuda financiera, que ya
+// estaba— y por eso vive aquí y no dentro del balance (decisión de Angie, 19/11/2026).
+//
+// Arriba los cuatro indicadores, cada uno con una línea que dice qué significa, porque el
+// número solo no dice nada. Abajo la división de corriente y no corriente, que es de donde
+// salen: así, si una cifra extraña, se ve en el mismo tiro de dónde viene.
+
+// Dos decimales con coma, como se escriben los números en Colombia
+const dosDecimales = n => n.toFixed(2).replace('.', ',')
+
+// Una tarjeta de indicador. `valor` ya viene formateado; `null` se muestra como "—".
+function Tarjeta({ titulo, valor, explica, falta, alerta }) {
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${alerta ? 'border-amber-200 bg-amber-50' : 'border-feisen-borde bg-white'}`}>
+      <span className="block text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{titulo}</span>
+      <span className={`block mt-1 text-2xl font-semibold tabular-nums ${alerta ? 'text-amber-900' : 'text-feisen-texto'}`}>
+        {valor == null ? '—' : valor}
+      </span>
+      <span className="block mt-1 text-xs text-feisen-texto-2 leading-relaxed">
+        {valor == null ? falta : explica}
+      </span>
+    </div>
+  )
+}
+
+function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda }) {
+  const inventario = useMemo(
+    () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
+    [inv.filas, inv.manual],
+  )
+  const b = useMemo(
+    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
+    [datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
+  )
+
+  const alCierre = fechaLarga(datos.hasta)
+  const c = b.corriente
+  const invTotal = b.inventario?.total || 0
+  const pasivoTotal = b.secciones.find(s => s.id === 'pasivo')?.total || 0
+  const activoTotal = b.activo.total
+
+  // Sin pasivo corriente no hay razón corriente ni prueba ácida: dividir por cero no da
+  // infinito, da "todavía no se puede decir". Lo mismo el endeudamiento sin activo.
+  const razon = c.pasivoCorriente ? c.activoCorriente / c.pasivoCorriente : null
+  const acida = c.pasivoCorriente ? (c.activoCorriente - invTotal) / c.pasivoCorriente : null
+  const endeudamiento = activoTotal ? (pasivoTotal / activoTotal) * 100 : null
+  const sinPasivoCorriente = 'Todavía no hay pasivo corriente en el mes, así que no hay entre qué dividir.'
+
+  const deuda21 = b.secciones.find(s => s.id === 'pasivo')?.grupos.find(g => g.id === '21')?.total || 0
+
+  return (
+    <div className="space-y-3">
+      <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
+        <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-feisen-texto">Indicadores · Feisen y FC · al {alCierre}</span>
+          <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${b.activo.sinDisponible
+            ? 'bg-amber-50 text-amber-700' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
+            {b.activo.sinDisponible ? 'Falta el disponible del mes' : `Total activo: ${millones(activoTotal)}`}
+          </span>
+        </div>
+
+        {b.activo.sinDisponible && (
+          <p className="mx-4 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+            <strong>Falta escribir los bancos de este mes.</strong> El disponible es activo corriente, así que
+            mientras esté vacío los cuatro indicadores salen peor de lo que de verdad están. Se escriben en la
+            pestaña <strong>Balance general</strong>, en el renglón del disponible.
+          </p>
+        )}
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <Tarjeta titulo="Razón corriente" valor={razon == null ? null : dosDecimales(razon)}
+            explica={razon == null ? '' : `Por cada peso que hay que pagar en doce meses hay ${dosDecimales(razon)} para hacerlo.`}
+            falta={sinPasivoCorriente} />
+          <Tarjeta titulo="Prueba ácida" valor={acida == null ? null : dosDecimales(acida)}
+            explica={acida == null ? '' : `Lo mismo, pero sin contar con vender el inventario: quedan ${dosDecimales(acida)} por cada peso.`}
+            falta={sinPasivoCorriente} />
+          <Tarjeta titulo="Capital de trabajo" valor={pesos(c.capitalTrabajo)}
+            alerta={c.capitalTrabajo < 0}
+            explica={c.capitalTrabajo < 0
+              ? 'Lo que vence en doce meses es más que lo que hay para pagarlo: falta esa plata.'
+              : 'Lo que queda después de pagar lo que vence en doce meses.'} />
+          <Tarjeta titulo="Endeudamiento" valor={endeudamiento == null ? null : `${endeudamiento.toFixed(1).replace('.', ',')} %`}
+            explica="De todo lo que tiene la empresa, esa parte está financiada con deuda; el resto es patrimonio."
+            falta="Todavía no hay activo en el mes, así que no hay sobre qué calcularlo." />
+        </div>
+
+        {/* De aquí salen los cuatro de arriba: estaba en el balance hasta el 19/11/2026 */}
+        <Seccion titulo="Corriente y no corriente"
+          nota="Corriente es lo que se vuelve plata, o hay que pagar, dentro de los próximos doce meses. Esta división no está en Odoo: se arma clasificando cada cuenta, y es la que permite calcular los indicadores de arriba." />
+        <div className={`${GRID_BAL} px-4 py-1.5 text-xs items-center`}>
+          <span className="min-w-0">
+            <span className="block text-feisen-texto">De la deuda financiera, ¿cuánto vence en doce meses?</span>
+            <span className="block text-[11px] text-feisen-texto-2">
+              sale de las tablas de amortización de los créditos y los leasings · hoy el grupo 21 son {pesos(deuda21)}
+            </span>
+          </span>
+          <span className="hidden sm:block" /><span className="hidden sm:block" />
+          <CasillaPesos key={`${datos.mes}-deuda-${deuda}`} alto valor={deuda} onGuardar={onGuardarDeuda} />
+        </div>
+        {c.sinDeuda && (
+          <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+            <strong>Mientras no la escribas, toda la deuda financiera cuenta como no corriente.</strong> Es el
+            supuesto prudente: no infla el pasivo de corto plazo con cuotas que a lo mejor vencen dentro de tres
+            años. Pero la razón corriente que ves arriba está mejor de lo que de verdad es.
+          </p>
+        )}
+        <TotalBalance soloTotal ceros nombre="Activo corriente" cifras={{ total: c.activoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Activo no corriente" cifras={{ total: c.activoNoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Pasivo corriente" cifras={{ total: c.pasivoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Pasivo no corriente" cifras={{ total: c.pasivoNoCorriente }} />
+        <TotalBalance soloTotal ceros destacado nombre="Capital de trabajo"
+          nota="activo corriente menos pasivo corriente: lo que queda después de pagar lo que vence en doce meses"
+          cifras={{ total: c.capitalTrabajo }} />
+        <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
+          Las <strong>deudas de difícil cobro</strong> están puestas como <strong>no corrientes</strong>: es una
+          propuesta mía, pendiente de que tú y la contadora la confirmen. Los <strong>anticipos de
+          impuestos</strong> van como <strong>corrientes</strong>, por decisión tuya del 19 de noviembre de 2026.
+        </p>
+      </div>
+
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        Todo esto se corta al <strong>{alCierre}</strong>, igual que el balance, y sale exactamente de las mismas
+        cifras: si una no te cuadra, el renglón de donde viene está en la pestaña <strong>Balance general</strong>.
+        El <strong>inventario que se resta en la prueba ácida</strong> son {pesos(invTotal)}: es la línea más lenta
+        de volverse plata, por eso se mira el indicador también sin ella.
+        El <strong>endeudamiento</strong> compara el pasivo total ({pesos(pasivoTotal)}) contra el activo total
+        ({pesos(activoTotal)}); entre más alto, más de la empresa está financiada con plata de terceros y no con la
+        de los socios. Ninguno de estos indicadores se divide por centro de costo, porque un balance tampoco.
       </p>
     </div>
   )
