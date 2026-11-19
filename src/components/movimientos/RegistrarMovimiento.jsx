@@ -11,12 +11,14 @@ import FirmaCanvas from '../shared/FirmaCanvas'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial, MAX_SERIALES } from '../shared/seriales'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
 const TIPO_LABEL = { entrada: 'Entrada', salida: 'Salida' }
 const DESTINOS   = ['Producción y ensamble', 'Venta externa', 'Otro']
 
 export default function RegistrarMovimiento() {
+  const unaVez = useUnaVez()
   const { perfil, esAdmin, esLogistica, bodegasOperacion } = useAuth()
   const [searchParams] = useSearchParams()
   const location          = useLocation()
@@ -337,7 +339,7 @@ export default function RegistrarMovimiento() {
 
       {error && <Alerta tipo="error" mensaje={error} />}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={unaVez(handleSubmit)} className="space-y-4">
         {/* Producto */}
         {bloque('Producto', <>
           {(pideCategoria || categorias.length > 1) && (

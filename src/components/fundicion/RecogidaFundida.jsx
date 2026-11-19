@@ -7,6 +7,7 @@ import {
   Info, Loader2, X
 } from '../shared/iconos'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 // Kilos con formato colombiano (solo para mostrar; lo que se guarda no cambia)
@@ -52,6 +53,7 @@ async function movimientosDe(referencia, tipo, itemIds) {
 }
 
 export default function RecogidaFundida() {
+  const unaVez = useUnaVez()
   const { perfil } = useAuth()
 
   const [tab,          setTab]          = useState('pendientes')
@@ -850,7 +852,7 @@ export default function RecogidaFundida() {
                                 : [fundidaSel[orden.id] && 'descuenta hierro', kgVacTotal > 0 && `${kg(kgVacTotal, 1)} kg vaceadero`].filter(Boolean).join(' · ') || 'Cierra la orden'}
                             </p>
                           </div>
-                          <button type="button" onClick={() => guardarRecogida(orden)} disabled={guardando === orden.id}
+                          <button type="button" onClick={unaVez(() => guardarRecogida(orden))} disabled={guardando === orden.id}
                             className="inline-flex items-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition">
                             {guardando === orden.id
                               ? <><Loader2 size={18} className="animate-spin" /> Registrando…</>

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
 import { EncabezadoPagina, useAviso } from '../shared/ui'
 import { Plus, X, XCircle, Clock, Users, Package, Flame, List } from '../shared/iconos'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const FUND_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
 
@@ -210,6 +211,7 @@ function numFun(n) {
 }
 
 export default function RegistrarFundida() {
+  const unaVez = useUnaVez()
   const { perfil } = useAuth()
   const navigate = useNavigate()
   const [aviso, avisar] = useAviso()
@@ -418,7 +420,7 @@ export default function RegistrarFundida() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={unaVez(handleSubmit)} className="space-y-4">
 
         {/* ── HORARIO ── */}
         <Bloque titulo="Horario" icono={Clock}>

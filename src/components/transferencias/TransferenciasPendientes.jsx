@@ -7,6 +7,7 @@ import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const FUNDICION_BODEGA_ID   = 'a0604489-2768-445b-8e68-e450ef8520ed'
@@ -25,6 +26,7 @@ const MOTIVOS_RECHAZO = [
 ]
 
 export default function TransferenciasPendientes() {
+  const unaVez = useUnaVez()
   const { perfil, bodegasOperacion, rolEfectivo } = useAuth()
 
   const esMecanizados = rolEfectivo === 'JEFE_MECANIZADOS'
@@ -352,7 +354,7 @@ export default function TransferenciasPendientes() {
                       <div className="flex gap-2 pt-1">
                         <button
                           disabled={enProceso}
-                          onClick={() => aprobar(trf)}
+                          onClick={unaVez(() => aprobar(trf))}
                           className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-feisen-azul text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity">
                           {enProceso
                             ? <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
@@ -415,7 +417,7 @@ export default function TransferenciasPendientes() {
               </button>
               <button
                 disabled={!motivoRec && !motivoCustom.trim()}
-                onClick={() => rechazar(modalRechazo, motivoCustom.trim() || motivoRec)}
+                onClick={unaVez(() => rechazar(modalRechazo, motivoCustom.trim() || motivoRec))}
                 className="flex-1 py-2.5 bg-feisen-rojo text-white rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity">
                 Confirmar rechazo
               </button>

@@ -11,6 +11,7 @@ import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
 import SelectorOperarios, { unirOperarios } from './SelectorOperarios'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
 const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
@@ -46,6 +47,7 @@ function hoyISO() {
 }
 
 export default function RegistroMecanizado() {
+  const unaVez = useUnaVez()
   const { perfil, session } = useAuth()
   const navigate = useNavigate()
   const [aviso, avisar] = useAviso()
@@ -333,7 +335,7 @@ export default function RegistroMecanizado() {
                 : lineas.length ? `Por ${operario}` : 'Agrega al menos una pieza'}
             </p>
           </div>
-          <button type="button" onClick={confirmar} disabled={enviando || !lineas.length || !operarios.length || hayProblema}
+          <button type="button" onClick={unaVez(confirmar)} disabled={enviando || !lineas.length || !operarios.length || hayProblema}
             className="bg-feisen-azul text-white rounded-lg px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-[.98] transition">
             {enviando ? 'Guardando…' : 'Registrar mecanizado'}
           </button>

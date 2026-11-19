@@ -12,6 +12,7 @@ import FirmaCanvas from '../shared/FirmaCanvas'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
+import { useUnaVez } from '../../hooks/useUnaVez'
 
 const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
@@ -227,6 +228,7 @@ const MECANIZADOS_BODEGA_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 
 // ── Componente principal ───────────────────────────────────────────────────
 export default function RegistrarMovimientoAlmacenista() {
+  const unaVez = useUnaVez()
   const { perfil, bodegasOperacion, rolEfectivo, esAdmin, esAlmacenista } = useAuth()
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', JEFE_ENSAMBLE: 'PRODUCCION', RRHH: 'ADMINISTRACION' }
@@ -934,7 +936,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── ENTRADA ── */}
       {tipo === 'entrada' && (
-        <form key={formKey} onSubmit={handleEntrada} className="space-y-4">
+        <form key={formKey} onSubmit={unaVez(handleEntrada)} className="space-y-4">
           {esFundicion && (
             <Segmentado valor={tipoEntrada} onCambiar={v => { setTipoEntrada(v); setError('') }}
               opciones={[
@@ -1003,7 +1005,7 @@ export default function RegistrarMovimientoAlmacenista() {
 
       {/* ── SALIDA ── */}
       {tipo === 'salida' && (
-        <form key={formKey} onSubmit={handleSalida} className="space-y-4">
+        <form key={formKey} onSubmit={unaVez(handleSalida)} className="space-y-4">
 
           {/* Tipo de salida de FUNDICIÓN */}
           {esFundicion && (
