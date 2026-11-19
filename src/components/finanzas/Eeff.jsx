@@ -7,7 +7,7 @@ import {
   AUTO, BLOQUES, CENTROS, EMPRESAS, FILAS_COSTO, PRECIO_KG_HIERRO, VENTAS,
   calcularMes, calcularMesHistorico, hayHistorico, leerErpMes, leerOdooMes,
 } from './calculoEeff'
-import { SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
+import { CONCEPTO_DEUDA_CORRIENTE, SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
 import { calcularInventario, conceptoInventario } from './inventarioBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
@@ -312,6 +312,25 @@ export default function Eeff() {
     avisar('Guardado')
   }
 
+  // Cuánto de la deuda financiera vence en doce meses. Mismo patrón que los bancos.
+  async function guardarDeuda(texto) {
+    const limpio = String(texto).replace(/[^\d-]/g, '')
+    if (limpio === '') {
+      const { error: err } = await supabase.from('eeff_manual').delete()
+        .eq('mes', mes).eq('concepto', CONCEPTO_DEUDA_CORRIENTE).eq('empresa', 'total')
+      if (err) { avisar('No se pudo borrar: ' + err.message); return }
+      banc.setDeuda(null)
+      avisar('Casilla vacía')
+      return
+    }
+    const valor = Number(limpio) || 0
+    const { error: err } = await supabase.from('eeff_manual')
+      .upsert({ mes, concepto: CONCEPTO_DEUDA_CORRIENTE, empresa: 'total', valor, nota: null, updated_at: new Date().toISOString() })
+    if (err) { avisar('No se pudo guardar: ' + err.message); return }
+    banc.setDeuda(valor)
+    avisar('Guardado')
+  }
+
   const [y, m] = mes.split('-').map(Number)
   const nombreMes = new Date(y, m - 1, 15).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
   const Titulo = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)
@@ -514,7 +533,8 @@ export default function Eeff() {
         : bal.error ? <ErrorOdoo mensaje={bal.error} onReintentar={bal.recargar} />
         : bal.datos && <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
             cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
-            inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio} />
+            inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio}
+            deuda={banc.deuda} onGuardarDeuda={guardarDeuda} />
       ) : verAno ? <VistaAno ano={ano} anio={anio} centroId={centroId} tituloVista={tituloVista} formato={formato} /> :
         (cargandoMes && !datos) || (compras.cargando && !compras.datos) ? <Cargando />
         : error || compras.error ? <ErrorOdoo mensaje={error || compras.error} onReintentar={() => { recargar(); compras.recargar() }} /> : datos && (
@@ -1053,14 +1073,21 @@ function useResultadoEjercicio(mes, activo) {
 
 function useBancos(mes, activo) {
   const [bancos, setBancos] = useState({})
+  // Cuánto de la deuda financiera vence en doce meses: vive en la misma tabla del mes
+  const [deuda, setDeuda] = useState(null)
   // `listo` evita que la pantalla alcance a decir "todavía no has escrito nada" mientras lee
   const [estado, setEstado] = useState({ cargando: true, error: '', listo: false })
   const cargar = useCallback(async () => {
     setEstado(e => ({ ...e, cargando: true, error: '' }))
     const { data, error } = await supabase.from('eeff_manual')
-      .select('concepto, valor').eq('mes', mes).eq('empresa', 'total').like('concepto', 'banco:%')
+      .select('concepto, valor').eq('mes', mes).eq('empresa', 'total')
+      .or(`concepto.like.banco:%,concepto.eq.${CONCEPTO_DEUDA_CORRIENTE}`)
     if (error) { setBancos({}); setEstado({ cargando: false, listo: true, error: error.message || 'No se pudieron leer los bancos.' }); return }
-    setBancos(Object.fromEntries((data || []).map(x => [String(x.concepto).slice('banco:'.length), Number(x.valor)])))
+    const filas = data || []
+    setBancos(Object.fromEntries(filas.filter(x => String(x.concepto).startsWith('banco:'))
+      .map(x => [String(x.concepto).slice('banco:'.length), Number(x.valor)])))
+    const d = filas.find(x => x.concepto === CONCEPTO_DEUDA_CORRIENTE)
+    setDeuda(d == null ? null : Number(d.valor))
     setEstado({ cargando: false, listo: true, error: '' })
   }, [mes])
   const pedido = useRef(null)
@@ -1070,7 +1097,7 @@ function useBancos(mes, activo) {
     setEstado(e => ({ ...e, listo: false }))
     cargar()
   }, [cargar, activo])
-  return { bancos, setBancos, ...estado, recargar: cargar }
+  return { bancos, setBancos, deuda, setDeuda, ...estado, recargar: cargar }
 }
 
 // '2026-10-31' → '31 de octubre de 2026'
@@ -1444,14 +1471,14 @@ function VistaBalanceComparada({ bal }) {
   )
 }
 
-function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado }) {
+function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, inv, onGuardarInventario, resultado, deuda, onGuardarDeuda }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
   )
   const b = useMemo(
-    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null),
-    [datos, bancos, inventario, resultado.listo, resultado.valor],
+    () => calcularBalance(datos, bancos, inventario, resultado.listo ? resultado.valor : null, deuda),
+    [datos, bancos, inventario, resultado.listo, resultado.valor, deuda],
   )
   // Si el mes llega sin saldos escritos, el disponible arranca abierto para que se vea la nota
   // en ámbar; al cambiar de mes se vuelve a decidir, pero nunca se le cierra en la cara a Angie
@@ -1520,6 +1547,40 @@ function VistaBalance({ datos, bancos, errorBancos, cargando, onGuardarBanco, in
                 : 'incluye el disponible que escribiste y el inventario del ERP, que no se reparten entre Feisen y FC'} />
           </div>
         ))}
+
+        {/* Corriente y no corriente: la división que hace falta para los indicadores */}
+        <Seccion titulo="Corriente y no corriente"
+          nota="Corriente es lo que se vuelve plata, o hay que pagar, dentro de los próximos doce meses. Esta división no está en Odoo: se arma clasificando cada cuenta, y es la que permite calcular razón corriente, prueba ácida y capital de trabajo." />
+        <div className={`${GRID_BAL} px-4 py-1.5 text-xs items-center`}>
+          <span className="min-w-0">
+            <span className="block text-feisen-texto">De la deuda financiera, ¿cuánto vence en doce meses?</span>
+            <span className="block text-[11px] text-feisen-texto-2">
+              sale de las tablas de amortización de los créditos y los leasings · hoy el grupo 21 son {pesos(b.secciones.find(s => s.id === 'pasivo')?.grupos.find(g => g.id === '21')?.total || 0)}
+            </span>
+          </span>
+          <span className="hidden sm:block" /><span className="hidden sm:block" />
+          <CasillaPesos key={`${datos.mes}-deuda-${deuda}`} alto valor={deuda} onGuardar={onGuardarDeuda} />
+        </div>
+        {b.corriente.sinDeuda && (
+          <p className="mx-4 mb-3 mt-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-relaxed">
+            <strong>Mientras no la escribas, toda la deuda financiera cuenta como no corriente.</strong> Es el
+            supuesto prudente: no infla el pasivo de corto plazo con cuotas que a lo mejor vencen dentro de tres
+            años. Pero la razón corriente que ves abajo está mejor de lo que de verdad es.
+          </p>
+        )}
+        <TotalBalance soloTotal ceros nombre="Activo corriente" cifras={{ total: b.corriente.activoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Activo no corriente" cifras={{ total: b.corriente.activoNoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Pasivo corriente" cifras={{ total: b.corriente.pasivoCorriente }} />
+        <TotalBalance soloTotal ceros nombre="Pasivo no corriente" cifras={{ total: b.corriente.pasivoNoCorriente }} />
+        <TotalBalance soloTotal ceros destacado nombre="Capital de trabajo"
+          nota="activo corriente menos pasivo corriente: lo que queda después de pagar lo que vence en doce meses"
+          cifras={{ total: b.corriente.capitalTrabajo }} />
+        <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
+          <strong>Razón corriente: {b.corriente.razon == null ? '—' : b.corriente.razon.toFixed(2).replace('.', ',')}</strong>
+          {b.corriente.razon != null && <> · por cada peso que debes pagar en doce meses tienes {b.corriente.razon.toFixed(2).replace('.', ',')} para hacerlo.</>}
+          {' '}Los anticipos de impuestos y las deudas de difícil cobro están puestos como <strong>no corrientes</strong>:
+          es una propuesta mía, pendiente de que tú y la contadora la confirmen.
+        </p>
 
         {/* La comprobación: pasivo + patrimonio contra activo. Angie pidió dejar solo esto
             —"si hay diferencia mencionar de cuánto es la diferencia, el resto no lo tengas

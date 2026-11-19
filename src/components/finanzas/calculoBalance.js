@@ -147,6 +147,66 @@ export const CUENTAS_SOCIOS = {
   fc: ['233506'],                 // Cuentas por pagar a socios Angie
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CORRIENTE Y NO CORRIENTE (19/11/2026)
+//
+// Hace falta para los indicadores: sin esta división no se pueden calcular razón
+// corriente, prueba ácida ni capital de trabajo, que son los que pide un banco.
+// Angie escogió hacerla antes que la pestaña de indicadores.
+//
+// Corriente = se vuelve plata (o hay que pagarlo) dentro de los próximos doce meses.
+//
+// Lo que **no** se puede deducir de los saldos y por eso se escribe a mano: cuánto de la
+// deuda financiera (grupo 21) vence en los próximos doce meses. Eso sale de las tablas
+// de amortización de cada crédito y de cada leasing, que no están en Odoo. Mientras no
+// se escriba, el grupo 21 entero se trata como NO corriente y la pantalla lo avisa:
+// es el supuesto más prudente para la razón corriente, porque no infla el pasivo de
+// corto plazo con deuda que a lo mejor vence dentro de tres años.
+export const CORRIENTE_GRUPOS = {
+  // Activo
+  '11': true,    // Disponible
+  '12': true,    // Inversiones
+  '13': true,    // Deudores (con excepciones abajo)
+  '14': true,    // Inventarios
+  '15': false,   // Propiedad, planta y equipo
+  '16': false,   // Intangibles
+  '17': false,   // Diferidos
+  '18': false,   // Otros activos
+  // Pasivo
+  '21': 'aMano', // Obligaciones financieras: se parte con la casilla
+  '22': true,    // Proveedores
+  '23': true,    // Cuentas por pagar
+  '24': true,    // Impuestos
+  '25': true,    // Obligaciones laborales
+  '26': true,    // Pasivos estimados
+  '27': false,   // Otros pasivos
+}
+
+// Cuentas que mandan sobre la regla de su grupo. Son propuestas mías, no decisiones de
+// Angie: están pendientes de que ella y la contadora las confirmen.
+//  - 1355 Anticipos de impuestos: se cruzan con la renta del año siguiente, así que no
+//    se vuelven plata en doce meses. El Excel del revisor fiscal los pone en no corriente
+//    en su hoja de detalle y en corriente en la hoja firmada: ni él tiene una sola versión.
+//  - 1390 y 1399 Difícil cobro y sus provisiones: si no se cobraron en años, no son corrientes.
+export const CORRIENTE_CUENTAS = {
+  '1355': false,
+  '1390': false,
+  '1399': false,
+}
+
+// La casilla donde Angie escribe cuánto de la deuda financiera vence en 12 meses
+export const CONCEPTO_DEUDA_CORRIENTE = 'corriente:deuda_financiera'
+
+// ¿Esta cuenta es corriente? `null` = su grupo se decide a mano (el 21).
+export function esCorriente(codigo, grupo) {
+  const cod = String(codigo)
+  for (const [pref, valor] of Object.entries(CORRIENTE_CUENTAS)) {
+    if (cod.startsWith(pref)) return valor
+  }
+  const g = CORRIENTE_GRUPOS[grupo]
+  return g === 'aMano' ? null : !!g
+}
+
 // Hasta qué diferencia se considera que la suma de Odoo da cero (los saldos vienen
 // con dos decimales y aquí todo se redondea a pesos)
 export const TOLERANCIA = 2
@@ -181,7 +241,9 @@ const redondear = n => Math.round(n || 0)
 //            mientras se está leyendo del ERP
 // `resultadoEjercicio` = la utilidad acumulada de nuestro P&G hasta el mes del balance,
 //            o null mientras se está calculando. Es TODO el patrimonio.
-export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
+// `deudaCorriente` = cuánto de la deuda financiera vence en los próximos doce meses, que
+//            Angie escribe a mano porque no está en Odoo. null = todavía no lo ha escrito.
+export function calcularBalance(datos, bancos, inventario, resultadoEjercicio, deudaCorriente) {
   // Un acumulador por grupo, con el detalle cuenta por cuenta de las dos empresas
   const bolsas = new Map()      // 'seccion|grupo' → { feisen, fc, cuentas: Map(codigo → fila) }
   const bolsa = llave => {
@@ -320,6 +382,44 @@ export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
     { id: 'socios', nombre: 'Cuentas de socios' }, 'socios|socios', 1,
   )
 
+  // ── Corriente y no corriente ──
+  // Se recorre el detalle de cada grupo, que ya trae las cifras con el signo que se
+  // muestra. El disponible y el inventario no están en esos detalles (no salen de Odoo),
+  // así que se suman aparte: los dos son corrientes.
+  const parte = { activoCorriente: 0, activoNoCorriente: 0, pasivoCorriente: 0, pasivoNoCorriente: 0 }
+  for (const sec of secciones) {
+    if (sec.id !== 'activo' && sec.id !== 'pasivo') continue
+    const dondeC = sec.id === 'activo' ? 'activoCorriente' : 'pasivoCorriente'
+    const dondeN = sec.id === 'activo' ? 'activoNoCorriente' : 'pasivoNoCorriente'
+    for (const g of sec.grupos) {
+      if (g.manual) continue
+      for (const c of g.detalle || []) {
+        const corr = esCorriente(c.codigo, g.id)
+        // `null` es el grupo 21: se reparte con lo que Angie escribió, y si no ha escrito
+        // nada se trata entero como no corriente, que es el supuesto prudente.
+        if (corr === null) parte[dondeN] += c.total
+        else parte[corr ? dondeC : dondeN] += c.total
+      }
+    }
+  }
+  // El disponible y el inventario son corrientes, y no vienen de Odoo
+  parte.activoCorriente += (disponible.total || 0) + (inventario?.total || 0)
+
+  // La parte de la deuda financiera que vence en doce meses pasa al corriente
+  const deuda = deudaCorriente == null ? null : redondear(deudaCorriente)
+  if (deuda != null) {
+    parte.pasivoCorriente += deuda
+    parte.pasivoNoCorriente -= deuda
+  }
+  const corriente = {
+    ...parte,
+    deudaEscrita: deuda,
+    sinDeuda: deuda == null,
+    // Capital de trabajo: lo que queda después de pagar lo que vence en doce meses
+    capitalTrabajo: redondear(parte.activoCorriente - parte.pasivoCorriente),
+    razon: parte.pasivoCorriente ? parte.activoCorriente / parte.pasivoCorriente : null,
+  }
+
   // LA ECUACIÓN DEL BALANCE: pasivo + patrimonio contra activo.
   //
   // Angie, 18/11/2026: "solo deja la información de la ecuación de pasivo+patrimonio=
@@ -357,7 +457,7 @@ export function calcularBalance(datos, bancos, inventario, resultadoEjercicio) {
   const cuentas = EMPRESAS_BAL.reduce((n, { id }) => n + (datos?.[id] || []).filter(c => !fuera(c)).length, 0)
 
   return {
-    secciones, transitorias, socios, ecuacion,
+    secciones, transitorias, socios, ecuacion, corriente,
     resultadoOdoo, patrimonioOdoo,
     disponible, inventario: inventario || null, inventarioOdoo,
     cuadreOdoo, activo, cuentas,
