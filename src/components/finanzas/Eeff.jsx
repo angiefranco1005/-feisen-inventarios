@@ -1844,6 +1844,10 @@ function TablaIndicadoresPyg({ ano, anio }) {
   // tabla del año, porque aquí el engaño es peor (un margen bruto inflado se ve como mejora).
   const sinManoObra = x => !!x.calc && x.calc.ingresoBase > 0 && !Math.round(x.calc.valorFila('mano_obra'))
   const mesesSinManoObra = listos.filter(sinManoObra)
+  // El mes en curso va a medias: sus ventas todavía no están completas, pero los gastos fijos
+  // del mes ya pesan casi enteros, así que el margen que muestra no se puede comparar con los
+  // demás. Se avisa en el encabezado para que la flecha de ese mes no se lea como una tendencia.
+  const mesEnCurso = hoyCol().slice(0, 7)
 
   if (!listos.length) {
     return (
@@ -1875,8 +1879,9 @@ function TablaIndicadoresPyg({ ano, anio }) {
                   Indicador
                 </th>
                 {porMes.map(x => (
-                  <th key={x.mes} className={`px-1.5 py-1.5 text-right align-bottom min-w-[5rem] border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${sinManoObra(x) ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
+                  <th key={x.mes} className={`px-1.5 py-1.5 text-right align-bottom min-w-[5rem] border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${sinManoObra(x) || x.mes === mesEnCurso ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
                     {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
+                    {x.mes === mesEnCurso && <span className="block text-[10px] font-medium normal-case">va a mitad</span>}
                     {sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
                     {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
                   </th>
@@ -1901,6 +1906,17 @@ function TablaIndicadoresPyg({ ano, anio }) {
           justo después no significan nada.
         </p>
       )}
+      <p className="text-xs text-amber-800 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
+        <strong>{nombreLargo(mesEnCurso)} va a mitad de camino</strong> y por eso engaña: todavía le faltan ventas por
+        entrar, pero los gastos fijos del mes ya pesan casi completos. Su margen no se puede comparar con el de los
+        meses cerrados, y su flecha no quiere decir que la cosa haya mejorado o empeorado.
+      </p>
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        Estos márgenes no van a dar exactamente iguales a los de la hoja <strong>INDICADORES</strong> de tu Excel, y
+        no es un error de ninguno de los dos: ahí los ingresos dejan por fuera las <strong>ventas no
+        operacionales</strong> y aquí entran, porque para nosotros también son plata que entró por vender. En enero,
+        por ejemplo, son $4.465.500, y eso solo sube el margen bruto de 20,6 % a 21,6 %.
+      </p>
       <p className="text-xs text-feisen-texto-2 leading-relaxed">
         <strong>La columna "Año" no es el promedio de los meses:</strong> es el indicador calculado sobre los totales
         del año, igual que en tu Excel. Es lo correcto, porque así cada mes pesa lo que vendió y no lo mismo que los
