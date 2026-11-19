@@ -10,7 +10,8 @@ import {
 import { CONCEPTO_DEUDA_CORRIENTE, SECCIONES, calcularBalance, conceptoBanco } from './calculoBalance'
 import { calcularInventario, conceptoInventario } from './inventarioBalance'
 import { calcularBalanceHistorico, hayBalanceHistorico } from './balanceHistorico'
-import { INDICADORES_PYG, calcularIndicadoresPyg, formatearIndicador } from './indicadoresResultados'
+import { INDICADORES_PYG, calcularIndicadoresPyg, formatearIndicador, mejoraFrenteA } from './indicadoresResultados'
+import { INDICADORES_BALANCE, calcularIndicadoresBalance } from './indicadoresBalance'
 
 // EEFF consolidados de Feisen y FC, armados paso a paso con el método de Angie (empezó con octubre 2026).
 // Estructura = hoja "P&G CONSOLIDADO" de su Excel EEFF 2026. Ver OBSERVACIONES.md (2026-11-11).
@@ -258,6 +259,9 @@ export default function Eeff() {
     [balDelExcel, mes, resultadoEjercicio.listo, resultadoEjercicio.valor],
   )
   const balMeses = useBalanceMeses(useMemo(() => mesesComparados(mes), [mes]), compararBal)
+  // Los indicadores del balance se dibujan mes a mes, así que necesitan el año entero.
+  // Hasta septiembre sale del Excel sin pedir nada; solo octubre en adelante cuesta red.
+  const balAno = useBalanceMeses(ano.lista, verIndicadores)
 
   // El cálculo del mes: la misma función que usa la vista del año
   // Los meses anteriores a octubre salen del Excel de Angie, igual que en la vista del año: si aquí se
@@ -575,7 +579,7 @@ export default function Eeff() {
         : verIndicadores
           ? <VistaIndicadores historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} cargando={false}
               inv={{ filas: [], manual: {} }} resultado={resultadoEjercicio} deuda={null} onGuardarDeuda={guardarDeuda}
-              ano={ano} anio={anio} />
+              ano={ano} anio={anio} balAno={balAno} />
           : <VistaBalance historico={histBal} datos={{ mes, hasta: ultimoDia(mes) }} bancos={{}} errorBancos=""
               cargando={false} onGuardarBanco={guardarBanco}
               inv={{ filas: [], manual: {} }} onGuardarInventario={guardarInventario}
@@ -588,7 +592,7 @@ export default function Eeff() {
         : verIndicadores
           ? <VistaIndicadores datos={bal.datos} bancos={banc.bancos} cargando={bal.cargando || banc.cargando}
               inv={inv} resultado={resultadoEjercicio} deuda={banc.deuda} onGuardarDeuda={guardarDeuda}
-              ano={ano} anio={anio} />
+              ano={ano} anio={anio} balAno={balAno} />
           : <VistaBalance datos={bal.datos} bancos={banc.bancos} errorBancos={banc.error}
               cargando={bal.cargando || banc.cargando} onGuardarBanco={guardarBanco}
               inv={inv} onGuardarInventario={guardarInventario} resultado={resultadoEjercicio}
@@ -1692,7 +1696,133 @@ function Tarjeta({ titulo, valor, explica, falta, alerta }) {
   )
 }
 
-function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, ano, anio }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// LA PESTAÑA DE INDICADORES
+//
+// Dos sub-pestañas, y dentro de cada una tarjetas con minigráfico arriba y la tabla mes a
+// mes debajo. Angie lo escogió así el 19/11/2026 —"una combinación entre la A y la B"— de
+// tres formas que le mostré: la A separaba los dos grupos en sub-pestañas y la B los
+// mostraba en tarjetas. Las tarjetas son para ver de un vistazo cómo viene cada cosa; la
+// tabla es para la cifra exacta, que es lo que ella acaba necesitando.
+//
+// Las fórmulas no viven aquí: las del resultado están en indicadoresResultados.js y las
+// del balance en indicadoresBalance.js. Esta parte solo pinta.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GRUPOS_IND = [
+  { valor: 'resultado', texto: 'Del resultado' },
+  { valor: 'balance', texto: 'Del balance' },
+]
+const CLAVE_GRUPO_IND = 'feisen-eeff-grupo-indicadores'
+
+function SubPestanas({ valor, onCambiar }) {
+  return (
+    <div className="flex gap-1 flex-wrap" role="tablist">
+      {GRUPOS_IND.map(g => {
+        const puesto = g.valor === valor
+        return (
+          <button key={g.valor} type="button" role="tab" aria-selected={puesto}
+            onClick={() => onCambiar(g.valor)}
+            className={`min-h-[38px] px-4 rounded-lg text-sm font-semibold border ${puesto
+              ? 'bg-white border-feisen-borde text-feisen-azul'
+              : 'bg-feisen-fondo border-transparent text-feisen-texto-2 hover:bg-white'}`}>
+            {g.texto}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// El minigráfico de una tarjeta: cómo viene el indicador en lo que va del año. No lleva
+// ejes ni números a propósito; es para ver la forma, y la cifra exacta está en la tabla.
+function Chispa({ valores, mejorEs }) {
+  const vivos = valores.filter(v => v != null && Number.isFinite(v))
+  if (vivos.length < 2) return <div className="h-9" />
+  const min = Math.min(...vivos)
+  const max = Math.max(...vivos)
+  const rango = (max - min) || Math.abs(max) || 1
+  const an = 200, al = 36, margen = 4
+  const puntos = []
+  valores.forEach((v, i) => {
+    if (v == null || !Number.isFinite(v)) return
+    const x = (i / Math.max(1, valores.length - 1)) * an
+    const y = al - margen - ((v - min) / rango) * (al - margen * 2)
+    puntos.push([x, y])
+  })
+  const linea = puntos.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+  const area = `M${puntos.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L')} L${an},${al} L0,${al} Z`
+  const fin = puntos[puntos.length - 1]
+  const ultimos = vivos.slice(-2)
+  const mejor = !mejorEs ? null : ((ultimos[1] - ultimos[0]) > 0) === (mejorEs === 'alto')
+  const color = mejor == null ? 'text-feisen-azul' : mejor ? 'text-emerald-600' : 'text-feisen-rojo'
+  return (
+    <svg viewBox={`0 0 ${an} ${al}`} preserveAspectRatio="none" aria-hidden="true"
+      className={`block w-full h-9 ${color}`}>
+      <path d={area} fill="currentColor" opacity="0.12" />
+      <polyline points={linea} fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={fin[0].toFixed(1)} cy={fin[1].toFixed(1)} r="3" fill="currentColor" />
+    </svg>
+  )
+}
+
+// Una tarjeta: el nombre, la última cifra en grande, cómo viene, y la cifra de cierre
+// (el año en los del resultado, el último mes cerrado en los del balance).
+function TarjetaIndicador({ ind, valores, etiquetas, cierre, etiquetaCierre }) {
+  const vivos = valores.map((v, i) => ({ v, i })).filter(x => x.v != null && Number.isFinite(x.v))
+  const ultimo = vivos[vivos.length - 1]
+  const previo = vivos[vivos.length - 2]
+  const mejora = ultimo && previo ? mejoraFrenteA(ind, ultimo.v, previo.v) : null
+
+  return (
+    <div className="border border-feisen-borde rounded-xl p-3 flex flex-col gap-1.5 min-w-0">
+      <span className="text-xs text-feisen-texto-2 font-medium">{ind.nombre}</span>
+      <span className="flex items-baseline gap-1.5 flex-wrap">
+        <span className={`text-xl font-bold tabular-nums tracking-tight ${ultimo && ultimo.v < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
+          {formatearIndicador(ultimo ? ultimo.v : null, ind.formato)}
+        </span>
+        <span className="text-[11px] text-feisen-texto-2">{ultimo ? etiquetas[ultimo.i] : ''}</span>
+        <Flecha mejora={mejora} />
+      </span>
+      <Chispa valores={valores} mejorEs={ind.mejorEs} />
+      <span className="flex justify-between gap-2 text-[11px] text-feisen-texto-2">
+        <span>{etiquetas[0]} a {ultimo ? etiquetas[ultimo.i] : etiquetas[etiquetas.length - 1]}</span>
+        {cierre != null && <span className="tabular-nums">{etiquetaCierre} {formatearIndicador(cierre, ind.formato)}</span>}
+      </span>
+      <span className="text-[11px] text-feisen-texto-2 leading-snug">{ind.explica}</span>
+    </div>
+  )
+}
+
+const REJILLA_TARJETAS = 'grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3'
+
+function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, ano, anio, balAno }) {
+  const [grupo, setGrupo] = useState(() => {
+    try {
+      const v = localStorage.getItem(CLAVE_GRUPO_IND)
+      return GRUPOS_IND.some(g => g.valor === v) ? v : 'resultado'
+    } catch { return 'resultado' }
+  })
+  const cambiarGrupo = v => {
+    setGrupo(v)
+    try { localStorage.setItem(CLAVE_GRUPO_IND, v) } catch { /* sin almacenamiento */ }
+  }
+
+  return (
+    <div className="space-y-3">
+      <SubPestanas valor={grupo} onCambiar={cambiarGrupo} />
+      {grupo === 'resultado'
+        ? (ano ? <IndicadoresResultado ano={ano} anio={anio} /> : null)
+        : <IndicadoresBalance datos={datos} bancos={bancos} cargando={cargando} inv={inv}
+            resultado={resultado} deuda={deuda} onGuardarDeuda={onGuardarDeuda}
+            historico={historico} balAno={balAno} />}
+    </div>
+  )
+}
+
+// ── LOS DEL BALANCE ──────────────────────────────────────────────────────────
+function IndicadoresBalance({ datos, bancos, cargando, inv, resultado, deuda, onGuardarDeuda, historico, balAno }) {
   const inventario = useMemo(
     () => (inv.filas ? calcularInventario(inv.filas, inv.manual) : null),
     [inv.filas, inv.manual],
@@ -1707,24 +1837,23 @@ function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGu
   const invTotal = b.inventario?.total || 0
   const pasivoTotal = b.secciones.find(s => s.id === 'pasivo')?.total || 0
   const activoTotal = b.activo.total
-
-  // Sin pasivo corriente no hay razón corriente ni prueba ácida: dividir por cero no da
-  // infinito, da "todavía no se puede decir". Lo mismo el endeudamiento sin activo.
-  const razon = c.pasivoCorriente ? c.activoCorriente / c.pasivoCorriente : null
-  const acida = c.pasivoCorriente ? (c.activoCorriente - invTotal) / c.pasivoCorriente : null
-  const endeudamiento = activoTotal ? (pasivoTotal / activoTotal) * 100 : null
-  const sinPasivoCorriente = 'Todavía no hay pasivo corriente en el mes, así que no hay entre qué dividir.'
-
   const deuda21 = b.secciones.find(s => s.id === 'pasivo')?.grupos.find(g => g.id === '21')?.total || 0
 
+  // Las tarjetas salen de todos los meses del año, no solo del escogido
+  const meses = balAno?.meses || []
+  const etiquetas = meses.map(m => MES_CORTO[Number(m.slice(5, 7)) - 1])
+  const series = useMemo(
+    () => (balAno?.porMes ? calcularIndicadoresBalance(balAno.porMes, meses) : null),
+    [balAno?.porMes, meses],
+  )
   return (
     <div className="space-y-3">
       <div className={`bg-white border border-feisen-borde rounded-xl overflow-hidden ${cargando ? 'opacity-60' : ''}`}>
         <div className="px-4 py-3 border-b border-feisen-borde-suave flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-feisen-texto">Indicadores · Feisen y FC · al {alCierre}</span>
+          <span className="text-sm font-semibold text-feisen-texto">Indicadores del balance · Feisen y FC</span>
           <span className={`text-xs font-semibold rounded-md px-2 py-1 tabular-nums ${b.activo.sinDisponible
             ? 'bg-amber-50 text-amber-700' : 'bg-feisen-azul-suave text-feisen-azul'}`}>
-            {b.activo.sinDisponible ? 'Falta el disponible del mes' : `Total activo: ${millones(activoTotal)}`}
+            {b.activo.sinDisponible ? 'Falta el disponible del mes' : `Total activo al ${alCierre}: ${millones(activoTotal)}`}
           </span>
         </div>
 
@@ -1736,25 +1865,21 @@ function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGu
           </p>
         )}
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2">
-          <Tarjeta titulo="Razón corriente" valor={razon == null ? null : dosDecimales(razon)}
-            explica={razon == null ? '' : `Por cada peso que hay que pagar en doce meses hay ${dosDecimales(razon)} para hacerlo.`}
-            falta={sinPasivoCorriente} />
-          <Tarjeta titulo="Prueba ácida" valor={acida == null ? null : dosDecimales(acida)}
-            explica={acida == null ? '' : `Lo mismo, pero sin contar con vender el inventario: quedan ${dosDecimales(acida)} por cada peso.`}
-            falta={sinPasivoCorriente} />
-          <Tarjeta titulo="Capital de trabajo" valor={pesos(c.capitalTrabajo)}
-            alerta={c.capitalTrabajo < 0}
-            explica={c.capitalTrabajo < 0
-              ? 'Lo que vence en doce meses es más que lo que hay para pagarlo: falta esa plata.'
-              : 'Lo que queda después de pagar lo que vence en doce meses.'} />
-          <Tarjeta titulo="Endeudamiento" valor={endeudamiento == null ? null : `${endeudamiento.toFixed(1).replace('.', ',')} %`}
-            explica="De todo lo que tiene la empresa, esa parte está financiada con deuda; el resto es patrimonio."
-            falta="Todavía no hay activo en el mes, así que no hay sobre qué calcularlo." />
-        </div>
+        {series ? (
+          <div className={REJILLA_TARJETAS}>
+            {series.map(f => (
+              <TarjetaIndicador key={f.indicador.id} ind={f.indicador} valores={f.valores} etiquetas={etiquetas}
+                cierre={null} etiquetaCierre="" />
+            ))}
+          </div>
+        ) : (
+          <div className="p-4">
+            <Cargando texto={balAno?.actual ? `Armando el balance de ${nombreLargo(balAno.actual)}…` : 'Armando los balances del año…'} />
+          </div>
+        )}
 
         {/* De aquí salen los cuatro de arriba: estaba en el balance hasta el 19/11/2026 */}
-        <Seccion titulo="Corriente y no corriente"
+        <Seccion titulo={`Corriente y no corriente · al ${alCierre}`}
           nota="Corriente es lo que se vuelve plata, o hay que pagar, dentro de los próximos doce meses. Esta división no está en Odoo: se arma clasificando cada cuenta, y es la que permite calcular los indicadores de arriba." />
         <div className={`${GRID_BAL} px-4 py-1.5 text-xs items-center`}>
           <span className="min-w-0">
@@ -1787,45 +1912,27 @@ function VistaIndicadores({ datos, bancos, cargando, inv, resultado, deuda, onGu
         </p>
       </div>
 
-      <p className="text-xs text-feisen-texto-2 leading-relaxed">
-        Todo esto se corta al <strong>{alCierre}</strong>, igual que el balance, y sale exactamente de las mismas
-        cifras: si una no te cuadra, el renglón de donde viene está en la pestaña <strong>Balance general</strong>.
-        El <strong>inventario que se resta en la prueba ácida</strong> son {pesos(invTotal)}: es la línea más lenta
-        de volverse plata, por eso se mira el indicador también sin ella.
-        El <strong>endeudamiento</strong> compara el pasivo total ({pesos(pasivoTotal)}) contra el activo total
-        ({pesos(activoTotal)}); entre más alto, más de la empresa está financiada con plata de terceros y no con la
-        de los socios. Ninguno de estos indicadores se divide por centro de costo, porque un balance tampoco.
-      </p>
+      {series && (
+        <TablaIndicadores titulo="Los cuatro, mes a mes" filas={series} etiquetas={etiquetas}
+          columnas={meses} cierre={null} etiquetaCierre="" definiciones={INDICADORES_BALANCE} />
+      )}
 
-      {ano && <TablaIndicadoresPyg ano={ano} anio={anio} />}
+      {balAno?.error && <p className="text-xs text-feisen-rojo bg-feisen-rojo-suave rounded-md px-3 py-2">{balAno.error}</p>}
+
+      <p className="text-xs text-feisen-texto-2 leading-relaxed">
+        Las tarjetas van de enero en adelante; el bloque de corriente y no corriente, y las cifras que lo
+        acompañan, se cortan al <strong>{alCierre}</strong>, el mes que escogiste arriba. Aquí no hay columna de
+        año: un balance es una foto de un día, así que no existe "la razón corriente del año". El
+        <strong> inventario que se resta en la prueba ácida</strong> son {pesos(invTotal)}. El
+        <strong> endeudamiento</strong> compara el pasivo total ({pesos(pasivoTotal)}) contra el activo total
+        ({pesos(activoTotal)}). Ninguno se divide por centro de costo, porque un balance tampoco.
+      </p>
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LOS INDICADORES DEL ESTADO DE RESULTADOS, MES A MES
-//
-// Los de arriba son del balance y se cortan a una fecha. Estos son del P&G y son del mes
-// entero, así que tiene sentido verlos en fila: lo que Angie quería ver es si el margen
-// viene mejorando o empeorando. Las fórmulas y el porqué de cada una están en
-// indicadoresResultados.js; aquí solo se pinta.
-// ─────────────────────────────────────────────────────────────────────────────
-
-// La flechita de cada celda: verde si ese mes mejoró frente al anterior, roja si empeoró.
-function Flecha({ mejora }) {
-  if (mejora == null || mejora === 0) return null
-  const sube = mejora === 1
-  return (
-    <span className={`ml-0.5 text-[9px] align-middle ${sube ? 'text-emerald-600' : 'text-feisen-rojo'}`}
-      title={sube ? 'mejoró frente al mes anterior' : 'empeoró frente al mes anterior'}>
-      {sube ? '▲' : '▼'}
-    </span>
-  )
-}
-
-function TablaIndicadoresPyg({ ano, anio }) {
-  // Mismo patrón que la tabla del año: los meses del Excel se calculan aquí mismo y los de
-  // Odoo salen de lo que `useAno` ya trajo. Nunca se vuelve a pedir nada.
+// ── LOS DEL ESTADO DE RESULTADOS ─────────────────────────────────────────────
+function IndicadoresResultado({ ano, anio }) {
   const porMes = useMemo(() => ano.lista.map(mes => {
     if (hayHistorico(mes)) return { mes, listo: true, historico: true, calc: calcularMesHistorico(mes, null) }
     const d = ano.meses[mes]
@@ -1839,14 +1946,10 @@ function TablaIndicadoresPyg({ ano, anio }) {
 
   const filas = useMemo(() => calcularIndicadoresPyg(porMes), [porMes])
   const listos = porMes.filter(x => x.listo)
+  const etiquetas = porMes.map(x => MES_CORTO[Number(x.mes.slice(5, 7)) - 1])
 
-  // Un mes sin mano de obra muestra un margen que no es real: se marca igual que en la
-  // tabla del año, porque aquí el engaño es peor (un margen bruto inflado se ve como mejora).
   const sinManoObra = x => !!x.calc && x.calc.ingresoBase > 0 && !Math.round(x.calc.valorFila('mano_obra'))
   const mesesSinManoObra = listos.filter(sinManoObra)
-  // El mes en curso va a medias: sus ventas todavía no están completas, pero los gastos fijos
-  // del mes ya pesan casi enteros, así que el margen que muestra no se puede comparar con los
-  // demás. Se avisa en el encabezado para que la flecha de ese mes no se lea como una tendencia.
   const mesEnCurso = hoyCol().slice(0, 7)
 
   if (!listos.length) {
@@ -1866,38 +1969,17 @@ function TablaIndicadoresPyg({ ano, anio }) {
           <span className="text-sm font-semibold text-feisen-texto">Indicadores del estado de resultados · año {anio}</span>
           <span className="text-xs text-feisen-texto-2">▲ mejoró · ▼ empeoró, frente al mes anterior</span>
         </div>
-
-        <p className="px-4 py-2 text-xs text-feisen-texto-2 sm:hidden border-b border-feisen-borde-suave">
-          Desliza la tabla a los lados para ver los demás meses. El indicador se queda quieto.
-        </p>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px] border-separate border-spacing-0">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-20 bg-white text-left align-bottom px-3 py-1.5 min-w-[11rem] sm:min-w-[15rem] border-b border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
-                  Indicador
-                </th>
-                {porMes.map(x => (
-                  <th key={x.mes} className={`px-1.5 py-1.5 text-right align-bottom min-w-[5rem] border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${sinManoObra(x) || x.mes === mesEnCurso ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
-                    {MES_CORTO[Number(x.mes.slice(5, 7)) - 1]}
-                    {x.mes === mesEnCurso && <span className="block text-[10px] font-medium normal-case">va a mitad</span>}
-                    {sinManoObra(x) && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
-                    {!x.listo && <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{x.fallo ? 'con error' : 'cargando…'}</span>}
-                  </th>
-                ))}
-                <th className="px-1.5 py-1.5 text-right align-bottom min-w-[5.5rem] border-b border-l border-feisen-borde-suave bg-feisen-fondo text-[11px] font-semibold uppercase tracking-wide text-feisen-texto">
-                  Año
-                  <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">sobre el total</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {renglonesIndicadores(filas, porMes)}
-            </tbody>
-          </table>
+        <div className={REJILLA_TARJETAS}>
+          {filas.map(f => (
+            <TarjetaIndicador key={f.indicador.id} ind={f.indicador} valores={f.valores} etiquetas={etiquetas}
+              cierre={f.ano} etiquetaCierre="Año" />
+          ))}
         </div>
       </div>
+
+      <TablaIndicadores titulo={`Los diez, mes a mes · ${anio}`} filas={filas} etiquetas={etiquetas}
+        columnas={porMes.map(x => x.mes)} cierre="Año" etiquetaCierre="sobre el total"
+        definiciones={INDICADORES_PYG} marcar={porMes} mesEnCurso={mesEnCurso} sinManoObra={sinManoObra} />
 
       {!!mesesSinManoObra.length && (
         <p className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 leading-relaxed">
@@ -1928,51 +2010,105 @@ function TablaIndicadoresPyg({ ano, anio }) {
   )
 }
 
-// Los renglones de la tabla: los grupos van como encabezado y los datos como fila con sus celdas.
-function renglonesIndicadores(filas, porMes) {
-  const salida = []
-  let i = 0
-  for (const item of INDICADORES_PYG) {
-    if (item.tipo === 'grupo') {
-      salida.push(
-        <tr key={`g-${item.nombre}`}>
-          <th scope="colgroup" className="sticky left-0 z-10 text-left px-3 pt-3.5 pb-1 bg-white border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-azul">
-            {item.nombre}
-          </th>
-          <td colSpan={porMes.length + 1} className="bg-white" />
-        </tr>,
-      )
-      continue
-    }
-    const f = filas[i++]
-    salida.push(
-      <tr key={item.id}>
-        <th scope="row" className="sticky left-0 z-10 text-left px-3 py-1.5 border-t border-r border-feisen-borde-suave font-normal bg-white align-top">
-          <span className="block text-feisen-texto">{item.nombre}</span>
-          <span className="block text-[11px] text-feisen-texto-2 leading-snug">{item.explica}</span>
-        </th>
-        {porMes.map((x, j) => (
-          <td key={x.mes} className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-feisen-borde-suave bg-white align-top">
-            {!x.listo ? <span className="text-feisen-texto-2">·</span> : (
-              <>
-                <span className={f.valores[j] != null && f.valores[j] < 0 ? 'text-feisen-rojo' : ''}>
-                  {formatearIndicador(f.valores[j], item.formato)}
-                </span>
-                <Flecha mejora={f.mejoras[j]} />
-              </>
-            )}
-          </td>
-        ))}
-        <td className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-l border-feisen-borde-suave bg-feisen-fondo font-semibold text-feisen-texto align-top">
-          <span className={f.ano != null && f.ano < 0 ? 'text-feisen-rojo' : ''}>
-            {formatearIndicador(f.ano, item.formato)}
-          </span>
-        </td>
-      </tr>,
-    )
+// ── LA TABLA MES A MES, LA MISMA PARA LOS DOS GRUPOS ─────────────────────────
+function TablaIndicadores({ titulo, filas, etiquetas, columnas, cierre, etiquetaCierre, definiciones, marcar, mesEnCurso, sinManoObra }) {
+  const marcado = i => {
+    if (!marcar) return ''
+    const x = marcar[i]
+    if (!x) return ''
+    if (x.mes === mesEnCurso) return 'curso'
+    if (sinManoObra && sinManoObra(x)) return 'sin-mano'
+    return ''
   }
-  return salida
+  const porId = Object.fromEntries(filas.map(f => [f.indicador.id, f]))
+
+  return (
+    <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-feisen-borde-suave">
+        <span className="text-sm font-semibold text-feisen-texto">{titulo}</span>
+      </div>
+      <p className="px-4 py-2 text-xs text-feisen-texto-2 sm:hidden border-b border-feisen-borde-suave">
+        Desliza la tabla a los lados para ver los demás meses. El indicador se queda quieto.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px] border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-20 bg-white text-left align-bottom px-3 py-1.5 min-w-[10rem] sm:min-w-[13rem] border-b border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">
+                Indicador
+              </th>
+              {columnas.map((m, i) => {
+                const marca = marcado(i)
+                return (
+                  <th key={m} className={`px-1.5 py-1.5 text-right align-bottom min-w-[5rem] border-b border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide ${marca ? 'bg-amber-50 text-amber-700' : 'text-feisen-texto-2'}`}>
+                    {etiquetas[i]}
+                    {marca === 'curso' && <span className="block text-[10px] font-medium normal-case">va a mitad</span>}
+                    {marca === 'sin-mano' && <span className="block text-[10px] font-medium normal-case">sin mano de obra</span>}
+                  </th>
+                )
+              })}
+              {cierre && (
+                <th className="px-1.5 py-1.5 text-right align-bottom min-w-[5.5rem] border-b border-l border-feisen-borde-suave bg-feisen-fondo text-[11px] font-semibold uppercase tracking-wide text-feisen-texto">
+                  {cierre}
+                  <span className="block text-[10px] font-medium normal-case text-feisen-texto-2">{etiquetaCierre}</span>
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {definiciones.map(item => {
+              if (item.tipo === 'grupo') return (
+                <tr key={`g-${item.nombre}`}>
+                  <th scope="colgroup" className="sticky left-0 z-10 text-left px-3 pt-3.5 pb-1 bg-white border-r border-feisen-borde-suave text-[11px] font-semibold uppercase tracking-wide text-feisen-azul">
+                    {item.nombre}
+                  </th>
+                  <td colSpan={columnas.length + (cierre ? 1 : 0)} className="bg-white" />
+                </tr>
+              )
+              const f = porId[item.id]
+              if (!f) return null
+              return (
+                <tr key={item.id}>
+                  <th scope="row" className="sticky left-0 z-10 text-left px-3 py-1.5 border-t border-r border-feisen-borde-suave font-normal bg-white align-top text-feisen-texto">
+                    {item.nombre}
+                  </th>
+                  {columnas.map((m, i) => (
+                    <td key={m} className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-feisen-borde-suave bg-white">
+                      <span className={f.valores[i] != null && f.valores[i] < 0 ? 'text-feisen-rojo' : ''}>
+                        {formatearIndicador(f.valores[i], item.formato)}
+                      </span>
+                      {f.mejoras && <Flecha mejora={f.mejoras[i]} />}
+                    </td>
+                  ))}
+                  {cierre && (
+                    <td className="px-1.5 py-1.5 text-right tabular-nums text-xs border-t border-l border-feisen-borde-suave bg-feisen-fondo font-semibold text-feisen-texto">
+                      <span className={f.ano != null && f.ano < 0 ? 'text-feisen-rojo' : ''}>
+                        {formatearIndicador(f.ano, item.formato)}
+                      </span>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
+
+// La flechita de cada celda: verde si ese mes mejoró frente al anterior, roja si empeoró.
+function Flecha({ mejora }) {
+  if (mejora == null || mejora === 0) return null
+  const sube = mejora === 1
+  return (
+    <span className={`ml-0.5 text-[9px] align-middle ${sube ? 'text-emerald-600' : 'text-feisen-rojo'}`}
+      title={sube ? 'mejoró frente al mes anterior' : 'empeoró frente al mes anterior'}>
+      {sube ? '▲' : '▼'}
+    </span>
+  )
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Piezas de la vista de un mes
