@@ -1400,7 +1400,11 @@ function VistaBalanceComparada({ bal }) {
   const filas = useMemo(() => renglonesBalance(), [])
   const meses = bal.meses.filter(m => bal.porMes[m])
   const primero = meses[0], ultimo = meses[meses.length - 1]
-  const cols = `grid-cols-[minmax(10rem,1fr)_repeat(${meses.length + 2},minmax(6.5rem,8rem))]`
+  // OJO: las columnas van en estilo en línea, no en una clase de Tailwind. Tailwind solo
+  // reconoce clases completas escritas tal cual en el código, así que una clase armada con
+  // plantilla (`grid-cols-[...repeat(${'$'}{n}...)]`) no existe en el CSS compilado y la
+  // rejilla se queda sin columnas: todo se apila en una sola fila. Pasó el 19/11/2026.
+  const cols = { gridTemplateColumns: `minmax(10rem,1fr) repeat(${meses.length + 2}, minmax(6.5rem,8rem))` }
 
   if (!meses.length) {
     return <Cargando texto={bal.actual ? `Armando el balance de ${nombreLargo(bal.actual)}…` : 'Armando el comparativo…'} />
@@ -1422,7 +1426,7 @@ function VistaBalanceComparada({ bal }) {
 
       <div className="bg-white border border-feisen-borde rounded-xl overflow-x-auto">
         <div className="min-w-max">
-          <div className={`grid ${cols} gap-3 px-4 py-2 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2`}>
+          <div style={cols} className="grid gap-3 px-4 py-2 border-b border-feisen-borde-suave text-xs font-semibold uppercase tracking-wide text-feisen-texto-2">
             <span>Concepto</span>
             {meses.map(m => <span key={m} className="text-right">{nombreLargo(m).slice(0, 3)}</span>)}
             <span className="text-right">Variación</span>
@@ -1443,7 +1447,7 @@ function VistaBalanceComparada({ bal }) {
             const pct = dif == null || !a ? null : (dif / Math.abs(a)) * 100
             const fuerte = f.tipo === 'total'
             return (
-              <div key={i} className={`grid ${cols} gap-3 px-4 py-1.5 text-xs items-center border-t border-feisen-borde-suave
+              <div key={i} style={cols} className={`grid gap-3 px-4 py-1.5 text-xs items-center border-t border-feisen-borde-suave
                 ${fuerte ? 'font-semibold bg-feisen-fondo' : ''} ${f.alerta ? 'bg-amber-50' : ''}`}>
                 <span className="min-w-0 truncate">
                   {f.codigos && <span className="tabular-nums text-feisen-texto-2">{f.codigos} </span>}{f.nombre}
