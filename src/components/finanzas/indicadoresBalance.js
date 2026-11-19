@@ -56,10 +56,8 @@ export const INDICADORES_BALANCE = [
   {
     tipo: 'dato', id: 'endeudamiento', nombre: 'Razón de endeudamiento', formato: 'pct', mejorEs: 'bajo',
     explica: 'De todo lo que tiene la empresa, qué parte está financiada con deuda y no con plata de los socios.',
-    valor: k => {
-      const r = div(k.pasivoTotal, k.activoTotal)
-      return r == null ? null : r * 100
-    },
+    // Sin multiplicar por 100: el formato 'pct' ya lo hace al escribirlo
+    valor: k => div(k.pasivoTotal, k.activoTotal),
   },
 ]
 

@@ -1090,7 +1090,13 @@ function useBalanceMeses(meses, activo) {
         const bancos = Object.fromEntries(
           Object.entries(manual).filter(([c]) => c.startsWith('banco:')).map(([c, v]) => [c.slice('banco:'.length), v]),
         )
-        porMes[m] = calcularBalance(datos, bancos, calcularInventario(inv.data || [], manual), acumulado[m] ?? null)
+        // La deuda corriente escrita de ese mes entra igual que en la vista de un mes. Sin
+        // ella toda la deuda financiera contaba como no corriente, y la razón corriente de
+        // octubre salía 1,07 aquí y 0,94 en la pantalla del mes (visto el 19/11/2026).
+        porMes[m] = calcularBalance(
+          datos, bancos, calcularInventario(inv.data || [], manual),
+          acumulado[m] ?? null, manual[CONCEPTO_DEUDA_CORRIENTE] ?? null,
+        )
       } catch (e) {
         fallos.push(`${nombreLargo(m)} (${e.message || 'sin detalle'})`)
       }
