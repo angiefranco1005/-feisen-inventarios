@@ -182,14 +182,19 @@ export const CORRIENTE_GRUPOS = {
   '27': false,   // Otros pasivos
 }
 
-// Cuentas que mandan sobre la regla de su grupo. Son propuestas mías, no decisiones de
-// Angie: están pendientes de que ella y la contadora las confirmen.
-//  - 1355 Anticipos de impuestos: se cruzan con la renta del año siguiente, así que no
-//    se vuelven plata en doce meses. El Excel del revisor fiscal los pone en no corriente
-//    en su hoja de detalle y en corriente en la hoja firmada: ni él tiene una sola versión.
-//  - 1390 y 1399 Difícil cobro y sus provisiones: si no se cobraron en años, no son corrientes.
+// Cuentas que mandan sobre la regla de su grupo.
+//
+//  - 1390 y 1399 Difícil cobro y sus provisiones: si no se cobraron en años, no son
+//    corrientes. Sigue siendo propuesta mía; entre las dos quedan en unos $400.000, así
+//    que mueven poco. Pendiente de confirmar con la contadora.
+//
+// Los **anticipos de impuestos (1355) los decidió Angie el 19/11/2026**: "lo de los
+// anticipos de impuestos sí es corriente". Antes yo los tenía como no corrientes,
+// razonando que se cruzan contra la renta del año siguiente; ella dice que sí se vuelven
+// plata dentro del año y manda su criterio. Son $192.719.153 al 31/10, así que el cambio
+// no es menor: el capital de trabajo pasa de negativo a positivo. Por eso no están en
+// esta lista: siguen la regla de su grupo, que es corriente.
 export const CORRIENTE_CUENTAS = {
-  '1355': false,
   '1390': false,
   '1399': false,
 }
