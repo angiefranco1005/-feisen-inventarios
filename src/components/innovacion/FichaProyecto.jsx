@@ -6,7 +6,7 @@ import { formatCOP, formatFecha } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
-import { ArrowLeft, Plus, Trash2, Send, Paperclip, FileText, FileImage, Loader2 } from '../shared/iconos'
+import { ArrowLeft, Plus, Trash2, Send, Check, Paperclip, FileText, FileImage, Loader2 } from '../shared/iconos'
 import {
   TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, IMPREVISTOS,
   subtotalCostos, totalInversion, fmtPct,
@@ -69,15 +69,19 @@ export default function FichaProyecto() {
   const quitarFila = (lista, i) => setP(x => ({ ...x, [lista]: x[lista].filter((_, j) => j !== i) }))
   const cambiado = JSON.stringify(p) !== original
 
-  // Secciones obligatorias del formato: 1, 2, 3, 5 y 6
+  // Qué le falta a cada sección para poder presentar el proyecto (todas son obligatorias)
+  function estadoSecciones() {
+    const fasesConFecha = (p.fases || []).some(x => x.inicio && x.fin)
+    return [
+      { n: 1, titulo: 'Datos generales', faltan: [!p.area && 'área', !p.resumen?.trim() && 'resumen'].filter(Boolean) },
+      { n: 2, titulo: 'Problema u oportunidad', faltan: [!p.problema?.trim() && 'el problema'].filter(Boolean) },
+      { n: 3, titulo: 'Solución propuesta', faltan: [!p.solucion?.trim() && 'la solución', !p.indicador_meta?.trim() && 'indicador y meta'].filter(Boolean) },
+      { n: 4, titulo: 'Costos', faltan: [!(subtotalCostos(p.costos) > 0) && 'al menos un costo'].filter(Boolean) },
+      { n: 5, titulo: 'Cronograma', faltan: [!fasesConFecha && 'fechas de las fases'].filter(Boolean) },
+    ]
+  }
   function revisarObligatorias() {
-    const f = []
-    if (!p.problema?.trim()) f.push('Problema u oportunidad (sección 2)')
-    if (!p.solucion?.trim()) f.push('Solución propuesta (sección 3)')
-    if (!p.indicador_meta?.trim()) f.push('Indicador y meta (sección 3)')
-    if (!(subtotalCostos(p.costos) > 0)) f.push('Al menos un costo (sección 4)')
-    if (!(p.fases || []).some(x => x.inicio && x.fin)) f.push('Fechas de las fases (sección 5)')
-    return f
+    return estadoSecciones().filter(x => x.faltan.length).map(x => `${x.titulo}: ${x.faltan.join(', ')} (sección ${x.n})`)
   }
 
   async function guardar(cambios = {}) {
@@ -119,8 +123,10 @@ export default function FichaProyecto() {
   const enMarcha = ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado)
 
   // Dos modos (opción B que eligió Angie, 2026-11-20): «seguimiento» (bitácora al centro y panel fijo
-  // con lo clave) y «ficha» (el formato completo para llenar o corregir). Un borrador abre en la ficha.
-  const modo = params.get('ver') || (p.estado === 'borrador' ? 'ficha' : 'seguimiento')
+  // con lo clave) y «ficha» (el formato completo, con índice de avance). Todo proyecto abre en el seguimiento.
+  const modo = params.get('ver') === 'ficha' ? 'ficha' : 'seguimiento'
+  const secciones = estadoSecciones()
+  const listas = secciones.filter(x => !x.faltan.length).length
   const irA = m => {
     if (m === 'seguimiento' && cambiado && !confirm('Hay cambios sin guardar en la ficha. ¿Salir sin guardar?')) return
     if (m === 'seguimiento' && cambiado) setP(JSON.parse(original))
@@ -130,12 +136,23 @@ export default function FichaProyecto() {
 
   const accionPrincipal = (
     <>
-      {p.estado === 'borrador' && (
+      {p.estado === 'borrador' && (listas < secciones.length ? (
+        <div className="space-y-2">
+          <div>
+            <p className="text-xs text-feisen-texto-2 tabular-nums">Ficha: {listas} de {secciones.length} secciones listas</p>
+            <div className="h-1.5 bg-feisen-fondo rounded-full mt-1"><div className="h-1.5 bg-feisen-azul rounded-full" style={{ width: `${(listas / secciones.length) * 100}%` }} /></div>
+          </div>
+          <button onClick={() => irA('ficha')}
+            className="w-full bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold">
+            Completar la ficha
+          </button>
+        </div>
+      ) : (
         <button onClick={presentar} disabled={guardando}
           className="w-full flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold disabled:opacity-50">
           <Send size={16} /> Presentar a gerencia
         </button>
-      )}
+      ))}
       {p.estado === 'presentado' && (puedeAprobar ? (
         <button onClick={aprobar} disabled={guardando}
           className="w-full bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
@@ -148,7 +165,7 @@ export default function FichaProyecto() {
   )
 
   if (modo === 'ficha') return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-28">
+    <div className="max-w-6xl mx-auto space-y-5 pb-28">
       <button onClick={() => irA('seguimiento')} className="inline-flex items-center gap-1 text-sm text-feisen-texto-2 hover:text-feisen-azul">
         <ArrowLeft size={14} /> Volver al seguimiento
       </button>
@@ -164,7 +181,6 @@ export default function FichaProyecto() {
             <span className="text-sm text-feisen-texto-2">Inversión {formatCOP(inv)}</span>
           </div>
         </div>
-        {p.estado === 'borrador' && <div className="w-full sm:w-auto">{accionPrincipal}</div>}
       </div>
 
       {faltan.length > 0 && (
@@ -172,8 +188,11 @@ export default function FichaProyecto() {
       )}
       <Alerta tipo="error" mensaje={error} />
 
+      <div className="grid lg:grid-cols-[230px_minmax(0,1fr)] gap-5 items-start">
+        <IndiceFicha secciones={secciones} listas={listas} borrador={p.estado === 'borrador'} onPresentar={presentar} guardando={guardando} />
+        <div className="space-y-5 min-w-0">
       {/* 1 */}
-      <Seccion n="1" titulo="Datos generales" obligatoria>
+      <Seccion estado={secciones[0]} n="1" titulo="Datos generales" obligatoria>
         <div className="grid sm:grid-cols-2 gap-3">
           <Campo etiqueta="Tipo">
             <select value={p.tipo} onChange={e => set('tipo', e.target.value)} className={INPUT}>
@@ -199,13 +218,13 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 2 */}
-      <Seccion n="2" titulo="Problema u oportunidad" obligatoria
+      <Seccion estado={secciones[1]} n="2" titulo="Problema u oportunidad" obligatoria
         ayuda="¿Qué pasa hoy? ¿Cuánto nos cuesta o cuánto dejamos de vender (COP, unidades, horas, % de rechazo)? ¿De dónde sale el dato?">
         <Texto valor={p.problema} onCambiar={v => set('problema', v)} filas={5} />
       </Seccion>
 
       {/* 3 */}
-      <Seccion n="3" titulo="Solución propuesta" obligatoria
+      <Seccion estado={secciones[2]} n="3" titulo="Solución propuesta" obligatoria
         ayuda="¿Qué se va a diseñar o cambiar? ¿Qué alternativa se descartó y por qué? Anexos: planos, render o fotos.">
         <Texto valor={p.solucion} onCambiar={v => set('solucion', v)} filas={5} />
         <Campo etiqueta="¿Cómo sabremos que funcionó? Indicador y meta" ayuda="Ej.: rechazo de 8 % a 2 %; ciclo de 40 a 25 min">
@@ -214,7 +233,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 4 */}
-      <Seccion n="4" titulo="Costos estimados y retorno" obligatoria ayuda="Inversión para desarrollar el proyecto (no el costo unitario de producción). Valores en COP sin IVA.">
+      <Seccion estado={secciones[3]} n="4" titulo="Costos estimados y retorno" obligatoria ayuda="Inversión para desarrollar el proyecto (no el costo unitario de producción). Valores en COP sin IVA.">
         <div className="border border-feisen-borde rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-[1fr_1fr_160px_40px] gap-2 px-3 py-2 bg-feisen-fondo text-xs uppercase tracking-wide text-gray-400">
             <span>Rubro</span><span>Detalle</span><span className="text-right">Valor (COP)</span><span />
@@ -249,15 +268,17 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 5 */}
-      <Seccion n="5" titulo="Cronograma" obligatoria ayuda="Cada fase termina en un entregable. Cuando una fase se termine, anote la fecha en «Terminada el»: así se mide si se cumplen los tiempos.">
+      <Seccion estado={secciones[4]} n="5" titulo="Cronograma" obligatoria ayuda="Cada fase termina en un entregable. Cuando una fase se termine, anote la fecha en «Terminada el»: así se mide si se cumplen los tiempos.">
         <ResumenCronograma fases={p.fases} />
         <FasesCronograma fases={p.fases} setFila={setFila} quitar={quitarFila} />
         <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', terminada: '', responsable: '' })}>Agregar fase</BotonAgregar>
       </Seccion>
+        </div>
+      </div>
 
       {/* Acción principal fija abajo */}
       <div className="fixed bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-0 left-0 right-0 lg:left-60 z-30 bg-white/95 backdrop-blur border-t border-feisen-borde px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-end gap-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-end gap-3">
           <span className="text-sm text-feisen-texto-2">{cambiado ? 'Hay cambios sin guardar' : 'Todo guardado'}</span>
           <button onClick={async () => { if (await guardar()) avisar('Cambios guardados') }} disabled={!cambiado || guardando}
             className="bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
@@ -657,17 +678,64 @@ function Interrupciones({ proyectoId, interrupciones, equipos, onCambio, avisar 
 }
 
 // ── Piezas ───────────────────────────────────────────────────────────────────────
-const INPUT = 'w-full border border-feisen-borde rounded-lg px-3 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul'
+const INPUT = 'w-full h-11 border border-feisen-borde rounded-lg px-3 text-sm bg-white focus:outline-none focus:border-feisen-azul'
 const INPUT_FILA = 'w-full border border-transparent hover:border-feisen-borde focus:border-feisen-azul rounded-md px-2 min-h-[40px] text-sm bg-transparent focus:bg-white focus:outline-none'
 
-function Seccion({ n, titulo, obligatoria, ayuda, children }) {
+// Índice de la ficha: qué secciones están listas y cuáles faltan; al tocar una, baja hasta ella.
+function IndiceFicha({ secciones, listas, borrador, onPresentar, guardando }) {
+  const ir = n => document.getElementById(`seccion-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const completa = listas === secciones.length
   return (
-    <section className="bg-white border border-feisen-borde rounded-xl p-4 sm:p-5 space-y-3">
+    <aside className="lg:sticky lg:top-4 bg-white border border-feisen-borde rounded-xl p-4 space-y-3">
       <div>
-        <h2 className="font-semibold text-feisen-texto">
-          {n}. {titulo}
-          {obligatoria && <span className="ml-2 align-middle text-[11px] font-medium uppercase tracking-wide text-feisen-texto-2 bg-feisen-fondo rounded px-1.5 py-0.5">Obligatoria</span>}
-        </h2>
+        <p className="text-sm font-semibold text-feisen-texto tabular-nums">{listas} de {secciones.length} secciones listas</p>
+        <div className="h-1.5 bg-feisen-fondo rounded-full mt-1.5"><div className="h-1.5 bg-feisen-azul rounded-full transition-all" style={{ width: `${(listas / secciones.length) * 100}%` }} /></div>
+      </div>
+      <ul className="flex flex-wrap lg:flex-col gap-1">
+        {secciones.map(x => {
+          const ok = !x.faltan.length
+          return (
+            <li key={x.n}>
+              <button type="button" onClick={() => ir(x.n)}
+                className="w-full text-left flex items-start gap-2 rounded-lg px-2 py-1.5 min-h-[40px] hover:bg-feisen-fondo">
+                <span className={`mt-0.5 w-5 h-5 rounded-full grid place-items-center text-[11px] font-semibold shrink-0 ${ok ? 'bg-feisen-azul text-white' : 'border-2 border-amber-400 text-amber-700'}`}>
+                  {ok ? <Check size={12} /> : x.n}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-sm ${ok ? 'text-feisen-texto' : 'text-amber-700 font-medium'}`}>{x.titulo}</span>
+                  {!ok && <span className="hidden lg:block text-xs text-feisen-texto-2">Falta {x.faltan.join(', ')}</span>}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {borrador && (
+        <div className="space-y-1">
+          <button onClick={onPresentar} disabled={!completa || guardando}
+            className="w-full flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold disabled:opacity-40">
+            <Send size={16} /> Presentar a gerencia
+          </button>
+          {!completa && <p className="text-xs text-feisen-texto-2 text-center">Se activa con las {secciones.length} secciones listas</p>}
+        </div>
+      )}
+    </aside>
+  )
+}
+
+function Seccion({ n, titulo, obligatoria, ayuda, estado, children }) {
+  const lista = estado && !estado.faltan.length
+  return (
+    <section id={`seccion-${n}`} className="scroll-mt-4 bg-white border border-feisen-borde rounded-xl p-4 sm:p-5 space-y-3">
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold text-feisen-texto">{n}. {titulo}</h2>
+          {estado ? (
+            lista
+              ? <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-azul-suave text-feisen-azul"><Check size={12} /> Lista</span>
+              : <span className="rounded-md px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">Falta: {estado.faltan.join(', ')}</span>
+          ) : obligatoria && <span className="text-[11px] font-medium uppercase tracking-wide text-feisen-texto-2 bg-feisen-fondo rounded px-1.5 py-0.5">Obligatoria</span>}
+        </div>
         {ayuda && <p className="text-sm text-feisen-texto-2 mt-0.5">{ayuda}</p>}
       </div>
       {children}
