@@ -61,6 +61,13 @@ function SelectorProducto({ value, onSelect, productos }) {
   )
 }
 
+// Áreas que pueden pedir. Solo se eligen a mano cuando el rol no tiene área propia (la gerente,
+// que pide para varias); los demás roles la toman de AREA_POR_ROL en ListaPedidos.jsx.
+export const AREAS_PEDIDO = [
+  ['ALMACEN', 'Almacén'], ['FUNDICION', 'Fundición'], ['MECANIZADOS', 'Mecanizados'], ['PRODUCCION', 'Producción'],
+  ['LOGISTICA', 'Logística'], ['MANTENIMIENTO', 'Mantenimiento'], ['ADMINISTRACION', 'Administración'], ['INNOVACION', 'Innovación'],
+]
+
 const Etiqueta = ({ children, extra }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-feisen-texto-2 mb-2">
     {children}{extra && <span className="normal-case tracking-normal font-normal"> {extra}</span>}
@@ -72,6 +79,7 @@ export default function FormularioPedido({
   prioridad, setPrioridad, obs, setObs,
   foto, setFoto, subiendoFoto, onSubirFoto,
   msg, onSubmit, onCancelar, textoGuardar, guardando,
+  area, setArea, // solo si hay que elegir el área (setArea presente)
 }) {
   const cambiar = (idx, cambios) => setItems(items.map((it, i) => i === idx ? { ...it, ...cambios } : it))
 
@@ -111,6 +119,21 @@ export default function FormularioPedido({
           </button>
         </div>
       </section>
+
+      {setArea && (
+        <section>
+          <Etiqueta>Área que pide</Etiqueta>
+          <div role="group" aria-label="Área que pide" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {AREAS_PEDIDO.map(([valor, texto]) => (
+              <button key={valor} type="button" aria-pressed={area === valor} onClick={() => setArea(valor)}
+                className={`min-h-[42px] rounded-lg border px-2 text-[13px] sm:text-sm font-semibold transition-colors
+                  ${area === valor ? 'border-feisen-azul bg-feisen-azul-suave text-feisen-azul' : 'border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+                {texto}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <Etiqueta>Prioridad</Etiqueta>

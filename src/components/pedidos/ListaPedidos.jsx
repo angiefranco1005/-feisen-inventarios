@@ -514,6 +514,10 @@ export default function ListaPedidos() {
 
   const AREA_POR_ROL = { JEFE_MECANIZADOS: 'MECANIZADOS', JEFE_FUNDICION: 'FUNDICION', LOGISTICA: 'LOGISTICA', ALMACENISTA: 'ALMACEN', OPERARIO: 'PRODUCCION', JEFE_ENSAMBLE: 'PRODUCCION', CONSULTOR: 'INNOVACION', RRHH: 'ADMINISTRACION', JEFE_MANTENIMIENTO: 'MANTENIMIENTO' }
   const miArea = AREA_POR_ROL[rolEfectivo] || null
+  // Sin área propia (ADMIN): elige el área en cada pedido (pedido de Angie, 2026-11-20)
+  const eligeArea = !miArea
+  const [areaNuevo, setAreaNuevo] = useState('')
+  const [areaEdit,  setAreaEdit]  = useState('')
   const navigate = useNavigate()
   const [pedidos,   setPedidos]   = useState([])
   const [productos, setProductos] = useState([])
@@ -667,6 +671,7 @@ export default function ListaPedidos() {
     const itemsValidos = items.filter(i => i.descripcion && parseFloat(i.cantidad) > 0)
     if (itemsValidos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto con cantidad.' }); return }
     if (itemsValidos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
+    if (eligeArea && !areaNuevo) { setMsg({ tipo: 'error', texto: 'Elige el área que pide.' }); return }
 
     let numero
     try { numero = await generarNumero() }
@@ -675,7 +680,7 @@ export default function ListaPedidos() {
       numero, estado: 'pendiente', observaciones: obs || null, solicitante_id: perfil.id,
       solicitante_nombre: perfil?.nombre || null,
       prioridad, foto_muestra_url: fotoMuestra || null,
-      area: miArea,
+      area: miArea || areaNuevo,
     }).select().single()
     if (err1) { setMsg({ tipo: 'error', texto: 'Error: ' + err1.message }); return }
 
@@ -693,6 +698,7 @@ export default function ListaPedidos() {
     await registrarHistorial(pedido.id, 'creado',
       itemsValidos.map(i => `${i.descripcion} (${i.cantidad} ${i.unidad})`).join(', '))
     setModalNuevo(false)
+    setAreaNuevo('')
     setItems([{ ...ITEM0 }])
     setObs('')
     setFotoMuestra('')
@@ -1006,6 +1012,7 @@ export default function ListaPedidos() {
     })))
     setObsEdit(pedido.observaciones || '')
     setPrioridadEdit(pedido.prioridad || 'normal')
+    setAreaEdit(pedido.area || '')
     setFotoMuestraEdit(pedido.foto_muestra_url || '')
     setModalEditar(pedido)
   }
@@ -1015,6 +1022,7 @@ export default function ListaPedidos() {
     const validos = itemsEdit.filter(i => i.descripcion && parseFloat(i.cantidad) > 0)
     if (validos.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto.' }); return }
     if (validos.some(i => !i.item_id)) { setMsg({ tipo: 'error', texto: 'Todos los productos deben seleccionarse del catálogo.' }); return }
+    if (eligeArea && !areaEdit) { setMsg({ tipo: 'error', texto: 'Elige el área que pide.' }); return }
     setGuardandoEdit(true)
     setMsg(null)
     try {
@@ -1023,6 +1031,7 @@ export default function ListaPedidos() {
         observaciones:    obsEdit || null,
         prioridad:        prioridadEdit,
         foto_muestra_url: fotoMuestraEdit || null,
+        ...(eligeArea ? { area: areaEdit } : {}),
       }).eq('id', modalEditar.id).select('id')
       if (errPed) { setMsg({ tipo: 'error', texto: 'Error al actualizar pedido: ' + errPed.message }); return }
       // Un UPDATE que la política RLS no permite no da error: solo no modifica filas
@@ -1046,9 +1055,10 @@ export default function ListaPedidos() {
       // Armar detalle del cambio
       const itemsAntes = (modalEditar.pedido_items || []).map(i => `${i.descripcion} (${i.cantidad})`).join(', ')
       const itemsDespues = validos.map(i => `${i.descripcion} (${i.cantidad})`).join(', ')
-      const detalle = itemsAntes !== itemsDespues
+      const cambioArea = eligeArea && areaEdit !== (modalEditar.area || '') ? ` · Área: ${areaEdit}` : ''
+      const detalle = (itemsAntes !== itemsDespues
         ? `Productos: ${itemsDespues}`
-        : `Prioridad/observaciones actualizadas`
+        : `Prioridad/observaciones actualizadas`) + cambioArea
 
       await registrarHistorial(modalEditar.id, 'editado', detalle)
 
@@ -1200,7 +1210,7 @@ export default function ListaPedidos() {
               <FileText size={18} /> <span className="hidden sm:inline">OC de varios pedidos</span><span className="sm:hidden">OC</span>
             </button>
           )}
-          <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra(''); setModalNuevo(true) }}
+          <button onClick={() => { setMsg(null); setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra(''); setAreaNuevo(''); setModalNuevo(true) }}
             className="flex items-center gap-2 bg-feisen-azul text-white px-4 py-2 rounded-xl font-medium hover:opacity-90">
             <Plus size={18} /> Nuevo pedido
           </button>
@@ -1320,6 +1330,7 @@ export default function ListaPedidos() {
             foto={fotoMuestra} setFoto={setFotoMuestra} subiendoFoto={subiendoFoto}
             onSubirFoto={f => subirFoto(f, setFotoMuestra, setSubiendoFoto)}
             msg={msg} onSubmit={crearPedido} onCancelar={() => { setModalNuevo(false); setPrioridad('normal') }}
+            {...(eligeArea ? { area: areaNuevo, setArea: setAreaNuevo } : {})}
             textoGuardar="Crear pedido" />
         </Modal>
       )}
@@ -1457,7 +1468,8 @@ export default function ListaPedidos() {
             foto={fotoMuestraEdit} setFoto={setFotoMuestraEdit} subiendoFoto={subiendoFotoEdit}
             onSubirFoto={f => subirFoto(f, setFotoMuestraEdit, setSubiendoFotoEdit)}
             msg={msg} onSubmit={guardarEdicion} onCancelar={() => setModalEditar(null)}
-            textoGuardar={guardandoEdit ? 'Guardando…' : 'Guardar cambios'} guardando={guardandoEdit} />
+            textoGuardar={guardandoEdit ? 'Guardando…' : 'Guardar cambios'} guardando={guardandoEdit}
+            {...(eligeArea ? { area: areaEdit, setArea: setAreaEdit } : {})} />
         </Modal>
       )}
 
