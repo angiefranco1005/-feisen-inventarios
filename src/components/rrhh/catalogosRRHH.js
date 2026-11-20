@@ -106,6 +106,28 @@ export const ESTADOS_EMPLEADO = {
   retirado: { label: 'Retirado', punto: 'bg-gray-300' },
 }
 
+// Motivo de desvinculación (empleados.motivo_retiro_tipo): categoría fija para
+// las estadísticas de retiros; el detalle libre va en motivo_retiro.
+// Los valores también están en el CHECK de la base: no cambiarlos.
+export const MOTIVOS_RETIRO = [
+  { value: 'renuncia_salario',  label: 'Renuncia: mejor oferta salarial',         grupo: 'voluntario' },
+  { value: 'renuncia_personal', label: 'Renuncia: motivos personales o familiares', grupo: 'voluntario' },
+  { value: 'renuncia_clima',    label: 'Renuncia: ambiente laboral o jefe',       grupo: 'voluntario' },
+  { value: 'renuncia_horario',  label: 'Renuncia: horario, distancia o transporte', grupo: 'voluntario' },
+  { value: 'renuncia_estudio',  label: 'Renuncia: estudio o cambio de oficio',    grupo: 'voluntario' },
+  { value: 'abandono',          label: 'Abandono del cargo',                      grupo: 'voluntario' },
+  { value: 'fin_contrato',      label: 'Terminación del contrato (fin de plazo u obra)', grupo: 'empresa' },
+  { value: 'periodo_prueba',    label: 'No superó el periodo de prueba',          grupo: 'empresa' },
+  { value: 'justa_causa',       label: 'Despido con justa causa',                 grupo: 'empresa' },
+  { value: 'sin_justa_causa',   label: 'Despido sin justa causa',                 grupo: 'empresa' },
+  { value: 'mutuo_acuerdo',     label: 'Mutuo acuerdo',                           grupo: 'otro' },
+  { value: 'pension',           label: 'Pensión',                                 grupo: 'otro' },
+  { value: 'fallecimiento',     label: 'Fallecimiento',                           grupo: 'otro' },
+  { value: 'otro',              label: 'Otro',                                    grupo: 'otro' },
+]
+export const GRUPOS_RETIRO = { voluntario: 'Decisión del colaborador', empresa: 'Decisión de la empresa', otro: 'Otros' }
+export const motivoRetiroLabel = (v) => MOTIVOS_RETIRO.find(m => m.value === v)?.label || 'Sin motivo registrado'
+
 export function nombreCompleto(e) {
   return `${e?.nombres || ''} ${e?.apellidos || ''}`.trim()
 }

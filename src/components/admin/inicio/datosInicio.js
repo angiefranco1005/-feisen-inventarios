@@ -48,20 +48,23 @@ export async function cargarFoto({ soloOperacion = false } = {}) {
   const hoyIsoQ = isoDia(hoy0())
   const vacio = Promise.resolve({ data: [], count: 0 })
   const si = q => soloOperacion ? vacio : q()
-  const [items, stock, movs, bods, pedidos, empleados, ncs, nomina, fundidas30, moldeoNc, fundSemanas, ausHoy] = await Promise.all([
+  const [items, stock, movs, bods, pedidos, empleados, ncs, nomina, fundidas30, moldeoNc, fundSemanas, ausHoy, ciclos, evaluaciones] = await Promise.all([
     fetchAllPages((d, h) => supabase.from('items').select('id, nombre, activo, stock_minimo, bodega_id').order('id').range(d, h)),
     fetchAllPages((d, h) => supabase.from('stock').select('item_id, bodega_id, cantidad_actual, items(nombre, precio_costo, activo, unidad_medida, categorias(nombre))').order('item_id').order('bodega_id').range(d, h)),
     // Para rotación: último movimiento de cada producto en cada bodega
     fetchAllPages((d, h) => supabase.from('movimientos').select('item_id, bodega_origen_id, bodega_destino_id, created_at').eq('revertido', false).order('id').range(d, h)),
     supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
     fetchAllPages((d, h) => supabase.from('pedidos').select('numero, estado, area, solicitante_id, prioridad, created_at, fecha_recibido, fecha_estimada_llegada').order('id').range(d, h)),
-    si(() => supabase.from('empleados').select('id, nombres, apellidos, area, estado, fecha_ingreso, fecha_fin_contrato')),
+    si(() => supabase.from('empleados').select('id, nombres, apellidos, area, estado, fecha_ingreso, fecha_fin_contrato, fecha_retiro, motivo_retiro_tipo')),
     si(() => supabase.from('no_conformidades').select('estado, bodega_nombre, cantidad_afectada, tipo_defecto, fecha_deteccion')),
     si(() => supabase.from('nomina_periodos').select('id, anio, mes, quincena, estado').order('anio', { ascending: false }).order('mes', { ascending: false }).order('quincena', { ascending: false }).limit(1)),
     si(() => supabase.from('fundidas').select('id', { count: 'exact', head: true }).gte('fecha', isoDia(new Date(Date.now() - 30 * DIA)))),
     si(() => supabase.from('ordenes_moldeo_piezas').select('cantidad_nc, ordenes_moldeo(numero, fecha)').gt('cantidad_nc', 0)),
     soloOperacion ? Promise.resolve([]) : entradasFundicion(new Date(hoy0().getTime() - 55 * DIA), new Date()),
     si(() => supabase.from('novedades').select('empleado_id').lte('fecha_inicio', hoyIsoQ).or(`fecha_fin.gte.${hoyIsoQ},and(fecha_fin.is.null,fecha_inicio.eq.${hoyIsoQ})`)),
+    // Evaluación de desempeño: el ciclo más reciente y sus evaluaciones
+    si(() => supabase.from('desempeno_ciclos').select('id, nombre, estado, fecha_inicio, fecha_fin').order('fecha_inicio', { ascending: false }).limit(1)),
+    si(() => supabase.from('desempeno_evaluaciones').select('ciclo_id, empleado_id, estado, evaluador, area')),
   ])
 
   const nombreBod = Object.fromEntries((bods.data || []).map(b => [b.id, b.nombre]))
@@ -155,6 +158,7 @@ export async function cargarFoto({ soloOperacion = false } = {}) {
     contratosVencen: emps.filter(e => e.fecha_fin_contrato && e.fecha_fin_contrato >= hoyIso && e.fecha_fin_contrato <= en30).length,
     nomina: nomina.data?.[0] || null,
     ausentesHoy: new Set((ausHoy.data || []).map(n => n.empleado_id)).size,
+    evaluaciones: avanceEvaluaciones(ciclos.data?.[0], evaluaciones.data || [], empleados.data || []),
   }
 
   // Calidad
@@ -306,4 +310,45 @@ export function indicadoresPorBodega(pedidos) {
   const area = p => p.area || 'Sin área'
   const resumen = acumular(pedidos, area, area).sort((a, b) => b.total - a.total)
   return resumen.map(r => ({ ...r, area: r.clave, mensual: indicadoresMensuales(pedidos.filter(p => area(p) === r.clave)) }))
+}
+
+// ── RRHH: rotación, retiros y evaluaciones (pedido de Angie, 2026-11-20) ──
+// Plantilla en una fecha = ingresó ese día o antes y no se ha retirado (o se retiró después).
+const enPlantilla = (e, iso) => e.fecha_ingreso && e.fecha_ingreso <= iso && (!e.fecha_retiro || e.fecha_retiro > iso)
+
+// Rotación del periodo = retiros ÷ plantilla promedio (inicio y fin del periodo) × 100
+export function rotacionPeriodo(empleados, desde, hasta) {
+  const ini = isoDia(desde), fin = isoDia(hasta) > isoDia(hoy0()) ? isoDia(hoy0()) : isoDia(hasta)
+  const retiros = empleados.filter(e => e.fecha_retiro && e.fecha_retiro >= ini && e.fecha_retiro <= fin)
+  const ingresos = empleados.filter(e => e.fecha_ingreso && e.fecha_ingreso >= ini && e.fecha_ingreso <= fin)
+  const promedio = (empleados.filter(e => enPlantilla(e, ini)).length + empleados.filter(e => enPlantilla(e, fin)).length) / 2
+  return { retiros: retiros.length, ingresos: ingresos.length, promedio, pct: promedio ? retiros.length / promedio : null }
+}
+
+// Por qué se va la gente: retiros de los últimos 12 meses por motivo
+export function retirosPorMotivo(empleados) {
+  const desde = isoDia(new Date(hoy0().getTime() - 365 * DIA))
+  const lista = empleados.filter(e => e.fecha_retiro && e.fecha_retiro >= desde)
+  const c = {}
+  for (const e of lista) { const k = e.motivo_retiro_tipo || ''; c[k] = (c[k] || 0) + 1 }
+  return { total: lista.length, porMotivo: Object.entries(c).sort((a, b) => b[1] - a[1]) }
+}
+
+// Avance del ciclo de evaluación más reciente: % realizadas, por evaluador y quién falta
+function avanceEvaluaciones(ciclo, evaluaciones, empleados) {
+  if (!ciclo) return null
+  const evs = evaluaciones.filter(e => e.ciclo_id === ciclo.id)
+  const nombre = id => { const e = empleados.find(x => x.id === id); return e ? `${e.nombres} ${e.apellidos}` : '—' }
+  const porEval = {}
+  for (const e of evs) {
+    const k = e.evaluador || 'Sin evaluador'
+    const g = (porEval[k] ||= { evaluador: k, total: 0, completas: 0 })
+    g.total++; if (e.estado === 'completa') g.completas++
+  }
+  const completas = evs.filter(e => e.estado === 'completa').length
+  return {
+    ciclo, total: evs.length, completas, pct: evs.length ? completas / evs.length : null,
+    porEvaluador: Object.values(porEval).sort((a, b) => (a.completas / a.total) - (b.completas / b.total) || b.total - a.total),
+    pendientes: evs.filter(e => e.estado !== 'completa').map(e => nombre(e.empleado_id)).sort(),
+  }
 }

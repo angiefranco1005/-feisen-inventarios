@@ -2,7 +2,7 @@
 // tarjetas ("bloques") que se ven como datos y se editan por separado.
 //
 // Un bloque es { id, titulo, icon, campos, derivar?, alGuardar? } y cada campo
-// { k, label, tipo?, req?, full?, opciones?, visible?, extra?, nota?, mostrar?, columnas? }.
+// { k, label, tipo?, req?, full?, opciones?, grupos?, visible?, extra?, nota?, mostrar?, columnas? }.
 // `ctx` lleva datos que algunos campos necesitan (listas para selects, jefe…);
 // `opciones` puede ser una función de ctx para selects dinámicos.
 import { Pencil, Plus, X } from '../shared/iconos'
@@ -168,9 +168,16 @@ export function CampoEditable({ campo: c, valor, onChange, form, ctx }) {
     return wrap(
       <select required={c.req} value={valor ?? ''} onChange={e => onChange(e.target.value)} className={E.input}>
         {!c.req ? <option value="">{c.vacio || '—'}</option> : <option value="" disabled>Seleccionar…</option>}
-        {opciones.map(o => typeof o === 'object'
-          ? <option key={o.value} value={o.value}>{o.label}</option>
-          : <option key={o} value={o}>{o}</option>)}
+        {c.grupos
+          // Opciones agrupadas: c.grupos = { clave: 'Título' } y cada opción trae `grupo`
+          ? Object.entries(c.grupos).map(([g, titulo]) => (
+              <optgroup key={g} label={titulo}>
+                {opciones.filter(o => o.grupo === g).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </optgroup>
+            ))
+          : opciones.map(o => typeof o === 'object'
+            ? <option key={o.value} value={o.value}>{o.label}</option>
+            : <option key={o} value={o}>{o}</option>)}
         {huerfano && <option value={valor}>{valor} (ya no está en la lista)</option>}
       </select>
     )

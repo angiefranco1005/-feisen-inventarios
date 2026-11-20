@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../contexts/AuthContext'
 import Spinner from '../../shared/Spinner'
-import { TIPOS_NOVEDAD } from '../../rrhh/catalogosRRHH'
-import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses } from './datosInicio'
-import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw } from '../../shared/iconos'
+import { TIPOS_NOVEDAD, MOTIVOS_RETIRO, GRUPOS_RETIRO, motivoRetiroLabel } from '../../rrhh/catalogosRRHH'
+import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses, rotacionPeriodo, retirosPorMotivo } from './datosInicio'
+import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw, Target, LogOut } from '../../shared/iconos'
 import DashboardVentas from '../../of/ventas/DashboardVentas'
 import DashboardOF from '../../of/Dashboard'
 import InformeSinRotacion from './InformeSinRotacion'
@@ -24,7 +24,7 @@ const VISTAS = [
   { id: 'inventarios', texto: 'Inventarios' },
   { id: 'logistica',   texto: 'Logística' },
   { id: 'produccion',  texto: 'Producción' },
-  { id: 'personas',    texto: 'Personas' },
+  { id: 'personas',    texto: 'RRHH' },
 ]
 // Inicio de Logística (Efraín, 2026-11-20): su inicio de siempre + Inventarios y Logística de gerencia
 const VISTAS_LOGISTICA = [
@@ -179,6 +179,9 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
   )
 
   const { inv, bodegas, logistica, rrhh, calidad, fundicion } = foto
+  const rot = rotacionPeriodo(foto.empleados || [], rango.desde, rango.hasta)
+  const salidas = retirosPorMotivo(foto.empleados || [])
+  const evals = rrhh.evaluaciones
   const hoy = new Date()
   const saludo = hoy.getHours() < 12 ? 'Buenos días' : hoy.getHours() < 19 ? 'Buenas tardes' : 'Buenas noches'
   const meses = opcionesMeses(foto.primerMov)
@@ -351,7 +354,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
               { v: 'logistica', icono: Truck, titulo: 'Logística', cifra: `${logistica.enCurso} pedidos`, detalle: logistica.atrasados ? `${logistica.atrasados} atrasados` : 'Al día', tono: logistica.atrasados ? 'rojo' : '' },
               { v: 'produccion', icono: Wrench, titulo: 'Mecanizados', cifra: mec ? `${fmt(mec.piezas)} piezas` : '…', detalle: 'en el periodo' },
               { v: 'produccion', icono: Flame, titulo: 'Fundición', cifra: fun ? (fun.kg >= 1000 ? `${fmt(fun.kg / 1000)} t` : `${fmt(fun.kg)} kg`) : '…', detalle: fun?.nc ? `${fmt(fun.nc)} und no conformes` : 'en el periodo', tono: fun?.nc ? 'ambar' : '' },
-              { v: 'personas', icono: HardHat, titulo: 'Personas', cifra: `${rrhh.activos} activos`, detalle: rrhh.ausentesHoy ? `${rrhh.ausentesHoy} ausentes hoy` : 'Nadie ausente hoy', tono: rrhh.ausentesHoy ? 'ambar' : '' },
+              { v: 'personas', icono: HardHat, titulo: 'RRHH', cifra: `${rrhh.activos} activos`, detalle: rrhh.ausentesHoy ? `${rrhh.ausentesHoy} ausentes hoy` : 'Nadie ausente hoy', tono: rrhh.ausentesHoy ? 'ambar' : '' },
             ].map(t => (
               <button key={t.titulo} onClick={() => elegirVista(t.v)}
                 className="text-left bg-white border border-feisen-borde rounded-xl px-3.5 py-3 hover:border-feisen-azul hover:bg-feisen-azul-suave/30 transition-colors">
@@ -641,6 +644,53 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
                     ? <p className="bg-feisen-fondo rounded-lg px-3 py-2 text-[12.5px] text-feisen-texto-2">No hay novedades en este periodo. Las incapacidades, permisos y vacaciones que se registren en Recursos Humanos → Novedades aparecerán aquí.</p>
                     : aus.porTipo.map(([t, d]) => <BarraPersona key={t} nombre={TIPOS_NOVEDAD[t]?.plural || cap(t)} valor={d} max={aus.porTipo[0][1]} sufijo=" d" />)}
               </div>
+            </Tarjeta>
+
+            {/* Rotación y por qué se va la gente (pedido de Angie, 2026-11-20) */}
+            <Tarjeta icono={LogOut} titulo="Rotación de personal" enlace="Ver colaboradores" onIr={() => navigate('/rrhh/empleados')}
+              estado={rot.pct ? <Estado tono={rot.pct > 0.05 ? 'ambar' : 'verde'}>{fmt(rot.pct * 100)} %</Estado> : null}>
+              <div className="grid grid-cols-3 gap-2.5">
+                <Cifra etiqueta="Rotación" valor={rot.pct === null ? '—' : `${fmt(rot.pct * 100)} %`} contexto="retiros ÷ plantilla promedio" tono={rot.pct > 0.05 ? 'ambar' : ''} />
+                <Cifra etiqueta="Retiros" valor={rot.retiros} contexto="en el periodo" />
+                <Cifra etiqueta="Ingresos" valor={rot.ingresos} contexto="en el periodo" />
+              </div>
+              <div>
+                <p className="text-xs text-feisen-texto-2 mb-1.5">¿Por qué se va la gente? <span className="text-gray-400">· últimos 12 meses ({salidas.total} retiro{salidas.total === 1 ? '' : 's'})</span></p>
+                {salidas.total === 0
+                  ? <p className="bg-feisen-fondo rounded-lg px-3 py-2 text-[12.5px] text-feisen-texto-2">No hay retiros en los últimos 12 meses.</p>
+                  : <>
+                      {Object.entries(GRUPOS_RETIRO).map(([g, texto]) => {
+                        const n = salidas.porMotivo.filter(([m]) => MOTIVOS_RETIRO.find(x => x.value === m)?.grupo === g).reduce((s, [, c]) => s + c, 0)
+                        return n ? <p key={g} className="text-[12.5px] text-feisen-texto-2">{texto}: <strong className="text-feisen-texto">{n}</strong> ({fmt((n / salidas.total) * 100)} %)</p> : null
+                      })}
+                      <div className="mt-1.5">
+                        {salidas.porMotivo.map(([m, n]) => <BarraPersona key={m || '_'} nombre={motivoRetiroLabel(m)} valor={n} max={salidas.porMotivo[0][1]} />)}
+                      </div>
+                      {salidas.porMotivo.some(([m]) => !m) && <p className="text-xs text-amber-700 mt-1">Hay retiros sin motivo: regístralo en la ficha de la persona (Laboral → Estado).</p>}
+                    </>}
+              </div>
+            </Tarjeta>
+
+            {/* Evaluaciones de desempeño: % realizadas del ciclo más reciente */}
+            <Tarjeta icono={Target} titulo="Evaluaciones de desempeño" enlace="Ir a Desempeño"
+              onIr={() => navigate(evals ? `/rrhh/desempeno/${evals.ciclo.id}` : '/rrhh/desempeno')}
+              estado={evals?.pct !== null && evals ? <Estado tono={evals.pct === 1 ? 'verde' : 'ambar'}>{fmt(evals.pct * 100)} % realizadas</Estado> : null}>
+              {!evals
+                ? <p className="bg-feisen-fondo rounded-lg px-3 py-2 text-[12.5px] text-feisen-texto-2">Aún no hay ciclos de evaluación. Se crean en Recursos Humanos → Desempeño → Nuevo ciclo.</p>
+                : <>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <Cifra etiqueta="Realizadas" valor={evals.pct === null ? '—' : `${fmt(evals.pct * 100)} %`} contexto={`${evals.completas} de ${evals.total}`} tono={evals.pct < 1 ? 'ambar' : ''} />
+                      <Cifra etiqueta="Pendientes" valor={evals.total - evals.completas} contexto="personas" />
+                      <Cifra etiqueta="Ciclo" valor={<span className="text-sm">{evals.ciclo.nombre}</span>} contexto={evals.ciclo.estado === 'cerrado' ? 'cerrado' : 'abierto'} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-feisen-texto-2 mb-1.5">% realizadas por evaluador</p>
+                      {evals.porEvaluador.map(g => <BarraPersona key={g.evaluador} nombre={`${g.evaluador} (${g.completas}/${g.total})`} valor={(g.completas / g.total) * 100} max={100} sufijo=" %" />)}
+                    </div>
+                    {evals.pendientes.length > 0 && (
+                      <p className="text-[12.5px] text-feisen-texto-2"><span className="font-medium text-feisen-texto">Falta evaluar:</span> {evals.pendientes.slice(0, 12).join(', ')}{evals.pendientes.length > 12 && ` y ${evals.pendientes.length - 12} más`}</p>
+                    )}
+                  </>}
             </Tarjeta>
 
           </div>
