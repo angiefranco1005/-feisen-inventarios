@@ -10,7 +10,7 @@ import { EncabezadoPagina, useAtajoBuscar } from '../shared/ui'
 import { Plus, Search, X, Lightbulb, ChevronRight } from '../shared/iconos'
 import {
   TIPOS, ESTADOS, RESPONSABLE, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES, RECURSOS_INICIALES,
-  totalInversion, puntaje, fmtPuntaje,
+  totalInversion,
 } from './comun'
 
 // ¿Qué proyectos de innovación esperan una decisión de gerencia y cómo van los aprobados?
@@ -40,7 +40,7 @@ export default function ProyectosInnovacion() {
     setCargando(true)
     const [{ data, error: e1 }, { data: av }] = await Promise.all([
       supabase.from('innovacion_proyectos')
-        .select('id, numero, nombre, tipo, area, responsable, estado, costos, calificaciones, monto_aprobado, fecha_presentacion, updated_at')
+        .select('id, numero, nombre, tipo, area, responsable, estado, costos, monto_aprobado, fecha_presentacion, updated_at')
         .order('created_at', { ascending: false }),
       supabase.from('innovacion_avances').select('proyecto_id, fecha, avance_pct, semaforo').order('fecha', { ascending: false }),
     ])
@@ -71,8 +71,6 @@ export default function ProyectosInnovacion() {
         const txt = sinTildes(`${p.numero} ${p.nombre} ${p.area} ${TIPOS[p.tipo]}`)
         return palabras.every(w => txt.includes(w))
       })
-      // Por decidir: mayor puntaje primero; el resto, como vienen (más recientes primero)
-      .sort((a, b) => filtro === 'por_decidir' ? (puntaje(b.calificaciones) ?? -1) - (puntaje(a.calificaciones) ?? -1) : 0)
   }, [proyectos, filtro, busqueda])
 
   if (cargando) return <Spinner texto="Cargando proyectos..." />
@@ -141,7 +139,6 @@ export default function ProyectosInnovacion() {
           {lista.map(p => {
             const est = ESTADOS[p.estado] || ESTADOS.borrador
             const av = ultimoAvance[p.id]
-            const pts = puntaje(p.calificaciones)
             const inv = p.monto_aprobado ?? totalInversion(p.costos)
             return (
               <button key={p.id} onClick={() => navigate(`/innovacion/${p.id}`)}
@@ -160,7 +157,6 @@ export default function ProyectosInnovacion() {
                 </div>
                 <div className="text-right shrink-0 w-28">
                   <p className="text-sm font-semibold tabular-nums text-feisen-texto">{inv ? formatCOP(inv) : '—'}</p>
-                  <p className="text-xs text-feisen-texto-2 tabular-nums">Puntaje {fmtPuntaje(pts)}</p>
                 </div>
                 <span className={`sm:hidden rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
                 <ChevronRight size={16} className="text-gray-400 shrink-0" />

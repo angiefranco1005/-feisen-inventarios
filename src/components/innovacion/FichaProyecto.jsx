@@ -8,13 +8,13 @@ import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
 import {
-  TIPOS, AREAS, RESPONSABLE, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
-  subtotalCostos, totalInversion, mesesRecuperacion, roi12, puntaje, fmtPuntaje, fmtMeses, fmtPct,
+  TIPOS, AREAS, RESPONSABLE, ESTADOS, SEMAFOROS, IMPREVISTOS,
+  subtotalCostos, totalInversion, mesesRecuperacion, roi12, fmtMeses, fmtPct,
 } from './comun'
 
-// Ficha de un proyecto de innovación: las 10 secciones del formato aprobado (2026-11-20).
+// Ficha de un proyecto de innovación: las 9 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, riesgos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 // Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
 const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
@@ -107,7 +107,6 @@ export default function FichaProyecto() {
 
   const est = ESTADOS[p.estado] || ESTADOS.borrador
   const inv = totalInversion(p.costos)
-  const pts = puntaje(p.calificaciones)
   const decidido = ['aprobado', 'aprobado_ajustes', 'aplazado', 'rechazado', 'en_curso', 'cerrado'].includes(p.estado)
   const enMarcha = ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado)
 
@@ -125,7 +124,7 @@ export default function FichaProyecto() {
             className="text-xl font-semibold text-feisen-texto bg-transparent border-b border-transparent hover:border-feisen-borde focus:border-feisen-azul focus:outline-none w-full max-w-xl" />
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
-            <span className="text-sm text-feisen-texto-2">Inversión {formatCOP(inv)} · Puntaje {fmtPuntaje(pts)}</span>
+            <span className="text-sm text-feisen-texto-2">Inversión {formatCOP(inv)}</span>
           </div>
         </div>
         {p.estado === 'borrador' && (
@@ -267,39 +266,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 8 */}
-      <Seccion n="8" titulo="Puntaje de priorización" ayuda="Se califica en la reunión de jefes y puede cambiar de una reunión a otra. Cada criterio de 1 (bajo) a 5 (alto); máximo 5,0. Con varios proyectos va primero el de mayor puntaje.">
-        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
-          {CRITERIOS.map(k => {
-            const v = p.calificaciones?.[k.clave]
-            return (
-              <div key={k.clave} className="flex flex-wrap items-center gap-3 px-3 py-2">
-                <div className="flex-1 min-w-[180px]">
-                  <p className="text-sm text-feisen-texto">{k.texto}</p>
-                  <p className="text-xs text-feisen-texto-2">Peso {Math.round(k.peso * 100)} %</p>
-                </div>
-                <div className="flex gap-1" role="group" aria-label={k.texto}>
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button key={n} type="button" aria-pressed={v === n}
-                      onClick={() => set('calificaciones', { ...(p.calificaciones || {}), [k.clave]: v === n ? undefined : n })}
-                      className={`w-10 h-10 rounded-lg text-sm font-semibold tabular-nums border
-                        ${v === n ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
-                      {n}
-                    </button>
-                  ))}
-                </div>
-                <span className="w-12 text-right text-sm tabular-nums text-feisen-texto-2">{v ? (v * k.peso).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
-              </div>
-            )
-          })}
-          <div className="flex items-center justify-between px-3 py-2.5 bg-feisen-fondo">
-            <span className="text-sm font-semibold text-feisen-texto">Total</span>
-            <span className="text-lg font-semibold tabular-nums text-feisen-texto">{fmtPuntaje(pts)}</span>
-          </div>
-        </div>
-      </Seccion>
-
-      {/* 9 */}
-      <Seccion n="9" titulo="Decisión de gerencia">
+      <Seccion n="8" titulo="Decisión de gerencia">
         {p.estado === 'borrador' ? (
           <p className="text-sm text-feisen-texto-2">Se decide cuando el proyecto esté presentado. Use «Presentar a gerencia» arriba cuando las secciones obligatorias estén completas.</p>
         ) : (
@@ -339,8 +306,8 @@ export default function FichaProyecto() {
         )}
       </Seccion>
 
-      {/* 10 */}
-      <Seccion n="10" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+      {/* 9 */}
+      <Seccion n="9" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
         {enMarcha
           ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
           : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}

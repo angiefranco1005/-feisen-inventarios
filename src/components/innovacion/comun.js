@@ -59,15 +59,6 @@ export const RECURSOS_INICIALES = [
   { recurso: 'Proveedores o servicios externos', cantidad: '', area: '', disponible: '' },
 ]
 
-// Sección 8: calificación 1–5 × peso; máximo 5,0
-export const CRITERIOS = [
-  { clave: 'retorno',    texto: 'Retorno (recuperación y ROI)',               peso: 0.30 },
-  { clave: 'estrategia', texto: 'Encaje con la estrategia de Feisen',         peso: 0.20 },
-  { clave: 'urgencia',   texto: 'Urgencia (cliente esperando, falla actual)', peso: 0.20 },
-  { clave: 'riesgo',     texto: 'Riesgo bajo (5 = muy poco riesgo)',          peso: 0.15 },
-  { clave: 'capacidad',  texto: 'Capacidad disponible (personas y máquinas)', peso: 0.15 },
-]
-
 export function subtotalCostos(costos) {
   return (costos || []).reduce((s, c) => s + (Number(c.valor) || 0), 0)
 }
@@ -85,13 +76,5 @@ export function roi12(p) {
   const inv = totalInversion(p.costos), b = Number(p.beneficio_mensual)
   return inv > 0 && b > 0 ? (b * 12 - inv) / inv : null
 }
-// Puntaje de priorización (null si falta alguna calificación)
-export function puntaje(calificaciones) {
-  const c = calificaciones || {}
-  if (CRITERIOS.some(k => !c[k.clave])) return null
-  return CRITERIOS.reduce((s, k) => s + Number(c[k.clave]) * k.peso, 0)
-}
-
-export const fmtPuntaje = n => n == null ? '—' : n.toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 export const fmtMeses = n => n == null ? '—' : `${n.toLocaleString('es-CO', { maximumFractionDigits: 1 })} meses`
 export const fmtPct = n => n == null ? '—' : `${Math.round(n * 100).toLocaleString('es-CO')} %`
