@@ -12,9 +12,9 @@ import {
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, fmtMeses, fmtPct,
 } from './comun'
 
-// Ficha de un proyecto de innovación: las 9 secciones del formato aprobado (2026-11-20).
+// Ficha de un proyecto de innovación: las 8 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, riesgos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 // Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
 const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
@@ -252,21 +252,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 7 */}
-      <Seccion n="7" titulo="Riesgos" ayuda="Máximo los 3 más importantes.">
-        <TablaEditable lista="riesgos" filas={p.riesgos} setFila={setFila} quitar={quitarFila}
-          columnas={[
-            { campo: 'riesgo', texto: 'Riesgo', ancho: '1.2fr' },
-            { campo: 'probabilidad', texto: 'Probabilidad', ancho: '130px', opciones: ['Alta', 'Media', 'Baja'] },
-            { campo: 'impacto', texto: 'Impacto si pasa', ancho: '1fr' },
-            { campo: 'mitigacion', texto: 'Qué haremos para evitarlo', ancho: '1.2fr' },
-          ]} />
-        {(p.riesgos || []).length < 3 && (
-          <BotonAgregar onClick={() => agregarFila('riesgos', { riesgo: '', probabilidad: '', impacto: '', mitigacion: '' })}>Agregar riesgo</BotonAgregar>
-        )}
-      </Seccion>
-
-      {/* 8 */}
-      <Seccion n="8" titulo="Decisión de gerencia">
+      <Seccion n="7" titulo="Decisión de gerencia">
         {p.estado === 'borrador' ? (
           <p className="text-sm text-feisen-texto-2">Se decide cuando el proyecto esté presentado. Use «Presentar a gerencia» arriba cuando las secciones obligatorias estén completas.</p>
         ) : (
@@ -306,8 +292,8 @@ export default function FichaProyecto() {
         )}
       </Seccion>
 
-      {/* 9 */}
-      <Seccion n="9" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+      {/* 8 */}
+      <Seccion n="8" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
         {enMarcha
           ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
           : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}
