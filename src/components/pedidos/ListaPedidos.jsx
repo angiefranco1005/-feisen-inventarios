@@ -10,7 +10,7 @@ import { Plus, ShoppingCart, Truck, CheckCircle, Search, RefreshCw, PackageOpen,
 import { useAviso, PanelLateral } from '../shared/ui'
 import ModalGenerarOC from './ModalGenerarOC'
 import ModalOCVariosPedidos from './ModalOCVariosPedidos'
-import FormularioPedido from './FormularioPedido'
+import FormularioPedido, { nombreArea } from './FormularioPedido'
 import FechaLlegada from './FechaLlegada'
 import { habilesEntre, hoyColombia, diaColombia } from '../../utils/diasHabiles'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
@@ -211,8 +211,6 @@ function textoCompra(p, ordenes) {
   if (/^no hay oc/i.test(t)) return t.replace(/^no hay oc\s*(compra\s*)?/i, 'compra ').toLowerCase()
   return t
 }
-const AREA_NOMBRE = { FUNDICION: 'Fundición', PRODUCCION: 'Producción', ALMACEN: 'Almacén', MECANIZADOS: 'Mecanizados', LOGISTICA: 'Logística', INNOVACION: 'Innovación', ADMINISTRACION: 'Administración', MANTENIMIENTO: 'Mantenimiento' }
-const nombreArea = a => a ? (AREA_NOMBRE[a] || a.charAt(0) + a.slice(1).toLowerCase()) : ''
 
 function TarjetaPedido({ p, permisos, ordenesDelPedido, coberturaPorItem, onAbrir, onAccion }) {
   const Ico = ICONO_ETAPA[p.estado] || ShoppingCart

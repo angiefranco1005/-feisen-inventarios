@@ -65,8 +65,12 @@ function SelectorProducto({ value, onSelect, productos }) {
 // que pide para varias); los demás roles la toman de AREA_POR_ROL en ListaPedidos.jsx.
 export const AREAS_PEDIDO = [
   ['ALMACEN', 'Almacén'], ['FUNDICION', 'Fundición'], ['MECANIZADOS', 'Mecanizados'], ['PRODUCCION', 'Producción'],
-  ['LOGISTICA', 'Logística'], ['MANTENIMIENTO', 'Mantenimiento'], ['ADMINISTRACION', 'Administración'], ['INNOVACION', 'Innovación'],
+  ['LOGISTICA', 'Logística'], ['MOTORES', 'Motores'], ['FERRETERIA', 'Ferretería'], ['MANTENIMIENTO', 'Mantenimiento'],
+  ['ADMINISTRACION', 'Administración'], ['INNOVACION', 'Innovación'],
 ]
+const AREA_NOMBRE = Object.fromEntries(AREAS_PEDIDO)
+// Nombre bonito del área (con tildes); si no está en la lista, la palabra en minúscula
+export const nombreArea = a => a ? (AREA_NOMBRE[a] || a.charAt(0) + a.slice(1).toLowerCase()) : ''
 
 const Etiqueta = ({ children, extra }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-feisen-texto-2 mb-2">

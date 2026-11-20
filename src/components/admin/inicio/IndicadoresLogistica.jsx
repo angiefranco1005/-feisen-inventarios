@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { BarChart2 as ChartBar } from '../../shared/iconos'
+import { nombreArea } from '../../pedidos/FormularioPedido'
 
 // Indicadores de pedidos (pestaña Logística del Inicio). Diseño elegido por Angie (2026-11-20,
 // "opción D con gráfica"): primero "Ver por mes" o "Ver por bodega", luego los botones de ese
@@ -11,7 +12,7 @@ const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'se
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const pct = v => v == null ? '—' : `${Math.round(v * 100)}%`
 const num = (v, d = 1) => v == null ? '—' : Number(v).toLocaleString('es-CO', { maximumFractionDigits: d })
-const cap = s => (s || '').charAt(0) + (s || '').slice(1).toLowerCase()
+const cap = a => a === 'Sin área' ? a : nombreArea(a)
 const mesCorto = k => { const [y, m] = k.split('-').map(Number); return `${MESES_CORTO[m - 1]} ${String(y).slice(2)}` }
 const mesLargo = k => { const [y, m] = k.split('-').map(Number); return `${MESES[m - 1]} ${y}` }
 const leer = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def } catch { return def } }
