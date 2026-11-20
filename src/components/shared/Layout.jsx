@@ -190,6 +190,7 @@ const MOBILE_JEFE_FUNDICION = [
 ]
 
 const NAV_RRHH = [
+  { to: '/dashboard',        icon: LayoutDashboard, label: 'Inicio' },
   { to: '/rrhh/empleados',   icon: UsersThree,   label: 'Colaboradores' },
   { to: '/rrhh/organigrama', icon: Network, label: 'Organigrama' },
   { to: '/rrhh/novedades',   icon: CalendarClock, label: 'Novedades' },
@@ -203,11 +204,11 @@ const NAV_RRHH = [
   { to: '/pedidos',           icon: ShoppingCart, label: 'Pedidos',    grupo: 'Bodega Administración' },
 ]
 const MOBILE_RRHH = [
+  { to: '/dashboard',      icon: LayoutDashboard, label: 'Inicio' },
   { to: '/rrhh/empleados', icon: UsersThree,         label: 'Personas' },
   { to: '/rrhh/novedades', icon: CalendarClock, label: 'Novedades' },
   { to: '/rrhh/nomina',    icon: Wallet,        label: 'Nómina' },
   { to: '/pedidos',        icon: ShoppingCart,  label: 'Pedidos' },
-  { to: '/movimientos/nuevo', icon: ArrowsLeftRight, label: 'Movimiento' },
 ]
 
 const NAV_CONSULTOR = [

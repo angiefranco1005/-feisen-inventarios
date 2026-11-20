@@ -32,6 +32,7 @@ const VISTAS_LOGISTICA = [
   { id: 'inventarios', texto: 'Inventarios' },
   { id: 'logistica',   texto: 'Logística' },
 ]
+const VISTAS_RRHH = [{ id: 'personas', texto: 'RRHH' }]
 // Pestañas que usan el selector de periodo
 const CON_PERIODO = ['resumen', 'produccion', 'personas']
 
@@ -113,8 +114,10 @@ function Pestanas({ vistas, vista, elegir, avisoDe = () => null }) {
 
 export default function InicioGerencia({ modo = 'gerencia' }) {
   const esLog = modo === 'logistica'
-  const vistas = esLog ? VISTAS_LOGISTICA : VISTAS
-  const claveVista = esLog ? 'inicio-log-vista' : 'inicio-vista'
+  // Inicio de Recursos Humanos (Zaray, 2026-11-20): solo la pestaña RRHH de gerencia
+  const esRRHH = modo === 'rrhh'
+  const vistas = esLog ? VISTAS_LOGISTICA : esRRHH ? VISTAS_RRHH : VISTAS
+  const claveVista = esLog ? 'inicio-log-vista' : esRRHH ? 'inicio-rrhh-vista' : 'inicio-vista'
   const { perfil } = useAuth()
   const navigate = useNavigate()
   const [foto, setFoto]           = useState(null)
@@ -145,7 +148,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
 
   async function recargar() {
     setError(null)
-    try { setFoto(await cargarFoto({ soloOperacion: esLog })) } catch (e) { setError(e.message || 'No se pudieron cargar los datos.') }
+    try { setFoto(await cargarFoto({ soloOperacion: esLog, soloRRHH: esRRHH })) } catch (e) { setError(e.message || 'No se pudieron cargar los datos.') }
   }
   useEffect(() => { recargar() }, [])
 
@@ -154,7 +157,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
     if (!foto || esLog) return
     let vigente = true
     setDatosP(null)
-    cargarPeriodo(rango.desde, rango.hasta, foto).then(d => { if (vigente) setDatosP(d) })
+    cargarPeriodo(rango.desde, rango.hasta, foto, { soloRRHH: esRRHH }).then(d => { if (vigente) setDatosP(d) })
     return () => { vigente = false }
   }, [foto, rango])
 
@@ -276,7 +279,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-feisen-texto">{saludo}, {perfil?.nombre?.split(' ')[0]}</h1>
-          <p className="text-sm text-feisen-texto-2 mt-0.5">{DIAS[hoy.getDay()]} {hoy.getDate()} de {MESES[hoy.getMonth()]}{esLog ? ' · Logística · Bodega Motores' : ' · Elige el módulo en las pestañas'}</p>
+          <p className="text-sm text-feisen-texto-2 mt-0.5">{DIAS[hoy.getDay()]} {hoy.getDate()} de {MESES[hoy.getMonth()]}{esLog ? ' · Logística · Bodega Motores' : esRRHH ? ' · Recursos Humanos' : ' · Elige el módulo en las pestañas'}</p>
         </div>
         {(vista === 'inventarios' || vista === 'logistica') && (
           <button onClick={recargar} title="Actualizar datos" className="p-2 rounded-lg border border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo"><RefreshCw size={15} /></button>
@@ -307,7 +310,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
 
 
       {/* Pestañas por módulo */}
-      <Pestanas vistas={vistas} vista={vista} elegir={elegirVista} avisoDe={avisoDe} />
+      {!esRRHH && <Pestanas vistas={vistas} vista={vista} elegir={elegirVista} avisoDe={avisoDe} />}
 
       {vista === 'inicio' && <DashboardLogistica sinSaludo />}
 

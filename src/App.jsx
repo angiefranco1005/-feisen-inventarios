@@ -135,7 +135,7 @@ function AppRoutes() {
   // Inicio según el rol: gerencia, consulta de ventas, registro de bodega o la primera pantalla que tenga
   const inicio = rolEfectivo === 'ADMIN' ? <Layout><InicioGerencia /></Layout>
     : rolEfectivo === 'CONSULTOR' ? <Layout><DashboardConsultor /></Layout>
-    : rolEfectivo === 'RRHH' && puede('rrhh') ? <Navigate to="/rrhh/empleados" replace />
+    : rolEfectivo === 'RRHH' && puede('rrhh') ? <Layout><InicioGerencia modo="rrhh" /></Layout>
     : esComercial ? <Layout><InicioVentas /></Layout>
     : rolEfectivo === 'LOGISTICA' ? <Layout><InicioGerencia modo="logistica" /></Layout>
     : puede('movimientos') ? <Layout><DashboardLogistica /></Layout>
