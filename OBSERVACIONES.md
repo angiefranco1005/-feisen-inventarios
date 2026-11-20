@@ -2540,3 +2540,10 @@ ningún cálculo con el estado de resultados**: el dato y la cuenta viven aparte
 - `InicioGerencia` acepta `modo="logistica"` (App.jsx, rol LOGISTICA): pestañas Inicio (su DashboardLogistica de siempre, sin saludo repetido), Inventarios y Logística. Otras vistas por URL (?vista=personas…) caen en Inicio. La pestaña se recuerda aparte (`inicio-log-vista`).
 - `cargarFoto({ soloOperacion: true })` no consulta empleados, nómina, novedades, no conformidades ni fundición; y en ese modo no se carga el periodo. La pestaña Inicio se muestra sin esperar la carga del tablero (que lee todos los movimientos).
 - RLS: LOGISTICA ya lee items, stock, movimientos (política "ver movimientos"), bodegas y pedidos; tiene módulos productos y pedidos, así que los enlaces "Ir a…" le abren.
+
+## 2026-11-20 — Indicadores mensuales de pedidos (Inicio › Logística)
+- Tarjeta "Pedidos por mes" (`IndicadoresLogistica.jsx`, datos en `indicadoresMensuales()` de datosInicio.js), visible para Angie y para Efraín.
+- % urgentes: `prioridad = 'urgente'` sobre TODOS los pedidos hechos en el mes (incluye cerrados).
+- % con retraso y días: por mes en que se hizo el pedido. Cuentan los no cerrados con fecha estimada que ya llegaron o ya pasaron la fecha sin llegar. Días hábiles (con festivos, `habilesEntre`) contra la fecha estimada VIGENTE (si la editan, se mide contra la nueva; el historial no guarda la original de forma estructurada). Días: promedio y máximo de los atrasados.
+- Lead time: días calendario created_at → fecha_recibido, por mes en que se RECIBIÓ (igual que la cifra "Entrega" existente). Los parcialmente recibidos no cuentan hasta recibirse completos.
+- Cifras reales al 20/11: retrasos 63–70 % en ago–oct y 49 % en nov; urgentes 40 % ago → 8 % oct → 15 % nov; lead time 7,5–10,9 días.

@@ -9,6 +9,7 @@ import DashboardVentas from '../../of/ventas/DashboardVentas'
 import DashboardOF from '../../of/Dashboard'
 import InformeSinRotacion from './InformeSinRotacion'
 import DashboardLogistica from '../../logistica/Dashboard'
+import IndicadoresLogistica from './IndicadoresLogistica'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica, por pestañas para no llenar la
 // pantalla (2026-11-04). Resumen = lo que requiere decisión + una cifra por módulo; cada
@@ -566,6 +567,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
               </div>
             </Tarjeta>
 
+            <IndicadoresLogistica mensual={logistica.mensual} />
           </div>
       )}
       {vista === 'produccion' && (
