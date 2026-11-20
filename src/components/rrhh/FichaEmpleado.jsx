@@ -12,7 +12,7 @@ import {
 import {
   BUCKET_RRHH, AREAS, CENTROS_COSTO, TIPOS_DOCUMENTO, TIPOS_CONTRATO, esAprendiz, tieneFechaFin, TIPOS_VINCULACION, JORNADAS, GENEROS, ESTADOS_CIVILES,
   GRUPOS_SANGUINEOS, NIVELES_EDUCATIVOS, TIPOS_CUENTA, PARENTESCOS, DOCUMENTOS_REQUERIDOS, OTROS_DOCUMENTOS, ESTADOS_EMPLEADO,
-  MOTIVOS_RETIRO, GRUPOS_RETIRO, motivoRetiroLabel,
+  MOTIVOS_RETIRO, motivoRetiroLabel,
   nombreCompleto, iniciales, tiempoDesde, edad, diasParaVencer, formatoFecha, formatoPesos, urlsFirmadas,
   subirFotoEmpleado, calcularFinContrato, preavisoDe, hoyISO,
  etiquetaCargo } from './catalogosRRHH'
@@ -119,8 +119,8 @@ const SECCIONES = [
           opciones: Object.entries(ESTADOS_EMPLEADO).map(([value, v]) => ({ value, label: v.label })) },
         { k: 'fecha_retiro', label: 'Fecha de retiro', tipo: 'date', visible: (f) => f.estado === 'retirado', req: true },
         // Motivo como categoría fija (para el informe de retiros) + detalle libre
-        { k: 'motivo_retiro_tipo', label: 'Motivo de desvinculación', tipo: 'select', req: true,
-          opciones: MOTIVOS_RETIRO, grupos: GRUPOS_RETIRO, visible: (f) => f.estado === 'retirado',
+        { k: 'motivo_retiro_tipo', label: 'Causal de desvinculación', tipo: 'select', req: true,
+          opciones: MOTIVOS_RETIRO, visible: (f) => f.estado === 'retirado',
           mostrar: (e) => motivoRetiroLabel(e.motivo_retiro_tipo) },
         { k: 'motivo_retiro', label: 'Detalle del retiro', tipo: 'textarea', full: true, visible: (f) => f.estado === 'retirado' },
         { k: 'observaciones', label: 'Observaciones', tipo: 'textarea', full: true },

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../../contexts/AuthContext'
 import Spinner from '../../shared/Spinner'
-import { TIPOS_NOVEDAD, MOTIVOS_RETIRO, GRUPOS_RETIRO, motivoRetiroLabel } from '../../rrhh/catalogosRRHH'
+import { TIPOS_NOVEDAD, motivoRetiroLabel } from '../../rrhh/catalogosRRHH'
 import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses, rotacionPeriodo, retirosPorMotivo } from './datosInicio'
 import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw, Target, LogOut } from '../../shared/iconos'
 import DashboardVentas from '../../of/ventas/DashboardVentas'
@@ -659,14 +659,10 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
                 {salidas.total === 0
                   ? <p className="bg-feisen-fondo rounded-lg px-3 py-2 text-[12.5px] text-feisen-texto-2">No hay retiros en los últimos 12 meses.</p>
                   : <>
-                      {Object.entries(GRUPOS_RETIRO).map(([g, texto]) => {
-                        const n = salidas.porMotivo.filter(([m]) => MOTIVOS_RETIRO.find(x => x.value === m)?.grupo === g).reduce((s, [, c]) => s + c, 0)
-                        return n ? <p key={g} className="text-[12.5px] text-feisen-texto-2">{texto}: <strong className="text-feisen-texto">{n}</strong> ({fmt((n / salidas.total) * 100)} %)</p> : null
-                      })}
-                      <div className="mt-1.5">
-                        {salidas.porMotivo.map(([m, n]) => <BarraPersona key={m || '_'} nombre={motivoRetiroLabel(m)} valor={n} max={salidas.porMotivo[0][1]} />)}
+                      <div>
+                        {salidas.porMotivo.map(([m, n]) => <BarraPersona key={m || '_'} nombre={`${motivoRetiroLabel(m)} (${fmt((n / salidas.total) * 100)} %)`} valor={n} max={salidas.porMotivo[0][1]} />)}
                       </div>
-                      {salidas.porMotivo.some(([m]) => !m) && <p className="text-xs text-amber-700 mt-1">Hay retiros sin motivo: regístralo en la ficha de la persona (Laboral → Estado).</p>}
+                      {salidas.porMotivo.some(([m]) => !m) && <p className="text-xs text-amber-700 mt-1">Hay retiros sin causal: regístrala en la ficha de la persona (Laboral → Estado).</p>}
                     </>}
               </div>
             </Tarjeta>

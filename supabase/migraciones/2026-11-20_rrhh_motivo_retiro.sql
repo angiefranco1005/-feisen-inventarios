@@ -1,5 +1,5 @@
 -- ============================================================
--- Migración: RRHH — motivo de desvinculación como categoría fija
+-- Migración: RRHH — causal de desvinculación (renuncia o despido)
 -- Fecha: 2026-11-20
 -- Ejecutar en Supabase Dashboard > SQL Editor (se puede correr varias veces)
 -- ============================================================
@@ -13,11 +13,11 @@ ALTER TABLE public.empleados
 
 ALTER TABLE public.empleados DROP CONSTRAINT IF EXISTS empleados_motivo_retiro_tipo_check;
 ALTER TABLE public.empleados ADD CONSTRAINT empleados_motivo_retiro_tipo_check
-  CHECK (motivo_retiro_tipo IS NULL OR motivo_retiro_tipo IN (
-    'renuncia_salario', 'renuncia_personal', 'renuncia_clima', 'renuncia_horario', 'renuncia_estudio', 'abandono',
-    'fin_contrato', 'periodo_prueba', 'justa_causa', 'sin_justa_causa',
-    'mutuo_acuerdo', 'pension', 'fallecimiento', 'otro'
-  ));
+  CHECK (motivo_retiro_tipo IS NULL OR motivo_retiro_tipo IN ('renuncia', 'despido'));
+
+-- Jhon Betancur (retirado el 2026-10-30): despido, según Angie
+UPDATE public.empleados SET motivo_retiro_tipo = 'despido'
+WHERE UPPER(nombres || ' ' || apellidos) = 'JHON EDUARD BETANCUR SALAZAR' AND estado = 'retirado' AND motivo_retiro_tipo IS NULL;
 
 -- Verificación
 SELECT column_name, data_type FROM information_schema.columns
