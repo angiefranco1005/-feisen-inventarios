@@ -232,9 +232,16 @@ export async function cargarPeriodo(desde, hasta, foto) {
     .reduce((t, n) => t + (Number(n.cantidad_afectada) || 0), 0)
   const ncMoldeo = foto.fundicion.moldeoNc.filter(p => enRango(p.fecha)).reduce((t, p) => t + p.und, 0)
 
-  // Ausencias: días por tipo de las novedades que tocan el periodo
-  const porTipo = {}
-  for (const n of novedades.data || []) porTipo[n.tipo] = (porTipo[n.tipo] || 0) + (Number(n.dias) || 0)
+  // Ausencias: días por tipo y por área (de la ficha) de las novedades que tocan el periodo
+  const areaDe = Object.fromEntries((foto.empleados || []).map(e => [e.id, e.area || 'Sin área']))
+  const porTipo = {}, porArea = {}
+  for (const n of novedades.data || []) {
+    const d = Number(n.dias) || 0
+    porTipo[n.tipo] = (porTipo[n.tipo] || 0) + d
+    const a = areaDe[n.empleado_id] || 'Sin área'
+    const g = (porArea[a] ||= { dias: 0, personas: new Set() })
+    g.dias += d; g.personas.add(n.empleado_id)
+  }
 
   return {
     mecanizado: { piezas, personas: Object.values(porPersona).sort((a, b) => b.und - a.und) },
@@ -242,7 +249,11 @@ export async function cargarPeriodo(desde, hasta, foto) {
       kg: fund.reduce((t, e) => t + e.kg, 0), und: fund.reduce((t, e) => t + e.und, 0),
       nc: ncFund + ncMoldeo, ncDetalle: { ncFund, ncMoldeo },
     },
-    ausencias: { porTipo: Object.entries(porTipo).sort((a, b) => b[1] - a[1]), registros: (novedades.data || []).length },
+    ausencias: {
+      porTipo: Object.entries(porTipo).sort((a, b) => b[1] - a[1]),
+      porArea: Object.entries(porArea).map(([a, g]) => [a, g.dias, g.personas.size]).sort((a, b) => b[1] - a[1]),
+      registros: (novedades.data || []).length,
+    },
   }
 }
 

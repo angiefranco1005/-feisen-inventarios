@@ -124,6 +124,8 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
   const [ocultas, setOcultas]     = useState(() => new Set(leer('inicio-ocultas', [])))
   const [vistaValor, setVistaValor] = useState(() => leer('inicio-vista-valor', 'barras'))
   const [bodPareto, setBodPareto] = useState(() => leer('inicio-pareto', ''))
+  const [ausPor, setAusPorEstado] = useState(() => leer('inicio-ausencias-por', 'tipo'))   // ausencias por 'tipo' o 'area'
+  const setAusPor = v => { setAusPorEstado(v); guardar('inicio-ausencias-por', v) }
   const [bodRot, setBodRotEstado] = useState(() => leer('inicio-rotacion-bodega', ''))
   const setBodRot = v => setBodRotEstado(prev => { const n = typeof v === 'function' ? v(prev) : v; guardar('inicio-rotacion-bodega', n); return n })
   const [params, setParams]       = useSearchParams()
@@ -638,11 +640,21 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
                 <Cifra etiqueta="En prueba" valor={rrhh.enPrueba} contexto="< 60 días" />
               </div>
               <div>
-                <p className="text-xs text-feisen-texto-2 mb-1.5">Días de ausencia por tipo <Etiqueta periodo /></p>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <p className="text-xs text-feisen-texto-2">Días de ausencia por {ausPor === 'area' ? 'área' : 'tipo'} <Etiqueta periodo /></p>
+                  <div className="flex border border-feisen-borde rounded-md p-0.5 text-[11.5px]">
+                    {[['tipo', 'Tipo'], ['area', 'Área']].map(([k, txt]) => (
+                      <button key={k} onClick={() => setAusPor(k)}
+                        className={`px-2 py-0.5 rounded ${ausPor === k ? 'bg-feisen-azul-suave text-feisen-azul font-semibold' : 'text-feisen-texto-2 hover:text-feisen-texto'}`}>{txt}</button>
+                    ))}
+                  </div>
+                </div>
                 {!aus ? <p className="text-sm text-gray-400">Cargando…</p>
                   : aus.registros === 0
                     ? <p className="bg-feisen-fondo rounded-lg px-3 py-2 text-[12.5px] text-feisen-texto-2">No hay novedades en este periodo. Las incapacidades, permisos y vacaciones que se registren en Recursos Humanos → Novedades aparecerán aquí.</p>
-                    : aus.porTipo.map(([t, d]) => <BarraPersona key={t} nombre={TIPOS_NOVEDAD[t]?.plural || cap(t)} valor={d} max={aus.porTipo[0][1]} sufijo=" d" />)}
+                    : ausPor === 'area'
+                      ? aus.porArea.map(([a, d, p]) => <BarraPersona key={a} nombre={`${a} (${p} pers.)`} valor={d} max={aus.porArea[0][1]} sufijo=" d" />)
+                      : aus.porTipo.map(([t, d]) => <BarraPersona key={t} nombre={TIPOS_NOVEDAD[t]?.plural || cap(t)} valor={d} max={aus.porTipo[0][1]} sufijo=" d" />)}
               </div>
             </Tarjeta>
 
