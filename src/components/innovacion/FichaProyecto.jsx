@@ -6,10 +6,11 @@ import { formatCOP, formatFecha } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
-import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
+import { ArrowLeft, Plus, Trash2, Send, Paperclip, FileText, FileImage, Loader2 } from '../shared/iconos'
 import {
-  TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, SEMAFOROS, IMPREVISTOS,
+  TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, IMPREVISTOS,
   subtotalCostos, totalInversion, fmtPct,
+  estadoFase, textoEstadoFase, hoyISO as hoyLocal, ESTADOS_FASE, resumenCumplimiento, BUCKET, fmtTamano,
 } from './comun'
 
 // Ficha de un proyecto de innovación: las 6 secciones del formato aprobado (2026-11-20).
@@ -244,23 +245,15 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 5 */}
-      <Seccion n="5" titulo="Cronograma" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
-        <TablaEditable lista="fases" filas={p.fases} setFila={setFila} quitar={quitarFila}
-          columnas={[
-            { campo: 'fase', texto: 'Fase', ancho: '1fr' },
-            { campo: 'entregable', texto: 'Entregable', ancho: '1.4fr' },
-            { campo: 'inicio', texto: 'Inicio', ancho: '140px', tipo: 'date' },
-            { campo: 'fin', texto: 'Fin', ancho: '140px', tipo: 'date' },
-            { campo: 'responsable', texto: 'Responsable', ancho: '1fr' },
-          ]} />
-        <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', responsable: '' })}>Agregar fase</BotonAgregar>
+      <Seccion n="5" titulo="Cronograma" obligatoria ayuda="Cada fase termina en un entregable. Cuando una fase se termine, anote la fecha en «Terminada el»: así se mide si se cumplen los tiempos.">
+        <ResumenCronograma fases={p.fases} />
+        <FasesCronograma fases={p.fases} setFila={setFila} quitar={quitarFila} />
+        <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', terminada: '', responsable: '' })}>Agregar fase</BotonAgregar>
       </Seccion>
 
       {/* 6 */}
-      <Seccion n="6" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
-        {enMarcha
-          ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
-          : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando {APROBADORA.nombre} aprueba el proyecto.</p>}
+      <Seccion n="6" titulo="Seguimiento" ayuda="Suba aquí los planos, fotos y documentos a medida que el proyecto avanza, con una nota de qué se hizo. Al cerrar, anote el indicador logrado frente a la meta de la sección 3.">
+        <Bitacora proyectoId={id} avances={avances} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
         <Interrupciones proyectoId={id} interrupciones={interrupciones} equipos={equipos} onCambio={cargarRegistros} avisar={avisar} />
       </Seccion>
 
@@ -279,82 +272,161 @@ export default function FichaProyecto() {
   )
 }
 
-// ── Seguimiento mensual ──────────────────────────────────────────────────────────
-function Avances({ proyectoId, avances, interrupciones, fases, onCambio, avisar }) {
-  const VACIO = { fecha: new Date().toISOString().slice(0, 10), fase: '', avance_pct: '', gasto_real: null, presupuesto_fecha: null, semaforo: 'verde', bloqueos: '' }
+// ── Cumplimiento del cronograma ──────────────────────────────────────────────────
+function ResumenCronograma({ fases }) {
+  const r = resumenCumplimiento(fases)
+  if (!r.terminadas && !r.atrasadas && !r.porVencer) return null
+  const partes = []
+  if (r.terminadas) partes.push(<span key="t"><b className="tabular-nums">{r.aTiempo} de {r.terminadas}</b> fases terminadas a tiempo</span>)
+  if (r.atrasadas) partes.push(<span key="a" className="text-feisen-rojo font-semibold">{r.atrasadas} {r.atrasadas === 1 ? 'atrasada' : 'atrasadas'}</span>)
+  if (r.porVencer) partes.push(<span key="v" className="text-amber-700 font-semibold">{r.porVencer} vence{r.porVencer === 1 ? '' : 'n'} esta semana</span>)
+  return (
+    <p className="text-sm text-feisen-texto-2 flex flex-wrap gap-x-2">
+      {partes.map((x, i) => <span key={i}>{i > 0 && '· '}{x}</span>)}
+    </p>
+  )
+}
+
+// ── Seguimiento: bitácora con planos, fotos y documentos ─────────────────────────
+// Cada entrada: fecha, fase, nota y archivos (bucket privado «innovacion», se abren con enlace firmado).
+// Reemplazó la revisión mensual con avance %, gasto y semáforo (Angie, 2026-11-20).
+const nombreSeguro = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').slice(-80)
+const esImagen = a => (a.tipo || '').startsWith('image/')
+
+function Bitacora({ proyectoId, avances, fases, onCambio, avisar }) {
+  const VACIO = { fecha: hoyLocal(), fase: '', nota: '' }
   const [f, setF] = useState(VACIO)
+  const [archivos, setArchivos] = useState([])
   const [abierto, setAbierto] = useState(false)
+  const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
 
-  async function agregar() {
+  async function guardar() {
     setError('')
-    const fila = { ...f, proyecto_id: proyectoId, avance_pct: f.avance_pct === '' ? null : Math.min(100, Math.max(0, Number(f.avance_pct))) }
-    const { error: e } = await supabase.from('innovacion_avances').insert(fila)
-    if (e) { setError('No se pudo guardar: ' + e.message); return }
-    setF(VACIO); setAbierto(false); avisar('Seguimiento registrado'); onCambio()
+    if (!f.nota.trim() && !archivos.length) { setError('Escriba qué se hizo o adjunte al menos un archivo.'); return }
+    const grandes = archivos.filter(a => a.size > 50 * 1048576)
+    if (grandes.length) { setError(`Pesa más de 50 MB: ${grandes.map(a => a.name).join(', ')}. Comprímalo o súbalo en partes.`); return }
+    setSubiendo(true)
+    const subidos = []
+    for (const a of archivos) {
+      const path = `${proyectoId}/${Date.now()}-${nombreSeguro(a.name)}`
+      const { error: e } = await supabase.storage.from(BUCKET).upload(path, a, { contentType: a.type || undefined })
+      if (e) {
+        if (subidos.length) await supabase.storage.from(BUCKET).remove(subidos.map(x => x.path))
+        setSubiendo(false); setError(`No se pudo subir «${a.name}»: ${e.message}`); return
+      }
+      subidos.push({ path, nombre: a.name, tipo: a.type || '', tamano: a.size })
+    }
+    const { error: e } = await supabase.from('innovacion_avances').insert({
+      proyecto_id: proyectoId, fecha: f.fecha, fase: f.fase || null, nota: f.nota.trim() || null, archivos: subidos,
+    })
+    setSubiendo(false)
+    if (e) {
+      if (subidos.length) await supabase.storage.from(BUCKET).remove(subidos.map(x => x.path))
+      setError('No se pudo guardar: ' + e.message); return
+    }
+    setF(VACIO); setArchivos([]); setAbierto(false); avisar('Avance registrado'); onCambio()
   }
-  async function borrar(id) {
-    if (!confirm('¿Borrar esta revisión?')) return
-    await supabase.from('innovacion_avances').delete().eq('id', id)
+
+  async function borrar(a) {
+    if (!confirm(`¿Borrar este avance${(a.archivos || []).length ? ' y sus archivos' : ''}? No se puede deshacer.`)) return
+    const { error: e } = await supabase.from('innovacion_avances').delete().eq('id', a.id)
+    if (e) { avisar('No se pudo borrar: ' + e.message); return }
+    if ((a.archivos || []).length) await supabase.storage.from(BUCKET).remove(a.archivos.map(x => x.path))
     onCambio()
   }
 
   return (
     <div className="space-y-3">
-      {avances.length === 0 && !abierto && <p className="text-sm text-feisen-texto-2">Sin revisiones todavía. Registre la primera al cumplir el primer mes.</p>}
-      {avances.length > 0 && (
-        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
-          {avances.map(a => {
-            const desvio = a.presupuesto_fecha > 0 && a.gasto_real != null ? (a.gasto_real - a.presupuesto_fecha) / a.presupuesto_fecha : null
-            return (
-              <div key={a.id} className="flex flex-wrap items-start gap-3 px-3 py-2.5">
-                <div className="flex-1 min-w-[160px]">
-                  <p className="text-sm font-medium text-feisen-texto">{fechaDia(a.fecha)} · {a.fase || 'Sin fase'}</p>
-                  {a.bloqueos && <p className="text-xs text-feisen-texto-2 mt-0.5">{a.bloqueos}</p>}
-                  {(() => { const h = horasDelMes(interrupciones, a.fecha); return h > 0 && <p className="text-xs text-amber-700 mt-0.5">{fmtHoras(h)} perdidas por mantenimiento en el mes</p> })()}
-                </div>
-                <div className="text-right text-sm tabular-nums">
-                  <p className="text-feisen-texto">{a.gasto_real != null ? formatCOP(a.gasto_real) : '—'} <span className="text-feisen-texto-2">de {a.presupuesto_fecha != null ? formatCOP(a.presupuesto_fecha) : '—'}</span></p>
-                  {desvio != null && <p className={`text-xs ${desvio > 0.1 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>{desvio > 0 ? '+' : ''}{fmtPct(desvio)} vs. presupuesto</p>}
-                </div>
-                <span className="w-12 text-right text-sm font-semibold tabular-nums">{a.avance_pct != null ? `${Math.round(a.avance_pct)} %` : '—'}</span>
-                {a.semaforo && <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${SEMAFOROS[a.semaforo].clase}`}>{SEMAFOROS[a.semaforo].texto}</span>}
-                <BotonQuitar onClick={() => borrar(a.id)} />
-              </div>
-            )
-          })}
-        </div>
-      )}
       {abierto ? (
         <div className="border border-feisen-borde rounded-lg p-3 space-y-3 bg-feisen-fondo">
-          <div className="grid sm:grid-cols-3 gap-3">
+          <div className="grid sm:grid-cols-2 gap-3">
             <Campo etiqueta="Fecha"><input type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} className={INPUT} /></Campo>
-            <Campo etiqueta="Fase actual">
+            <Campo etiqueta="Fase">
               <select value={f.fase} onChange={e => setF({ ...f, fase: e.target.value })} className={INPUT}>
-                <option value="">Elegir…</option>
+                <option value="">Sin fase</option>
                 {(fases || []).filter(x => x.fase).map((x, i) => <option key={i}>{x.fase}</option>)}
               </select>
             </Campo>
-            <Campo etiqueta="Avance (%)"><input inputMode="numeric" value={f.avance_pct} onChange={e => setF({ ...f, avance_pct: e.target.value.replace(/\D/g, '') })} className={`${INPUT} text-right tabular-nums`} /></Campo>
-            <Campo etiqueta="Gasto real acumulado (COP)"><Pesos valor={f.gasto_real} onCambiar={v => setF({ ...f, gasto_real: v })} grande /></Campo>
-            <Campo etiqueta="Presupuesto a la fecha (COP)"><Pesos valor={f.presupuesto_fecha} onCambiar={v => setF({ ...f, presupuesto_fecha: v })} grande /></Campo>
-            <Campo etiqueta="Semáforo">
-              <select value={f.semaforo} onChange={e => setF({ ...f, semaforo: e.target.value })} className={INPUT}>
-                {Object.entries(SEMAFOROS).map(([v, s]) => <option key={v} value={v}>{s.texto} — {s.ayuda}</option>)}
-              </select>
-            </Campo>
           </div>
-          <Campo etiqueta="Bloqueos o decisiones que necesita"><Texto valor={f.bloqueos} onCambiar={v => setF({ ...f, bloqueos: v })} filas={2} /></Campo>
+          <Campo etiqueta="¿Qué se hizo?"><Texto valor={f.nota} onCambiar={v => setF({ ...f, nota: v })} filas={3} /></Campo>
+          <div className="space-y-2">
+            <label className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto cursor-pointer hover:bg-feisen-fondo">
+              <Paperclip size={16} /> Adjuntar planos, fotos o documentos
+              <input type="file" multiple className="sr-only"
+                onChange={e => { const nuevos = Array.from(e.target.files || []); setArchivos(x => [...x, ...nuevos]); e.target.value = '' }} />
+            </label>
+            {archivos.length > 0 && (
+              <ul className="space-y-1">
+                {archivos.map((a, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm bg-white border border-feisen-borde-suave rounded-lg pl-3">
+                    <span className="flex-1 truncate text-feisen-texto">{a.name}</span>
+                    <span className="text-xs text-feisen-texto-2 tabular-nums">{fmtTamano(a.size)}</span>
+                    <BotonQuitar onClick={() => setArchivos(x => x.filter((_, j) => j !== i))} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-feisen-texto-2">Cualquier tipo de archivo (PDF, DWG, imágenes, Excel), hasta 50 MB cada uno.</p>
+          </div>
           <Alerta tipo="error" mensaje={error} />
           <div className="flex justify-end gap-2">
-            <button onClick={() => setAbierto(false)} className="px-4 min-h-[44px] rounded-lg border border-feisen-borde text-sm bg-white">Cancelar</button>
-            <button onClick={agregar} className="px-4 min-h-[44px] rounded-lg border border-feisen-azul text-feisen-azul text-sm font-semibold bg-white">Guardar revisión</button>
+            <button onClick={() => { setAbierto(false); setArchivos([]); setError('') }} disabled={subiendo} className="px-4 min-h-[44px] rounded-lg border border-feisen-borde text-sm bg-white">Cancelar</button>
+            <button onClick={guardar} disabled={subiendo}
+              className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-lg border border-feisen-azul text-feisen-azul text-sm font-semibold bg-white disabled:opacity-60">
+              {subiendo ? <><Loader2 size={16} className="animate-spin" /> Subiendo…</> : 'Guardar avance'}
+            </button>
           </div>
         </div>
       ) : (
-        <BotonAgregar onClick={() => setAbierto(true)}>Registrar revisión del mes</BotonAgregar>
+        <BotonAgregar onClick={() => setAbierto(true)}>Agregar avance</BotonAgregar>
+      )}
+
+      {avances.length === 0 && !abierto && (
+        <p className="text-sm text-feisen-texto-2">Todavía no hay avances. Use «Agregar avance» cada vez que haya algo para mostrar: un plano, una foto del modelo, el informe de una prueba.</p>
+      )}
+      {avances.length > 0 && (
+        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+          {avances.map(a => (
+            <div key={a.id} className="flex items-start gap-3 px-3 py-3">
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <p className="text-sm font-medium text-feisen-texto">{fechaDia(a.fecha)}{a.fase ? ` · ${a.fase}` : ''}</p>
+                {a.nota && <p className="text-sm text-feisen-texto whitespace-pre-line">{a.nota}</p>}
+                {(a.archivos || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {a.archivos.map(x => <ArchivoAdjunto key={x.path} archivo={x} />)}
+                  </div>
+                )}
+              </div>
+              <BotonQuitar onClick={() => borrar(a)} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
+  )
+}
+
+function ArchivoAdjunto({ archivo }) {
+  const [abriendo, setAbriendo] = useState(false)
+  async function abrir() {
+    setAbriendo(true)
+    // Se abre la pestaña antes de pedir el enlace para que el navegador no la bloquee
+    const ventana = window.open('', '_blank')
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(archivo.path, 600)
+    setAbriendo(false)
+    if (error || !data?.signedUrl) { ventana?.close(); alert('No se pudo abrir el archivo: ' + (error?.message || 'sin enlace')); return }
+    if (ventana) ventana.location.href = data.signedUrl
+    else window.location.href = data.signedUrl
+  }
+  const Icono = esImagen(archivo) ? FileImage : FileText
+  return (
+    <button type="button" onClick={abrir} disabled={abriendo}
+      className="inline-flex items-center gap-2 max-w-full px-3 min-h-[40px] rounded-lg border border-feisen-borde bg-white text-sm text-feisen-azul hover:bg-feisen-fondo">
+      {abriendo ? <Loader2 size={16} className="animate-spin shrink-0" /> : <Icono size={16} className="shrink-0" />}
+      <span className="truncate">{archivo.nombre}</span>
+      {archivo.tamano ? <span className="text-xs text-feisen-texto-2 tabular-nums shrink-0">{fmtTamano(archivo.tamano)}</span> : null}
+    </button>
   )
 }
 
@@ -362,14 +434,11 @@ function Avances({ proyectoId, avances, interrupciones, fases, onCambio, avisar 
 // El jefe de Innovación hace trabajos de mantenimiento que solo él puede hacer. Cada vez que uno lo
 // saca del proyecto se anota aquí; en la reunión de jefes se decide si se corre la fecha o la prioridad.
 const mesDe = f => String(f || '').slice(0, 7)
-function horasDelMes(interrupciones, fecha) {
-  return (interrupciones || []).filter(i => mesDe(i.fecha) === mesDe(fecha)).reduce((s, i) => s + Number(i.horas || 0), 0)
-}
 const fmtHoras = h => `${Number(h).toLocaleString('es-CO', { maximumFractionDigits: 1 })} h`
 const NOMBRE_MES = m => { const t = new Date(m + '-15T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1) }
 
 function Interrupciones({ proyectoId, interrupciones, equipos, onCambio, avisar }) {
-  const VACIO = { fecha: new Date().toISOString().slice(0, 10), horas: '', equipo_id: '', motivo: '' }
+  const VACIO = { fecha: hoyLocal(), horas: '', equipo_id: '', motivo: '' }
   const [f, setF] = useState(VACIO)
   const [abierto, setAbierto] = useState(false)
   const [error, setError] = useState('')
@@ -526,6 +595,40 @@ function Cifra({ etiqueta, valor, contexto, rojo }) {
       <p className="text-xs uppercase tracking-wide text-gray-400">{etiqueta}</p>
       <p className={`text-xl font-semibold tabular-nums mt-0.5 ${rojo ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{valor}</p>
       <p className="text-xs text-feisen-texto-2">{contexto}</p>
+    </div>
+  )
+}
+
+// Cronograma editable: cada fase en dos líneas (qué se entrega / fechas y cumplimiento) para que
+// quepa sin cortar textos, también en celular.
+function FasesCronograma({ fases, setFila, quitar }) {
+  if (!(fases || []).length) return null
+  const cambiar = (i, campo) => e => setFila('fases', i, campo, e.target.value)
+  return (
+    <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+      {fases.map((f, i) => {
+        const e = estadoFase(f)
+        return (
+          <div key={i} className="px-3 py-3 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_1fr_40px] gap-2 items-center">
+              <input value={f.fase || ''} onChange={cambiar(i, 'fase')} placeholder="Fase" aria-label="Fase" className={`${INPUT_FILA} font-medium`} />
+              <input value={f.entregable || ''} onChange={cambiar(i, 'entregable')} placeholder="Entregable" aria-label="Entregable" className={INPUT_FILA} />
+              <input value={f.responsable || ''} onChange={cambiar(i, 'responsable')} placeholder="Responsable" aria-label="Responsable" className={INPUT_FILA} />
+              <span className="hidden sm:block"><BotonQuitar onClick={() => quitar('fases', i)} /></span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto] gap-2 items-end">
+              {[['inicio', 'Inicio'], ['fin', 'Fin'], ['terminada', 'Terminada el']].map(([c, t]) => (
+                <label key={c} className="block">
+                  <span className="text-[11px] uppercase tracking-wide text-gray-400">{t}</span>
+                  <input type="date" value={f[c] || ''} onChange={cambiar(i, c)} className={INPUT_FILA} />
+                </label>
+              ))}
+              <span className={`justify-self-start sm:justify-self-end self-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap ${ESTADOS_FASE[e.clave].clase}`}>{textoEstadoFase(e)}</span>
+            </div>
+            <div className="sm:hidden flex justify-end"><BotonQuitar onClick={() => quitar('fases', i)} /></div>
+          </div>
+        )
+      })}
     </div>
   )
 }

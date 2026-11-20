@@ -7,13 +7,15 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { EncabezadoPagina, useAtajoBuscar } from '../shared/ui'
-import { Plus, Search, X, Lightbulb, ChevronRight } from '../shared/iconos'
+import { Plus, Search, X, Lightbulb, ChevronRight, List, CalendarRange } from '../shared/iconos'
+import CronogramaProyectos from './CronogramaProyectos'
 import {
-  TIPOS, ESTADOS, RESPONSABLE, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES,
-  totalInversion,
+  TIPOS, ESTADOS, RESPONSABLE, RUBROS_INICIALES, FASES_INICIALES,
+  totalInversion, resumenCumplimiento,
 } from './comun'
 
-// ¿Qué proyectos de innovación esperan una decisión de gerencia y cómo van los aprobados?
+// ¿Qué proyectos de innovación esperan aprobación y cómo van sus tiempos?
+// Dos vistas: lista y cronograma (Gantt de las fases con su cumplimiento).
 const FILTROS = [
   { clave: 'por_decidir', texto: 'Por decidir', estados: ['presentado'] },
   { clave: 'en_marcha',   texto: 'En marcha',   estados: ['aprobado', 'aprobado_ajustes', 'en_curso'] },
@@ -27,28 +29,23 @@ const sinTildes = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowe
 export default function ProyectosInnovacion() {
   const navigate = useNavigate()
   const [proyectos, setProyectos] = useState([])
-  const [ultimoAvance, setUltimoAvance] = useState({})
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [filtro, setFiltro] = useState('todos')
   const [busqueda, setBusqueda] = useState('')
   const [creando, setCreando] = useState(false)
+  const [vista, setVista] = useState(() => { try { return localStorage.getItem('innovacion_vista') || 'lista' } catch { return 'lista' } })
+  const cambiarVista = v => { setVista(v); try { localStorage.setItem('innovacion_vista', v) } catch { /* sin almacenamiento */ } }
   const buscarRef = useRef(null)
   useAtajoBuscar(buscarRef)
 
   async function cargar() {
     setCargando(true)
-    const [{ data, error: e1 }, { data: av }] = await Promise.all([
-      supabase.from('innovacion_proyectos')
-        .select('id, numero, nombre, tipo, area, responsable, estado, costos, monto_aprobado, fecha_presentacion, updated_at')
-        .order('created_at', { ascending: false }),
-      supabase.from('innovacion_avances').select('proyecto_id, fecha, avance_pct, semaforo').order('fecha', { ascending: false }),
-    ])
+    const { data, error: e1 } = await supabase.from('innovacion_proyectos')
+      .select('id, numero, nombre, tipo, area, responsable, estado, costos, fases, monto_aprobado, fecha_presentacion, updated_at')
+      .order('created_at', { ascending: false })
     if (e1) setError('No se pudieron cargar los proyectos: ' + e1.message)
     setProyectos(data || [])
-    const ult = {}
-    for (const a of av || []) if (!ult[a.proyecto_id]) ult[a.proyecto_id] = a
-    setUltimoAvance(ult)
     setCargando(false)
   }
   useEffect(() => { cargar() }, [])
@@ -56,7 +53,9 @@ export default function ProyectosInnovacion() {
   const conteo = useMemo(() => Object.fromEntries(FILTROS.map(f =>
     [f.clave, f.estados ? proyectos.filter(p => f.estados.includes(p.estado)).length : proyectos.length])), [proyectos])
 
-  const enRojo = proyectos.filter(p => ultimoAvance[p.id]?.semaforo === 'rojo' && ['aprobado', 'aprobado_ajustes', 'en_curso'].includes(p.estado))
+  // Cumplimiento de tiempos: fases de los proyectos que no están cerrados ni rechazados
+  const activos = proyectos.filter(p => !['cerrado', 'rechazado', 'aplazado'].includes(p.estado))
+  const cumpl = resumenCumplimiento(activos.flatMap(p => p.fases || []))
   const invAprobada = proyectos
     .filter(p => ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado))
     .reduce((s, p) => s + (Number(p.monto_aprobado) || 0), 0)
@@ -92,8 +91,9 @@ export default function ProyectosInnovacion() {
         <Tarjeta etiqueta="Por decidir" cifra={conteo.por_decidir} contexto={invPorDecidir ? `${formatCOP(invPorDecidir)} solicitados` : 'nada pendiente'}
           alerta={conteo.por_decidir > 0} onClick={() => setFiltro('por_decidir')} />
         <Tarjeta etiqueta="En marcha" cifra={conteo.en_marcha} contexto="aprobados o en curso" onClick={() => setFiltro('en_marcha')} />
-        <Tarjeta etiqueta="En rojo" cifra={enRojo.length} contexto="último seguimiento con desvío" rojo={enRojo.length > 0}
-          onClick={() => setFiltro('en_marcha')} />
+        <Tarjeta etiqueta="Fases atrasadas" cifra={cumpl.atrasadas} rojo={cumpl.atrasadas > 0}
+          contexto={cumpl.terminadas ? `${cumpl.aTiempo} de ${cumpl.terminadas} terminadas a tiempo` : 'ninguna fase terminada aún'}
+          onClick={() => { setFiltro('todos'); cambiarVista('cronograma') }} />
         <Tarjeta etiqueta="Inversión aprobada" cifra={formatCOP(invAprobada)} contexto="suma de montos aprobados" />
       </div>
 
@@ -110,7 +110,15 @@ export default function ProyectosInnovacion() {
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-feisen-borde bg-white p-0.5 mr-1" role="group" aria-label="Vista">
+            {[['lista', 'Lista', List], ['cronograma', 'Cronograma', CalendarRange]].map(([v, t, Icono]) => (
+              <button key={v} onClick={() => cambiarVista(v)} aria-pressed={vista === v}
+                className={`inline-flex items-center gap-1.5 px-3 min-h-[34px] rounded-md text-sm ${vista === v ? 'bg-feisen-azul-suave text-feisen-azul font-semibold' : 'text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+                <Icono size={16} /> {t}
+              </button>
+            ))}
+          </div>
           {FILTROS.map(f => (
             <button key={f.clave} onClick={() => setFiltro(f.clave)}
               className={`px-3 min-h-[36px] rounded-lg text-sm border transition-colors
@@ -121,14 +129,16 @@ export default function ProyectosInnovacion() {
         </div>
       </div>
 
-      {/* Lista */}
-      {lista.length === 0 ? (
+      {/* Lista o cronograma */}
+      {vista === 'cronograma' && lista.length > 0 ? (
+        <CronogramaProyectos proyectos={lista} />
+      ) : lista.length === 0 ? (
         <div className="bg-white border border-feisen-borde rounded-xl p-8 text-center">
           <Lightbulb size={28} className="mx-auto text-gray-400" />
           {proyectos.length === 0 ? (
             <>
               <p className="font-semibold text-feisen-texto mt-2">Todavía no hay proyectos</p>
-              <p className="text-sm text-feisen-texto-2 mt-1">Crea el primero con «Nuevo proyecto». La ficha sigue el formato aprobado: problema, solución, costos y retorno, cronograma y seguimiento. Solo Angie aprueba.</p>
+              <p className="text-sm text-feisen-texto-2 mt-1">Crea el primero con «Nuevo proyecto». La ficha sigue el formato aprobado: problema, solución, costos, cronograma y seguimiento con planos. Solo Angie aprueba.</p>
             </>
           ) : (
             <p className="text-sm text-feisen-texto-2 mt-2">Ningún proyecto coincide con la búsqueda o el filtro. Prueba con «Todos».</p>
@@ -138,7 +148,7 @@ export default function ProyectosInnovacion() {
         <div className="bg-white border border-feisen-borde rounded-xl divide-y divide-feisen-borde-suave overflow-hidden">
           {lista.map(p => {
             const est = ESTADOS[p.estado] || ESTADOS.borrador
-            const av = ultimoAvance[p.id]
+            const r = resumenCumplimiento(p.fases)
             const inv = p.monto_aprobado ?? totalInversion(p.costos)
             return (
               <button key={p.id} onClick={() => navigate(`/innovacion/${p.id}`)}
@@ -152,7 +162,7 @@ export default function ProyectosInnovacion() {
                   </p>
                 </div>
                 <div className="hidden sm:flex items-center gap-2 shrink-0">
-                  {av?.semaforo && <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${SEMAFOROS[av.semaforo].clase}`}>{Math.round(av.avance_pct ?? 0)} %</span>}
+                  {r.atrasadas > 0 && <span className="rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-rojo-suave text-feisen-rojo">{r.atrasadas} fase{r.atrasadas === 1 ? '' : 's'} atrasada{r.atrasadas === 1 ? '' : 's'}</span>}
                   <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
                 </div>
                 <div className="text-right shrink-0 w-28">
