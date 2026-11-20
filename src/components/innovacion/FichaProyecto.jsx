@@ -230,7 +230,7 @@ export default function FichaProyecto() {
         </div>
         <BotonAgregar onClick={() => agregarFila('costos', { rubro: '', detalle: '', valor: null })}>Agregar rubro</BotonAgregar>
 
-        <div className="grid sm:grid-cols-3 gap-3 pt-2">
+        <div className="grid sm:grid-cols-2 gap-3 pt-2 items-start">
           <Campo etiqueta="¿Cuánto nos sale ahora? (COP)" ayuda="Costo por unidad hoy">
             <Pesos valor={p.costo_actual} onCambiar={v => set('costo_actual', v)} grande />
           </Campo>
