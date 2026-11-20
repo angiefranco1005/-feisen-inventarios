@@ -14,7 +14,7 @@ import {
 
 // Ficha de un proyecto de innovación: las 6 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, beneficio_mensual, costo_unitario, precio_venta, fases, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 // Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
 const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
@@ -252,7 +252,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 5 */}
-      <Seccion n="5" titulo="Cronograma y recursos" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
+      <Seccion n="5" titulo="Cronograma" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
         <TablaEditable lista="fases" filas={p.fases} setFila={setFila} quitar={quitarFila}
           columnas={[
             { campo: 'fase', texto: 'Fase', ancho: '1fr' },
@@ -262,15 +262,6 @@ export default function FichaProyecto() {
             { campo: 'responsable', texto: 'Responsable', ancho: '1fr' },
           ]} />
         <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', responsable: '' })}>Agregar fase</BotonAgregar>
-        <p className="text-xs uppercase tracking-wide text-gray-400 pt-2">Recursos que se necesitan</p>
-        <TablaEditable lista="recursos" filas={p.recursos} setFila={setFila} quitar={quitarFila}
-          columnas={[
-            { campo: 'recurso', texto: 'Recurso', ancho: '1fr' },
-            { campo: 'cantidad', texto: 'Cantidad u horas', ancho: '1fr' },
-            { campo: 'area', texto: 'Área que lo presta', ancho: '1fr' },
-            { campo: 'disponible', texto: '¿Disponible?', ancho: '130px', opciones: ['Sí', 'No', 'Parcial'] },
-          ]} />
-        <BotonAgregar onClick={() => agregarFila('recursos', { recurso: '', cantidad: '', area: '', disponible: '' })}>Agregar recurso</BotonAgregar>
       </Seccion>
 
       {/* 6 */}

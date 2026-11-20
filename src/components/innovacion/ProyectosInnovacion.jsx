@@ -9,7 +9,7 @@ import Alerta from '../shared/Alerta'
 import { EncabezadoPagina, useAtajoBuscar } from '../shared/ui'
 import { Plus, Search, X, Lightbulb, ChevronRight } from '../shared/iconos'
 import {
-  TIPOS, ESTADOS, RESPONSABLE, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES, RECURSOS_INICIALES,
+  TIPOS, ESTADOS, RESPONSABLE, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES,
   totalInversion,
 } from './comun'
 
@@ -197,7 +197,7 @@ function NuevoProyecto({ onCerrar, onCreado }) {
       const numero = await siguienteNumero('innovacion_proyectos', 'PI')
       const { data, error: e2 } = await supabase.from('innovacion_proyectos').insert({
         numero, nombre: nombre.trim(), tipo, responsable: RESPONSABLE,
-        costos: RUBROS_INICIALES, fases: FASES_INICIALES, recursos: RECURSOS_INICIALES,
+        costos: RUBROS_INICIALES, fases: FASES_INICIALES,
         fecha_presentacion: new Date().toISOString().slice(0, 10),
       }).select('id').single()
       if (e2) throw e2

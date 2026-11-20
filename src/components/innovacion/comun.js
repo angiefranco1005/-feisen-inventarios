@@ -59,11 +59,6 @@ export const FASES_INICIALES = [
   { fase: 'Pruebas',            entregable: 'Informe de pruebas con el indicador medido', inicio: '', fin: '', responsable: '' },
   { fase: 'Paso a producción',  entregable: 'Ficha de costo y orden de fabricación en el ERP', inicio: '', fin: '', responsable: '' },
 ]
-export const RECURSOS_INICIALES = [
-  { recurso: 'Personas', cantidad: '', area: '', disponible: '' },
-  { recurso: 'Máquinas', cantidad: '', area: '', disponible: '' },
-  { recurso: 'Proveedores o servicios externos', cantidad: '', area: '', disponible: '' },
-]
 
 export function subtotalCostos(costos) {
   return (costos || []).reduce((s, c) => s + (Number(c.valor) || 0), 0)
