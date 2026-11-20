@@ -9,6 +9,9 @@ export const TIPOS = {
   mejora_proceso: 'Mejora de proceso',
 }
 
+// El responsable de todo proyecto es siempre el jefe de Innovación y Diseño (Angie, 2026-11-20)
+export const RESPONSABLE = 'Jefe de Innovación y Diseño'
+
 export const AREAS = ['Fundición', 'Mecanizados', 'Ensamble', 'Motores', 'Otra']
 
 export const DECISIONES_PEDIDAS = {

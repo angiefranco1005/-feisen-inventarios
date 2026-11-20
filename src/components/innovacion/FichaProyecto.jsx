@@ -8,7 +8,7 @@ import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, ExternalLink, Send } from '../shared/iconos'
 import {
-  TIPOS, AREAS, DECISIONES_PEDIDAS, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
+  TIPOS, AREAS, RESPONSABLE, DECISIONES_PEDIDAS, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, puntaje, fmtPuntaje, fmtMeses, fmtPct,
 } from './comun'
 
@@ -60,7 +60,6 @@ export default function FichaProyecto() {
   // Secciones obligatorias del formato: 1, 2, 3, 5 y 6
   function revisarObligatorias() {
     const f = []
-    if (!p.responsable?.trim()) f.push('Responsable (sección 1)')
     if (!p.problema?.trim()) f.push('Problema u oportunidad (sección 2)')
     if (!p.solucion?.trim()) f.push('Solución propuesta (sección 3)')
     if (!p.indicador_meta?.trim()) f.push('Indicador y meta (sección 3)')
@@ -72,7 +71,7 @@ export default function FichaProyecto() {
 
   async function guardar(cambios = {}) {
     setGuardando(true); setError('')
-    const fila = { ...p, ...cambios, updated_at: new Date().toISOString() }
+    const fila = { ...p, ...cambios, responsable: RESPONSABLE, updated_at: new Date().toISOString() }
     delete fila.id; delete fila.numero
     const { error: e } = await supabase.from('innovacion_proyectos').update(fila).eq('id', id)
     setGuardando(false)
@@ -146,7 +145,7 @@ export default function FichaProyecto() {
             </select>
           </Campo>
           <Campo etiqueta="Responsable">
-            <input value={p.responsable || ''} onChange={e => set('responsable', e.target.value)} className={INPUT} placeholder="Jefe de Innovación y Diseño" />
+            <p className="min-h-[44px] flex items-center px-3 text-sm text-feisen-texto bg-feisen-fondo border border-feisen-borde-suave rounded-lg">{RESPONSABLE}</p>
           </Campo>
           <Campo etiqueta="Fecha de presentación">
             <input type="date" value={p.fecha_presentacion || ''} onChange={e => set('fecha_presentacion', e.target.value || null)} className={INPUT} />

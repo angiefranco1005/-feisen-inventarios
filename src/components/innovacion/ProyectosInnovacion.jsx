@@ -9,7 +9,7 @@ import Alerta from '../shared/Alerta'
 import { EncabezadoPagina, useAtajoBuscar } from '../shared/ui'
 import { Plus, Search, X, Lightbulb, ChevronRight } from '../shared/iconos'
 import {
-  TIPOS, ESTADOS, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES, RECURSOS_INICIALES,
+  TIPOS, ESTADOS, RESPONSABLE, SEMAFOROS, RUBROS_INICIALES, FASES_INICIALES, RECURSOS_INICIALES,
   totalInversion, puntaje, fmtPuntaje,
 } from './comun'
 
@@ -68,7 +68,7 @@ export default function ProyectosInnovacion() {
     return proyectos
       .filter(p => !f.estados || f.estados.includes(p.estado))
       .filter(p => {
-        const txt = sinTildes(`${p.numero} ${p.nombre} ${p.area} ${p.responsable} ${TIPOS[p.tipo]}`)
+        const txt = sinTildes(`${p.numero} ${p.nombre} ${p.area} ${TIPOS[p.tipo]}`)
         return palabras.every(w => txt.includes(w))
       })
       // Por decidir: mayor puntaje primero; el resto, como vienen (más recientes primero)
@@ -80,7 +80,7 @@ export default function ProyectosInnovacion() {
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       <EncabezadoPagina modulo="Innovación" titulo="Proyectos de innovación"
-        subtitulo="Productos nuevos, mejoras de máquina y rediseños que se presentan a gerencia">
+        subtitulo={`Productos nuevos, mejoras de máquina y rediseños que presenta el ${RESPONSABLE.toLowerCase()}`}>
         <button onClick={() => setCreando(true)}
           className="flex items-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:opacity-90">
           <Plus size={16} /> Nuevo proyecto
@@ -104,7 +104,7 @@ export default function ProyectosInnovacion() {
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input ref={buscarRef} value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre, número, área o responsable  ( / )"
+            placeholder="Buscar por nombre, número, área o tipo  ( / )"
             className="w-full bg-white border border-feisen-borde rounded-lg pl-9 pr-9 min-h-[44px] text-sm focus:outline-none focus:border-feisen-azul" />
           {busqueda && (
             <button onClick={() => setBusqueda('')} aria-label="Borrar búsqueda" className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400">
@@ -151,7 +151,7 @@ export default function ProyectosInnovacion() {
                     <span className="text-feisen-texto-2 font-normal tabular-nums mr-2">{p.numero}</span>{p.nombre}
                   </p>
                   <p className="text-xs text-feisen-texto-2 truncate">
-                    {[TIPOS[p.tipo], p.area, p.responsable].filter(Boolean).join(' · ')}
+                    {[TIPOS[p.tipo], p.area].filter(Boolean).join(' · ')}
                   </p>
                 </div>
                 <div className="hidden sm:flex items-center gap-2 shrink-0">
@@ -200,7 +200,7 @@ function NuevoProyecto({ onCerrar, onCreado }) {
     try {
       const numero = await siguienteNumero('innovacion_proyectos', 'PI')
       const { data, error: e2 } = await supabase.from('innovacion_proyectos').insert({
-        numero, nombre: nombre.trim(), tipo,
+        numero, nombre: nombre.trim(), tipo, responsable: RESPONSABLE,
         costos: RUBROS_INICIALES, fases: FASES_INICIALES, recursos: RECURSOS_INICIALES,
         fecha_presentacion: new Date().toISOString().slice(0, 10),
       }).select('id').single()
