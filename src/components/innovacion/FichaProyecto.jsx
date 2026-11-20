@@ -9,12 +9,12 @@ import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
 import {
   TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, SEMAFOROS, IMPREVISTOS,
-  subtotalCostos, totalInversion, mesesRecuperacion, fmtMeses, fmtPct,
+  subtotalCostos, totalInversion, fmtPct,
 } from './comun'
 
 // Ficha de un proyecto de innovación: las 6 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, beneficio_mensual, costo_actual, costo_unitario, fases, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, costo_actual, costo_unitario, fases, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 // Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
 const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
@@ -74,7 +74,6 @@ export default function FichaProyecto() {
     if (!p.solucion?.trim()) f.push('Solución propuesta (sección 3)')
     if (!p.indicador_meta?.trim()) f.push('Indicador y meta (sección 3)')
     if (!(subtotalCostos(p.costos) > 0)) f.push('Al menos un costo (sección 4)')
-    if (!(Number(p.beneficio_mensual) > 0)) f.push('Beneficio mensual (sección 4)')
     if (!(p.fases || []).some(x => x.inicio && x.fin)) f.push('Fechas de las fases (sección 5)')
     return f
   }
@@ -231,18 +230,12 @@ export default function FichaProyecto() {
         <BotonAgregar onClick={() => agregarFila('costos', { rubro: '', detalle: '', valor: null })}>Agregar rubro</BotonAgregar>
 
         <div className="grid sm:grid-cols-3 gap-3 pt-2">
-          <Campo etiqueta="Beneficio mensual (COP)" ayuda="Ventas nuevas × margen, o ahorro">
-            <Pesos valor={p.beneficio_mensual} onCambiar={v => set('beneficio_mensual', v)} grande />
-          </Campo>
           <Campo etiqueta="¿Cuánto nos sale ahora? (COP)" ayuda="Costo por unidad hoy">
             <Pesos valor={p.costo_actual} onCambiar={v => set('costo_actual', v)} grande />
           </Campo>
           <Campo etiqueta="¿Cuánto nos sale después del cambio? (COP)" ayuda="Costo por unidad con el proyecto">
             <Pesos valor={p.costo_unitario} onCambiar={v => set('costo_unitario', v)} grande />
           </Campo>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Cifra etiqueta="Recuperación" valor={fmtMeses(mesesRecuperacion(p))} contexto="inversión ÷ beneficio mensual" />
           {ahorroUnidad != null && (
             <Cifra etiqueta={ahorroUnidad < 0 ? 'Sube por unidad' : 'Ahorro por unidad'} valor={formatCOP(Math.abs(ahorroUnidad))}
               contexto={`${fmtPct(Math.abs(ahorroUnidad) / Number(p.costo_actual))} ${ahorroUnidad < 0 ? 'más caro' : 'menos'} que ahora`} rojo={ahorroUnidad < 0} />

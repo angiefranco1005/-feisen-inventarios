@@ -67,10 +67,4 @@ export function totalInversion(costos) {
   const sub = subtotalCostos(costos)
   return Math.round(sub * (1 + IMPREVISTOS))
 }
-// Meses para recuperar la inversión
-export function mesesRecuperacion(p) {
-  const inv = totalInversion(p.costos), b = Number(p.beneficio_mensual)
-  return inv > 0 && b > 0 ? inv / b : null
-}
-export const fmtMeses = n => n == null ? '—' : `${n.toLocaleString('es-CO', { maximumFractionDigits: 1 })} meses`
 export const fmtPct = n => n == null ? '—' : `${Math.round(n * 100).toLocaleString('es-CO')} %`
