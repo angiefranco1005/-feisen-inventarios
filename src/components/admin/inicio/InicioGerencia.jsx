@@ -655,6 +655,26 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
                     : ausPor === 'area'
                       ? aus.porArea.map(([a, d, p]) => <BarraPersona key={a} nombre={`${a} (${p} pers.)`} valor={d} max={aus.porArea[0][1]} sufijo=" d" />)
                       : aus.porTipo.map(([t, d]) => <BarraPersona key={t} nombre={TIPOS_NOVEDAD[t]?.plural || cap(t)} valor={d} max={aus.porTipo[0][1]} sufijo=" d" />)}
+                {aus?.top?.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-feisen-texto-2 mb-1.5">Top 3 con más novedades <Etiqueta periodo /></p>
+                    <ol className="divide-y divide-feisen-borde-suave">
+                      {aus.top.map((p, i) => (
+                        <li key={p.nombre + i} className="flex items-center gap-2.5 py-1.5 text-[13px]">
+                          <span className="w-5 h-5 rounded-full bg-feisen-azul-suave text-feisen-azul text-[11px] font-semibold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block truncate text-feisen-texto">{p.nombre.toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase())}</span>
+                            <span className="block text-[11.5px] text-gray-400 truncate">{p.area}</span>
+                          </span>
+                          <span className="text-right tabular-nums whitespace-nowrap">
+                            <strong>{p.novedades}</strong> novedad{p.novedades === 1 ? '' : 'es'}
+                            <span className="text-feisen-texto-2"> · {fmt(p.dias)} d</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
               </div>
             </Tarjeta>
 
