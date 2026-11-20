@@ -9,7 +9,7 @@ import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
 import {
   TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, SEMAFOROS, IMPREVISTOS,
-  subtotalCostos, totalInversion, mesesRecuperacion, roi12, fmtMeses, fmtPct,
+  subtotalCostos, totalInversion, mesesRecuperacion, fmtMeses, fmtPct,
 } from './comun'
 
 // Ficha de un proyecto de innovación: las 6 secciones del formato aprobado (2026-11-20).
@@ -242,8 +242,6 @@ export default function FichaProyecto() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Cifra etiqueta="Recuperación" valor={fmtMeses(mesesRecuperacion(p))} contexto="inversión ÷ beneficio mensual" />
-          <Cifra etiqueta="ROI a 12 meses" valor={fmtPct(roi12(p))} contexto="(beneficio 12 m − inversión) ÷ inversión"
-            rojo={roi12(p) != null && roi12(p) < 0} />
           {p.costo_unitario && p.precio_venta ? (
             <Cifra etiqueta="Margen unitario" valor={fmtPct((num(p.precio_venta) - num(p.costo_unitario)) / num(p.precio_venta))}
               contexto={formatCOP(num(p.precio_venta) - num(p.costo_unitario)) + ' por unidad'} />

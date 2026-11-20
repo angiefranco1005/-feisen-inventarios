@@ -72,10 +72,5 @@ export function mesesRecuperacion(p) {
   const inv = totalInversion(p.costos), b = Number(p.beneficio_mensual)
   return inv > 0 && b > 0 ? inv / b : null
 }
-// ROI a 12 meses = (beneficio 12 meses − inversión) ÷ inversión
-export function roi12(p) {
-  const inv = totalInversion(p.costos), b = Number(p.beneficio_mensual)
-  return inv > 0 && b > 0 ? (b * 12 - inv) / inv : null
-}
 export const fmtMeses = n => n == null ? '—' : `${n.toLocaleString('es-CO', { maximumFractionDigits: 1 })} meses`
 export const fmtPct = n => n == null ? '—' : `${Math.round(n * 100).toLocaleString('es-CO')} %`
