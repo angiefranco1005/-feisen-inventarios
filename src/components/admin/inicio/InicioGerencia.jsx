@@ -567,7 +567,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
               </div>
             </Tarjeta>
 
-            <IndicadoresLogistica mensual={logistica.mensual} />
+            <IndicadoresLogistica mensual={logistica.mensual} porBodega={logistica.porBodega} />
           </div>
       )}
       {vista === 'produccion' && (

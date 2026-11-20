@@ -54,7 +54,7 @@ export async function cargarFoto({ soloOperacion = false } = {}) {
     // Para rotación: último movimiento de cada producto en cada bodega
     fetchAllPages((d, h) => supabase.from('movimientos').select('item_id, bodega_origen_id, bodega_destino_id, created_at').eq('revertido', false).order('id').range(d, h)),
     supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
-    fetchAllPages((d, h) => supabase.from('pedidos').select('numero, estado, area, prioridad, created_at, fecha_recibido, fecha_estimada_llegada').order('id').range(d, h)),
+    fetchAllPages((d, h) => supabase.from('pedidos').select('numero, estado, area, solicitante_id, prioridad, created_at, fecha_recibido, fecha_estimada_llegada').order('id').range(d, h)),
     si(() => supabase.from('empleados').select('id, nombres, apellidos, area, estado, fecha_ingreso, fecha_fin_contrato')),
     si(() => supabase.from('no_conformidades').select('estado, bodega_nombre, cantidad_afectada, tipo_defecto, fecha_deteccion')),
     si(() => supabase.from('nomina_periodos').select('id, anio, mes, quincena, estado').order('anio', { ascending: false }).order('mes', { ascending: false }).order('quincena', { ascending: false }).limit(1)),
@@ -125,6 +125,7 @@ export async function cargarFoto({ soloOperacion = false } = {}) {
 
   // Logística
   const h = hoy0(), hoyIso = isoDia(h)
+  completarArea(pedidos.data || [])
   const enCurso = (pedidos.data || []).filter(p => ['pendiente', 'en_transito', 'parcialmente_recibido'].includes(p.estado))
   // Atraso en días hábiles (sin fines de semana ni festivos), igual que en Pedidos
   const atrasados = enCurso.filter(p => p.estado === 'en_transito' && p.fecha_estimada_llegada && habilesEntre(p.fecha_estimada_llegada, hoyColombia()) > 0)
@@ -142,6 +143,7 @@ export async function cargarFoto({ soloOperacion = false } = {}) {
     leadTime: recibidos60.length ? recibidos60.reduce((t, p) => t + (new Date(p.fecha_recibido) - new Date(p.created_at)) / DIA, 0) / recibidos60.length : null,
     porArea: Object.entries(porArea).sort((a, b) => b[1] - a[1]),
     mensual: indicadoresMensuales(pedidos.data || []),
+    porBodega: indicadoresPorBodega(pedidos.data || []),
   }
 
   // Personas
@@ -246,14 +248,25 @@ export async function cargarPeriodo(desde, hasta, foto) {
 //   sin llegar (los cerrados sin recibir y los que aún están a tiempo no cuentan). Días hábiles,
 //   igual que en Pedidos, contra la fecha estimada vigente.
 // · Lead time: días calendario de pedido a recibido, por el mes en que se RECIBIÓ.
-export function indicadoresMensuales(pedidos, maxMeses = 12) {
+// Pedidos viejos (ago–sep 2026) quedaron sin área: se toma la del solicitante si todos sus
+// demás pedidos son de una sola área. Si no (p. ej. la gerente), quedan "Sin área".
+function completarArea(pedidos) {
+  const areasDe = {}
+  for (const p of pedidos) if (p.area && p.solicitante_id) (areasDe[p.solicitante_id] ||= new Set()).add(p.area)
+  for (const p of pedidos) {
+    if (p.area) continue
+    const a = areasDe[p.solicitante_id]
+    p.area = a && a.size === 1 ? [...a][0] : null
+  }
+}
+
+function acumular(pedidos, claveHecho, claveRecibido) {
   const hoy = hoyColombia()
-  const mesDe = f => isoDia(new Date(f)).slice(0, 7)
-  const meses = {}
-  const m = k => (meses[k] ||= { mes: k, total: 0, urgentes: 0, evaluables: 0, tarde: 0, tardeAbiertos: 0, diasTarde: [], recibidos: 0, sumaLead: 0 })
+  const grupos = {}
+  const g = k => (grupos[k] ||= { clave: k, total: 0, urgentes: 0, evaluables: 0, tarde: 0, tardeAbiertos: 0, diasTarde: [], recibidos: 0, sumaLead: 0 })
   for (const p of pedidos) {
     if (!p.created_at) continue
-    const r = m(mesDe(p.created_at))
+    const r = g(claveHecho(p))
     r.total++
     if (p.prioridad === 'urgente') r.urgentes++
     if (p.estado !== 'cerrado' && p.fecha_estimada_llegada) {
@@ -265,13 +278,13 @@ export function indicadoresMensuales(pedidos, maxMeses = 12) {
       }
     }
     if (p.fecha_recibido) {
-      const rr = m(mesDe(p.fecha_recibido))
+      const rr = g(claveRecibido(p))
       rr.recibidos++
       rr.sumaLead += Math.max(0, (new Date(p.fecha_recibido) - new Date(p.created_at)) / DIA)
     }
   }
-  return Object.values(meses).sort((a, b) => a.mes.localeCompare(b.mes)).slice(-maxMeses).map(r => ({
-    mes: r.mes, total: r.total, urgentes: r.urgentes,
+  return Object.values(grupos).map(r => ({
+    clave: r.clave, total: r.total, urgentes: r.urgentes,
     pctUrgentes: r.total ? r.urgentes / r.total : null,
     evaluables: r.evaluables, tarde: r.tarde, tardeAbiertos: r.tardeAbiertos,
     pctTarde: r.evaluables ? r.tarde / r.evaluables : null,
@@ -279,4 +292,18 @@ export function indicadoresMensuales(pedidos, maxMeses = 12) {
     diasMax: r.diasTarde.length ? Math.max(...r.diasTarde) : null,
     recibidos: r.recibidos, lead: r.recibidos ? r.sumaLead / r.recibidos : null,
   }))
+}
+
+const mesDe = f => isoDia(new Date(f)).slice(0, 7)
+export function indicadoresMensuales(pedidos, maxMeses = 12) {
+  return acumular(pedidos, p => mesDe(p.created_at), p => mesDe(p.fecha_recibido))
+    .map(r => ({ ...r, mes: r.clave }))
+    .sort((a, b) => a.mes.localeCompare(b.mes)).slice(-maxMeses)
+}
+
+// Por bodega (área que pidió): la serie mensual de cada una y su resumen de todo el historial
+export function indicadoresPorBodega(pedidos) {
+  const area = p => p.area || 'Sin área'
+  const resumen = acumular(pedidos, area, area).sort((a, b) => b.total - a.total)
+  return resumen.map(r => ({ ...r, area: r.clave, mensual: indicadoresMensuales(pedidos.filter(p => area(p) === r.clave)) }))
 }
