@@ -9,8 +9,10 @@ import Alerta from '../shared/Alerta'
 import { EncabezadoPagina, useAtajoBuscar } from '../shared/ui'
 import { Plus, Search, X, Lightbulb, ChevronRight, List, CalendarRange } from '../shared/iconos'
 import CronogramaProyectos from './CronogramaProyectos'
+import PortafolioProyectos, { RequiereAtencion } from './PortafolioProyectos'
+import { useAuth } from '../../contexts/AuthContext'
 import {
-  TIPOS, ESTADOS, RESPONSABLE, RUBROS_INICIALES, FASES_INICIALES,
+  TIPOS, RESPONSABLE, APROBADORA, BUCKET, RUBROS_INICIALES, FASES_INICIALES,
   totalInversion, resumenCumplimiento,
 } from './comun'
 
@@ -28,7 +30,11 @@ const sinTildes = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowe
 
 export default function ProyectosInnovacion() {
   const navigate = useNavigate()
+  const { perfil } = useAuth()
+  const esAprobadora = perfil?.id === APROBADORA.id
   const [proyectos, setProyectos] = useState([])
+  const [ultimoAvance, setUltimoAvance] = useState({})
+  const [miniaturas, setMiniaturas] = useState({})
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [filtro, setFiltro] = useState('todos')
@@ -41,11 +47,29 @@ export default function ProyectosInnovacion() {
 
   async function cargar() {
     setCargando(true)
-    const { data, error: e1 } = await supabase.from('innovacion_proyectos')
-      .select('id, numero, nombre, tipo, area, responsable, estado, costos, fases, monto_aprobado, fecha_presentacion, updated_at')
-      .order('created_at', { ascending: false })
+    const [{ data, error: e1 }, { data: av }] = await Promise.all([
+      supabase.from('innovacion_proyectos')
+        .select('id, numero, nombre, tipo, area, responsable, estado, costos, fases, monto_aprobado, fecha_presentacion, updated_at')
+        .order('created_at', { ascending: false }),
+      supabase.from('innovacion_avances').select('proyecto_id, fecha, nota, archivos, created_at')
+        .order('fecha', { ascending: false }).order('created_at', { ascending: false }),
+    ])
     if (e1) setError('No se pudieron cargar los proyectos: ' + e1.message)
     setProyectos(data || [])
+    // Último avance de cada proyecto y la imagen más reciente para la miniatura de la tarjeta
+    const ult = {}, foto = {}
+    for (const a of av || []) {
+      if (!ult[a.proyecto_id]) ult[a.proyecto_id] = a
+      const img = (a.archivos || []).find(x => (x.tipo || '').startsWith('image/'))
+      if (img && !foto[a.proyecto_id]) foto[a.proyecto_id] = img.path
+    }
+    setUltimoAvance(ult)
+    const rutas = Object.values(foto)
+    if (rutas.length) {
+      const { data: urls } = await supabase.storage.from(BUCKET).createSignedUrls(rutas, 3600)
+      const porRuta = Object.fromEntries((urls || []).filter(u => u.signedUrl).map(u => [u.path, u.signedUrl]))
+      setMiniaturas(Object.fromEntries(Object.entries(foto).map(([id, r]) => [id, porRuta[r]]).filter(([, u]) => u)))
+    }
     setCargando(false)
   }
   useEffect(() => { cargar() }, [])
@@ -97,6 +121,8 @@ export default function ProyectosInnovacion() {
         <Tarjeta etiqueta="Inversión aprobada" cifra={formatCOP(invAprobada)} contexto="suma de montos aprobados" />
       </div>
 
+      <RequiereAtencion proyectos={proyectos} esAprobadora={esAprobadora} />
+
       {/* Búsqueda y filtros */}
       <div className="space-y-3">
         <div className="relative">
@@ -112,7 +138,7 @@ export default function ProyectosInnovacion() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border border-feisen-borde bg-white p-0.5 mr-1" role="group" aria-label="Vista">
-            {[['lista', 'Lista', List], ['cronograma', 'Cronograma', CalendarRange]].map(([v, t, Icono]) => (
+            {[['lista', 'Proyectos', List], ['cronograma', 'Cronograma', CalendarRange]].map(([v, t, Icono]) => (
               <button key={v} onClick={() => cambiarVista(v)} aria-pressed={vista === v}
                 className={`inline-flex items-center gap-1.5 px-3 min-h-[34px] rounded-md text-sm ${vista === v ? 'bg-feisen-azul-suave text-feisen-azul font-semibold' : 'text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
                 <Icono size={16} /> {t}
@@ -145,35 +171,7 @@ export default function ProyectosInnovacion() {
           )}
         </div>
       ) : (
-        <div className="bg-white border border-feisen-borde rounded-xl divide-y divide-feisen-borde-suave overflow-hidden">
-          {lista.map(p => {
-            const est = ESTADOS[p.estado] || ESTADOS.borrador
-            const r = resumenCumplimiento(p.fases)
-            const inv = p.monto_aprobado ?? totalInversion(p.costos)
-            return (
-              <button key={p.id} onClick={() => navigate(`/innovacion/${p.id}`)}
-                className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-feisen-fondo min-h-[60px]">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-feisen-texto truncate">
-                    <span className="text-feisen-texto-2 font-normal tabular-nums mr-2">{p.numero}</span>{p.nombre}
-                  </p>
-                  <p className="text-xs text-feisen-texto-2 truncate">
-                    {[TIPOS[p.tipo], p.area].filter(Boolean).join(' · ')}
-                  </p>
-                </div>
-                <div className="hidden sm:flex items-center gap-2 shrink-0">
-                  {r.atrasadas > 0 && <span className="rounded-md px-2 py-0.5 text-xs font-medium bg-feisen-rojo-suave text-feisen-rojo">{r.atrasadas} fase{r.atrasadas === 1 ? '' : 's'} atrasada{r.atrasadas === 1 ? '' : 's'}</span>}
-                  <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
-                </div>
-                <div className="text-right shrink-0 w-28">
-                  <p className="text-sm font-semibold tabular-nums text-feisen-texto">{inv ? formatCOP(inv) : '—'}</p>
-                </div>
-                <span className={`sm:hidden rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
-                <ChevronRight size={16} className="text-gray-400 shrink-0" />
-              </button>
-            )
-          })}
-        </div>
+        <PortafolioProyectos proyectos={lista} ultimoAvance={ultimoAvance} miniaturas={miniaturas} esAprobadora={esAprobadora} />
       )}
 
       {creando && <NuevoProyecto onCerrar={() => setCreando(false)} onCreado={id => navigate(`/innovacion/${id}`)} />}

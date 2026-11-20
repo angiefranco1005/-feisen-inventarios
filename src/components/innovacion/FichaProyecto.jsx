@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatCOP, formatFecha } from '../../utils/formatters'
@@ -32,6 +32,7 @@ export default function FichaProyecto() {
   const [error, setError] = useState('')
   const [faltan, setFaltan] = useState([])
   const [aviso, avisar] = useAviso()
+  const [params, setParams] = useSearchParams()
 
   async function cargar() {
     const [{ data }, { data: eq }] = await Promise.all([
@@ -117,16 +118,45 @@ export default function FichaProyecto() {
   const ahorroUnidad = Number(p.costo_actual) > 0 && Number(p.costo_unitario) > 0 ? Number(p.costo_actual) - Number(p.costo_unitario) : null
   const enMarcha = ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado)
 
-  return (
+  // Dos modos (opción B que eligió Angie, 2026-11-20): «seguimiento» (bitácora al centro y panel fijo
+  // con lo clave) y «ficha» (el formato completo para llenar o corregir). Un borrador abre en la ficha.
+  const modo = params.get('ver') || (p.estado === 'borrador' ? 'ficha' : 'seguimiento')
+  const irA = m => {
+    if (m === 'seguimiento' && cambiado && !confirm('Hay cambios sin guardar en la ficha. ¿Salir sin guardar?')) return
+    if (m === 'seguimiento' && cambiado) setP(JSON.parse(original))
+    setParams(m === 'ficha' ? { ver: 'ficha' } : { ver: 'seguimiento' }, { replace: true })
+    window.scrollTo(0, 0)
+  }
+
+  const accionPrincipal = (
+    <>
+      {p.estado === 'borrador' && (
+        <button onClick={presentar} disabled={guardando}
+          className="w-full flex items-center justify-center gap-2 bg-feisen-azul text-white rounded-lg px-4 min-h-[44px] text-sm font-semibold disabled:opacity-50">
+          <Send size={16} /> Presentar a gerencia
+        </button>
+      )}
+      {p.estado === 'presentado' && (puedeAprobar ? (
+        <button onClick={aprobar} disabled={guardando}
+          className="w-full bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
+          Aprobar proyecto
+        </button>
+      ) : (
+        <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">Espera la aprobación de {APROBADORA.nombre}</p>
+      ))}
+    </>
+  )
+
+  if (modo === 'ficha') return (
     <div className="max-w-4xl mx-auto space-y-5 pb-28">
-      <Link to="/innovacion" className="inline-flex items-center gap-1 text-sm text-feisen-texto-2 hover:text-feisen-azul">
-        <ArrowLeft size={14} /> Proyectos de innovación
-      </Link>
+      <button onClick={() => irA('seguimiento')} className="inline-flex items-center gap-1 text-sm text-feisen-texto-2 hover:text-feisen-azul">
+        <ArrowLeft size={14} /> Volver al seguimiento
+      </button>
 
       {/* Encabezado */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs text-gray-400 tabular-nums">{p.numero}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-gray-400 tabular-nums">{p.numero} · Ficha del proyecto</p>
           <input value={p.nombre} onChange={e => set('nombre', e.target.value)} aria-label="Nombre del proyecto"
             className="text-xl font-semibold text-feisen-texto bg-transparent border-b border-transparent hover:border-feisen-borde focus:border-feisen-azul focus:outline-none w-full max-w-xl" />
           <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -134,34 +164,8 @@ export default function FichaProyecto() {
             <span className="text-sm text-feisen-texto-2">Inversión {formatCOP(inv)}</span>
           </div>
         </div>
-        {p.estado === 'borrador' && (
-          <button onClick={presentar} disabled={guardando}
-            className="flex items-center gap-2 border border-feisen-azul text-feisen-azul rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave">
-            <Send size={16} /> Presentar a gerencia
-          </button>
-        )}
-        {p.estado === 'presentado' && (puedeAprobar ? (
-          <button onClick={aprobar} disabled={guardando}
-            className="bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
-            Aprobar proyecto
-          </button>
-        ) : (
-          <span className="text-sm text-feisen-texto-2">Espera la aprobación de {APROBADORA.nombre}</span>
-        ))}
-        {enMarcha && p.estado !== 'cerrado' && (
-          <button onClick={cerrar} disabled={guardando}
-            className="px-4 min-h-[44px] rounded-lg text-sm border border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo">
-            Cerrar proyecto
-          </button>
-        )}
+        {p.estado === 'borrador' && <div className="w-full sm:w-auto">{accionPrincipal}</div>}
       </div>
-
-      {p.decidido_at && enMarcha && (
-        <p className="text-sm text-feisen-texto-2">
-          Aprobado por <span className="font-semibold text-feisen-texto">{APROBADORA.nombre}</span> el {formatFecha(p.decidido_at)}
-          {p.monto_aprobado != null && <> por <span className="tabular-nums">{formatCOP(p.monto_aprobado)}</span></>}
-        </p>
-      )}
 
       {faltan.length > 0 && (
         <Alerta tipo="alerta" mensaje={`Para presentarlo faltan las secciones obligatorias: ${faltan.join(' · ')}.`} />
@@ -251,12 +255,6 @@ export default function FichaProyecto() {
         <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', terminada: '', responsable: '' })}>Agregar fase</BotonAgregar>
       </Seccion>
 
-      {/* 6 */}
-      <Seccion n="6" titulo="Seguimiento" ayuda="Suba aquí los planos, fotos y documentos a medida que el proyecto avanza, con una nota de qué se hizo. Al cerrar, anote el indicador logrado frente a la meta de la sección 3.">
-        <Bitacora proyectoId={id} avances={avances} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
-        <Interrupciones proyectoId={id} interrupciones={interrupciones} equipos={equipos} onCambio={cargarRegistros} avisar={avisar} />
-      </Seccion>
-
       {/* Acción principal fija abajo */}
       <div className="fixed bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-0 left-0 right-0 lg:left-60 z-30 bg-white/95 backdrop-blur border-t border-feisen-borde px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-end gap-3">
@@ -266,6 +264,106 @@ export default function FichaProyecto() {
             {guardando ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </div>
+      </div>
+      {aviso}
+    </div>
+  )
+
+  // ── Modo seguimiento ──
+  const fasesConNombre = (p.fases || []).filter(f => f.fase)
+  return (
+    <div className="max-w-6xl mx-auto space-y-4 pb-10">
+      <Link to="/innovacion" className="inline-flex items-center gap-1 text-sm text-feisen-texto-2 hover:text-feisen-azul">
+        <ArrowLeft size={14} /> Proyectos de innovación
+      </Link>
+      <Alerta tipo="error" mensaje={error} />
+      <div>
+        <p className="text-xs text-gray-400 tabular-nums">{p.numero} · {[TIPOS[p.tipo], p.area].filter(Boolean).join(' · ')}</p>
+        <h1 className="text-xl font-semibold text-feisen-texto">{p.nombre}</h1>
+        {p.resumen && <p className="text-sm text-feisen-texto-2 mt-1 max-w-3xl">{p.resumen}</p>}
+      </div>
+
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
+        {/* Centro: la historia del proyecto */}
+        <div className="space-y-4 min-w-0">
+          <div className="bg-white border border-feisen-borde rounded-xl p-4 sm:p-5 space-y-3">
+            <div>
+              <h2 className="font-semibold text-feisen-texto">Seguimiento</h2>
+              <p className="text-sm text-feisen-texto-2">Planos, fotos y documentos a medida que el proyecto avanza, con una nota de qué se hizo.</p>
+            </div>
+            <Bitacora proyectoId={id} avances={avances} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
+          </div>
+          <div className="bg-white border border-feisen-borde rounded-xl p-4 sm:p-5">
+            <Interrupciones proyectoId={id} interrupciones={interrupciones} equipos={equipos} onCambio={cargarRegistros} avisar={avisar} />
+          </div>
+        </div>
+
+        {/* Panel fijo con lo clave (en celular va arriba) */}
+        <aside className="order-first lg:order-last lg:sticky lg:top-4 bg-white border border-feisen-borde rounded-xl p-4 space-y-4">
+          <div className="space-y-2">
+            <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
+            {p.decidido_at && enMarcha && (
+              <p className="text-xs text-feisen-texto-2">Aprobado por <b className="text-feisen-texto">{APROBADORA.nombre}</b> el {formatFecha(p.decidido_at)}</p>
+            )}
+            {accionPrincipal}
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400">{p.monto_aprobado != null ? 'Inversión aprobada' : 'Inversión'}</p>
+              <p className="text-xl font-semibold tabular-nums text-feisen-texto">{formatCOP(p.monto_aprobado ?? inv)}</p>
+            </div>
+            {ahorroUnidad != null && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-400">{ahorroUnidad < 0 ? 'Sube por unidad' : 'Ahorro por unidad'}</p>
+                <p className={`text-xl font-semibold tabular-nums ${ahorroUnidad < 0 ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>
+                  {formatCOP(Math.abs(ahorroUnidad))} <span className="text-xs font-normal text-feisen-texto-2">{fmtPct(Math.abs(ahorroUnidad) / Number(p.costo_actual))}</span>
+                </p>
+              </div>
+            )}
+          </div>
+          {p.indicador_meta && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400">Meta</p>
+              <p className="text-sm text-feisen-texto">{p.indicador_meta}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-400 mb-1.5">Fases</p>
+            {fasesConNombre.length === 0 ? (
+              <p className="text-sm text-feisen-texto-2">Sin cronograma. Llénelo en la ficha.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {fasesConNombre.map((f, i) => {
+                  const e = estadoFase(f)
+                  const malo = e.clave === 'atrasada' || e.clave === 'tarde'
+                  return (
+                    <li key={i} className="flex items-start justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${ESTADOS_FASE[e.clave].barra}`} />
+                        <span className={`truncate ${malo ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{f.fase}</span>
+                      </span>
+                      <span className={`text-xs text-right shrink-0 ${malo ? 'text-feisen-rojo' : e.clave === 'por_vencer' ? 'text-amber-700' : 'text-feisen-texto-2'}`}>{textoEstadoFase(e)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <button onClick={() => irA('ficha')}
+              className="w-full px-4 min-h-[44px] rounded-lg border border-feisen-borde text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">
+              Ver o editar la ficha
+            </button>
+            {enMarcha && p.estado !== 'cerrado' && (
+              <button onClick={cerrar} disabled={guardando} className="w-full text-sm text-feisen-texto-2 hover:text-feisen-rojo min-h-[36px]">
+                Cerrar proyecto
+              </button>
+            )}
+          </div>
+        </aside>
       </div>
       {aviso}
     </div>
@@ -300,6 +398,17 @@ function Bitacora({ proyectoId, avances, fases, onCambio, avisar }) {
   const [abierto, setAbierto] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState('')
+  const [fotos, setFotos] = useState({})   // path → enlace firmado, para ver las imágenes en la bitácora
+
+  useEffect(() => {
+    const rutas = avances.flatMap(a => (a.archivos || []).filter(esImagen).map(x => x.path))
+    if (!rutas.length) { setFotos({}); return }
+    let vivo = true
+    supabase.storage.from(BUCKET).createSignedUrls(rutas, 3600).then(({ data }) => {
+      if (vivo) setFotos(Object.fromEntries((data || []).filter(u => u.signedUrl).map(u => [u.path, u.signedUrl])))
+    })
+    return () => { vivo = false }
+  }, [avances])
 
   async function guardar() {
     setError('')
@@ -392,9 +501,19 @@ function Bitacora({ proyectoId, avances, fases, onCambio, avisar }) {
               <div className="flex-1 min-w-0 space-y-1.5">
                 <p className="text-sm font-medium text-feisen-texto">{fechaDia(a.fecha)}{a.fase ? ` · ${a.fase}` : ''}</p>
                 {a.nota && <p className="text-sm text-feisen-texto whitespace-pre-line">{a.nota}</p>}
-                {(a.archivos || []).length > 0 && (
+                {(a.archivos || []).some(x => esImagen(x) && fotos[x.path]) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                    {a.archivos.filter(x => esImagen(x) && fotos[x.path]).map(x => (
+                      <a key={x.path} href={fotos[x.path]} target="_blank" rel="noreferrer"
+                        className="block aspect-[4/3] rounded-lg overflow-hidden border border-feisen-borde-suave bg-feisen-fondo">
+                        <img src={fotos[x.path]} alt={x.nombre} className="w-full h-full object-cover" loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {(a.archivos || []).some(x => !(esImagen(x) && fotos[x.path])) && (
                   <div className="flex flex-wrap gap-2">
-                    {a.archivos.map(x => <ArchivoAdjunto key={x.path} archivo={x} />)}
+                    {a.archivos.filter(x => !(esImagen(x) && fotos[x.path])).map(x => <ArchivoAdjunto key={x.path} archivo={x} />)}
                   </div>
                 )}
               </div>
@@ -465,7 +584,7 @@ function Interrupciones({ proyectoId, interrupciones, equipos, onCambio, avisar 
   }
 
   return (
-    <div className="space-y-3 pt-3 border-t border-feisen-borde-suave">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="font-semibold text-feisen-texto">Interrupciones por mantenimiento</p>
