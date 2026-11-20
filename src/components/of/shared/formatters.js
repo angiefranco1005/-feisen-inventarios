@@ -2,9 +2,16 @@
 
 export function formatFecha(fecha) {
   if (!fecha) return '—'
-  // fecha puede venir como 'YYYY-MM-DD' (columna DATE de Postgres) — evitar el corrimiento de huso horario
-  const [y, m, d] = String(fecha).split('T')[0].split('-')
-  return `${d}/${m}/${y}`
+  // 'YYYY-MM-DD' (columna DATE de Postgres): se arma del texto para evitar el corrimiento de huso horario.
+  // Un timestamp se pasa a la hora de Bogotá (cortar el texto daría el día UTC: después de las 7 p. m., el día siguiente).
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    const [y, m, d] = fecha.split('-')
+    return `${d}/${m}/${y}`
+  }
+  return new Date(fecha).toLocaleDateString('es-CO', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    timeZone: 'America/Bogota'
+  })
 }
 
 export function formatFechaHora(fecha) {
