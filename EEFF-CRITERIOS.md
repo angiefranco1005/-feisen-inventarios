@@ -548,10 +548,66 @@ Los dos primeros y los dos Credipago quedan **enteros en corriente** porque les 
 
 Los **libros** traen los tres leasing en **$316.545.340** y el saldo **despejado desde los intereses de los extractos** dio **$316.345.919**: se diferencian en **$199.421**, un **0,06 %**. Son **dos caminos independientes** —la contabilidad por un lado, el documento del banco por el otro— que llegan prácticamente al mismo número, así que **el método de despejar el saldo desde el interés es confiable** y lo que se calculó con él se puede usar sin desconfianza.
 
-#### Dos advertencias que hay que leer antes de usar esta cifra
+#### Una advertencia que hay que leer antes de usar esta cifra
 
-- **Faltan $88.391.205 por identificar, y hoy están contados como no corrientes sin que nadie lo haya confirmado.** El grupo 21 del balance de octubre trae **$586.450.615** y los nueve documentos solo explican **$498.059.410**. Al escribir la casilla en $155.919.009, esos **$88.391.205** quedan automáticamente del lado **no corriente**, **por descarte, no porque se haya revisado**. Lo que falta hacer es **preguntarle a la contadora qué cuentas componen el grupo 21** y cotejarlas contra esta lista de nueve. Una posibilidad es el **presunto doble registro de $58.861.575 del leasing de la cizalla**, que ya estaba anotado como pendiente más arriba; si fuera eso, no sería deuda nueva sino deuda que no existe.
 - **El cupo CrediExpress de Davivienda 6700456801301403 está en CERO y no debe entrar al balance.** Es un **cupo aprobado de $50.000.000 sin usar**: un cupo disponible **no es deuda**, así que no se registra como pasivo ni corriente ni no corriente. Queda escrito para que nadie lo sume al verlo en los papeles del banco.
+
+#### Los $88.391.205 que faltaban ya casi todos tienen nombre (20/11/2026)
+
+Al escribir la casilla quedó una diferencia sin explicar: el grupo 21 del balance de octubre trae **$586.450.615** y los nueve documentos que entregó Angie el 19/11/2026 solo explicaban **$498.059.410**. Esos **$88.391.205** quedaron del lado **no corriente por descarte**, sin que nadie lo confirmara.
+
+El **20/11/2026** se cerró casi todo, y **sin entrar a Odoo**: se cruzó el total del grupo 21 contra los **saldos por cuenta al 31/10/2026** que ya estaban guardados en estos documentos, de cuando se renombraron las nueve obligaciones el 18/11.
+
+**Lo primero: el faltante no está en los leasing.** Los tres leasing en libros dan **$316.545.340** (211500 dobladora $116.149.760 + 211502 torno $85.256.752 + 211503 cizalla $115.138.828) y el despeje desde los intereses había dado **$316.345.919**. Cuadran. Así que **todo el faltante está del lado de los créditos**.
+
+Sacando los leasing, en libros quedan **$269.905.275** de créditos y los seis créditos documentados explican **$181.713.491**: faltan **$88.191.784**, que son los mismos $88.391.205 menos los $199.421 de diferencia de redondeo de los leasing.
+
+| Qué es | Cuenta | Saldo al 31/10 |
+|---|---|---|
+| Préstamo con tabla de amortización (ver abajo) | 219500 Otras Obligaciones Particulares | $69.498.000 |
+| Falta el extracto de octubre | 210511 Crédito Davivienda No. 1403 Oct 2026 | $13.650.000 |
+| **Ya tiene nombre** | | **$83.148.000** |
+| Sin nombre todavía | | $5.043.784 |
+| **Faltante** | | **$88.191.784** |
+
+Dos cuentas explican el **94 %** de lo que faltaba.
+
+##### El préstamo de la 219500: $100.000.000 al 2 % mensual
+
+Angie mandó el PDF **"Tabla de amortizacion prestamo Construequipos junio 17 de 2025.pdf"** (está en su Escritorio, no en el repositorio). Es un préstamo **a** Construequipos Franco S.A.S., titulado *"PRESTAMO CORRIENTE CUOTA SOBRE SALDO"*.
+
+| | |
+|---|---|
+| Valor | **$100.000.000**, desembolsado el **17/06/2025** |
+| Tasa | **2,00 % mensual** (equivale a **26,8 % efectivo anual**) |
+| Cuotas | **36**. Los primeros seis meses (junio a noviembre de 2025) **solo interés**, $2.000.000 al mes y **sin abonar capital**. Desde el **17/12/2025** abona **$2.778.000 de capital** cada mes |
+| Saldo al 17/10/2026 | **$69.442.000** |
+| Última cuota | **17/11/2028** |
+
+El libro dice **$69.498.000** y la tabla **$69.442.000**: **$56.000** de diferencia, redondeo de la tabla. **Es la misma obligación, sin duda.**
+
+**Esa plata es cara.** 2 % mensual son **26,8 % EA**, por encima de todos los créditos bancarios de Feisen, que van entre **18,70 % y 22,52 % EA**.
+
+**Quién prestó la plata no lo dice el documento.** El nombre de la cuenta ("Otras Obligaciones Particulares") hace pensar en un particular y no en un banco, pero **eso hay que confirmarlo**: aquí queda como pregunta, no como dato.
+
+**La parte corriente de ese préstamo son $33.336.000.** Son las **doce cuotas que van del 17/11/2026 al 17/10/2027**, a $2.778.000 de capital cada una. Se comprueba contra la propia tabla: saldo al 17/10/2026 **$69.442.000** menos saldo al 17/10/2027 **$36.106.000** = **$33.336.000**. Sobre el saldo del libro ($69.498.000) queda **corriente $33.336.000 · no corriente $36.162.000**.
+
+##### Lo que todavía falta
+
+- **El extracto de octubre del crédito Davivienda 1403** (cuenta **210511**, $13.650.000). Angie había mandado el de **agosto**, y de ese se concluyó que el cupo CrediExpress estaba en cero: **entre agosto y octubre se usó**. Sin el extracto de octubre no se sabe cuánto de esos $13.650.000 vence dentro de doce meses.
+- **$5.043.784 sin nombre.** Es lo único que queda del faltante original.
+
+##### La casilla NO se ha cambiado
+
+**`corriente:deuda_financiera` de octubre sigue en $155.919.009.** Con el préstamo de la 219500 ya identificado, la cifra correcta **subiría a $189.255.009** ($155.919.009 + $33.336.000), pero **no se ha escrito**: falta el extracto de Davivienda y falta el visto bueno de Angie. **Queda pendiente.**
+
+#### La 210510 está en negativo, y eso no es parte del faltante
+
+Salió el mismo **20/11/2026** y conviene no mezclarlo con lo anterior. La cuenta **210510 "Crédito Bancolombia No. 3292 Sept 2026"** está en **menos $6.666.666** al 31/10. **Un pasivo en negativo no existe**: o se pagó de más, o se registró al revés.
+
+Y hay algo más: ese **"3292"** se parece al **Credipago de Davivienda 10081013292**, que debe **$3.333.334**. Puede ser **la misma deuda registrada en dos lados y mal**.
+
+**No se tocó nada.** Es pregunta para la contadora.
 
 #### La casilla es por mes, y solo hace falta de octubre en adelante
 
@@ -1075,7 +1131,11 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **Las "consignaciones sin identificar" (130501, −$70.593.236) están a la espera de un informe.** Son consignaciones de remisiones que no se han logrado identificar; Angie ya se lo pidió a la contadora y **hasta que llegue no se reclasifica nada**.
 - **La deuda del leasing de la cizalla puede estar duplicada ($58.861.575).** En la cuenta 211503 hay **dos movimientos por exactamente el mismo valor**: el saldo inicial del 31/03/2026 con tercero Bancolombia y una "COMPRA CIZALLA" del 21/08/2026 con tercero INOMAQ. **No se tocó nada**: hay que mirar el contrato y el soporte de la compra con la contadora. Si resulta duplicado, **el pasivo baja $58,8 millones**.
 - **Hay $113.655.000 de ICA del municipio de Soacha sin pagar, de 2017, 2018 y 2019.** Están en la cuenta **241200** de Feisen y son el **42 % de los $267.749.816** del grupo 24 de impuestos: **seis apuntes**, todos con tercero **"MUNICIPIO DE SOACHA"** y concepto "ICA por pagar Soacha 2017 / 2018 / 2019", **todos de los saldos iniciales de marzo de 2026**, o sea de antes de Odoo. Apareció al abrir la cuenta para renombrarla. Es una **deuda vieja con una entidad pública**: hay que mirar con la contadora **si está dentro de algún acuerdo de pago** o si sigue corriendo con intereses y sanciones. **No se tocó nada.** Ver la sección 2.3.
-- **Del grupo 21 quedan $88.391.205 sin identificar, y hoy se están leyendo como deuda de largo plazo.** El balance de octubre trae **$586.450.615** en obligaciones financieras y los nueve documentos que entregó Angie el 19/11/2026 explican **$498.059.410**. Como la casilla dice que lo corriente son $155.919.009, **esa diferencia queda del lado no corriente por descarte, sin que nadie lo haya confirmado**. **Pendiente para la contadora:** qué cuentas componen el grupo 21, para cotejarlas contra la lista de nueve. Una posibilidad es el **presunto doble registro de $58.861.575 del leasing de la cizalla**. Ver la sección 2.3.
+- **De los $88.391.205 del grupo 21 que estaban sin identificar ya solo quedan $5.043.784.** El 20/11/2026 se cruzó el total del grupo contra los saldos por cuenta al 31/10, sin entrar a Odoo: **el faltante no estaba en los leasing**, estaba todo en los créditos, y dos cuentas explican el 94 %: la **219500 "Otras Obligaciones Particulares" ($69.498.000)**, que es un **préstamo de $100.000.000 al 2 % mensual** con tabla de amortización, y la **210511 "Crédito Davivienda No. 1403 Oct 2026" ($13.650.000)**. Ver la sección 2.3.
+- **Falta el extracto de octubre del crédito Davivienda 1403.** El de agosto decía que el cupo CrediExpress estaba en cero, así que **entre agosto y octubre se usó**. Sin ese extracto no se sabe cuánto de los $13.650.000 vence dentro de doce meses.
+- **La casilla de deuda corriente de octubre se quedó corta y todavía no se corrige.** Sigue en **$155.919.009**; con el préstamo de la 219500 ya identificado debería ser **$189.255.009**, pero **no se ha escrito** hasta que llegue el extracto de Davivienda y Angie dé el visto bueno.
+- **No se sabe quién prestó los $100.000.000 de la 219500.** La tabla de amortización no lo dice. El nombre de la cuenta sugiere un particular, no un banco, pero **eso hay que confirmarlo**.
+- **La cuenta 210510 "Crédito Bancolombia No. 3292 Sept 2026" está en menos $6.666.666.** Un pasivo en negativo no existe: o se pagó de más o se registró al revés. Y el "3292" se parece al **Credipago de Davivienda 10081013292** ($3.333.334), así que puede ser la **misma deuda registrada en dos lados y mal**. No se tocó nada; es pregunta para la contadora.
 - **El cupo CrediExpress de Davivienda (6700456801301403) está en cero: no es deuda.** Son **$50.000.000 de cupo aprobado y sin usar**. Un cupo disponible **no se registra como pasivo**, ni corriente ni no corriente; queda dicho aquí para que no se sume al ver los papeles del banco. Ver la sección 2.3.
 - **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
 
@@ -1244,6 +1304,10 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 19/11 | **Los márgenes tampoco dan exactamente iguales a los del Excel, y no es error de ninguno de los dos:** en la hoja consolidada los ingresos netos **dejan por fuera las ventas no operacionales** y en nuestro P&G **entran**. Comprobado en **enero**: nuestros ingresos son **$459.595.504** y los del Excel **$455.130.004**, y la diferencia son **exactamente los $4.465.500** de esa fila; con eso el margen bruto de enero pasa de **20,6 % a 21,6 %**. **Queda un resto pequeño sin explicar** —unos **$910.000** en la utilidad bruta de enero— **que conviene revisar algún día** |
 | 19/11 | **Avisos de la tabla de indicadores:** cada celda lleva **flecha verde (▲ mejoró) o roja (▼ empeoró)** frente al mes anterior, **mirando para el lado que le convenga al indicador** (en un margen subir es bueno; en un costo sobre ventas, malo), y **un movimiento menor a la décima que se muestra no pinta flecha** porque es redondeo. Los meses **sin mano de obra cargada** van **en ámbar**, igual que en la tabla del año, porque su margen bruto sale inflado y la flecha se leería como una mejora que no existe. El **mes en curso** queda marcado **"va a mitad"**, también en ámbar: le faltan ventas por entrar pero los gastos fijos ya pesan casi completos, así que su margen no se puede comparar con el de los meses cerrados. Y el **apalancamiento operativo** sale **"—"** cuando el margen operativo es **cero o negativo** (en el Excel ese caso daba cifras sin sentido, como **−18,14 en junio**) |
 | 19/11 | **La pestaña de Indicadores carga ahora el año entero** (`useAno`), no solo el mes escogido. Dentro conviven **dos cortes de tiempo**: el mes que se escoge arriba manda en los **indicadores de liquidez del balance**, y los del **estado de resultados van siempre del año completo**. No pide nada de más a la red: enero a septiembre salen del Excel y de octubre en adelante, de lo que `useAno` ya trajo |
+| 20/11 | **De los $88.391.205 del grupo 21 sin identificar ya solo quedan $5.043.784, y se resolvió sin entrar a Odoo.** Se cruzó el total del grupo contra los **saldos por cuenta al 31/10/2026** que ya estaban guardados de cuando se renombraron las nueve obligaciones el 18/11. **El faltante no estaba en los leasing**: los tres dan $316.545.340 en libros contra $316.345.919 despejados desde los intereses, así que estaba todo en los **créditos** ($269.905.275 en libros contra $181.713.491 documentados = $88.191.784). De eso, **$83.148.000 (el 94 %) lo explican dos cuentas con nombre propio**: la **219500 "Otras Obligaciones Particulares" $69.498.000** y la **210511 "Crédito Davivienda No. 1403 Oct 2026" $13.650.000**. Ver la sección 2.3 |
+| 20/11 | **La 219500 es un préstamo de $100.000.000 al 2 % mensual, y su parte corriente son $33.336.000.** Angie mandó la tabla de amortización ("Tabla de amortizacion prestamo Construequipos junio 17 de 2025.pdf", en su Escritorio): desembolsado el **17/06/2025**, **36 cuotas**, los primeros seis meses solo interés ($2.000.000) y desde el **17/12/2025** abona **$2.778.000 de capital** al mes, última cuota **17/11/2028**. Saldo según la tabla al 17/10/2026 **$69.442.000** contra **$69.498.000** del libro: **$56.000** de redondeo, es la misma obligación. Lo corriente son las doce cuotas del 17/11/2026 al 17/10/2027 ($69.442.000 − $36.106.000), así que sobre el saldo del libro queda **corriente $33.336.000 · no corriente $36.162.000**. **El 2 % mensual son 26,8 % EA: es plata cara** frente a los créditos bancarios de Feisen (18,70 % a 22,52 % EA). **Quién prestó la plata no lo dice el documento** y queda por confirmar |
+| 20/11 | **La casilla `corriente:deuda_financiera` de octubre NO se cambió: sigue en $155.919.009.** Con el préstamo de la 219500 ya identificado la cifra correcta subiría a **$189.255.009**, pero **no se escribió**: falta el **extracto de octubre del crédito Davivienda 1403** —el de agosto decía que el cupo CrediExpress estaba en cero, así que entre agosto y octubre se usó— y falta el visto bueno de Angie. Quedan además **$5.043.784 sin nombre** |
+| 20/11 | **La cuenta 210510 "Crédito Bancolombia No. 3292 Sept 2026" está en menos $6.666.666 al 31/10, y eso no es parte del faltante.** Un pasivo en negativo no existe: o se pagó de más o se registró al revés. El "3292" se parece al **Credipago de Davivienda 10081013292** ($3.333.334), así que puede ser la **misma deuda registrada en dos lados y mal**. **No se tocó nada**; es pregunta para la contadora. Ver la sección 2.3 |
 | 20/11 | **Las deudas de difícil cobro quedan como no corrientes, y ya no es propuesta mía: lo decidió Angie.** Palabras suyas: *"las deudas de difícil cobro es mejor dejarlas como no corrientes"*. La **1390** y la **1399** siguen mostrándose igual que antes —**ninguna cifra del balance cambió**—; lo que cambia es que el criterio **deja de estar pendiente de confirmar**. Entre las dos quedan unos **$400.000**, así que mueven muy poco la razón corriente y el capital de trabajo. **No confundir con la decisión del 19/11**, que es otra: esa fue la de los **anticipos de impuestos (1355), que sí son corrientes**. Ver la sección 2.3 |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
