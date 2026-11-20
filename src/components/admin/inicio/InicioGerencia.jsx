@@ -8,6 +8,7 @@ import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw } f
 import DashboardVentas from '../../of/ventas/DashboardVentas'
 import DashboardOF from '../../of/Dashboard'
 import InformeSinRotacion from './InformeSinRotacion'
+import DashboardLogistica from '../../logistica/Dashboard'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica, por pestañas para no llenar la
 // pantalla (2026-11-04). Resumen = lo que requiere decisión + una cifra por módulo; cada
@@ -23,6 +24,12 @@ const VISTAS = [
   { id: 'logistica',   texto: 'Logística' },
   { id: 'produccion',  texto: 'Producción' },
   { id: 'personas',    texto: 'Personas' },
+]
+// Inicio de Logística (Efraín, 2026-11-20): su inicio de siempre + Inventarios y Logística de gerencia
+const VISTAS_LOGISTICA = [
+  { id: 'inicio',      texto: 'Inicio' },
+  { id: 'inventarios', texto: 'Inventarios' },
+  { id: 'logistica',   texto: 'Logística' },
 ]
 // Pestañas que usan el selector de periodo
 const CON_PERIODO = ['resumen', 'produccion', 'personas']
@@ -85,7 +92,28 @@ function mosaico(items, x, y, w, h, out = []) {
 }
 const TONOS = ['#064794', '#2F5E9E', '#4E78B0', '#6E93C8', '#8FAAD2', '#A9BCDB', '#C3D3E8']
 
-export default function InicioGerencia() {
+// Pestañas por módulo (punto rojo/ámbar si tienen pendientes)
+function Pestanas({ vistas, vista, elegir, avisoDe = () => null }) {
+  return (
+    <div role="tablist" aria-label="Módulo" className="flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-feisen-borde [scrollbar-width:none]">
+      {vistas.map(v => {
+        const aviso = avisoDe(v.id)
+        return (
+          <button key={v.id} role="tab" aria-selected={vista === v.id} onClick={() => elegir(v.id)}
+            className={`relative whitespace-nowrap px-3 py-2 text-[13.5px] -mb-px border-b-2 transition-colors ${vista === v.id ? 'border-feisen-azul text-feisen-azul font-semibold' : 'border-transparent text-feisen-texto-2 hover:text-feisen-texto'}`}>
+            {v.texto}
+            {aviso && <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${aviso === 'rojo' ? 'bg-feisen-rojo' : 'bg-amber-500'}`} aria-label="tiene pendientes" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function InicioGerencia({ modo = 'gerencia' }) {
+  const esLog = modo === 'logistica'
+  const vistas = esLog ? VISTAS_LOGISTICA : VISTAS
+  const claveVista = esLog ? 'inicio-log-vista' : 'inicio-vista'
   const { perfil } = useAuth()
   const navigate = useNavigate()
   const [foto, setFoto]           = useState(null)
@@ -98,7 +126,9 @@ export default function InicioGerencia() {
   const [bodRot, setBodRotEstado] = useState(() => leer('inicio-rotacion-bodega', ''))
   const setBodRot = v => setBodRotEstado(prev => { const n = typeof v === 'function' ? v(prev) : v; guardar('inicio-rotacion-bodega', n); return n })
   const [params, setParams]       = useSearchParams()
-  const vista = VISTAS.some(v => v.id === params.get('vista')) ? params.get('vista') : leer('inicio-vista', 'resumen')
+  const guardada = leer(claveVista, vistas[0].id)
+  const vista = vistas.some(v => v.id === params.get('vista')) ? params.get('vista')
+    : vistas.some(v => v.id === guardada) ? guardada : vistas[0].id
   // Informe completo de productos sin rotación (dentro de la pestaña Inventarios, en la URL)
   const informe = vista === 'inventarios' && params.get('informe') === 'sin-rotacion'
   function abrirInforme(abrir) {
@@ -106,19 +136,19 @@ export default function InicioGerencia() {
     window.scrollTo({ top: 0 })
   }
   function elegirVista(v) {
-    guardar('inicio-vista', v)
+    guardar(claveVista, v)
     setParams(prev => { const n = new URLSearchParams(prev); n.set('vista', v); n.delete('informe'); return n }, { replace: true })
   }
 
   async function recargar() {
     setError(null)
-    try { setFoto(await cargarFoto()) } catch (e) { setError(e.message || 'No se pudieron cargar los datos.') }
+    try { setFoto(await cargarFoto({ soloOperacion: esLog })) } catch (e) { setError(e.message || 'No se pudieron cargar los datos.') }
   }
   useEffect(() => { recargar() }, [])
 
   const rango = useMemo(() => rangoPeriodo(periodo), [periodo])
   useEffect(() => {
-    if (!foto) return
+    if (!foto || esLog) return
     let vigente = true
     setDatosP(null)
     cargarPeriodo(rango.desde, rango.hasta, foto).then(d => { if (vigente) setDatosP(d) })
@@ -134,7 +164,18 @@ export default function InicioGerencia() {
       <button onClick={recargar} className="px-3 py-2 rounded-lg border border-feisen-borde text-sm">Reintentar</button>
     </div>
   )
-  if (!foto) return <Spinner texto="Armando el tablero..." />
+  // En Logística la pestaña Inicio no espera la carga del tablero
+  if (!foto && !(esLog && vista === 'inicio')) return <Spinner texto="Armando el tablero..." />
+  if (!foto) return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-feisen-texto">{new Date().getHours() < 12 ? 'Buenos días' : new Date().getHours() < 19 ? 'Buenas tardes' : 'Buenas noches'}, {perfil?.nombre?.split(' ')[0]}</h1>
+        <p className="text-sm text-feisen-texto-2 mt-0.5">Logística · Bodega Motores</p>
+      </div>
+      <Pestanas vistas={vistas} vista={vista} elegir={elegirVista} />
+      <DashboardLogistica sinSaludo />
+    </div>
+  )
 
   const { inv, bodegas, logistica, rrhh, calidad, fundicion } = foto
   const hoy = new Date()
@@ -229,7 +270,7 @@ export default function InicioGerencia() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-feisen-texto">{saludo}, {perfil?.nombre?.split(' ')[0]}</h1>
-          <p className="text-sm text-feisen-texto-2 mt-0.5">{DIAS[hoy.getDay()]} {hoy.getDate()} de {MESES[hoy.getMonth()]} · Elige el módulo en las pestañas</p>
+          <p className="text-sm text-feisen-texto-2 mt-0.5">{DIAS[hoy.getDay()]} {hoy.getDate()} de {MESES[hoy.getMonth()]}{esLog ? ' · Logística · Bodega Motores' : ' · Elige el módulo en las pestañas'}</p>
         </div>
         {(vista === 'inventarios' || vista === 'logistica') && (
           <button onClick={recargar} title="Actualizar datos" className="p-2 rounded-lg border border-feisen-borde bg-white text-feisen-texto-2 hover:bg-feisen-fondo"><RefreshCw size={15} /></button>
@@ -260,18 +301,9 @@ export default function InicioGerencia() {
 
 
       {/* Pestañas por módulo */}
-      <div role="tablist" aria-label="Módulo" className="flex gap-1 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 border-b border-feisen-borde [scrollbar-width:none]">
-        {VISTAS.map(v => {
-          const aviso = avisoDe(v.id)
-          return (
-            <button key={v.id} role="tab" aria-selected={vista === v.id} onClick={() => elegirVista(v.id)}
-              className={`relative whitespace-nowrap px-3 py-2 text-[13.5px] -mb-px border-b-2 transition-colors ${vista === v.id ? 'border-feisen-azul text-feisen-azul font-semibold' : 'border-transparent text-feisen-texto-2 hover:text-feisen-texto'}`}>
-              {v.texto}
-              {aviso && <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${aviso === 'rojo' ? 'bg-feisen-rojo' : 'bg-amber-500'}`} aria-label="tiene pendientes" />}
-            </button>
-          )
-        })}
-      </div>
+      <Pestanas vistas={vistas} vista={vista} elegir={elegirVista} avisoDe={avisoDe} />
+
+      {vista === 'inicio' && <DashboardLogistica sinSaludo />}
 
       {vista === 'resumen' && <>
         {/* Requiere tu atención */}

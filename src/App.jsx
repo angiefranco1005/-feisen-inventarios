@@ -137,6 +137,7 @@ function AppRoutes() {
     : rolEfectivo === 'CONSULTOR' ? <Layout><DashboardConsultor /></Layout>
     : rolEfectivo === 'RRHH' && puede('rrhh') ? <Navigate to="/rrhh/empleados" replace />
     : esComercial ? <Layout><InicioVentas /></Layout>
+    : rolEfectivo === 'LOGISTICA' ? <Layout><InicioGerencia modo="logistica" /></Layout>
     : puede('movimientos') ? <Layout><DashboardLogistica /></Layout>
     : primera ? <Navigate to={primera} replace />
     : <Layout><SinModulos /></Layout>

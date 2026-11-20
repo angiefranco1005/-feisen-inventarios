@@ -2534,3 +2534,9 @@ ningún cálculo con el estado de resultados**: el dato y la cuenta viven aparte
 - Gotcha: el número (MOV-/SAL-/REC-…) se calcula en el cliente con max+1, así que dos envíos simultáneos salen con el MISMO número (caso SAL-WA-0452 del 30/10, aún duplicada).
 - Candado en la base (migración `bloquear_movimiento_repetido`, 19/11, con OK de Angie): trigger BEFORE INSERT `trg_bloquear_movimiento_repetido` rechaza un movimiento idéntico (producto, tipo, cantidad, usuario, bodegas, serial, cliente, proveedor, OF, referencia, destino, motivo, fecha) a otro no revertido guardado en los últimos 60 s en OTRA transacción (las filas de un mismo insert comparten created_at y no se bloquean entre sí). Índice `idx_movimientos_item_created`. Si alguna vez hay que registrar dos movimientos idénticos seguidos a propósito, esperar un minuto o cambiar la referencia.
 - Duplicados viejos aún en la base, pendientes de que Angie decida: SAL-WA-0452 (30/10, 6 piezas ×2), MOV-CP-0001..0011 láminas (13/10), SAL-MG-0122..0124 thinner (02/10), SAL-WA-0012/0013 (01/09).
+
+## 2026-11-20 — Inicio de Logística (Efraín Palma) con pestañas de gerencia
+- Pedido de Angie: que a Logística le salgan en su inicio las pestañas Inventarios y Logística del Inicio de gerencia.
+- `InicioGerencia` acepta `modo="logistica"` (App.jsx, rol LOGISTICA): pestañas Inicio (su DashboardLogistica de siempre, sin saludo repetido), Inventarios y Logística. Otras vistas por URL (?vista=personas…) caen en Inicio. La pestaña se recuerda aparte (`inicio-log-vista`).
+- `cargarFoto({ soloOperacion: true })` no consulta empleados, nómina, novedades, no conformidades ni fundición; y en ese modo no se carga el periodo. La pestaña Inicio se muestra sin esperar la carga del tablero (que lee todos los movimientos).
+- RLS: LOGISTICA ya lee items, stock, movimientos (política "ver movimientos"), bodegas y pedidos; tiene módulos productos y pedidos, así que los enlaces "Ir a…" le abren.

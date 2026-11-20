@@ -42,8 +42,12 @@ export function opcionesMeses(primerFecha) {
 }
 
 // ── Foto de hoy ─────────────────────────────────────────────────────────
-export async function cargarFoto() {
+// soloOperacion (Inicio de Logística): solo inventarios y pedidos; no trae nómina, personal,
+// calidad ni fundición (no los ve y no le corresponden).
+export async function cargarFoto({ soloOperacion = false } = {}) {
   const hoyIsoQ = isoDia(hoy0())
+  const vacio = Promise.resolve({ data: [], count: 0 })
+  const si = q => soloOperacion ? vacio : q()
   const [items, stock, movs, bods, pedidos, empleados, ncs, nomina, fundidas30, moldeoNc, fundSemanas, ausHoy] = await Promise.all([
     fetchAllPages((d, h) => supabase.from('items').select('id, nombre, activo, stock_minimo, bodega_id').order('id').range(d, h)),
     fetchAllPages((d, h) => supabase.from('stock').select('item_id, bodega_id, cantidad_actual, items(nombre, precio_costo, activo, unidad_medida, categorias(nombre))').order('item_id').order('bodega_id').range(d, h)),
@@ -51,13 +55,13 @@ export async function cargarFoto() {
     fetchAllPages((d, h) => supabase.from('movimientos').select('item_id, bodega_origen_id, bodega_destino_id, created_at').eq('revertido', false).order('id').range(d, h)),
     supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre'),
     fetchAllPages((d, h) => supabase.from('pedidos').select('numero, estado, area, created_at, fecha_recibido, fecha_estimada_llegada').order('id').range(d, h)),
-    supabase.from('empleados').select('id, nombres, apellidos, area, estado, fecha_ingreso, fecha_fin_contrato'),
-    supabase.from('no_conformidades').select('estado, bodega_nombre, cantidad_afectada, tipo_defecto, fecha_deteccion'),
-    supabase.from('nomina_periodos').select('id, anio, mes, quincena, estado').order('anio', { ascending: false }).order('mes', { ascending: false }).order('quincena', { ascending: false }).limit(1),
-    supabase.from('fundidas').select('id', { count: 'exact', head: true }).gte('fecha', isoDia(new Date(Date.now() - 30 * DIA))),
-    supabase.from('ordenes_moldeo_piezas').select('cantidad_nc, ordenes_moldeo(numero, fecha)').gt('cantidad_nc', 0),
-    entradasFundicion(new Date(hoy0().getTime() - 55 * DIA), new Date()),
-    supabase.from('novedades').select('empleado_id').lte('fecha_inicio', hoyIsoQ).or(`fecha_fin.gte.${hoyIsoQ},and(fecha_fin.is.null,fecha_inicio.eq.${hoyIsoQ})`),
+    si(() => supabase.from('empleados').select('id, nombres, apellidos, area, estado, fecha_ingreso, fecha_fin_contrato')),
+    si(() => supabase.from('no_conformidades').select('estado, bodega_nombre, cantidad_afectada, tipo_defecto, fecha_deteccion')),
+    si(() => supabase.from('nomina_periodos').select('id, anio, mes, quincena, estado').order('anio', { ascending: false }).order('mes', { ascending: false }).order('quincena', { ascending: false }).limit(1)),
+    si(() => supabase.from('fundidas').select('id', { count: 'exact', head: true }).gte('fecha', isoDia(new Date(Date.now() - 30 * DIA)))),
+    si(() => supabase.from('ordenes_moldeo_piezas').select('cantidad_nc, ordenes_moldeo(numero, fecha)').gt('cantidad_nc', 0)),
+    soloOperacion ? Promise.resolve([]) : entradasFundicion(new Date(hoy0().getTime() - 55 * DIA), new Date()),
+    si(() => supabase.from('novedades').select('empleado_id').lte('fecha_inicio', hoyIsoQ).or(`fecha_fin.gte.${hoyIsoQ},and(fecha_fin.is.null,fecha_inicio.eq.${hoyIsoQ})`)),
   ])
 
   const nombreBod = Object.fromEntries((bods.data || []).map(b => [b.id, b.nombre]))
