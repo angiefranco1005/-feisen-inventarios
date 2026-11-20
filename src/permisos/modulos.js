@@ -57,10 +57,9 @@ export const MODULOS = [
     rutas: ['/mantenimiento'] },
 
   { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas, despacha todas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
-    rutasNivel: { '/of/nueva': 'registra', '/of/dashboard': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
-    // Dashboard de Ventas: solo la gerente de ventas (y ADMIN), sin importar el nivel (2026-11-10, pedido de Angie)
-    rutasRoles: { '/of/dashboard': ['JEFE_VENTAS'] },
-    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/dashboard', '/of/productos', '/of/clientes'] },
+    rutasNivel: { '/of/nueva': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
+    // Sin Dashboard en el menú (2026-11-20): administración lo ve en su Inicio y la gerente de ventas en el suyo
+    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/productos', '/of/clientes'] },
 
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: crea y ve solo sus propios documentos · Todo: ve todo, revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/manuales'] },

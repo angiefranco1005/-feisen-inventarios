@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -54,7 +54,6 @@ const NAV_ADMIN = [
   { to: '/reportes/ventas-internas-fundicion', icon: Invoice,        label: 'Ventas internas',    modulo: 'Fundición' },
   { to: '/ensamble',                          icon: ClipboardList,   label: 'Planillas',          modulo: 'Producción y Ensamble' },
   { to: '/ensamble/seriales',                 icon: Tag,             label: 'Números de máquina', modulo: 'Producción y Ensamble' },
-  { to: '/of/dashboard',                      icon: BarChart2,       label: 'Dashboard',          modulo: 'Ventas' },
   { to: '/of/nueva',                          icon: FilePlus,        label: 'Nueva OF',           modulo: 'Ventas' },
   { to: '/of/ordenes',                        icon: Files,   label: 'Órdenes',            modulo: 'Ventas' },
   { to: '/of/resumen',                        icon: ListChecks,      label: 'Resumen',            modulo: 'Ventas' },

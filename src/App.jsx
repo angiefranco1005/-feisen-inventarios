@@ -39,7 +39,6 @@ import NuevaOrdenOF        from './components/of/NuevaOrden'
 import ListaOrdenesOF       from './components/of/ListaOrdenes'
 import ResumenPlaneacionOF  from './components/of/ResumenPlaneacion'
 import CalendarioOF         from './components/of/Calendario'
-import DashboardOF          from './components/of/DashboardVentasOF'
 import ProductosOF          from './components/of/ProductosOF'
 import ClientesOF           from './components/of/ClientesOF'
 import CosteoFichas         from './components/costeo/CosteoFichas'
@@ -120,7 +119,7 @@ function AppRoutes() {
     '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <PlanillasProduccion />, '/ensamble/seriales': <SerialesMaquina />,
     '/calidad': <NoConformidades />, '/mantenimiento': <Mantenimiento />,
     '/of/nueva': <NuevaOrdenOFConClave />, '/of/ordenes': <ListaOrdenesOF />, '/of/resumen': <ResumenPlaneacionOF />, '/of/calendario': <CalendarioOF />,
-    '/of/dashboard': <DashboardOF />, '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />,
+    '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />,
     '/costeo': <CosteoFichas />, '/costeo/fichas/:id': <CosteoFicha />, '/costeo/etapas': <EtapasMaestro />, '/costeo/cif': <CifMaestro />, '/costeo/equipos': <EquiposMaestro />,
     '/rrhh/empleados': <ListaEmpleados />, '/rrhh/empleados/:id': <FichaEmpleado />, '/rrhh/organigrama': <Organigrama />, '/rrhh/organigrama/:id': <FichaCargo />,
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,

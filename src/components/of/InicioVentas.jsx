@@ -7,10 +7,48 @@ import Alerta from './shared/Alerta'
 import { formatoOF, formatFecha, hoyISO, nombreTransporte } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
 import { FilePlus, Truck, ChevronRight } from '../shared/iconos'
+import DashboardVentas from './ventas/DashboardVentas'
+import DashboardOF from './Dashboard'
 
-// Inicio de los asesores y la gerente de ventas (OF con Registra o Todo):
-// crear una OF y ver qué pedidos tienen que salir hoy. Lo que todavía no está fabricado va primero.
+const VISTAS = [
+  { id: 'hoy',     texto: 'Hoy' },
+  { id: 'ventas',  texto: 'Dashboard de ventas' },
+  { id: 'pedidos', texto: 'Pedidos y demoras' },
+]
+
+// Inicio de los asesores y la gerente de ventas (OF con Registra o Todo).
+// La gerente de ventas (veVentasOdoo) además tiene aquí el dashboard de ventas de Odoo y el de
+// pedidos y demoras: desde 2026-11-20 ya no hay «Dashboard» en el menú de Ventas.
 export default function InicioVentas() {
+  const { veVentasOdoo } = useAuth()
+  const [vista, setVista] = useState(() => {
+    try { return VISTAS.some(v => v.id === localStorage.getItem('feisen-inicio-ventas')) ? localStorage.getItem('feisen-inicio-ventas') : 'hoy' } catch { return 'hoy' }
+  })
+
+  function elegir(v) {
+    setVista(v)
+    try { localStorage.setItem('feisen-inicio-ventas', v) } catch { /* sin almacenamiento */ }
+  }
+
+  if (!veVentasOdoo) return <SalenHoy />
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-5">
+      <div role="tablist" aria-label="Inicio" className="flex gap-1 overflow-x-auto border-b border-feisen-borde [scrollbar-width:none]">
+        {VISTAS.map(v => (
+          <button key={v.id} role="tab" aria-selected={vista === v.id} onClick={() => elegir(v.id)}
+            className={`whitespace-nowrap px-3 py-2 text-[13.5px] -mb-px border-b-2 transition-colors ${vista === v.id ? 'border-feisen-azul text-feisen-azul font-semibold' : 'border-transparent text-feisen-texto-2 hover:text-feisen-texto'}`}>
+            {v.texto}
+          </button>
+        ))}
+      </div>
+      {vista === 'hoy' ? <SalenHoy /> : vista === 'ventas' ? <DashboardVentas /> : <DashboardOF />}
+    </div>
+  )
+}
+
+// Crear una OF y ver qué pedidos tienen que salir hoy. Lo que todavía no está fabricado va primero.
+function SalenHoy() {
   const { perfil } = useAuth()
   const [ordenes, setOrdenes] = useState([])
   const [cargando, setCargando] = useState(true)
