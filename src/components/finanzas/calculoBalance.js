@@ -185,8 +185,9 @@ export const CORRIENTE_GRUPOS = {
 // Cuentas que mandan sobre la regla de su grupo.
 //
 //  - 1390 y 1399 Difícil cobro y sus provisiones: si no se cobraron en años, no son
-//    corrientes. Sigue siendo propuesta mía; entre las dos quedan en unos $400.000, así
-//    que mueven poco. Pendiente de confirmar con la contadora.
+//    corrientes. **Lo decidió Angie el 20/11/2026**: "las deudas de difícil cobro es mejor
+//    dejarlas como no corrientes". Empezó siendo propuesta mía y ya no lo es. Entre las dos
+//    quedan en unos $400.000, así que de todos modos mueven poco.
 //
 // Los **anticipos de impuestos (1355) los decidió Angie el 19/11/2026**: "lo de los
 // anticipos de impuestos sí es corriente". Antes yo los tenía como no corrientes,

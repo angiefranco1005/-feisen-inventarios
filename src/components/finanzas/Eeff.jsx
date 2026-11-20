@@ -1930,9 +1930,9 @@ function IndicadoresBalance({ datos, bancos, cargando, inv, resultado, deuda, on
           nota="activo corriente menos pasivo corriente: lo que queda después de pagar lo que vence en doce meses"
           cifras={{ total: c.capitalTrabajo }} />
         <p className="px-4 py-2.5 text-xs text-feisen-texto-2 leading-relaxed">
-          Las <strong>deudas de difícil cobro</strong> están puestas como <strong>no corrientes</strong>: es una
-          propuesta mía, pendiente de que tú y la contadora la confirmen. Los <strong>anticipos de
-          impuestos</strong> van como <strong>corrientes</strong>, por decisión tuya del 19 de noviembre de 2026.
+          Las <strong>deudas de difícil cobro</strong> van como <strong>no corrientes</strong> y los
+          <strong> anticipos de impuestos</strong> como <strong>corrientes</strong>. Las dos son decisión tuya: los
+          anticipos el 19 de noviembre de 2026 y las deudas de difícil cobro el 20.
         </p>
       </div>
 
