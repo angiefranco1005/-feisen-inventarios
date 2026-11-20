@@ -6,7 +6,7 @@ import { formatCOP, formatFecha } from '../../utils/formatters'
 import Spinner from '../shared/Spinner'
 import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
-import { ArrowLeft, Plus, Trash2, ExternalLink, Send } from '../shared/iconos'
+import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
 import {
   TIPOS, AREAS, RESPONSABLE, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, puntaje, fmtPuntaje, fmtMeses, fmtPct,
@@ -14,7 +14,7 @@ import {
 
 // Ficha de un proyecto de innovación: las 10 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, ficha_costo_id, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 const num = v => v === '' || v == null ? null : Number(String(v).replace(/\./g, '').replace(',', '.'))
 
@@ -24,22 +24,19 @@ export default function FichaProyecto() {
   const [p, setP] = useState(undefined)         // undefined = cargando, null = no existe
   const [original, setOriginal] = useState('')
   const [avances, setAvances] = useState([])
-  const [fichas, setFichas] = useState([])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [faltan, setFaltan] = useState([])
   const [aviso, avisar] = useAviso()
 
   async function cargar() {
-    const [{ data }, { data: av }, { data: fi }] = await Promise.all([
+    const [{ data }, { data: av }] = await Promise.all([
       supabase.from('innovacion_proyectos').select(CAMPOS).eq('id', id).maybeSingle(),
       supabase.from('innovacion_avances').select('*').eq('proyecto_id', id).order('fecha', { ascending: false }),
-      supabase.from('costeo_fichas').select('id, nombre').order('nombre'),
     ])
     setP(data || null)
     setOriginal(JSON.stringify(data))
     setAvances(av || [])
-    setFichas(fi || [])
   }
   useEffect(() => { cargar() }, [id])
 
@@ -217,19 +214,6 @@ export default function FichaProyecto() {
               contexto={formatCOP(num(p.precio_venta) - num(p.costo_unitario)) + ' por unidad'} />
           ) : null}
         </div>
-        <Campo etiqueta="Ficha de Costeo" ayuda="Si es un producto, el costo unitario se valida contra su ficha de costo antes de presentarlo">
-          <div className="flex items-center gap-2">
-            <select value={p.ficha_costo_id || ''} onChange={e => set('ficha_costo_id', e.target.value || null)} className={INPUT}>
-              <option value="">Sin ficha</option>
-              {fichas.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
-            </select>
-            {p.ficha_costo_id && (
-              <Link to={`/costeo/fichas/${p.ficha_costo_id}`} className="shrink-0 inline-flex items-center gap-1 text-sm text-feisen-azul px-2 min-h-[44px]">
-                Abrir <ExternalLink size={14} />
-              </Link>
-            )}
-          </div>
-        </Campo>
       </Seccion>
 
       {/* 6 */}
