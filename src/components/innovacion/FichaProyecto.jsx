@@ -8,13 +8,13 @@ import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, ExternalLink, Send } from '../shared/iconos'
 import {
-  TIPOS, AREAS, RESPONSABLE, DECISIONES_PEDIDAS, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
+  TIPOS, AREAS, RESPONSABLE, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, puntaje, fmtPuntaje, fmtMeses, fmtPct,
 } from './comun'
 
 // Ficha de un proyecto de innovación: las 10 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, decision_pedida, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, ficha_costo_id, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, ficha_costo_id, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 const num = v => v === '' || v == null ? null : Number(String(v).replace(/\./g, '').replace(',', '.'))
 
@@ -150,11 +150,6 @@ export default function FichaProyecto() {
           <Campo etiqueta="Fecha de presentación">
             <input type="date" value={p.fecha_presentacion || ''} onChange={e => set('fecha_presentacion', e.target.value || null)} className={INPUT} />
           </Campo>
-          <Campo etiqueta="Decisión que se pide">
-            <select value={p.decision_pedida} onChange={e => set('decision_pedida', e.target.value)} className={INPUT}>
-              {Object.entries(DECISIONES_PEDIDAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>
-          </Campo>
         </div>
         <Campo etiqueta="Resumen en 3 líneas" ayuda="Qué se hace, para quién y qué gana Feisen">
           <Texto valor={p.resumen} onCambiar={v => set('resumen', v)} filas={3} />
@@ -274,7 +269,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 8 */}
-      <Seccion n="8" titulo="Puntaje de priorización" ayuda="Lo llena gerencia. Cada criterio de 1 (bajo) a 5 (alto); máximo 5,0. Con varios proyectos va primero el de mayor puntaje.">
+      <Seccion n="8" titulo="Puntaje de priorización" ayuda="Se califica en la reunión de jefes y puede cambiar de una reunión a otra. Cada criterio de 1 (bajo) a 5 (alto); máximo 5,0. Con varios proyectos va primero el de mayor puntaje.">
         <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
           {CRITERIOS.map(k => {
             const v = p.calificaciones?.[k.clave]

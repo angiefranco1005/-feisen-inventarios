@@ -14,11 +14,8 @@ export const RESPONSABLE = 'Jefe de Innovación y Diseño'
 
 export const AREAS = ['Fundición', 'Mecanizados', 'Ensamble', 'Motores', 'Otra']
 
-export const DECISIONES_PEDIDAS = {
-  aprobar:   'Aprobar inversión',
-  priorizar: 'Priorizar',
-  avance:    'Informe de avance',
-}
+// «Decisión que se pide» se quitó (Angie, 20/11): la prioridad se define en la reunión de jefes.
+// La columna decision_pedida sigue en la base con su valor por defecto, sin uso.
 
 // Badges: rojo = problema, ámbar = espera decisión, azul = en marcha, gris = neutro/cerrado
 export const ESTADOS = {
