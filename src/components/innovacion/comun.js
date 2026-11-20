@@ -15,6 +15,7 @@ export const RESPONSABLE = 'Jefe de Innovación y Diseño'
 // Solo Angie aprueba (firma) un proyecto (Angie, 2026-11-20). Se quitó la sección «Decisión de gerencia»:
 // ya no hay monto aprobado editable, condiciones, próxima revisión, aplazar ni rechazar.
 // Al aprobar se guarda decidido_por/decidido_at y el monto aprobado = inversión total de ese momento.
+// La base también lo bloquea (trigger innovacion_solo_angie_aprueba): si cambia el id, cambiarlo en los dos lados.
 export const APROBADORA = { id: 'ef361cdc-5333-4e22-a93e-89d50d2a2e1e', nombre: 'Angie Franco' }
 
 export const AREAS = ['Fundición', 'Mecanizados', 'Ensamble', 'Motores', 'Otra']
