@@ -12,9 +12,9 @@ import {
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, fmtMeses, fmtPct,
 } from './comun'
 
-// Ficha de un proyecto de innovación: las 8 secciones del formato aprobado (2026-11-20).
+// Ficha de un proyecto de innovación: las 7 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
-const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
 // Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
 const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
@@ -74,9 +74,9 @@ export default function FichaProyecto() {
     if (!p.problema?.trim()) f.push('Problema u oportunidad (sección 2)')
     if (!p.solucion?.trim()) f.push('Solución propuesta (sección 3)')
     if (!p.indicador_meta?.trim()) f.push('Indicador y meta (sección 3)')
-    if (!(subtotalCostos(p.costos) > 0)) f.push('Al menos un costo (sección 5)')
-    if (!(Number(p.beneficio_mensual) > 0)) f.push('Beneficio mensual (sección 5)')
-    if (!(p.fases || []).some(x => x.inicio && x.fin)) f.push('Fechas de las fases (sección 6)')
+    if (!(subtotalCostos(p.costos) > 0)) f.push('Al menos un costo (sección 4)')
+    if (!(Number(p.beneficio_mensual) > 0)) f.push('Beneficio mensual (sección 4)')
+    if (!(p.fases || []).some(x => x.inicio && x.fin)) f.push('Fechas de las fases (sección 5)')
     return f
   }
 
@@ -182,12 +182,7 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 4 */}
-      <Seccion n="4" titulo="Mercado o cliente" ayuda="Obligatoria solo para productos nuevos: quién lo compra, cuántas unidades al año y a qué precio, qué lo respalda (pedido, cotización), quién más lo ofrece.">
-        <Texto valor={p.mercado} onCambiar={v => set('mercado', v)} filas={4} />
-      </Seccion>
-
-      {/* 5 */}
-      <Seccion n="5" titulo="Costos estimados y retorno" obligatoria ayuda="Inversión para desarrollar el proyecto (no el costo unitario de producción). Valores en COP sin IVA.">
+      <Seccion n="4" titulo="Costos estimados y retorno" obligatoria ayuda="Inversión para desarrollar el proyecto (no el costo unitario de producción). Valores en COP sin IVA.">
         <div className="border border-feisen-borde rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-[1fr_1fr_160px_40px] gap-2 px-3 py-2 bg-feisen-fondo text-xs uppercase tracking-wide text-gray-400">
             <span>Rubro</span><span>Detalle</span><span className="text-right">Valor (COP)</span><span />
@@ -229,8 +224,8 @@ export default function FichaProyecto() {
         </div>
       </Seccion>
 
-      {/* 6 */}
-      <Seccion n="6" titulo="Cronograma y recursos" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
+      {/* 5 */}
+      <Seccion n="5" titulo="Cronograma y recursos" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
         <TablaEditable lista="fases" filas={p.fases} setFila={setFila} quitar={quitarFila}
           columnas={[
             { campo: 'fase', texto: 'Fase', ancho: '1fr' },
@@ -251,8 +246,8 @@ export default function FichaProyecto() {
         <BotonAgregar onClick={() => agregarFila('recursos', { recurso: '', cantidad: '', area: '', disponible: '' })}>Agregar recurso</BotonAgregar>
       </Seccion>
 
-      {/* 7 */}
-      <Seccion n="7" titulo="Decisión de gerencia">
+      {/* 6 */}
+      <Seccion n="6" titulo="Decisión de gerencia">
         {p.estado === 'borrador' ? (
           <p className="text-sm text-feisen-texto-2">Se decide cuando el proyecto esté presentado. Use «Presentar a gerencia» arriba cuando las secciones obligatorias estén completas.</p>
         ) : (
@@ -292,8 +287,8 @@ export default function FichaProyecto() {
         )}
       </Seccion>
 
-      {/* 8 */}
-      <Seccion n="8" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+      {/* 7 */}
+      <Seccion n="7" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
         {enMarcha
           ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
           : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}

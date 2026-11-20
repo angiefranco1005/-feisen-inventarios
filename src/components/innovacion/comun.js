@@ -35,7 +35,7 @@ export const SEMAFOROS = {
   rojo:     { texto: 'Rojo',     clase: 'bg-feisen-rojo-suave text-feisen-rojo', ayuda: 'Desvío mayor a 10 % o fase bloqueada' },
 }
 
-// Sección 5: rubros de la inversión (los imprevistos se calculan, no se digitan)
+// Sección 4: rubros de la inversión (los imprevistos se calculan, no se digitan)
 export const RUBROS_INICIALES = [
   { rubro: 'Materiales y materia prima',      detalle: '', valor: null },
   { rubro: 'Mano de obra interna',            detalle: 'horas × tarifa', valor: null },
@@ -46,7 +46,7 @@ export const RUBROS_INICIALES = [
 ]
 export const IMPREVISTOS = 0.10
 
-// Sección 6
+// Sección 5
 export const FASES_INICIALES = [
   { fase: 'Diseño',             entregable: 'Planos y lista de materiales aprobados', inicio: '', fin: '', responsable: '' },
   { fase: 'Prototipo',          entregable: 'Pieza o máquina prototipo', inicio: '', fin: '', responsable: '' },
