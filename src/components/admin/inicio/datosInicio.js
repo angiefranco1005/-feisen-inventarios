@@ -135,7 +135,11 @@ export async function cargarFoto({ soloOperacion = false, soloRRHH = false } = {
   // Atraso en días hábiles (sin fines de semana ni festivos), igual que en Pedidos
   const atrasados = enCurso.filter(p => p.estado === 'en_transito' && p.fecha_estimada_llegada && habilesEntre(p.fecha_estimada_llegada, hoyColombia()) > 0)
     .sort((a, b) => a.fecha_estimada_llegada.localeCompare(b.fecha_estimada_llegada))
-  const recibidos60 = (pedidos.data || []).filter(p => p.fecha_recibido && diasDesde(p.created_at) <= 60)
+  // Lead time (2026-11-20, Angie): misma regla que la gráfica mensual — pedidos que LLEGARON en el
+  // mes en curso y los 2 anteriores, de pedido a recibido. Antes eran los pedidos HECHOS en los últimos
+  // 60 días que ya habían llegado, lo que dejaba fuera los lentos aún en camino y daba de menos.
+  const ult3 = (() => { const d = new Date(hoyIso + 'T12:00:00'); return [0, 1, 2].map(i => isoDia(new Date(d.getFullYear(), d.getMonth() - i, 15))).map(f => f.slice(0, 7)) })()
+  const recibidos3m = (pedidos.data || []).filter(p => p.fecha_recibido && ult3.includes(mesDe(p.fecha_recibido)))
   const porArea = {}
   enCurso.forEach(p => { const a = p.area || 'Sin área'; porArea[a] = (porArea[a] || 0) + 1 })
   const logistica = {
@@ -145,7 +149,8 @@ export async function cargarFoto({ soloOperacion = false, soloRRHH = false } = {
     parcial: enCurso.filter(p => p.estado === 'parcialmente_recibido').length,
     atrasados: atrasados.length,
     peorAtraso: atrasados[0] ? { numero: atrasados[0].numero, dias: habilesEntre(atrasados[0].fecha_estimada_llegada, hoyColombia()) } : null,
-    leadTime: recibidos60.length ? recibidos60.reduce((t, p) => t + (new Date(p.fecha_recibido) - new Date(p.created_at)) / DIA, 0) / recibidos60.length : null,
+    leadTime: recibidos3m.length ? recibidos3m.reduce((t, p) => t + (new Date(p.fecha_recibido) - new Date(p.created_at)) / DIA, 0) / recibidos3m.length : null,
+    leadTimeN: recibidos3m.length,
     porArea: Object.entries(porArea).sort((a, b) => b[1] - a[1]),
     mensual: indicadoresMensuales(pedidos.data || []),
     porBodega: indicadoresPorBodega(pedidos.data || []),

@@ -551,7 +551,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
               <div className="grid grid-cols-3 gap-2.5">
                 <Cifra etiqueta="En curso" valor={logistica.enCurso} contexto="pedidos" />
                 <Cifra etiqueta="Atrasados" valor={logistica.atrasados} contexto="en tránsito" tono={logistica.atrasados ? 'rojo' : ''} />
-                <Cifra etiqueta="Entrega" valor={logistica.leadTime != null ? `${fmt(logistica.leadTime)} d` : '—'} contexto="promedio 60 días" />
+                <Cifra etiqueta="Lead time" valor={logistica.leadTime != null ? `${fmt(logistica.leadTime)} d` : '—'} contexto={`últimos 3 meses · ${logistica.leadTimeN} pedidos`} />
               </div>
               {logistica.enCurso > 0 && (
                 <div>
