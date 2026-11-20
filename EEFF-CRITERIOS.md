@@ -5,7 +5,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 
 - Pantalla: **Finanzas › EEFF** (`src/components/finanzas/Eeff.jsx`). Solo la ve ADMIN.
 - Empresas: **Feisen** (Construequipos Franco S.A.S.) y **FC**. Cada renglón muestra las dos y el total.
-- Última actualización: **19 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
+- Última actualización: **20 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
 
 > **Antes de comparar dos cifras de este documento, ten esto en cuenta: los datos de Odoo se mueven mientras contabilidad trabaja.** Dos números tomados con horas de diferencia pueden **no coincidir sin que ninguno esté mal**. Pasó **tres veces el 18/11/2026**: el **inventario**, las **cuentas de socios** y el **IVA por pagar** (la cuenta 240814 subió $10.000.000 en medio de la sesión y con eso cambió el pasivo del balance). Así que si ves dos cifras que no cuadran, **mira primero la fecha y la hora de cada una** antes de concluir que algo está mal calculado. Esto vale solo de **octubre en adelante**: los meses que salen del Excel ya están cerrados y no se mueven.
 
@@ -460,6 +460,18 @@ Son **dos provisiones sobre la misma deuda** porque **la norma contable y la fis
 
 **Una rareza que hay que anotar:** dentro de la **cartera fiscal** hay un apunte de **"FEISEN SAS" por −$31.300.553**. Feisen aparece como **tercero de sí misma**, lo cual es imposible y **parece arrastre de la migración**. Queda escrito para revisarlo con contabilidad.
 
+#### Esa cartera va en el balance como **no corriente**: lo decidió Angie el 20/11/2026
+
+La **1390 "Deudas de difícil cobro"** y la **1399 "Provisiones de cartera"** se muestran en el balance del lado **no corriente**, o sea **fuera de lo que se espera cobrar en los próximos doce meses**. La razón es simple: es cartera que **viene de antes de Odoo y lleva años sin cobrarse**, así que contarla como plata disponible a doce meses sería engañarse.
+
+Palabras de Angie: *"las deudas de difícil cobro es mejor dejarlas como no corrientes"*.
+
+**Qué cambió el 20/11/2026 y qué no.** Las cifras **no se movieron**: el balance ya las venía mostrando así. Lo que cambia es **de quién es el criterio**: hasta el 19/11 era una **propuesta mía pendiente de confirmar**, y desde el 20/11 es una **decisión tomada por Angie**. Con eso el punto queda cerrado y la pantalla ya no pide confirmarlo.
+
+**Cuánto mueve el indicador: muy poco.** Entre las dos cuentas quedan unos **$400.000** —la deuda está castigada casi al 100 %, como dice el punto anterior—, así que estén de un lado o del otro, la razón corriente y el capital de trabajo **casi no se enteran**.
+
+> **Ojo, que son dos decisiones distintas y no hay que confundirlas:** los **anticipos de impuestos (1355, $192.719.153)** van como **corrientes**, y eso lo decidió Angie el **19 de noviembre de 2026**; esa sí movió las cifras de liquidez. Lo del **difícil cobro (1390 y 1399)**, que es lo de aquí, es del **20 de noviembre** y **no movió ninguna cifra**.
+
 #### 130501 "Consignaciones sin identificar" (−$70.593.236): se deja como está por ahora
 
 Son **consignaciones de remisiones que no se han logrado identificar**: entró la plata y no se sabe a qué venta corresponde. Angie ya le **pidió un informe de esa cuenta a la contadora**, así que **no se toca ni se reclasifica hasta que llegue ese informe**.
@@ -596,7 +608,7 @@ Decisión de Angie del **13/11/2026**, y **no cambió** ni con lo del 17/11 ni c
 Conviene que estén escritas, porque el Excel de Angie sí las tenía:
 
 - **No se divide por centro de costo.** Un balance no se reparte por centro —no tiene sentido preguntarse cuánto banco o cuánta cartera le toca a Fundición—, así que en la pestaña **Balance general** el filtro de centro **ni siquiera aparece**. Esto sigue igual que el 13/11.
-- **La división entre corriente y no corriente no sale de Odoo.** Odoo no la trae y deducirla por el número de cuenta **sería adivinar**, así que se decidió **cuenta por cuenta**. El caso que no se puede resolver así es el de las **obligaciones financieras (grupo 21)**, que se parten con una **casilla que se escribe a mano**, mes por mes: ver "Cuánto de la deuda financiera vence en doce meses" más arriba.
+- **La división entre corriente y no corriente no sale de Odoo.** Odoo no la trae y deducirla por el número de cuenta **sería adivinar**, así que se decidió **cuenta por cuenta**. La regla general va **por grupo del PUC**, y hay **excepciones por cuenta que mandan sobre su grupo**; las dos que hay hoy **ya están decididas por Angie**: los **anticipos de impuestos (1355)** son **corrientes** (19/11/2026) y las **deudas de difícil cobro y sus provisiones (1390 y 1399)**, **no corrientes** (20/11/2026). El caso que no se puede resolver así es el de las **obligaciones financieras (grupo 21)**, que se parten con una **casilla que se escribe a mano**, mes por mes: ver "Cuánto de la deuda financiera vence en doce meses" más arriba.
 
 Y sigue siendo un **balance unificado Feisen + FC**: las dos empresas en el mismo informe, cada renglón con su columna y el total.
 
@@ -1232,5 +1244,6 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 19/11 | **Los márgenes tampoco dan exactamente iguales a los del Excel, y no es error de ninguno de los dos:** en la hoja consolidada los ingresos netos **dejan por fuera las ventas no operacionales** y en nuestro P&G **entran**. Comprobado en **enero**: nuestros ingresos son **$459.595.504** y los del Excel **$455.130.004**, y la diferencia son **exactamente los $4.465.500** de esa fila; con eso el margen bruto de enero pasa de **20,6 % a 21,6 %**. **Queda un resto pequeño sin explicar** —unos **$910.000** en la utilidad bruta de enero— **que conviene revisar algún día** |
 | 19/11 | **Avisos de la tabla de indicadores:** cada celda lleva **flecha verde (▲ mejoró) o roja (▼ empeoró)** frente al mes anterior, **mirando para el lado que le convenga al indicador** (en un margen subir es bueno; en un costo sobre ventas, malo), y **un movimiento menor a la décima que se muestra no pinta flecha** porque es redondeo. Los meses **sin mano de obra cargada** van **en ámbar**, igual que en la tabla del año, porque su margen bruto sale inflado y la flecha se leería como una mejora que no existe. El **mes en curso** queda marcado **"va a mitad"**, también en ámbar: le faltan ventas por entrar pero los gastos fijos ya pesan casi completos, así que su margen no se puede comparar con el de los meses cerrados. Y el **apalancamiento operativo** sale **"—"** cuando el margen operativo es **cero o negativo** (en el Excel ese caso daba cifras sin sentido, como **−18,14 en junio**) |
 | 19/11 | **La pestaña de Indicadores carga ahora el año entero** (`useAno`), no solo el mes escogido. Dentro conviven **dos cortes de tiempo**: el mes que se escoge arriba manda en los **indicadores de liquidez del balance**, y los del **estado de resultados van siempre del año completo**. No pide nada de más a la red: enero a septiembre salen del Excel y de octubre en adelante, de lo que `useAno` ya trajo |
+| 20/11 | **Las deudas de difícil cobro quedan como no corrientes, y ya no es propuesta mía: lo decidió Angie.** Palabras suyas: *"las deudas de difícil cobro es mejor dejarlas como no corrientes"*. La **1390** y la **1399** siguen mostrándose igual que antes —**ninguna cifra del balance cambió**—; lo que cambia es que el criterio **deja de estar pendiente de confirmar**. Entre las dos quedan unos **$400.000**, así que mueven muy poco la razón corriente y el capital de trabajo. **No confundir con la decisión del 19/11**, que es otra: esa fue la de los **anticipos de impuestos (1355), que sí son corrientes**. Ver la sección 2.3 |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
