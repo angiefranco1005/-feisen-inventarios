@@ -72,6 +72,10 @@ export const MODULOS = [
       '/rrhh/desempeno', '/rrhh/desempeno/:cicloId', '/rrhh/desempeno/:cicloId/:evalId'] },
   { clave: 'finanzas',       grupo: 'Administración', nombre: 'Finanzas', detalle: 'EEFF, cartera, por pagar, flujo de caja e impuestos (Odoo)', niveles: [], soloAdmin: true,
     rutas: ['/finanzas/eeff', '/finanzas/cartera', '/finanzas/por-pagar', '/finanzas/flujo', '/finanzas/impuestos'] },
+  // Innovación: proyectos que el jefe de Innovación y Diseño presenta a gerencia. Solo ADMIN por ahora
+  // (pedido de Angie, 2026-11-20); cuando ese cargo tenga rol propio se abre aquí y en las RLS.
+  { clave: 'innovacion',     grupo: 'Administración', nombre: 'Proyectos de innovación', detalle: 'formato de proyecto, decisión de gerencia y seguimiento', niveles: [], soloAdmin: true,
+    rutas: ['/innovacion', '/innovacion/:id'] },
   { clave: 'config',         grupo: 'Administración', nombre: 'Configuración', detalle: 'usuarios, bodegas, roles y permisos', niveles: [], soloAdmin: true,
     rutas: ['/config'] },
 ]

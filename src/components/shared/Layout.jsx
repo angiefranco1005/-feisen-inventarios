@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, BarChart2, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -22,6 +22,7 @@ const MODULOS = {
   'Calidad':          SealCheck,
   'Mantenimiento':    Toolbox,
   'Finanzas':         Bank,
+  'Innovación':       Lightbulb,
 }
 
 // Nombre corto en el menú para que no ocupe dos renglones (en las pantallas sigue el completo)
@@ -77,6 +78,7 @@ const NAV_ADMIN = [
   { to: '/finanzas/por-pagar',                icon: Receipt,       label: 'Cuentas por pagar',  modulo: 'Finanzas' },
   { to: '/finanzas/flujo',                    icon: Bank,          label: 'Flujo de caja',      modulo: 'Finanzas' },
   { to: '/finanzas/impuestos',                icon: Percent,       label: 'Impuestos',          modulo: 'Finanzas' },
+  { to: '/innovacion',                       icon: Lightbulb,     label: 'Proyectos',          modulo: 'Innovación' },
   // Suelto (sin módulo): sale arriba en el menú, pero al final para no cambiar la barra inferior del celular
   { to: '/manuales',                          icon: BookOpen,        label: 'Manuales' },
   { to: '/config',                            icon: Settings,        label: 'Configuración',      abajo: true },

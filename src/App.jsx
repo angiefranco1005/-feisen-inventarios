@@ -68,6 +68,8 @@ import PendientesFinanzas       from './components/finanzas/Pendientes'
 import FlujoCaja                from './components/finanzas/FlujoCaja'
 import Eeff                     from './components/finanzas/Eeff'
 import Impuestos                from './components/finanzas/Impuestos'
+import ProyectosInnovacion      from './components/innovacion/ProyectosInnovacion'
+import FichaProyectoInnovacion  from './components/innovacion/FichaProyecto'
 import Manuales                 from './components/manuales/Manuales'
 import { MODULOS }              from './permisos/modulos'
 
@@ -125,6 +127,7 @@ function AppRoutes() {
     '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />,
     '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
     '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />, '/finanzas/eeff': <Eeff />, '/finanzas/impuestos': <Impuestos />,
+    '/innovacion': <ProyectosInnovacion />, '/innovacion/:id': <FichaProyectoInnovacion />,
     '/manuales': <Manuales />,
     '/config': <GestionConfig />,
   }

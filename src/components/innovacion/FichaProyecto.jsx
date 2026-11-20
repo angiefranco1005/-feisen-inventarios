@@ -1,0 +1,554 @@
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../contexts/AuthContext'
+import { formatCOP, formatFecha } from '../../utils/formatters'
+import Spinner from '../shared/Spinner'
+import Alerta from '../shared/Alerta'
+import { useAviso } from '../shared/ui'
+import { ArrowLeft, Plus, Trash2, ExternalLink, Send } from '../shared/iconos'
+import {
+  TIPOS, AREAS, DECISIONES_PEDIDAS, ESTADOS, SEMAFOROS, CRITERIOS, IMPREVISTOS,
+  subtotalCostos, totalInversion, mesesRecuperacion, roi12, puntaje, fmtPuntaje, fmtMeses, fmtPct,
+} from './comun'
+
+// Ficha de un proyecto de innovación: las 10 secciones del formato aprobado (2026-11-20).
+// Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
+const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, decision_pedida, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, ficha_costo_id, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
+
+const num = v => v === '' || v == null ? null : Number(String(v).replace(/\./g, '').replace(',', '.'))
+
+export default function FichaProyecto() {
+  const { id } = useParams()
+  const { perfil } = useAuth()
+  const [p, setP] = useState(undefined)         // undefined = cargando, null = no existe
+  const [original, setOriginal] = useState('')
+  const [avances, setAvances] = useState([])
+  const [fichas, setFichas] = useState([])
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState('')
+  const [faltan, setFaltan] = useState([])
+  const [aviso, avisar] = useAviso()
+
+  async function cargar() {
+    const [{ data }, { data: av }, { data: fi }] = await Promise.all([
+      supabase.from('innovacion_proyectos').select(CAMPOS).eq('id', id).maybeSingle(),
+      supabase.from('innovacion_avances').select('*').eq('proyecto_id', id).order('fecha', { ascending: false }),
+      supabase.from('costeo_fichas').select('id, nombre').order('nombre'),
+    ])
+    setP(data || null)
+    setOriginal(JSON.stringify(data))
+    setAvances(av || [])
+    setFichas(fi || [])
+  }
+  useEffect(() => { cargar() }, [id])
+
+  if (p === undefined) return <Spinner texto="Cargando proyecto..." />
+  if (p === null) return (
+    <div className="max-w-md mx-auto mt-16 bg-white border border-feisen-borde rounded-xl p-6 text-center">
+      <p className="font-semibold text-feisen-texto">Este proyecto no existe o fue borrado</p>
+      <Link to="/innovacion" className="text-sm text-feisen-azul mt-2 inline-block">Volver a proyectos</Link>
+    </div>
+  )
+
+  const set = (campo, valor) => setP(x => ({ ...x, [campo]: valor }))
+  const setFila = (lista, i, campo, valor) => setP(x => ({ ...x, [lista]: x[lista].map((f, j) => j === i ? { ...f, [campo]: valor } : f) }))
+  const agregarFila = (lista, vacia) => setP(x => ({ ...x, [lista]: [...(x[lista] || []), vacia] }))
+  const quitarFila = (lista, i) => setP(x => ({ ...x, [lista]: x[lista].filter((_, j) => j !== i) }))
+  const cambiado = JSON.stringify(p) !== original
+
+  // Secciones obligatorias del formato: 1, 2, 3, 5 y 6
+  function revisarObligatorias() {
+    const f = []
+    if (!p.responsable?.trim()) f.push('Responsable (sección 1)')
+    if (!p.problema?.trim()) f.push('Problema u oportunidad (sección 2)')
+    if (!p.solucion?.trim()) f.push('Solución propuesta (sección 3)')
+    if (!p.indicador_meta?.trim()) f.push('Indicador y meta (sección 3)')
+    if (!(subtotalCostos(p.costos) > 0)) f.push('Al menos un costo (sección 5)')
+    if (!(Number(p.beneficio_mensual) > 0)) f.push('Beneficio mensual (sección 5)')
+    if (!(p.fases || []).some(x => x.inicio && x.fin)) f.push('Fechas de las fases (sección 6)')
+    return f
+  }
+
+  async function guardar(cambios = {}) {
+    setGuardando(true); setError('')
+    const fila = { ...p, ...cambios, updated_at: new Date().toISOString() }
+    delete fila.id; delete fila.numero
+    const { error: e } = await supabase.from('innovacion_proyectos').update(fila).eq('id', id)
+    setGuardando(false)
+    if (e) { setError('No se pudo guardar: ' + e.message); return false }
+    const nuevo = { ...p, ...cambios }
+    setP(nuevo); setOriginal(JSON.stringify(nuevo))
+    return true
+  }
+
+  async function presentar() {
+    const f = revisarObligatorias()
+    setFaltan(f)
+    if (f.length) return
+    if (await guardar({ estado: 'presentado' })) avisar('Proyecto presentado a gerencia')
+  }
+
+  async function decidir(estado) {
+    const cambios = { estado, decidido_por: perfil?.id || null, decidido_at: new Date().toISOString() }
+    if ((estado === 'aprobado' || estado === 'aprobado_ajustes') && p.monto_aprobado == null) cambios.monto_aprobado = totalInversion(p.costos)
+    if (await guardar(cambios)) avisar(`Decisión registrada: ${ESTADOS[estado].texto}`)
+  }
+
+  const est = ESTADOS[p.estado] || ESTADOS.borrador
+  const inv = totalInversion(p.costos)
+  const pts = puntaje(p.calificaciones)
+  const decidido = ['aprobado', 'aprobado_ajustes', 'aplazado', 'rechazado', 'en_curso', 'cerrado'].includes(p.estado)
+  const enMarcha = ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado)
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-5 pb-28">
+      <Link to="/innovacion" className="inline-flex items-center gap-1 text-sm text-feisen-texto-2 hover:text-feisen-azul">
+        <ArrowLeft size={14} /> Proyectos de innovación
+      </Link>
+
+      {/* Encabezado */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400 tabular-nums">{p.numero}</p>
+          <input value={p.nombre} onChange={e => set('nombre', e.target.value)} aria-label="Nombre del proyecto"
+            className="text-xl font-semibold text-feisen-texto bg-transparent border-b border-transparent hover:border-feisen-borde focus:border-feisen-azul focus:outline-none w-full max-w-xl" />
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${est.clase}`}>{est.texto}</span>
+            <span className="text-sm text-feisen-texto-2">Inversión {formatCOP(inv)} · Puntaje {fmtPuntaje(pts)}</span>
+          </div>
+        </div>
+        {p.estado === 'borrador' && (
+          <button onClick={presentar} disabled={guardando}
+            className="flex items-center gap-2 border border-feisen-azul text-feisen-azul rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave">
+            <Send size={16} /> Presentar a gerencia
+          </button>
+        )}
+      </div>
+
+      {faltan.length > 0 && (
+        <Alerta tipo="alerta" mensaje={`Para presentarlo faltan las secciones obligatorias: ${faltan.join(' · ')}.`} />
+      )}
+      <Alerta tipo="error" mensaje={error} />
+
+      {/* 1 */}
+      <Seccion n="1" titulo="Datos generales" obligatoria>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Campo etiqueta="Tipo">
+            <select value={p.tipo} onChange={e => set('tipo', e.target.value)} className={INPUT}>
+              {Object.entries(TIPOS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </Campo>
+          <Campo etiqueta="Área o línea">
+            <select value={p.area || ''} onChange={e => set('area', e.target.value || null)} className={INPUT}>
+              <option value="">Elegir…</option>
+              {AREAS.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </Campo>
+          <Campo etiqueta="Responsable">
+            <input value={p.responsable || ''} onChange={e => set('responsable', e.target.value)} className={INPUT} placeholder="Jefe de Innovación y Diseño" />
+          </Campo>
+          <Campo etiqueta="Fecha de presentación">
+            <input type="date" value={p.fecha_presentacion || ''} onChange={e => set('fecha_presentacion', e.target.value || null)} className={INPUT} />
+          </Campo>
+          <Campo etiqueta="Decisión que se pide">
+            <select value={p.decision_pedida} onChange={e => set('decision_pedida', e.target.value)} className={INPUT}>
+              {Object.entries(DECISIONES_PEDIDAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </Campo>
+        </div>
+        <Campo etiqueta="Resumen en 3 líneas" ayuda="Qué se hace, para quién y qué gana Feisen">
+          <Texto valor={p.resumen} onCambiar={v => set('resumen', v)} filas={3} />
+        </Campo>
+      </Seccion>
+
+      {/* 2 */}
+      <Seccion n="2" titulo="Problema u oportunidad" obligatoria
+        ayuda="¿Qué pasa hoy? ¿Cuánto nos cuesta o cuánto dejamos de vender (COP, unidades, horas, % de rechazo)? ¿De dónde sale el dato?">
+        <Texto valor={p.problema} onCambiar={v => set('problema', v)} filas={5} />
+      </Seccion>
+
+      {/* 3 */}
+      <Seccion n="3" titulo="Solución propuesta" obligatoria
+        ayuda="¿Qué se va a diseñar o cambiar? ¿Qué alternativa se descartó y por qué? Anexos: planos, render o fotos.">
+        <Texto valor={p.solucion} onCambiar={v => set('solucion', v)} filas={5} />
+        <Campo etiqueta="¿Cómo sabremos que funcionó? Indicador y meta" ayuda="Ej.: rechazo de 8 % a 2 %; ciclo de 40 a 25 min">
+          <input value={p.indicador_meta || ''} onChange={e => set('indicador_meta', e.target.value)} className={INPUT} />
+        </Campo>
+      </Seccion>
+
+      {/* 4 */}
+      <Seccion n="4" titulo="Mercado o cliente" ayuda="Obligatoria solo para productos nuevos: quién lo compra, cuántas unidades al año y a qué precio, qué lo respalda (pedido, cotización), quién más lo ofrece.">
+        <Texto valor={p.mercado} onCambiar={v => set('mercado', v)} filas={4} />
+      </Seccion>
+
+      {/* 5 */}
+      <Seccion n="5" titulo="Costos estimados y retorno" obligatoria ayuda="Inversión para desarrollar el proyecto (no el costo unitario de producción). Valores en COP sin IVA.">
+        <div className="border border-feisen-borde rounded-lg overflow-hidden">
+          <div className="hidden sm:grid grid-cols-[1fr_1fr_160px_40px] gap-2 px-3 py-2 bg-feisen-fondo text-xs uppercase tracking-wide text-gray-400">
+            <span>Rubro</span><span>Detalle</span><span className="text-right">Valor (COP)</span><span />
+          </div>
+          <div className="divide-y divide-feisen-borde-suave">
+            {(p.costos || []).map((c, i) => (
+              <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_160px_40px] gap-2 px-3 py-2 items-center">
+                <input value={c.rubro} onChange={e => setFila('costos', i, 'rubro', e.target.value)} className={`${INPUT_FILA} col-span-2 sm:col-span-1 font-medium`} aria-label="Rubro" />
+                <input value={c.detalle || ''} onChange={e => setFila('costos', i, 'detalle', e.target.value)} className={INPUT_FILA} placeholder="Detalle" aria-label="Detalle" />
+                <Pesos valor={c.valor} onCambiar={v => setFila('costos', i, 'valor', v)} />
+                <BotonQuitar onClick={() => quitarFila('costos', i)} />
+              </div>
+            ))}
+            <Fila etiqueta={`Imprevistos (${IMPREVISTOS * 100} %)`} valor={formatCOP(Math.round(subtotalCostos(p.costos) * IMPREVISTOS))} />
+            <Fila etiqueta="Total inversión" valor={formatCOP(inv)} fuerte />
+          </div>
+        </div>
+        <BotonAgregar onClick={() => agregarFila('costos', { rubro: '', detalle: '', valor: null })}>Agregar rubro</BotonAgregar>
+
+        <div className="grid sm:grid-cols-3 gap-3 pt-2">
+          <Campo etiqueta="Beneficio mensual (COP)" ayuda="Ventas nuevas × margen, o ahorro">
+            <Pesos valor={p.beneficio_mensual} onCambiar={v => set('beneficio_mensual', v)} grande />
+          </Campo>
+          <Campo etiqueta="Costo unitario (COP)" ayuda="Si es producto">
+            <Pesos valor={p.costo_unitario} onCambiar={v => set('costo_unitario', v)} grande />
+          </Campo>
+          <Campo etiqueta="Precio de venta (COP)" ayuda="Si es producto">
+            <Pesos valor={p.precio_venta} onCambiar={v => set('precio_venta', v)} grande />
+          </Campo>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <Cifra etiqueta="Recuperación" valor={fmtMeses(mesesRecuperacion(p))} contexto="inversión ÷ beneficio mensual" />
+          <Cifra etiqueta="ROI a 12 meses" valor={fmtPct(roi12(p))} contexto="(beneficio 12 m − inversión) ÷ inversión"
+            rojo={roi12(p) != null && roi12(p) < 0} />
+          {p.costo_unitario && p.precio_venta ? (
+            <Cifra etiqueta="Margen unitario" valor={fmtPct((num(p.precio_venta) - num(p.costo_unitario)) / num(p.precio_venta))}
+              contexto={formatCOP(num(p.precio_venta) - num(p.costo_unitario)) + ' por unidad'} />
+          ) : null}
+        </div>
+        <Campo etiqueta="Ficha de Costeo" ayuda="Si es un producto, el costo unitario se valida contra su ficha de costo antes de presentarlo">
+          <div className="flex items-center gap-2">
+            <select value={p.ficha_costo_id || ''} onChange={e => set('ficha_costo_id', e.target.value || null)} className={INPUT}>
+              <option value="">Sin ficha</option>
+              {fichas.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+            </select>
+            {p.ficha_costo_id && (
+              <Link to={`/costeo/fichas/${p.ficha_costo_id}`} className="shrink-0 inline-flex items-center gap-1 text-sm text-feisen-azul px-2 min-h-[44px]">
+                Abrir <ExternalLink size={14} />
+              </Link>
+            )}
+          </div>
+        </Campo>
+      </Seccion>
+
+      {/* 6 */}
+      <Seccion n="6" titulo="Cronograma y recursos" obligatoria ayuda="Cada fase termina en un entregable que gerencia puede revisar.">
+        <TablaEditable lista="fases" filas={p.fases} setFila={setFila} quitar={quitarFila}
+          columnas={[
+            { campo: 'fase', texto: 'Fase', ancho: '1fr' },
+            { campo: 'entregable', texto: 'Entregable', ancho: '1.4fr' },
+            { campo: 'inicio', texto: 'Inicio', ancho: '140px', tipo: 'date' },
+            { campo: 'fin', texto: 'Fin', ancho: '140px', tipo: 'date' },
+            { campo: 'responsable', texto: 'Responsable', ancho: '1fr' },
+          ]} />
+        <BotonAgregar onClick={() => agregarFila('fases', { fase: '', entregable: '', inicio: '', fin: '', responsable: '' })}>Agregar fase</BotonAgregar>
+        <p className="text-xs uppercase tracking-wide text-gray-400 pt-2">Recursos que se necesitan</p>
+        <TablaEditable lista="recursos" filas={p.recursos} setFila={setFila} quitar={quitarFila}
+          columnas={[
+            { campo: 'recurso', texto: 'Recurso', ancho: '1fr' },
+            { campo: 'cantidad', texto: 'Cantidad u horas', ancho: '1fr' },
+            { campo: 'area', texto: 'Área que lo presta', ancho: '1fr' },
+            { campo: 'disponible', texto: '¿Disponible?', ancho: '130px', opciones: ['Sí', 'No', 'Parcial'] },
+          ]} />
+        <BotonAgregar onClick={() => agregarFila('recursos', { recurso: '', cantidad: '', area: '', disponible: '' })}>Agregar recurso</BotonAgregar>
+      </Seccion>
+
+      {/* 7 */}
+      <Seccion n="7" titulo="Riesgos" ayuda="Máximo los 3 más importantes.">
+        <TablaEditable lista="riesgos" filas={p.riesgos} setFila={setFila} quitar={quitarFila}
+          columnas={[
+            { campo: 'riesgo', texto: 'Riesgo', ancho: '1.2fr' },
+            { campo: 'probabilidad', texto: 'Probabilidad', ancho: '130px', opciones: ['Alta', 'Media', 'Baja'] },
+            { campo: 'impacto', texto: 'Impacto si pasa', ancho: '1fr' },
+            { campo: 'mitigacion', texto: 'Qué haremos para evitarlo', ancho: '1.2fr' },
+          ]} />
+        {(p.riesgos || []).length < 3 && (
+          <BotonAgregar onClick={() => agregarFila('riesgos', { riesgo: '', probabilidad: '', impacto: '', mitigacion: '' })}>Agregar riesgo</BotonAgregar>
+        )}
+      </Seccion>
+
+      {/* 8 */}
+      <Seccion n="8" titulo="Puntaje de priorización" ayuda="Lo llena gerencia. Cada criterio de 1 (bajo) a 5 (alto); máximo 5,0. Con varios proyectos va primero el de mayor puntaje.">
+        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+          {CRITERIOS.map(k => {
+            const v = p.calificaciones?.[k.clave]
+            return (
+              <div key={k.clave} className="flex flex-wrap items-center gap-3 px-3 py-2">
+                <div className="flex-1 min-w-[180px]">
+                  <p className="text-sm text-feisen-texto">{k.texto}</p>
+                  <p className="text-xs text-feisen-texto-2">Peso {Math.round(k.peso * 100)} %</p>
+                </div>
+                <div className="flex gap-1" role="group" aria-label={k.texto}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} type="button" aria-pressed={v === n}
+                      onClick={() => set('calificaciones', { ...(p.calificaciones || {}), [k.clave]: v === n ? undefined : n })}
+                      className={`w-10 h-10 rounded-lg text-sm font-semibold tabular-nums border
+                        ${v === n ? 'bg-feisen-azul text-white border-feisen-azul' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <span className="w-12 text-right text-sm tabular-nums text-feisen-texto-2">{v ? (v * k.peso).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
+              </div>
+            )
+          })}
+          <div className="flex items-center justify-between px-3 py-2.5 bg-feisen-fondo">
+            <span className="text-sm font-semibold text-feisen-texto">Total</span>
+            <span className="text-lg font-semibold tabular-nums text-feisen-texto">{fmtPuntaje(pts)}</span>
+          </div>
+        </div>
+      </Seccion>
+
+      {/* 9 */}
+      <Seccion n="9" titulo="Decisión de gerencia">
+        {p.estado === 'borrador' ? (
+          <p className="text-sm text-feisen-texto-2">Se decide cuando el proyecto esté presentado. Use «Presentar a gerencia» arriba cuando las secciones obligatorias estén completas.</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {['aprobado', 'aprobado_ajustes', 'aplazado', 'rechazado'].map(e => (
+                <button key={e} onClick={() => decidir(e)} disabled={guardando}
+                  className={`px-3 min-h-[44px] rounded-lg text-sm border font-medium
+                    ${p.estado === e ? `${ESTADOS[e].clase} border-transparent` : 'bg-white border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
+                  {ESTADOS[e].texto}
+                </button>
+              ))}
+            </div>
+            {p.decidido_at && <p className="text-xs text-feisen-texto-2">Decidido el {formatFecha(p.decidido_at)}</p>}
+            {decidido && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Campo etiqueta="Monto aprobado (COP)"><Pesos valor={p.monto_aprobado} onCambiar={v => set('monto_aprobado', v)} grande /></Campo>
+                <Campo etiqueta="Fecha de la próxima revisión">
+                  <input type="date" value={p.proxima_revision || ''} onChange={e => set('proxima_revision', e.target.value || null)} className={INPUT} />
+                </Campo>
+                <div className="sm:col-span-2">
+                  <Campo etiqueta="Condiciones o ajustes"><Texto valor={p.condiciones} onCambiar={v => set('condiciones', v)} filas={3} /></Campo>
+                </div>
+              </div>
+            )}
+            {enMarcha && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {p.estado !== 'en_curso' && p.estado !== 'cerrado' && (
+                  <button onClick={() => decidir('en_curso')} className="px-3 min-h-[44px] rounded-lg text-sm border border-feisen-borde hover:bg-feisen-fondo">Marcar en curso</button>
+                )}
+                {p.estado !== 'cerrado' && (
+                  <button onClick={() => decidir('cerrado')} className="px-3 min-h-[44px] rounded-lg text-sm border border-feisen-borde hover:bg-feisen-fondo">Cerrar proyecto</button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </Seccion>
+
+      {/* 10 */}
+      <Seccion n="10" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+        {enMarcha
+          ? <Avances proyectoId={id} avances={avances} fases={p.fases} onCambio={cargar} avisar={avisar} />
+          : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}
+      </Seccion>
+
+      {/* Acción principal fija abajo */}
+      <div className="fixed bottom-[calc(4.5rem_+_env(safe-area-inset-bottom,0px))] lg:bottom-0 left-0 right-0 lg:left-60 z-30 bg-white/95 backdrop-blur border-t border-feisen-borde px-4 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-end gap-3">
+          <span className="text-sm text-feisen-texto-2">{cambiado ? 'Hay cambios sin guardar' : 'Todo guardado'}</span>
+          <button onClick={async () => { if (await guardar()) avisar('Cambios guardados') }} disabled={!cambiado || guardando}
+            className="bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
+            {guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+      {aviso}
+    </div>
+  )
+}
+
+// ── Seguimiento mensual ──────────────────────────────────────────────────────────
+function Avances({ proyectoId, avances, fases, onCambio, avisar }) {
+  const VACIO = { fecha: new Date().toISOString().slice(0, 10), fase: '', avance_pct: '', gasto_real: null, presupuesto_fecha: null, semaforo: 'verde', bloqueos: '' }
+  const [f, setF] = useState(VACIO)
+  const [abierto, setAbierto] = useState(false)
+  const [error, setError] = useState('')
+
+  async function agregar() {
+    setError('')
+    const fila = { ...f, proyecto_id: proyectoId, avance_pct: f.avance_pct === '' ? null : Math.min(100, Math.max(0, Number(f.avance_pct))) }
+    const { error: e } = await supabase.from('innovacion_avances').insert(fila)
+    if (e) { setError('No se pudo guardar: ' + e.message); return }
+    setF(VACIO); setAbierto(false); avisar('Seguimiento registrado'); onCambio()
+  }
+  async function borrar(id) {
+    if (!confirm('¿Borrar esta revisión?')) return
+    await supabase.from('innovacion_avances').delete().eq('id', id)
+    onCambio()
+  }
+
+  return (
+    <div className="space-y-3">
+      {avances.length === 0 && !abierto && <p className="text-sm text-feisen-texto-2">Sin revisiones todavía. Registre la primera al cumplir el primer mes.</p>}
+      {avances.length > 0 && (
+        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+          {avances.map(a => {
+            const desvio = a.presupuesto_fecha > 0 && a.gasto_real != null ? (a.gasto_real - a.presupuesto_fecha) / a.presupuesto_fecha : null
+            return (
+              <div key={a.id} className="flex flex-wrap items-start gap-3 px-3 py-2.5">
+                <div className="flex-1 min-w-[160px]">
+                  <p className="text-sm font-medium text-feisen-texto">{formatFecha(a.fecha)} · {a.fase || 'Sin fase'}</p>
+                  {a.bloqueos && <p className="text-xs text-feisen-texto-2 mt-0.5">{a.bloqueos}</p>}
+                </div>
+                <div className="text-right text-sm tabular-nums">
+                  <p className="text-feisen-texto">{a.gasto_real != null ? formatCOP(a.gasto_real) : '—'} <span className="text-feisen-texto-2">de {a.presupuesto_fecha != null ? formatCOP(a.presupuesto_fecha) : '—'}</span></p>
+                  {desvio != null && <p className={`text-xs ${desvio > 0.1 ? 'text-feisen-rojo' : 'text-feisen-texto-2'}`}>{desvio > 0 ? '+' : ''}{fmtPct(desvio)} vs. presupuesto</p>}
+                </div>
+                <span className="w-12 text-right text-sm font-semibold tabular-nums">{a.avance_pct != null ? `${Math.round(a.avance_pct)} %` : '—'}</span>
+                {a.semaforo && <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${SEMAFOROS[a.semaforo].clase}`}>{SEMAFOROS[a.semaforo].texto}</span>}
+                <BotonQuitar onClick={() => borrar(a.id)} />
+              </div>
+            )
+          })}
+        </div>
+      )}
+      {abierto ? (
+        <div className="border border-feisen-borde rounded-lg p-3 space-y-3 bg-feisen-fondo">
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Campo etiqueta="Fecha"><input type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} className={INPUT} /></Campo>
+            <Campo etiqueta="Fase actual">
+              <select value={f.fase} onChange={e => setF({ ...f, fase: e.target.value })} className={INPUT}>
+                <option value="">Elegir…</option>
+                {(fases || []).filter(x => x.fase).map((x, i) => <option key={i}>{x.fase}</option>)}
+              </select>
+            </Campo>
+            <Campo etiqueta="Avance (%)"><input inputMode="numeric" value={f.avance_pct} onChange={e => setF({ ...f, avance_pct: e.target.value.replace(/\D/g, '') })} className={`${INPUT} text-right tabular-nums`} /></Campo>
+            <Campo etiqueta="Gasto real acumulado (COP)"><Pesos valor={f.gasto_real} onCambiar={v => setF({ ...f, gasto_real: v })} grande /></Campo>
+            <Campo etiqueta="Presupuesto a la fecha (COP)"><Pesos valor={f.presupuesto_fecha} onCambiar={v => setF({ ...f, presupuesto_fecha: v })} grande /></Campo>
+            <Campo etiqueta="Semáforo">
+              <select value={f.semaforo} onChange={e => setF({ ...f, semaforo: e.target.value })} className={INPUT}>
+                {Object.entries(SEMAFOROS).map(([v, s]) => <option key={v} value={v}>{s.texto} — {s.ayuda}</option>)}
+              </select>
+            </Campo>
+          </div>
+          <Campo etiqueta="Bloqueos o decisiones que necesita"><Texto valor={f.bloqueos} onCambiar={v => setF({ ...f, bloqueos: v })} filas={2} /></Campo>
+          <Alerta tipo="error" mensaje={error} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setAbierto(false)} className="px-4 min-h-[44px] rounded-lg border border-feisen-borde text-sm bg-white">Cancelar</button>
+            <button onClick={agregar} className="px-4 min-h-[44px] rounded-lg border border-feisen-azul text-feisen-azul text-sm font-semibold bg-white">Guardar revisión</button>
+          </div>
+        </div>
+      ) : (
+        <BotonAgregar onClick={() => setAbierto(true)}>Registrar revisión del mes</BotonAgregar>
+      )}
+    </div>
+  )
+}
+
+// ── Piezas ───────────────────────────────────────────────────────────────────────
+const INPUT = 'w-full border border-feisen-borde rounded-lg px-3 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul'
+const INPUT_FILA = 'w-full border border-transparent hover:border-feisen-borde focus:border-feisen-azul rounded-md px-2 min-h-[40px] text-sm bg-transparent focus:bg-white focus:outline-none'
+
+function Seccion({ n, titulo, obligatoria, ayuda, children }) {
+  return (
+    <section className="bg-white border border-feisen-borde rounded-xl p-4 sm:p-5 space-y-3">
+      <div>
+        <h2 className="font-semibold text-feisen-texto">
+          {n}. {titulo}
+          {obligatoria && <span className="ml-2 align-middle text-[11px] font-medium uppercase tracking-wide text-feisen-texto-2 bg-feisen-fondo rounded px-1.5 py-0.5">Obligatoria</span>}
+        </h2>
+        {ayuda && <p className="text-sm text-feisen-texto-2 mt-0.5">{ayuda}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function Campo({ etiqueta, ayuda, children }) {
+  return (
+    <label className="block">
+      <span className="text-xs uppercase tracking-wide text-gray-400">{etiqueta}</span>
+      <div className="mt-1">{children}</div>
+      {ayuda && <span className="block text-xs text-feisen-texto-2 mt-1">{ayuda}</span>}
+    </label>
+  )
+}
+
+function Texto({ valor, onCambiar, filas = 3 }) {
+  return <textarea value={valor || ''} onChange={e => onCambiar(e.target.value)} rows={filas}
+    className="w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-feisen-azul" />
+}
+
+// Campo en pesos: muestra separador de miles mientras se escribe, guarda número
+function Pesos({ valor, onCambiar, grande }) {
+  const texto = valor == null || valor === '' ? '' : Number(valor).toLocaleString('es-CO')
+  return (
+    <input inputMode="numeric" value={texto} placeholder="$ 0"
+      onChange={e => { const d = e.target.value.replace(/\D/g, ''); onCambiar(d === '' ? null : Number(d)) }}
+      className={`${grande ? INPUT : INPUT_FILA} text-right tabular-nums`} />
+  )
+}
+
+function Fila({ etiqueta, valor, fuerte }) {
+  return (
+    <div className={`flex justify-between px-3 py-2 text-sm ${fuerte ? 'bg-feisen-fondo font-semibold text-feisen-texto' : 'text-feisen-texto-2'}`}>
+      <span>{etiqueta}</span><span className="tabular-nums sm:mr-12">{valor}</span>
+    </div>
+  )
+}
+
+function Cifra({ etiqueta, valor, contexto, rojo }) {
+  return (
+    <div className="border border-feisen-borde rounded-lg p-3">
+      <p className="text-xs uppercase tracking-wide text-gray-400">{etiqueta}</p>
+      <p className={`text-xl font-semibold tabular-nums mt-0.5 ${rojo ? 'text-feisen-rojo' : 'text-feisen-texto'}`}>{valor}</p>
+      <p className="text-xs text-feisen-texto-2">{contexto}</p>
+    </div>
+  )
+}
+
+function TablaEditable({ lista, filas, columnas, setFila, quitar }) {
+  if (!(filas || []).length) return null
+  const plantilla = columnas.map(c => c.ancho).join(' ') + ' 40px'
+  return (
+    <div className="border border-feisen-borde rounded-lg overflow-hidden">
+      <div className="hidden md:grid gap-2 px-3 py-2 bg-feisen-fondo text-xs uppercase tracking-wide text-gray-400" style={{ gridTemplateColumns: plantilla }}>
+        {columnas.map(c => <span key={c.campo}>{c.texto}</span>)}<span />
+      </div>
+      <div className="divide-y divide-feisen-borde-suave">
+        {filas.map((f, i) => (
+          <div key={i} className="grid grid-cols-2 md:[grid-template-columns:var(--cols)] gap-2 px-3 py-2 items-center" style={{ '--cols': plantilla }}>
+            {columnas.map(c => c.opciones ? (
+              <select key={c.campo} value={f[c.campo] || ''} onChange={e => setFila(lista, i, c.campo, e.target.value)} className={INPUT_FILA} aria-label={c.texto}>
+                <option value="">{c.texto}…</option>
+                {c.opciones.map(o => <option key={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input key={c.campo} type={c.tipo || 'text'} value={f[c.campo] || ''} onChange={e => setFila(lista, i, c.campo, e.target.value)}
+                placeholder={c.texto} aria-label={c.texto} className={INPUT_FILA} />
+            ))}
+            <BotonQuitar onClick={() => quitar(lista, i)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BotonAgregar({ onClick, children }) {
+  return (
+    <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5 text-sm font-medium text-feisen-azul min-h-[40px] px-1">
+      <Plus size={16} /> {children}
+    </button>
+  )
+}
+
+function BotonQuitar({ onClick }) {
+  return (
+    <button type="button" onClick={onClick} aria-label="Quitar" className="w-10 h-10 grid place-items-center text-gray-400 hover:text-feisen-rojo rounded-lg">
+      <Trash2 size={16} />
+    </button>
+  )
+}
