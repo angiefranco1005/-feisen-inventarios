@@ -19,8 +19,8 @@ import { useAutoRefrescar } from './shared/useAutoRefrescar'
 
 const SELECT_ORDEN_COMPLETA = `
   *,
-  creador:profiles ( nombre ),
-  items_of ( *, producciones:of_producciones (*, registrado_por_perfil:profiles(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles(nombre)) )
+  creador:profiles!ordenes_fabricacion_creado_por_fkey ( nombre ),
+  items_of ( *, producciones:of_producciones (*, registrado_por_perfil:profiles!of_producciones_registrado_por_fkey(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles!of_entregas_registrado_por_fkey(nombre)) )
 `
 
 export default function ListaOrdenes() {
