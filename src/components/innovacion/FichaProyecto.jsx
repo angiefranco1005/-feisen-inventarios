@@ -16,6 +16,8 @@ import {
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
 const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, mercado, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, riesgos, calificaciones, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
+// Fechas sin hora (columnas date): mediodía local para que no salga el día anterior por la zona horaria
+const fechaDia = f => f ? new Date(`${String(f).slice(0, 10)}T12:00:00`).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 const num = v => v === '' || v == null ? null : Number(String(v).replace(/\./g, '').replace(',', '.'))
 
 export default function FichaProyecto() {
@@ -24,19 +26,31 @@ export default function FichaProyecto() {
   const [p, setP] = useState(undefined)         // undefined = cargando, null = no existe
   const [original, setOriginal] = useState('')
   const [avances, setAvances] = useState([])
+  const [interrupciones, setInterrupciones] = useState([])
+  const [equipos, setEquipos] = useState([])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [faltan, setFaltan] = useState([])
   const [aviso, avisar] = useAviso()
 
   async function cargar() {
-    const [{ data }, { data: av }] = await Promise.all([
+    const [{ data }, { data: eq }] = await Promise.all([
       supabase.from('innovacion_proyectos').select(CAMPOS).eq('id', id).maybeSingle(),
-      supabase.from('innovacion_avances').select('*').eq('proyecto_id', id).order('fecha', { ascending: false }),
+      supabase.from('mant_equipos').select('id, codigo, nombre').eq('activo', true).order('codigo'),
+      cargarRegistros(),
     ])
     setP(data || null)
     setOriginal(JSON.stringify(data))
+    setEquipos(eq || [])
+  }
+  // Seguimiento e interrupciones se recargan solos, sin pisar lo que se está editando en la ficha
+  async function cargarRegistros() {
+    const [{ data: av }, { data: it }] = await Promise.all([
+      supabase.from('innovacion_avances').select('*').eq('proyecto_id', id).order('fecha', { ascending: false }),
+      supabase.from('innovacion_interrupciones').select('*, mant_equipos(codigo, nombre)').eq('proyecto_id', id).order('fecha', { ascending: false }),
+    ])
     setAvances(av || [])
+    setInterrupciones(it || [])
   }
   useEffect(() => { cargar() }, [id])
 
@@ -326,10 +340,11 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 10 */}
-      <Seccion n="10" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+      <Seccion n="10" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
         {enMarcha
-          ? <Avances proyectoId={id} avances={avances} fases={p.fases} onCambio={cargar} avisar={avisar} />
+          ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
           : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}
+        <Interrupciones proyectoId={id} interrupciones={interrupciones} equipos={equipos} onCambio={cargarRegistros} avisar={avisar} />
       </Seccion>
 
       {/* Acción principal fija abajo */}
@@ -348,7 +363,7 @@ export default function FichaProyecto() {
 }
 
 // ── Seguimiento mensual ──────────────────────────────────────────────────────────
-function Avances({ proyectoId, avances, fases, onCambio, avisar }) {
+function Avances({ proyectoId, avances, interrupciones, fases, onCambio, avisar }) {
   const VACIO = { fecha: new Date().toISOString().slice(0, 10), fase: '', avance_pct: '', gasto_real: null, presupuesto_fecha: null, semaforo: 'verde', bloqueos: '' }
   const [f, setF] = useState(VACIO)
   const [abierto, setAbierto] = useState(false)
@@ -377,8 +392,9 @@ function Avances({ proyectoId, avances, fases, onCambio, avisar }) {
             return (
               <div key={a.id} className="flex flex-wrap items-start gap-3 px-3 py-2.5">
                 <div className="flex-1 min-w-[160px]">
-                  <p className="text-sm font-medium text-feisen-texto">{formatFecha(a.fecha)} · {a.fase || 'Sin fase'}</p>
+                  <p className="text-sm font-medium text-feisen-texto">{fechaDia(a.fecha)} · {a.fase || 'Sin fase'}</p>
                   {a.bloqueos && <p className="text-xs text-feisen-texto-2 mt-0.5">{a.bloqueos}</p>}
+                  {(() => { const h = horasDelMes(interrupciones, a.fecha); return h > 0 && <p className="text-xs text-amber-700 mt-0.5">{fmtHoras(h)} perdidas por mantenimiento en el mes</p> })()}
                 </div>
                 <div className="text-right text-sm tabular-nums">
                   <p className="text-feisen-texto">{a.gasto_real != null ? formatCOP(a.gasto_real) : '—'} <span className="text-feisen-texto-2">de {a.presupuesto_fecha != null ? formatCOP(a.presupuesto_fecha) : '—'}</span></p>
@@ -420,6 +436,116 @@ function Avances({ proyectoId, avances, fases, onCambio, avisar }) {
         </div>
       ) : (
         <BotonAgregar onClick={() => setAbierto(true)}>Registrar revisión del mes</BotonAgregar>
+      )}
+    </div>
+  )
+}
+
+// ── Interrupciones por mantenimiento ─────────────────────────────────────────────
+// El jefe de Innovación hace trabajos de mantenimiento que solo él puede hacer. Cada vez que uno lo
+// saca del proyecto se anota aquí; en la reunión de jefes se decide si se corre la fecha o la prioridad.
+const mesDe = f => String(f || '').slice(0, 7)
+function horasDelMes(interrupciones, fecha) {
+  return (interrupciones || []).filter(i => mesDe(i.fecha) === mesDe(fecha)).reduce((s, i) => s + Number(i.horas || 0), 0)
+}
+const fmtHoras = h => `${Number(h).toLocaleString('es-CO', { maximumFractionDigits: 1 })} h`
+const NOMBRE_MES = m => { const t = new Date(m + '-15T12:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1) }
+
+function Interrupciones({ proyectoId, interrupciones, equipos, onCambio, avisar }) {
+  const VACIO = { fecha: new Date().toISOString().slice(0, 10), horas: '', equipo_id: '', motivo: '' }
+  const [f, setF] = useState(VACIO)
+  const [abierto, setAbierto] = useState(false)
+  const [error, setError] = useState('')
+
+  const total = interrupciones.reduce((s, i) => s + Number(i.horas || 0), 0)
+  const porMes = Object.entries(interrupciones.reduce((m, i) => { const k = mesDe(i.fecha); m[k] = (m[k] || 0) + Number(i.horas || 0); return m }, {}))
+    .sort((a, b) => b[0].localeCompare(a[0]))
+
+  async function agregar() {
+    const horas = Number(String(f.horas).replace(',', '.'))
+    if (!(horas > 0)) { setError('Escriba cuántas horas se perdieron.'); return }
+    if (!f.motivo.trim()) { setError('Escriba el motivo (qué se hizo).'); return }
+    setError('')
+    const { error: e } = await supabase.from('innovacion_interrupciones').insert({
+      proyecto_id: proyectoId, fecha: f.fecha, horas, equipo_id: f.equipo_id || null, motivo: f.motivo.trim(),
+    })
+    if (e) { setError('No se pudo guardar: ' + e.message); return }
+    setF(VACIO); setAbierto(false); avisar('Interrupción registrada'); onCambio()
+  }
+  async function borrar(id) {
+    if (!confirm('¿Borrar esta interrupción?')) return
+    await supabase.from('innovacion_interrupciones').delete().eq('id', id)
+    onCambio()
+  }
+
+  return (
+    <div className="space-y-3 pt-3 border-t border-feisen-borde-suave">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="font-semibold text-feisen-texto">Interrupciones por mantenimiento</p>
+          <p className="text-sm text-feisen-texto-2">Cada vez que un trabajo de mantenimiento saca al jefe de Innovación de este proyecto.</p>
+        </div>
+        {total > 0 && (
+          <div className="text-right">
+            <p className="text-xl font-semibold tabular-nums text-amber-700">{fmtHoras(total)}</p>
+            <p className="text-xs text-feisen-texto-2">perdidas en total</p>
+          </div>
+        )}
+      </div>
+
+      {porMes.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {porMes.map(([m, h]) => (
+            <span key={m} className="text-xs bg-feisen-fondo border border-feisen-borde-suave rounded-md px-2 py-1 tabular-nums">
+              {NOMBRE_MES(m)}: <b>{fmtHoras(h)}</b>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {interrupciones.length === 0 && !abierto && (
+        <p className="text-sm text-feisen-texto-2">Sin interrupciones anotadas. Cuando mantenimiento lo saque del proyecto, regístrelo aquí con las horas y el equipo.</p>
+      )}
+      {interrupciones.length > 0 && (
+        <div className="border border-feisen-borde rounded-lg divide-y divide-feisen-borde-suave">
+          {interrupciones.map(i => (
+            <div key={i.id} className="flex items-start gap-3 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-feisen-texto">{i.motivo}</p>
+                <p className="text-xs text-feisen-texto-2">
+                  {fechaDia(i.fecha)}{i.mant_equipos ? ` · ${i.mant_equipos.codigo} ${i.mant_equipos.nombre}` : ''}
+                </p>
+              </div>
+              <span className="text-sm font-semibold tabular-nums text-feisen-texto shrink-0">{fmtHoras(i.horas)}</span>
+              <BotonQuitar onClick={() => borrar(i.id)} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {abierto ? (
+        <div className="border border-feisen-borde rounded-lg p-3 space-y-3 bg-feisen-fondo">
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Campo etiqueta="Fecha"><input type="date" value={f.fecha} onChange={e => setF({ ...f, fecha: e.target.value })} className={INPUT} /></Campo>
+            <Campo etiqueta="Horas perdidas">
+              <input inputMode="decimal" value={f.horas} placeholder="Ej.: 3,5" onChange={e => setF({ ...f, horas: e.target.value.replace(/[^\d,.]/g, '') })} className={`${INPUT} text-right tabular-nums`} />
+            </Campo>
+            <Campo etiqueta="Equipo (opcional)">
+              <select value={f.equipo_id} onChange={e => setF({ ...f, equipo_id: e.target.value })} className={INPUT}>
+                <option value="">Sin equipo</option>
+                {equipos.map(q => <option key={q.id} value={q.id}>{q.codigo} · {q.nombre}</option>)}
+              </select>
+            </Campo>
+          </div>
+          <Campo etiqueta="Motivo: qué se hizo"><Texto valor={f.motivo} onCambiar={v => setF({ ...f, motivo: v })} filas={2} /></Campo>
+          <Alerta tipo="error" mensaje={error} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setAbierto(false); setError('') }} className="px-4 min-h-[44px] rounded-lg border border-feisen-borde text-sm bg-white">Cancelar</button>
+            <button onClick={agregar} className="px-4 min-h-[44px] rounded-lg border border-feisen-azul text-feisen-azul text-sm font-semibold bg-white">Guardar interrupción</button>
+          </div>
+        </div>
+      ) : (
+        <BotonAgregar onClick={() => setAbierto(true)}>Registrar interrupción</BotonAgregar>
       )}
     </div>
   )
