@@ -8,11 +8,11 @@ import Alerta from '../shared/Alerta'
 import { useAviso } from '../shared/ui'
 import { ArrowLeft, Plus, Trash2, Send } from '../shared/iconos'
 import {
-  TIPOS, AREAS, RESPONSABLE, ESTADOS, SEMAFOROS, IMPREVISTOS,
+  TIPOS, AREAS, RESPONSABLE, APROBADORA, ESTADOS, SEMAFOROS, IMPREVISTOS,
   subtotalCostos, totalInversion, mesesRecuperacion, roi12, fmtMeses, fmtPct,
 } from './comun'
 
-// Ficha de un proyecto de innovación: las 7 secciones del formato aprobado (2026-11-20).
+// Ficha de un proyecto de innovación: las 6 secciones del formato aprobado (2026-11-20).
 // Se edita todo y se guarda con un solo botón; el seguimiento mensual se agrega fila por fila.
 const CAMPOS = 'id, numero, nombre, tipo, area, responsable, fecha_presentacion, resumen, estado, problema, solucion, indicador_meta, costos, beneficio_mensual, costo_unitario, precio_venta, fases, recursos, monto_aprobado, condiciones, proxima_revision, decidido_por, decidido_at'
 
@@ -99,15 +99,21 @@ export default function FichaProyecto() {
     if (await guardar({ estado: 'presentado' })) avisar('Proyecto presentado a gerencia')
   }
 
-  async function decidir(estado) {
-    const cambios = { estado, decidido_por: perfil?.id || null, decidido_at: new Date().toISOString() }
-    if ((estado === 'aprobado' || estado === 'aprobado_ajustes') && p.monto_aprobado == null) cambios.monto_aprobado = totalInversion(p.costos)
-    if (await guardar(cambios)) avisar(`Decisión registrada: ${ESTADOS[estado].texto}`)
+  // Firma de aprobación: solo Angie
+  const puedeAprobar = perfil?.id === APROBADORA.id
+  async function aprobar() {
+    if (!puedeAprobar) return
+    if (!confirm(`¿Aprobar «${p.nombre}» por ${formatCOP(totalInversion(p.costos))}? Queda firmado a nombre de ${APROBADORA.nombre}.`)) return
+    const cambios = { estado: 'aprobado', decidido_por: perfil.id, decidido_at: new Date().toISOString(), monto_aprobado: totalInversion(p.costos) }
+    if (await guardar(cambios)) avisar('Proyecto aprobado')
+  }
+  async function cerrar() {
+    if (!confirm('¿Cerrar este proyecto? El seguimiento queda como está.')) return
+    if (await guardar({ estado: 'cerrado' })) avisar('Proyecto cerrado')
   }
 
   const est = ESTADOS[p.estado] || ESTADOS.borrador
   const inv = totalInversion(p.costos)
-  const decidido = ['aprobado', 'aprobado_ajustes', 'aplazado', 'rechazado', 'en_curso', 'cerrado'].includes(p.estado)
   const enMarcha = ['aprobado', 'aprobado_ajustes', 'en_curso', 'cerrado'].includes(p.estado)
 
   return (
@@ -133,7 +139,28 @@ export default function FichaProyecto() {
             <Send size={16} /> Presentar a gerencia
           </button>
         )}
+        {p.estado === 'presentado' && (puedeAprobar ? (
+          <button onClick={aprobar} disabled={guardando}
+            className="bg-feisen-azul text-white rounded-lg px-5 min-h-[44px] text-sm font-semibold disabled:opacity-50">
+            Aprobar proyecto
+          </button>
+        ) : (
+          <span className="text-sm text-feisen-texto-2">Espera la aprobación de {APROBADORA.nombre}</span>
+        ))}
+        {enMarcha && p.estado !== 'cerrado' && (
+          <button onClick={cerrar} disabled={guardando}
+            className="px-4 min-h-[44px] rounded-lg text-sm border border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo">
+            Cerrar proyecto
+          </button>
+        )}
       </div>
+
+      {p.decidido_at && enMarcha && (
+        <p className="text-sm text-feisen-texto-2">
+          Aprobado por <span className="font-semibold text-feisen-texto">{APROBADORA.nombre}</span> el {formatFecha(p.decidido_at)}
+          {p.monto_aprobado != null && <> por <span className="tabular-nums">{formatCOP(p.monto_aprobado)}</span></>}
+        </p>
+      )}
 
       {faltan.length > 0 && (
         <Alerta tipo="alerta" mensaje={`Para presentarlo faltan las secciones obligatorias: ${faltan.join(' · ')}.`} />
@@ -247,51 +274,10 @@ export default function FichaProyecto() {
       </Seccion>
 
       {/* 6 */}
-      <Seccion n="6" titulo="Decisión de gerencia">
-        {p.estado === 'borrador' ? (
-          <p className="text-sm text-feisen-texto-2">Se decide cuando el proyecto esté presentado. Use «Presentar a gerencia» arriba cuando las secciones obligatorias estén completas.</p>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2">
-              {['aprobado', 'aprobado_ajustes', 'aplazado', 'rechazado'].map(e => (
-                <button key={e} onClick={() => decidir(e)} disabled={guardando}
-                  className={`px-3 min-h-[44px] rounded-lg text-sm border font-medium
-                    ${p.estado === e ? `${ESTADOS[e].clase} border-transparent` : 'bg-white border-feisen-borde text-feisen-texto-2 hover:bg-feisen-fondo'}`}>
-                  {ESTADOS[e].texto}
-                </button>
-              ))}
-            </div>
-            {p.decidido_at && <p className="text-xs text-feisen-texto-2">Decidido el {formatFecha(p.decidido_at)}</p>}
-            {decidido && (
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Campo etiqueta="Monto aprobado (COP)"><Pesos valor={p.monto_aprobado} onCambiar={v => set('monto_aprobado', v)} grande /></Campo>
-                <Campo etiqueta="Fecha de la próxima revisión">
-                  <input type="date" value={p.proxima_revision || ''} onChange={e => set('proxima_revision', e.target.value || null)} className={INPUT} />
-                </Campo>
-                <div className="sm:col-span-2">
-                  <Campo etiqueta="Condiciones o ajustes"><Texto valor={p.condiciones} onCambiar={v => set('condiciones', v)} filas={3} /></Campo>
-                </div>
-              </div>
-            )}
-            {enMarcha && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {p.estado !== 'en_curso' && p.estado !== 'cerrado' && (
-                  <button onClick={() => decidir('en_curso')} className="px-3 min-h-[44px] rounded-lg text-sm border border-feisen-borde hover:bg-feisen-fondo">Marcar en curso</button>
-                )}
-                {p.estado !== 'cerrado' && (
-                  <button onClick={() => decidir('cerrado')} className="px-3 min-h-[44px] rounded-lg text-sm border border-feisen-borde hover:bg-feisen-fondo">Cerrar proyecto</button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </Seccion>
-
-      {/* 7 */}
-      <Seccion n="7" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
+      <Seccion n="6" titulo="Seguimiento de avance" ayuda="Una revisión al mes mientras el proyecto está en marcha, con las horas perdidas por mantenimiento. Al cerrar, registre el indicador logrado frente a la meta de la sección 3.">
         {enMarcha
           ? <Avances proyectoId={id} avances={avances} interrupciones={interrupciones} fases={p.fases} onCambio={cargarRegistros} avisar={avisar} />
-          : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando gerencia aprueba el proyecto.</p>}
+          : <p className="text-sm text-feisen-texto-2">El seguimiento se habilita cuando {APROBADORA.nombre} aprueba el proyecto.</p>}
         <Interrupciones proyectoId={id} interrupciones={interrupciones} equipos={equipos} onCambio={cargarRegistros} avisar={avisar} />
       </Seccion>
 

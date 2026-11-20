@@ -128,7 +128,7 @@ export default function ProyectosInnovacion() {
           {proyectos.length === 0 ? (
             <>
               <p className="font-semibold text-feisen-texto mt-2">Todavía no hay proyectos</p>
-              <p className="text-sm text-feisen-texto-2 mt-1">Crea el primero con «Nuevo proyecto». La ficha sigue el formato aprobado: problema, solución, costos y retorno, cronograma y decisión.</p>
+              <p className="text-sm text-feisen-texto-2 mt-1">Crea el primero con «Nuevo proyecto». La ficha sigue el formato aprobado: problema, solución, costos y retorno, cronograma y seguimiento. Solo Angie aprueba.</p>
             </>
           ) : (
             <p className="text-sm text-feisen-texto-2 mt-2">Ningún proyecto coincide con la búsqueda o el filtro. Prueba con «Todos».</p>

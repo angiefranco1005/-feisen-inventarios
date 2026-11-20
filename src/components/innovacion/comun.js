@@ -12,6 +12,11 @@ export const TIPOS = {
 // El responsable de todo proyecto es siempre el jefe de Innovación y Diseño (Angie, 2026-11-20)
 export const RESPONSABLE = 'Jefe de Innovación y Diseño'
 
+// Solo Angie aprueba (firma) un proyecto (Angie, 2026-11-20). Se quitó la sección «Decisión de gerencia»:
+// ya no hay monto aprobado editable, condiciones, próxima revisión, aplazar ni rechazar.
+// Al aprobar se guarda decidido_por/decidido_at y el monto aprobado = inversión total de ese momento.
+export const APROBADORA = { id: 'ef361cdc-5333-4e22-a93e-89d50d2a2e1e', nombre: 'Angie Franco' }
+
 export const AREAS = ['Fundición', 'Mecanizados', 'Ensamble', 'Motores', 'Otra']
 
 // «Decisión que se pide» se quitó (Angie, 20/11): la prioridad se define en la reunión de jefes.
