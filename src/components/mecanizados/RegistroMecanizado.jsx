@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Plus, Trash2, Search, CalendarDays } from '../shared/iconos'
+import { Plus, Trash2, Search, CalendarDays, Clock } from '../shared/iconos'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
 import { coincideBusqueda } from '../../utils/busqueda'
@@ -20,6 +20,18 @@ const CATEGORIAS_MECANIZABLES = new Set([
   '549c8036-364a-433b-b18f-d4a444c9f9a2',
   'a735b04a-9bd7-424b-b695-1ac8ce1a5bf4',
 ])
+
+// Máquinas donde se mecaniza (2026-11-20, KPIs 2027): el centro de mecanizado se mide aparte
+// (horas produciendo, Leonardo Cardozo). Se guarda como texto en mecanizado_tiempos.maquina.
+const MAQUINAS = ['Centro de mecanizado', 'Torno', 'Fresadora', 'Taladro', 'Otra máquina']
+// Minutos entre dos horas "HH:MM"; si la hora fin es menor, terminó al día siguiente
+function minutosEntre(inicio, fin) {
+  if (!inicio || !fin || inicio === fin) return null
+  const [hi, mi] = inicio.split(':').map(Number), [hf, mf] = fin.split(':').map(Number)
+  const m = (hf * 60 + mf) - (hi * 60 + mi)
+  return m < 0 ? m + 1440 : m
+}
+const duracion = m => m == null ? '' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`
 
 const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits: 3 })
 // Clave para comparar nombres de productos: mayúsculas, sin tildes y SIN espacios
@@ -48,7 +60,7 @@ function hoyISO() {
 
 export default function RegistroMecanizado() {
   const unaVez = useUnaVez()
-  const { perfil, session } = useAuth()
+  const { perfil, session, rolEfectivo } = useAuth()
   const navigate = useNavigate()
   const [aviso, avisar] = useAviso()
   const buscarRef = useRef(null)
@@ -64,6 +76,14 @@ export default function RegistroMecanizado() {
   const [fecha, setFecha]         = useState(hoyISO())
   const [operarios, setOperarios] = useState([]) // [{ clave, nombre }] — varios si trabajaron en pareja
   const operario = unirOperarios(operarios)
+
+  // Hora de inicio y fin del trabajo (tiempo por pieza y horas del centro de mecanizado)
+  const maquinaInicial = rolEfectivo === 'JEFE_MANTENIMIENTO' ? 'Centro de mecanizado' : ''
+  const [maquina, setMaquina]   = useState(maquinaInicial)
+  const [horaInicio, setHoraInicio] = useState('')
+  const [horaFin, setHoraFin]   = useState('')
+  const minutos = minutosEntre(horaInicio, horaFin)
+  const [tiemposHoy, setTiemposHoy] = useState({}) // numero MEC → { minutos, maquina }
 
   const [lineas, setLineas]     = useState([]) // [{ itemId, nombre, unidad, cantidad (texto) }]
   const [enviando, setEnviando] = useState(false)
@@ -131,6 +151,11 @@ export default function RegistroMecanizado() {
       .eq('fecha_movimiento', hoyISO()).eq('revertido', false)
       .order('created_at', { ascending: false }).limit(200)
     setHoy(data || [])
+    const numeros = [...new Set((data || []).map(m => m.numero))]
+    if (numeros.length) {
+      const { data: t } = await supabase.from('mecanizado_tiempos').select('numero, minutos, maquina').in('numero', numeros)
+      setTiemposHoy(Object.fromEntries((t || []).map(x => [x.numero, x])))
+    } else setTiemposHoy({})
   }, [])
 
   useEffect(() => { cargarCatalogo(); cargarHoy() }, [cargarCatalogo, cargarHoy])
@@ -168,6 +193,10 @@ export default function RegistroMecanizado() {
     if (!usuarioId)       { setError('Sesión no cargada. Recarga la página.'); return }
     if (!operario.trim()) { setError('Elige quién mecanizó.'); return }
     if (!fecha)           { setError('Selecciona la fecha.'); return }
+    if (!maquina)         { setError('Elige en qué máquina se mecanizó.'); return }
+    if (!horaInicio || !horaFin) { setError('Escribe la hora de inicio y la hora de fin.'); return }
+    if (minutos == null)  { setError('La hora de fin debe ser distinta a la de inicio.'); return }
+    if (minutos > 16 * 60) { setError(`De ${horaInicio} a ${horaFin} son ${duracion(minutos)}: revisa las horas.`); return }
     if (!lineas.length)   { setError('Agrega al menos una pieza.'); return }
     const conProblema = lineas.find(problemaDe)
     if (conProblema)      { setError(`${conProblema.nombre}: ${problemaDe(conProblema)}`); return }
@@ -190,11 +219,19 @@ export default function RegistroMecanizado() {
       const { error } = await supabase.from('movimientos').insert(movs)
       if (error) throw error
 
+      // Tiempo del registro (una fila por MEC). Si falla, el mecanizado ya quedó guardado: se avisa.
+      const { error: eT } = await supabase.from('mecanizado_tiempos').insert({
+        numero: numeroMec, fecha, hora_inicio: horaInicio, hora_fin: horaFin, maquina,
+        operario: operario.trim(), piezas: totalUnd, referencias: lineas.length, registrado_por: usuarioId,
+      })
+      if (eT) setError(`${numeroMec} quedó guardado, pero no la hora de inicio y fin: ${eT.message}`)
+
       avisar(`${numeroMec} guardado: ${lineas.length} ${lineas.length === 1 ? 'pieza' : 'piezas'} por ${operario.trim()}`,
         { texto: 'Ver', alHacer: () => navigate('/movimientos') })
       setLineas([])
       setOperarios([])
       setFecha(hoyISO())
+      setHoraInicio(''); setHoraFin('')
       await Promise.all([cargarCatalogo(), cargarHoy()])
     } catch (e) {
       setError(e.message)
@@ -242,6 +279,36 @@ export default function RegistroMecanizado() {
           <span className="text-xs text-gray-400">si fue en pareja, marca a los dos</span>
         </div>
         <SelectorOperarios value={operarios} onChange={setOperarios} />
+        <div className="pt-1 space-y-2">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">¿En qué máquina?</h2>
+          <div className="flex flex-wrap gap-2">
+            {MAQUINAS.map(m => (
+              <button key={m} type="button" aria-pressed={maquina === m} onClick={() => setMaquina(m)}
+                className={`min-h-[40px] px-3 rounded-lg border text-sm font-medium ${maquina === m ? 'bg-feisen-azul-suave text-feisen-azul border-feisen-azul' : 'bg-white text-feisen-texto-2 border-feisen-borde hover:bg-feisen-fondo'}`}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="pt-1">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2 mb-2 flex items-center gap-1.5"><Clock size={14} /> Tiempo de trabajo</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm text-feisen-texto-2">Inicio
+              <input type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)}
+                className="block mt-1 border border-feisen-borde rounded-lg px-3 py-2 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul" />
+            </label>
+            <label className="text-sm text-feisen-texto-2">Fin
+              <input type="time" value={horaFin} onChange={e => setHoraFin(e.target.value)}
+                className="block mt-1 border border-feisen-borde rounded-lg px-3 py-2 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul" />
+            </label>
+            {minutos != null && (
+              <p className="text-sm text-feisen-texto pb-2 tabular-nums">
+                <b>{duracion(minutos)}</b>{horaFin < horaInicio ? ' (termina al día siguiente)' : ''}
+                {totalUnd > 0 && <span className="text-feisen-texto-2"> · {(minutos / totalUnd).toLocaleString('es-CO', { maximumFractionDigits: 1 })} min por pieza</span>}
+              </p>
+            )}
+          </div>
+        </div>
       </Bloque>
 
       <Bloque titulo="Piezas" detalle={lineas.length ? `${lineas.length} en la lista` : null}>
@@ -331,11 +398,13 @@ export default function RegistroMecanizado() {
             </p>
             <p className={`text-xs truncate ${hayProblema ? 'text-feisen-rojo font-medium' : 'text-feisen-texto-2'}`}>
               {!operarios.length ? 'Elige quién mecanizó'
+                : !maquina ? 'Elige la máquina'
+                : minutos == null ? 'Escribe la hora de inicio y fin'
                 : hayProblema ? 'Corrige las filas en rojo'
                 : lineas.length ? `Por ${operario}` : 'Agrega al menos una pieza'}
             </p>
           </div>
-          <button type="button" onClick={unaVez(confirmar)} disabled={enviando || !lineas.length || !operarios.length || hayProblema}
+          <button type="button" onClick={unaVez(confirmar)} disabled={enviando || !lineas.length || !operarios.length || !maquina || minutos == null || hayProblema}
             className="bg-feisen-azul text-white rounded-lg px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-[.98] transition">
             {enviando ? 'Guardando…' : 'Registrar mecanizado'}
           </button>
@@ -351,7 +420,8 @@ export default function RegistroMecanizado() {
               <li key={m.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm text-feisen-texto break-words">{m.items?.nombre || 'Producto'}</p>
-                  <p className="text-xs text-feisen-texto-2 tabular-nums">{m.numero} · {(m.motivo || '').replace(/^Mecanizado por:\s*/i, '')}</p>
+                  <p className="text-xs text-feisen-texto-2 tabular-nums">{m.numero} · {(m.motivo || '').replace(/^Mecanizado por:\s*/i, '')}
+                    {tiemposHoy[m.numero] && ` · ${tiemposHoy[m.numero].maquina} · ${duracion(tiemposHoy[m.numero].minutos)}`}</p>
                 </div>
                 <span className="text-sm font-semibold text-feisen-texto tabular-nums whitespace-nowrap">{cant(m.cantidad)} {m.items?.unidad_medida || 'und'}</span>
               </li>
