@@ -8,6 +8,7 @@ import {
 } from '../shared/iconos'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 import { useUnaVez } from '../../hooks/useUnaVez'
+import { MOTIVOS_NC_FUNDICION } from './indicadoresFundicion'
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 // Kilos con formato colombiano (solo para mostrar; lo que se guarda no cambia)
@@ -224,6 +225,11 @@ export default function RecogidaFundida() {
       const plan = Number(p.cantidad_planeada || 0)
       if (conf < 0 || nc < 0) {
         setErrores(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
+        return
+      }
+      // El motivo alimenta el KPI de piezas no conformes por motivo (2026-11-20)
+      if (nc > 0 && !String(getField(orden.id, p.id, 'motivo') || '').trim()) {
+        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": elige el motivo de ${nc === 1 ? 'la pieza no conforme' : `las ${nc} piezas no conformes`}.` }))
         return
       }
       // Si la suma supera lo planeado SÍ se permite (piezas de otras fundidas que solo
@@ -696,13 +702,17 @@ export default function RecogidaFundida() {
 
                               {nc > 0 && (
                                 <label className="block space-y-1.5">
-                                  <span className="block text-sm font-medium text-feisen-texto">Razón de calidad <span className="font-normal text-feisen-texto-2">(opcional)</span></span>
-                                  <input type="text"
+                                  <span className="block text-sm font-medium text-feisen-texto">Motivo de las no conformes *</span>
+                                  <select
                                     value={getField(orden.id, p.id, 'motivo')}
                                     onChange={e => setField(orden.id, p.id, 'motivo', e.target.value)}
-                                    placeholder="Ej: porosidad, grieta…"
-                                    className={claseInput + ' min-h-[44px]'}
-                                  />
+                                    className={claseInput + ' min-h-[44px]'}>
+                                    <option value="">Elige el motivo…</option>
+                                    {/* Si la orden ya traía un motivo escrito a mano, se conserva como opción */}
+                                    {getField(orden.id, p.id, 'motivo') && !MOTIVOS_NC_FUNDICION.includes(getField(orden.id, p.id, 'motivo')) &&
+                                      <option value={getField(orden.id, p.id, 'motivo')}>{getField(orden.id, p.id, 'motivo')}</option>}
+                                    {MOTIVOS_NC_FUNDICION.map(m => <option key={m} value={m}>{m}</option>)}
+                                  </select>
                                 </label>
                               )}
 

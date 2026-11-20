@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { EncabezadoPagina, Segmentado } from '../shared/ui'
+import { mermaDeOrdenes } from './indicadoresFundicion'
 import {
   BarChart2, Users, Package, Flame, AlertTriangle,
   RefreshCw, Scale, ChevronRight,
@@ -11,7 +12,6 @@ import {
 const HIERRO_COLADO_ITEM_ID = '52546e1a-dd2b-46c6-8857-9895497f228a'
 const VACEADERO_ITEM_ID     = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5'
 
-function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 
 function fechaHace(dias) {
   const d = new Date()
@@ -181,35 +181,9 @@ export default function AnaliticaFundicion() {
     })
     const pctConformidad = totalPlaneadas > 0 ? (totalConformes / totalPlaneadas) * 100 : 0
 
-    // ── Merma por orden ──
-    const hierroMap = {}
-    movsHierro.forEach(m => {
-      const ref = (m.referencia || '').split('·')[0].trim()
-      hierroMap[ref] = (hierroMap[ref] || 0) + Number(m.cantidad)
-    })
-    const vaceaderoMap = {}
-    movsVaceadero.forEach(m => {
-      const ref = (m.referencia || '').trim()
-      vaceaderoMap[ref] = (vaceaderoMap[ref] || 0) + Number(m.cantidad)
-    })
-
-    let totalHierro = 0, totalVaceadero = 0, totalMerma = 0
-
-    const mermasPorOrden = ordenes.map(o => {
-      const ref      = numOrden(o.numero)
-      const kgHierro = hierroMap[ref] || 0
-      const kgVac    = vaceaderoMap[ref] || 0
-      const kgPiezas = o.ordenes_moldeo_piezas?.reduce((s, p) =>
-        s + Number(p.cantidad_conforme || 0) * Number(p.items?.peso_unitario || 0), 0) || 0
-      const kgMerma  = Math.max(0, kgHierro - kgPiezas - kgVac)
-      const pctMerma = kgHierro > 0 ? (kgMerma / kgHierro) * 100 : 0
-      totalHierro    += kgHierro
-      totalVaceadero += kgVac
-      totalMerma     += kgMerma
-      return { ref, fecha: o.fecha, kgHierro, kgPiezas, kgVaceadero: kgVac, kgMerma, pctMerma }
-    }).filter(m => m.kgHierro > 0).sort((a, b) => b.pctMerma - a.pctMerma)
-
-    const pctMermaPromedio = totalHierro > 0 ? (totalMerma / totalHierro) * 100 : 0
+    // ── Merma por orden (mismo cálculo que el Inicio de Fundición: indicadoresFundicion.js) ──
+    const { porOrden: mermasPorOrden, totalHierro, totalVaceadero, totalMerma, pctMerma: pctMermaPromedio } =
+      mermaDeOrdenes(ordenes, movsHierro, movsVaceadero)
 
     // ── Producción por moldeador ──
     const moldeadorMap = {}

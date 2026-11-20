@@ -29,6 +29,7 @@ import ListaOrdenesMoldeo  from './components/fundicion/ListaOrdenesMoldeo'
 import GestionBOM          from './components/fundicion/GestionBOM'
 import RecogidaFundida     from './components/fundicion/RecogidaFundida'
 import AnaliticaFundicion  from './components/fundicion/AnaliticaFundicion'
+import InicioFundicion     from './components/fundicion/InicioFundicion'
 import InformeNomina       from './components/reportes/InformeNomina'
 import RegistroMecanizado       from './components/mecanizados/RegistroMecanizado'
 import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
@@ -141,6 +142,8 @@ function AppRoutes() {
     : rolEfectivo === 'RRHH' && puede('rrhh') ? <Layout><InicioGerencia modo="rrhh" /></Layout>
     : esComercial ? <Layout><InicioVentas /></Layout>
     : rolEfectivo === 'LOGISTICA' ? <Layout><InicioGerencia modo="logistica" /></Layout>
+    // Jefe de Fundición: merma de hierro y piezas no conformes (KPIs 2027) + su inicio de siempre
+    : rolEfectivo === 'JEFE_FUNDICION' && puede('fundicion') ? <Layout><InicioFundicion /></Layout>
     : puede('movimientos') ? <Layout><DashboardLogistica /></Layout>
     : primera ? <Navigate to={primera} replace />
     : <Layout><SinModulos /></Layout>

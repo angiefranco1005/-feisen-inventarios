@@ -6,22 +6,35 @@ import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
+import { MOTIVOS_NC_FUNDICION } from '../fundicion/indicadoresFundicion'
 import { ShieldAlert, Plus, RefreshCw, ChevronRight, Check, X, Search, User, AlertTriangle } from '../shared/iconos'
 
-const TIPOS_DEFECTO = [
-  'Porosidad',
-  'Fisura / grieta',
-  'Dimensión incorrecta',
+// Tipos de defecto según el área (2026-11-20, KPIs 2027): Fundición usa la misma lista que la
+// recogida; Mecanizados tiene la suya. Áreas sin lista propia ven las dos.
+const BODEGA_FUNDICION   = 'a0604489-2768-445b-8e68-e450ef8520ed'
+const BODEGA_MECANIZADOS = '03a709ac-0bee-457a-80a1-0a1603218d34'
+const TIPOS_MECANIZADO = [
+  'Dimensión incorrecta / fuera de tolerancia',
   'Acabado superficial deficiente',
-  'Rotura durante pulida',
-  'Rechupes',
-  'Inclusiones',
+  'Rotura / pieza partida',
+  'Rosca defectuosa',
+  'Error de programa o de montaje',
+  'Golpe o daño al manipular',
+  'Defecto de fundición encontrado al mecanizar',
   'Otro',
 ]
+function tiposDe(bodegaId) {
+  if (bodegaId === BODEGA_FUNDICION) return MOTIVOS_NC_FUNDICION
+  if (bodegaId === BODEGA_MECANIZADOS) return TIPOS_MECANIZADO
+  return [...new Set([...MOTIVOS_NC_FUNDICION.filter(t => t !== 'Otro'), ...TIPOS_MECANIZADO])]
+}
+// Quién responde por la pieza y a qué orden se refiere, según el área
+const esMec = bodegaId => bodegaId === BODEGA_MECANIZADOS
 
 const DESTINOS = [
   { value: 'vaceadero', label: 'Vaceadero (refundir)' },
   { value: 'reproceso', label: 'Reproceso' },
+  { value: 'chatarra',  label: 'Chatarra / desecho' },
   { value: 'aprobado',  label: 'Aprobado con observación' },
   { value: 'otro',      label: 'Otro' },
 ]
@@ -39,6 +52,7 @@ const FORM_VACIO = {
   bodega_id: '',
   fecha_deteccion: new Date().toISOString().split('T')[0],
   tipo_defecto: '',
+  tipo_defecto_otro: '',
   descripcion: '',
   referencia_orden: '',
   moldeador: '',
@@ -51,7 +65,10 @@ const FORM_CIERRE_VACIO = {
 }
 
 export default function NoConformidades() {
-  const { perfil, esAdmin } = useAuth()
+  const { perfil, esAdmin, rolEfectivo } = useAuth()
+  // Área por defecto según el rol: Mecanizados (William y el centro de mecanizado de Leonardo) o Fundición
+  const bodegaPorRol = ['JEFE_MECANIZADOS', 'JEFE_MANTENIMIENTO'].includes(rolEfectivo) ? BODEGA_MECANIZADOS
+    : rolEfectivo === 'JEFE_FUNDICION' ? BODEGA_FUNDICION : ''
   const [ncs,           setNcs]           = useState([])
   const [items,         setItems]         = useState([])
   const [bodegas,       setBodegas]       = useState([])
@@ -93,6 +110,9 @@ export default function NoConformidades() {
     if (!form.cantidad_afectada || Number(form.cantidad_afectada) <= 0) {
       setMsg({ tipo: 'error', texto: 'La cantidad debe ser mayor a 0.' }); return
     }
+    if (!form.bodega_id) { setMsg({ tipo: 'error', texto: 'Elige el área donde se encontró.' }); return }
+    if (!form.tipo_defecto) { setMsg({ tipo: 'error', texto: 'Elige el tipo de defecto.' }); return }
+    const tipoDefecto = form.tipo_defecto === 'Otro' ? (form.tipo_defecto_otro.trim() ? `Otro: ${form.tipo_defecto_otro.trim()}` : 'Otro') : form.tipo_defecto
     setGuardando(true)
     setMsg(null)
 
@@ -111,7 +131,7 @@ export default function NoConformidades() {
       bodega_nombre: form.bodega_nombre || null,
       detectado_por: perfil.id,
       fecha_deteccion: form.fecha_deteccion,
-      tipo_defecto: form.tipo_defecto || null,
+      tipo_defecto: tipoDefecto,
       descripcion: form.descripcion || null,
       referencia_orden: form.referencia_orden || null,
       moldeador: form.moldeador || null,
@@ -163,6 +183,14 @@ export default function NoConformidades() {
     cargar()
   }
 
+  // Abre el formulario con el área del rol ya elegida
+  function abrirCrear() {
+    const bod = bodegas.find(b => b.id === bodegaPorRol)
+    setForm({ ...FORM_VACIO, fecha_deteccion: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }), bodega_id: bod?.id || '', bodega_nombre: bod?.nombre || '' })
+    setBusqItem('')
+    setModalCrear(true)
+  }
+
   function setF(campo, val) { setForm(p => ({ ...p, [campo]: val })) }
   function setFC(campo, val) { setFormCierre(p => ({ ...p, [campo]: val })) }
 
@@ -196,7 +224,7 @@ export default function NoConformidades() {
           <button onClick={cargar} className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50">
             <RefreshCw size={16} />
           </button>
-          <button onClick={() => { setModalCrear(true); setMsg(null) }}
+          <button onClick={() => { abrirCrear(); setMsg(null) }}
             className="flex items-center gap-2 bg-feisen-rojo text-white rounded-xl px-4 py-2.5 text-sm font-semibold hover:opacity-90">
             <Plus size={16} /> Nueva NC
           </button>
@@ -210,7 +238,7 @@ export default function NoConformidades() {
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por N° NC, pieza, moldeador, orden..."
+            placeholder="Buscar por N° NC, pieza, responsable, orden..."
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
         </div>
         <div className="flex gap-2">
@@ -294,7 +322,7 @@ export default function NoConformidades() {
                       <p className="font-semibold text-gray-800">{nc.referencia_orden || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400 font-medium mb-0.5">Moldeador</p>
+                      <p className="text-xs text-gray-400 font-medium mb-0.5">{esMec(nc.bodega_id) ? 'Operario' : 'Moldeador'}</p>
                       <p className="font-semibold text-orange-600">{nc.moldeador || '—'}</p>
                     </div>
                   </div>
@@ -415,12 +443,13 @@ export default function NoConformidades() {
 
             {/* Bodega */}
             <div>
-              <label className="text-xs text-gray-500 font-medium block mb-1">Área / Bodega donde se encontró</label>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Área / Bodega donde se encontró *</label>
               <select value={form.bodega_id}
                 onChange={e => {
                   const bod = bodegas.find(b => b.id === e.target.value)
                   setF('bodega_id', e.target.value)
                   setF('bodega_nombre', bod?.nombre || '')
+                  if (!tiposDe(e.target.value).includes(form.tipo_defecto)) setF('tipo_defecto', '')
                 }}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                 <option value="">Seleccionar área...</option>
@@ -430,9 +459,9 @@ export default function NoConformidades() {
 
             {/* Tipo de defecto */}
             <div>
-              <label className="text-xs text-gray-500 font-medium block mb-1">Tipo de defecto</label>
+              <label className="text-xs text-gray-500 font-medium block mb-1">Tipo de defecto *</label>
               <div className="flex flex-wrap gap-2 mb-2">
-                {TIPOS_DEFECTO.map(t => (
+                {tiposDe(form.bodega_id).map(t => (
                   <button key={t} type="button"
                     onClick={() => setF('tipo_defecto', form.tipo_defecto === t ? '' : t)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors
@@ -442,8 +471,8 @@ export default function NoConformidades() {
                 ))}
               </div>
               {form.tipo_defecto === 'Otro' && (
-                <input value={form.tipo_defecto_otro || ''}
-                  onChange={e => setF('tipo_defecto', e.target.value)}
+                <input value={form.tipo_defecto_otro}
+                  onChange={e => setF('tipo_defecto_otro', e.target.value)}
                   placeholder="Describir tipo de defecto..."
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
               )}
@@ -460,16 +489,16 @@ export default function NoConformidades() {
             <div className="grid grid-cols-2 gap-3">
               {/* Orden de referencia */}
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1">Orden de moldeo / fundida</label>
+                <label className="text-xs text-gray-500 font-medium block mb-1">{esMec(form.bodega_id) ? 'Registro de mecanizado / OF' : 'Orden de moldeo / fundida'}</label>
                 <input value={form.referencia_orden} onChange={e => setF('referencia_orden', e.target.value)}
-                  placeholder="ORD-MOL-0001 o FUN-0001"
+                  placeholder={esMec(form.bodega_id) ? 'MEC-0001 u OF' : 'ORD-MOL-0001 o FUN-0001'}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
               </div>
               {/* Moldeador */}
               <div>
-                <label className="text-xs text-gray-500 font-medium block mb-1">Moldeador responsable</label>
+                <label className="text-xs text-gray-500 font-medium block mb-1">{esMec(form.bodega_id) ? 'Operario responsable' : 'Moldeador responsable'}</label>
                 <input value={form.moldeador} onChange={e => setF('moldeador', e.target.value)}
-                  placeholder="Nombre del moldeador"
+                  placeholder={esMec(form.bodega_id) ? 'Nombre del operario' : 'Nombre del moldeador'}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
               </div>
             </div>
@@ -501,7 +530,7 @@ export default function NoConformidades() {
             <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-1">
               <p><span className="text-gray-500">Pieza:</span> <span className="font-semibold">{ncACerrar.item_nombre || ncACerrar.items?.nombre || '—'}</span></p>
               <p><span className="text-gray-500">Cantidad:</span> <span className="font-semibold text-feisen-rojo">{ncACerrar.cantidad_afectada}</span></p>
-              {ncACerrar.moldeador && <p><span className="text-gray-500">Moldeador:</span> <span className="font-semibold text-orange-600">{ncACerrar.moldeador}</span></p>}
+              {ncACerrar.moldeador && <p><span className="text-gray-500">{esMec(ncACerrar.bodega_id) ? 'Operario' : 'Moldeador'}:</span> <span className="font-semibold text-orange-600">{ncACerrar.moldeador}</span></p>}
             </div>
 
             {/* Destino final */}
