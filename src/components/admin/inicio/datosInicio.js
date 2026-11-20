@@ -235,14 +235,14 @@ export async function cargarPeriodo(desde, hasta, foto) {
   // Ausencias: días por tipo y por área (de la ficha) de las novedades que tocan el periodo
   const areaDe = Object.fromEntries((foto.empleados || []).map(e => [e.id, e.area || 'Sin área']))
   const nombreDe = Object.fromEntries((foto.empleados || []).map(e => [e.id, `${e.nombres} ${e.apellidos}`]))
-  const porTipo = {}, porArea = {}, porPersona = {}
+  const porTipo = {}, porArea = {}, ausPersona = {}
   for (const n of novedades.data || []) {
     const d = Number(n.dias) || 0
     porTipo[n.tipo] = (porTipo[n.tipo] || 0) + d
     const a = areaDe[n.empleado_id] || 'Sin área'
     const g = (porArea[a] ||= { dias: 0, personas: new Set() })
     g.dias += d; g.personas.add(n.empleado_id)
-    const p = (porPersona[n.empleado_id] ||= { nombre: nombreDe[n.empleado_id] || '—', area: areaDe[n.empleado_id] || 'Sin área', novedades: 0, dias: 0 })
+    const p = (ausPersona[n.empleado_id] ||= { nombre: nombreDe[n.empleado_id] || '—', area: areaDe[n.empleado_id] || 'Sin área', novedades: 0, dias: 0 })
     p.novedades++; p.dias += d
   }
 
@@ -256,7 +256,7 @@ export async function cargarPeriodo(desde, hasta, foto) {
       porTipo: Object.entries(porTipo).sort((a, b) => b[1] - a[1]),
       porArea: Object.entries(porArea).map(([a, g]) => [a, g.dias, g.personas.size]).sort((a, b) => b[1] - a[1]),
       // Top 3 de personas con más novedades (desempate: más días)
-      top: Object.values(porPersona).sort((a, b) => b.novedades - a.novedades || b.dias - a.dias).slice(0, 3),
+      top: Object.values(ausPersona).sort((a, b) => b.novedades - a.novedades || b.dias - a.dias).slice(0, 3),
       registros: (novedades.data || []).length,
     },
   }
