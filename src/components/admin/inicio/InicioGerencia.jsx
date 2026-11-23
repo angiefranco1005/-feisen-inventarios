@@ -4,7 +4,7 @@ import { useAuth } from '../../../contexts/AuthContext'
 import Spinner from '../../shared/Spinner'
 import { TIPOS_NOVEDAD, motivoRetiroLabel } from '../../rrhh/catalogosRRHH'
 import { cargarFoto, cargarPeriodo, rangoPeriodo, opcionesMeses, rotacionPeriodo, retirosPorMotivo } from './datosInicio'
-import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, X, RefreshCw, Target, LogOut } from '../../shared/iconos'
+import { Warehouse, Truck, Wrench, Flame, HardHat, ShieldAlert, RefreshCw, Target, LogOut } from '../../shared/iconos'
 import DashboardVentas from '../../of/ventas/DashboardVentas'
 import DashboardOF from '../../of/Dashboard'
 import InformeSinRotacion from './InformeSinRotacion'
@@ -12,13 +12,13 @@ import DashboardLogistica from '../../logistica/Dashboard'
 import IndicadoresLogistica from './IndicadoresLogistica'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica, por pestañas para no llenar la
-// pantalla (2026-11-04). Resumen = lo que requiere decisión + una cifra por módulo; cada
-// módulo tiene su pestaña (Ventas = dashboard de Odoo, Pedidos OF = análisis de las OF).
+// pantalla (2026-11-04): cada módulo tiene su pestaña (Ventas = dashboard de Odoo, Pedidos OF =
+// análisis de las OF). La pestaña Resumen se quitó a pedido de Angie (2026-11-23); los
+// pendientes siguen marcados con un punto en la pestaña de su módulo.
 // La pestaña queda en la URL (?vista=) y se recuerda en este navegador.
 // Ver OBSERVACIONES.md (2026-10-28, 2026-11-04) y la skill ux-feisen.
 
 const VISTAS = [
-  { id: 'resumen',     texto: 'Resumen' },
   { id: 'ventas',      texto: 'Ventas' },
   { id: 'of',          texto: 'Pedidos OF' },
   { id: 'inventarios', texto: 'Inventarios' },
@@ -34,7 +34,7 @@ const VISTAS_LOGISTICA = [
 ]
 const VISTAS_RRHH = [{ id: 'personas', texto: 'RRHH' }]
 // Pestañas que usan el selector de periodo
-const CON_PERIODO = ['resumen', 'produccion', 'personas']
+const CON_PERIODO = ['produccion', 'personas']
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 const DIAS  = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
@@ -124,7 +124,7 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
   const [error, setError]         = useState(null)
   const [periodo, setPeriodo]     = useState(() => leer('inicio-periodo', '30d'))
   const [datosP, setDatosP]       = useState(null)
-  const [ocultas, setOcultas]     = useState(() => new Set(leer('inicio-ocultas', [])))
+  const [ocultas]                 = useState(() => new Set(leer('inicio-ocultas', [])))
   const [vistaValor, setVistaValor] = useState(() => leer('inicio-vista-valor', 'barras'))
   const [bodPareto, setBodPareto] = useState(() => leer('inicio-pareto', ''))
   const [ausPor, setAusPorEstado] = useState(() => leer('inicio-ausencias-por', 'tipo'))   // ausencias por 'tipo' o 'area'
@@ -238,9 +238,6 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
     },
   ].filter(Boolean)
   const visibles = alertas.filter(a => !ocultas.has(a.id))
-  const nOcultas = alertas.length - visibles.length
-  const ocultar = id => { const s = new Set(ocultas); s.add(id); setOcultas(s); guardar('inicio-ocultas', [...s]) }
-  const mostrarTodas = () => { setOcultas(new Set()); guardar('inicio-ocultas', []) }
   // '#rotacion' está en la pestaña Inventarios: se cambia de pestaña y luego se baja hasta ahí
   const ir = destino => {
     if (!destino.startsWith('#')) return navigate(destino)
@@ -314,63 +311,6 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
 
       {vista === 'inicio' && <DashboardLogistica sinSaludo />}
 
-      {vista === 'resumen' && <>
-        {/* Requiere tu atención */}
-        <section>
-          <div className="flex items-baseline justify-between mb-2.5">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-gray-400">Requiere tu atención</h2>
-            {visibles.length > 0 && <span className="text-xs text-gray-400">{visibles.length} pendiente{visibles.length === 1 ? '' : 's'}</span>}
-          </div>
-          <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden divide-y divide-feisen-borde-suave">
-            {visibles.length === 0 && <p className="px-4 py-4 text-sm text-feisen-texto-2">No tienes pendientes a la vista. Si algo cambia, aparecerá aquí.</p>}
-            {visibles.map(a => (
-              <div key={a.id} className="grid grid-cols-[4px,1fr,auto] sm:grid-cols-[4px,1fr,auto,auto] gap-x-3.5 gap-y-2 items-center pr-3 py-3">
-                <span className={`self-stretch rounded-r ${a.tono === 'rojo' ? 'bg-feisen-rojo' : a.tono === 'ambar' ? 'bg-amber-500' : 'bg-gray-400'}`} />
-                <div className="min-w-0">
-                  <p className="text-sm text-feisen-texto"><span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mr-1.5">{a.mod}</span><b className="font-semibold">{a.titulo}</b></p>
-                  {a.detalle && <p className="text-[12.5px] text-feisen-texto-2">{a.detalle}</p>}
-                </div>
-                <button onClick={() => ir(a.ir)}
-                  className={`col-start-2 sm:col-start-auto justify-self-start sm:justify-self-auto row-start-2 sm:row-start-auto px-3 py-1.5 rounded-lg text-[13px] font-medium whitespace-nowrap ${a.prim ? 'bg-feisen-azul text-white hover:opacity-90' : 'border border-feisen-borde hover:bg-feisen-fondo'}`}>
-                  {a.boton}
-                </button>
-                <button onClick={() => ocultar(a.id)} aria-label={`Ocultar: ${a.titulo}`} title="Ocultar"
-                  className="col-start-3 row-start-1 sm:col-start-auto sm:row-start-auto w-8 h-8 grid place-items-center rounded-lg text-gray-400 hover:text-feisen-texto hover:bg-feisen-fondo">
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
-            {nOcultas > 0 && (
-              <div className="flex justify-between gap-3 px-4 py-2.5 text-[12.5px] text-gray-400">
-                <span>{nOcultas} oculto{nOcultas === 1 ? '' : 's'} · vuelven si la situación cambia</span>
-                <button onClick={mostrarTodas} className="font-medium text-feisen-azul hover:underline">Mostrar ocultos</button>
-              </div>
-            )}
-          </div>
-        </section>
-
-
-        {/* Una cifra por módulo: toca para abrir su pestaña */}
-        <section>
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-gray-400 mb-2.5">Por módulo</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {[
-              { v: 'inventarios', icono: Warehouse, titulo: 'Inventarios', cifra: millones(inv.valorTotal), detalle: inv.agotados ? `${fmt(inv.agotados)} agotados` : 'Sin agotados', tono: inv.agotados ? 'rojo' : '' },
-              { v: 'logistica', icono: Truck, titulo: 'Logística', cifra: `${logistica.enCurso} pedidos`, detalle: logistica.atrasados ? `${logistica.atrasados} atrasados` : 'Al día', tono: logistica.atrasados ? 'rojo' : '' },
-              { v: 'produccion', icono: Wrench, titulo: 'Mecanizados', cifra: mec ? `${fmt(mec.piezas)} piezas` : '…', detalle: 'en el periodo' },
-              { v: 'produccion', icono: Flame, titulo: 'Fundición', cifra: fun ? (fun.kg >= 1000 ? `${fmt(fun.kg / 1000)} t` : `${fmt(fun.kg)} kg`) : '…', detalle: fun?.nc ? `${fmt(fun.nc)} und no conformes` : 'en el periodo', tono: fun?.nc ? 'ambar' : '' },
-              { v: 'personas', icono: HardHat, titulo: 'RRHH', cifra: `${rrhh.activos} activos`, detalle: rrhh.ausentesHoy ? `${rrhh.ausentesHoy} ausentes hoy` : 'Nadie ausente hoy', tono: rrhh.ausentesHoy ? 'ambar' : '' },
-            ].map(t => (
-              <button key={t.titulo} onClick={() => elegirVista(t.v)}
-                className="text-left bg-white border border-feisen-borde rounded-xl px-3.5 py-3 hover:border-feisen-azul hover:bg-feisen-azul-suave/30 transition-colors">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400"><t.icono size={14} />{t.titulo}</span>
-                <span className="block text-lg font-semibold tabular-nums text-feisen-texto mt-1">{t.cifra}</span>
-                <span className={`block text-xs ${t.tono === 'rojo' ? 'text-feisen-rojo' : t.tono === 'ambar' ? 'text-amber-700' : 'text-feisen-texto-2'}`}>{t.detalle}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </>}
 
       {vista === 'ventas' && <DashboardVentas />}
       {vista === 'of' && <DashboardOF />}
