@@ -2720,5 +2720,6 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   se juntan sin importar mayúsculas, tildes ni espacios. Las NC de la recogida ya no están en los conformes: no se
   cuentan dos veces.
 - Al 24/11 solo había 1 NC de Fundición (sept., sin moldeador): no cambia ninguna quincena pasada.
-- Pendiente de decidir: una pieza con defecto de fundición encontrada en **Mecanizados** (ya transferida) se registra
-  en esa área y hoy no descuenta ni le resta al moldeador.
+- **Decidido (Angie, 24/11):** una pieza con defecto de fundición encontrada en **Mecanizados** (ya transferida) se
+  registra en esa área como hasta ahora: no descuenta inventario solo ni le resta al moldeador. Solo las NC del área
+  Fundición lo hacen.
