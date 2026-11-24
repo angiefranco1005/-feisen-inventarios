@@ -2679,3 +2679,21 @@ módulo de permisos `fundicion`). Decisiones de Angie:
   vacío como `<c t="str"><v></v></c>` y Excel lo rechaza: las celdas vacías llevan una marca que se cambia en el
   XML por `<c r s/>` (vacía con su color). Confirmado por Angie: abre sin el mensaje.
 - **Pendiente:** subir la plantilla llena para crear las órdenes (aún no existe; por ahora solo se descarga).
+
+## 2026-11-24 · Aluminio en Mecanizados: sin mecanizar y mecanizado
+
+Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquillada) entra a Mecanizados
+(`2026-11-24_aluminio_mecanizados.sql`, **aplicada 24/11 con OK de Angie**).
+- La categoría vacía ALUMINIO - MECANIZADOS pasó a **ALUMINIO SIN MECANIZAR - MECANIZADOS** (mismo ID) y se creó
+  **ALUMINIO MECANIZADO - MECANIZADOS** (ID fijo). La app las reconoce por ID (`bodegasCatalogo.js`:
+  `CAT_ALUMINIO_SIN_MECANIZAR_ID`, `CAT_ALUMINIO_MECANIZADO_ID`, `CATEGORIAS_MECANIZABLES`, `categoriaMecanizadaDe`).
+- Las 49 poleas se crearon en Mecanizados dos veces: sin mecanizar con el **mismo nombre** que en Fundición (la
+  aprobación de la transferencia busca por nombre en la bodega destino) y "<nombre> - MECANIZADO". Costo y peso
+  iguales a los de Fundición. Polea nueva en la coquillada = crearla también aquí (las dos), o la transferencia no
+  se podrá aprobar.
+- Registrar mecanizado (también la pantalla del jefe, decisión de Angie): las poleas sin mecanizar aparecen y al
+  guardar pasan a ALUMINIO MECANIZADO; el destino se busca por categoría + nombre.
+- Pedidos: el jefe de Mecanizados tampoco ve el aluminio mecanizado al pedir (como el producto mecanizado).
+- Balance (Angie: "como el hierro"): sin mecanizar en Materia prima › Mecanizados; mecanizado en Producto en
+  proceso › Material mecanizado. Las poleas que siguen en Fundición quedan en "Poleas de aluminio" (terminado).
+- `GestionProductos.jsx` tiene un modal "mecanizar" (`abrirMecanizar`) que nadie abre: no se tocó.

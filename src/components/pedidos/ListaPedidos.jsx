@@ -16,6 +16,7 @@ import { habilesEntre, hoyColombia, diaColombia } from '../../utils/diasHabiles'
 import { exportarOrdenCompraPDF, calcularTotalesOC } from '../../utils/exportOrdenCompraPDF'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
+import { CAT_PRODUCTO_MECANIZADO_ID, CAT_ALUMINIO_MECANIZADO_ID } from '../../utils/bodegasCatalogo'
 import ModalEvaluarProveedor from './ModalEvaluarProveedor'
 import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial } from '../shared/seriales'
 
@@ -592,13 +593,13 @@ export default function ListaPedidos() {
   async function cargar() {
     setCargando(true)
     const verTodo = esAdmin || esLogistica || esConsultor
-    const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
     // Catálogo paginado: el servidor corta a 1.000 filas y el catálogo ya tiene más de 1.500 productos
     const prodsQ = fetchAllPages((d, h) => {
       let q = supabase.from('items').select('id, nombre, unidad_medida').eq('activo', true)
         .order('nombre').order('id').range(d, h)
       if (bodegasOperacion) q = q.in('bodega_id', bodegasOperacion)
-      if (rolEfectivo === 'JEFE_MECANIZADOS') q = q.neq('categoria_id', CAT_PRODUCTO_MECANIZADO)
+      // Mecanizados no pide lo que produce (producto mecanizado y aluminio mecanizado)
+      if (rolEfectivo === 'JEFE_MECANIZADOS') q = q.not('categoria_id', 'in', `(${CAT_PRODUCTO_MECANIZADO_ID},${CAT_ALUMINIO_MECANIZADO_ID})`)
       return q
     })
 

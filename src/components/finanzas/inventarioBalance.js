@@ -87,12 +87,13 @@ export const RENGLONES = [
   },
   {
     id: 'mecanizados', tipo: 'prima', nombre: 'Mecanizados',
-    nota: 'aceros, fundición y ferretería de esa bodega, juntos',
+    nota: 'aceros, fundición, aluminio sin mecanizar y ferretería de esa bodega, juntos',
     claves: [
       'MECANIZADOS|ACEROS - MECANIZADOS',
       'MECANIZADOS|FUNDICIÓN - MECANIZADOS',
       'MECANIZADOS|FERRETERIA - MECANIZADOS',
-      'MECANIZADOS|ALUMINIO - MECANIZADOS',
+      // Angie, 24/11/2026: el aluminio en Mecanizados se cuenta como el hierro
+      'MECANIZADOS|ALUMINIO SIN MECANIZAR - MECANIZADOS',
     ],
   },
 
@@ -120,7 +121,7 @@ export const RENGLONES = [
   },
   {
     id: 'material_mecanizado', tipo: 'proceso', nombre: 'Material mecanizado',
-    claves: ['MECANIZADOS|PRODUCTO MECANIZADO - MECANIZADOS'],
+    claves: ['MECANIZADOS|PRODUCTO MECANIZADO - MECANIZADOS', 'MECANIZADOS|ALUMINIO MECANIZADO - MECANIZADOS'],
   },
 
   // ── Producto terminado y mercancía ──

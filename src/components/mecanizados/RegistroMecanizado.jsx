@@ -9,17 +9,11 @@ import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { siguienteNumero } from '../../utils/siguienteNumero'
-import { nombreBodega } from '../../utils/bodegasCatalogo'
+import { nombreBodega, CATEGORIAS_MECANIZABLES, CAT_PRODUCTO_MECANIZADO_ID, CAT_ALUMINIO_MECANIZADO_ID, categoriaMecanizadaDe } from '../../utils/bodegasCatalogo'
 import SelectorOperarios, { unirOperarios } from './SelectorOperarios'
 import { useUnaVez } from '../../hooks/useUnaVez'
 
-const BODEGA_MECANIZADOS      = '03a709ac-0bee-457a-80a1-0a1603218d34'
-const CAT_PRODUCTO_MECANIZADO = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
-const CATEGORIAS_MECANIZABLES = new Set([
-  'cfa47941-3a0e-4fc8-a9c5-6a676bbb5c50',
-  '549c8036-364a-433b-b18f-d4a444c9f9a2',
-  'a735b04a-9bd7-424b-b695-1ac8ce1a5bf4',
-])
+const BODEGA_MECANIZADOS = '03a709ac-0bee-457a-80a1-0a1603218d34'
 
 // Máquinas donde se mecaniza (2026-11-20, KPIs 2027): el centro de mecanizado se mide aparte
 // (horas produciendo, Leonardo Cardozo). Se guarda como texto en mecanizado_tiempos.maquina.
@@ -38,6 +32,7 @@ const cant = n => Number(n ?? 0).toLocaleString('es-CO', { maximumFractionDigits
 // (el catálogo suele diferir en espacios alrededor de guiones o paréntesis)
 const clave = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '')
 const nombreDestino = nombre => nombre.trim().replace(/\s+/g, ' ') + ' - MECANIZADO'
+const claveDestino = (categoriaId, nombre) => `${categoriaId}|${clave(nombre)}`
 
 function Bloque({ titulo, detalle, children }) {
   return (
@@ -85,7 +80,7 @@ export default function RegistroMecanizado() {
   const minutos = minutosEntre(horaInicio, horaFin)
   const [tiemposHoy, setTiemposHoy] = useState({}) // numero MEC → { minutos, maquina }
 
-  const [lineas, setLineas]     = useState([]) // [{ itemId, nombre, unidad, cantidad (texto) }]
+  const [lineas, setLineas]     = useState([]) // [{ itemId, nombre, unidad, categoriaId, cantidad (texto) }]
   const [enviando, setEnviando] = useState(false)
   const [error, setError]       = useState('')
   const [hoy, setHoy]           = useState([])  // lo registrado hoy (salidas MEC de la bodega)
@@ -113,8 +108,8 @@ export default function RegistroMecanizado() {
           .eq('bodega_id', BODEGA_MECANIZADOS)
           .order('item_id').range(d, h)),
         fetchAllPages((d, h) => supabase.from('items')
-          .select('id, nombre, activo')
-          .eq('categoria_id', CAT_PRODUCTO_MECANIZADO)
+          .select('id, nombre, activo, categoria_id')
+          .in('categoria_id', [CAT_PRODUCTO_MECANIZADO_ID, CAT_ALUMINIO_MECANIZADO_ID])
           .order('id').range(d, h)),
       ])
       if (eM) throw eM
@@ -123,10 +118,11 @@ export default function RegistroMecanizado() {
       const stockPorItem = {}
       for (const r of stockRows || []) stockPorItem[r.item_id] = Number(r.cantidad_actual ?? 0)
 
+      // Clave = categoría destino + nombre (el aluminio busca su "- MECANIZADO" solo en aluminio mecanizado).
       // Si hay varios con el mismo nombre, gana el activo
       const dest = {}
       for (const d of destCat || []) {
-        const k = clave(d.nombre)
+        const k = claveDestino(d.categoria_id, d.nombre)
         if (!dest[k] || (d.activo && !dest[k].activo)) dest[k] = { id: d.id, nombre: d.nombre, activo: d.activo }
       }
       setDestinos(dest)
@@ -163,10 +159,11 @@ export default function RegistroMecanizado() {
   const stockDe = itemId => catalogo.find(i => i.id === itemId)?.stock ?? 0
   const usadoDe = itemId => lineas.filter(l => l.itemId === itemId).reduce((s, l) => s + (parseFloat(l.cantidad) || 0), 0)
   const disponible = itemId => Math.max(0, stockDe(itemId) - usadoDe(itemId))
+  const destinoDe = l => destinos[claveDestino(categoriaMecanizadaDe(l.categoriaId), nombreDestino(l.nombre))]
   // Problema de una fila: falta el producto destino, está inactivo o no alcanza el stock
   const problemaDe = l => {
-    const d = destinos[clave(nombreDestino(l.nombre))]
-    if (!d) return `No existe «${nombreDestino(l.nombre)}». Créalo en Productos (categoría producto mecanizado) antes de guardar.`
+    const d = destinoDe(l)
+    if (!d) return `No existe «${nombreDestino(l.nombre)}». Créalo en Productos (categoría ${categoriaMecanizadaDe(l.categoriaId) === CAT_ALUMINIO_MECANIZADO_ID ? 'aluminio mecanizado' : 'producto mecanizado'}) antes de guardar.`
     if (!d.activo) return `«${d.nombre}» está inactivo. Actívalo en Productos antes de guardar.`
     const n = parseFloat(l.cantidad) || 0
     if (n <= 0) return 'La cantidad debe ser mayor a 0.'
@@ -179,7 +176,7 @@ export default function RegistroMecanizado() {
     setError('')
     setLineas(prev => prev.some(l => l.itemId === item.id)
       ? prev.map(l => l.itemId === item.id ? { ...l, cantidad: String((parseFloat(l.cantidad) || 0) + 1) } : l)
-      : [...prev, { itemId: item.id, nombre: item.nombre, unidad: item.unidad, cantidad: '1' }])
+      : [...prev, { itemId: item.id, nombre: item.nombre, unidad: item.unidad, categoriaId: item.categoria_id, cantidad: '1' }])
     setBusqueda('')
     buscarRef.current?.focus()
   }
@@ -209,7 +206,7 @@ export default function RegistroMecanizado() {
       const ccMecanizados = await nombreBodega(BODEGA_MECANIZADOS, 'MECANIZADOS') // nombre actual de la bodega
       const movs = []
       lineas.forEach(l => {
-        const destinoId = destinos[clave(nombreDestino(l.nombre))].id
+        const destinoId = destinoDe(l).id
         const cantidad = parseFloat(l.cantidad)
         const base = { bodega_origen_id: BODEGA_MECANIZADOS, bodega_destino_id: BODEGA_MECANIZADOS, precio_costo_snapshot: 0, motivo, fecha_movimiento: fecha, centro_costo: ccMecanizados, usuario_id: usuarioId, numero: numeroMec }
         movs.push({ ...base, item_id: l.itemId,   tipo: 'salida',  cantidad })
