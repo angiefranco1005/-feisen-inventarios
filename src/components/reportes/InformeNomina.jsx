@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { FileSpreadsheet, Download, Eye, History, RefreshCw } from '../shared/iconos'
+import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -43,7 +44,7 @@ function fmtDate(str) {
 async function fetchDatosPeriodo(anio, mes, quincena) {
   const { inicio, fin } = rangoPeriodo(anio, mes, quincena)
 
-  const [{ data: ordenes }, { data: fundidas }, { data: avances }] = await Promise.all([
+  const [{ data: ordenes }, { data: fundidas }, { data: avances }, { data: ncs }] = await Promise.all([
     // Órdenes de moldeo con resultado de recogida
     supabase.from('ordenes_moldeo').select(`
       id, numero, fecha, estado,
@@ -66,21 +67,32 @@ async function fetchDatosPeriodo(anio, mes, quincena) {
         items(nombre, peso_unitario)
       )
     `).gte('fecha', inicio).lte('fecha', fin).order('fecha').limit(50000),
+
+    // No conformidades de Calidad en Fundición (piezas que salieron mal después de la recogida):
+    // se le restan al moldeador (decisión de Angie, 24/11/2026). Las NC de la recogida ya no
+    // están en los conformes, así que no se cuentan dos veces.
+    supabase.from('no_conformidades')
+      .select('numero, fecha_deteccion, item_nombre, cantidad_afectada, moldeador, tipo_defecto, items(nombre, peso_unitario)')
+      .eq('bodega_id', BODEGA_FUNDICION_ID).not('moldeador', 'is', null)
+      .gte('fecha_deteccion', inicio).lte('fecha_deteccion', fin).order('fecha_deteccion').limit(10000),
   ])
 
-  return { ordenes: ordenes || [], fundidas: fundidas || [], avances: avances || [] }
+  return { ordenes: ordenes || [], fundidas: fundidas || [], avances: avances || [], ncs: ncs || [] }
 }
 
 // ── Calcular por persona ───────────────────────────────────────────────────────
-function calcularPersonas(ordenes, fundidas, avances) {
+function calcularPersonas(ordenes, fundidas, avances, ncs = []) {
   const personas = {}
+  // Mismo moldeador aunque lo escriban con otras mayúsculas, tildes o espacios
+  const clave = n => (n || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase()
   function persona(nombre) {
-    const k = (nombre || '').trim()
+    const k = clave(nombre)
     if (!k) return null
     if (!personas[k]) personas[k] = {
-      nombre: k,
+      nombre: (nombre || '').trim(),
       planeadas: 0, conformes: 0, nc: 0,
       moldeadas: 0, kgMoldeadas: 0, kgConformes: 0,
+      ncCalidad: 0, kgNcCalidad: 0,
       hornero: 0, vaceador: 0, auxiliar: 0,
     }
     return personas[k]
@@ -119,12 +131,22 @@ function calcularPersonas(ordenes, fundidas, avances) {
     ;[...(f.horneros||[]),...(f.vaceadores||[]),...(f.auxiliares||[])].filter(Boolean).forEach(n => persona(n))
   }
 
+  // No conformidades de Calidad: se restan de los kg del moldeador
+  for (const n of ncs) {
+    const pr = persona(n.moldeador)
+    if (!pr) continue
+    const cant = Number(n.cantidad_afectada || 0)
+    pr.ncCalidad   += cant
+    pr.kgNcCalidad += cant * Number(n.items?.peso_unitario || 0)
+  }
+  for (const pr of Object.values(personas)) pr.kgAPagar = Math.max(0, pr.kgConformes - pr.kgNcCalidad)
+
   return Object.values(personas).sort((a,b) => a.nombre.localeCompare(b.nombre,'es'))
 }
 
 // ── Workbook Excel ─────────────────────────────────────────────────────────────
-function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
-  const personas = calcularPersonas(ordenes, fundidas, avances)
+function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances, ncs = []) {
+  const personas = calcularPersonas(ordenes, fundidas, avances, ncs)
   const periodo  = labelPeriodo(anio, mes, quincena)
   const wb = XLSX.utils.book_new()
 
@@ -133,7 +155,7 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
     [`FEISEN — Informe Quincenal Fundición`],
     [`Período: ${periodo}`],
     [],
-    ['PERSONA','PLANEADAS','MOLDEADAS','KG MOLDEADAS','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','FUNDIDAS (H/V/A)'],
+    ['PERSONA','PLANEADAS','MOLDEADAS','KG MOLDEADAS','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','NC CALIDAD','KG NC CALIDAD','KG A PAGAR','FUNDIDAS (H/V/A)'],
     ...personas.map(p => [
       p.nombre,
       p.planeadas||'',
@@ -143,6 +165,9 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
       p.nc||'',
       p.planeadas > 0 ? +(((p.conformes/p.planeadas)*100).toFixed(1)) : '',
       p.kgConformes > 0 ? +p.kgConformes.toFixed(2) : '',
+      p.ncCalidad || '',
+      p.kgNcCalidad > 0 ? +p.kgNcCalidad.toFixed(2) : '',
+      p.kgAPagar > 0 ? +p.kgAPagar.toFixed(2) : '',
       [p.hornero?`${p.hornero}H`:'', p.vaceador?`${p.vaceador}V`:'', p.auxiliar?`${p.auxiliar}A`:''].filter(Boolean).join(' ') || '',
     ]),
     [],
@@ -153,10 +178,15 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
       personas.reduce((s,p)=>s+p.conformes,0),
       personas.reduce((s,p)=>s+p.nc,0), '',
       +personas.reduce((s,p)=>s+p.kgConformes,0).toFixed(2),
+      personas.reduce((s,p)=>s+p.ncCalidad,0),
+      +personas.reduce((s,p)=>s+p.kgNcCalidad,0).toFixed(2),
+      +personas.reduce((s,p)=>s+p.kgAPagar,0).toFixed(2),
     ],
+    [],
+    ['KG A PAGAR = KG CONFORMES de la recogida − KG de las no conformidades de Calidad (bodega Fundición) del período, por moldeador.'],
   ]
   const wsRes = XLSX.utils.aoa_to_sheet(hResumen)
-  wsRes['!cols'] = [22,12,12,14,12,8,14,14,16].map(w=>({wch:w}))
+  wsRes['!cols'] = [22,12,12,14,12,8,14,14,12,14,12,16].map(w=>({wch:w}))
   XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen')
 
   // Hoja 2: Historial Diario de Avances
@@ -222,6 +252,20 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances) {
   wsFun['!cols'] = [14,12,30,30,30].map(w=>({wch:w}))
   XLSX.utils.book_append_sheet(wb, wsFun, 'Fundidas')
 
+  // Hoja 5: No conformidades de Calidad que se restan
+  const hNc = [
+    [`NO CONFORMIDADES DE CALIDAD (FUNDICIÓN) — ${periodo}`], [],
+    ['NC','FECHA','PIEZA','MOLDEADOR','CANTIDAD','PESO UNIT. (kg)','KG','DEFECTO'],
+    ...ncs.map(n => {
+      const peso = Number(n.items?.peso_unitario || 0), cant = Number(n.cantidad_afectada || 0)
+      return [n.numero, fmtDate(n.fecha_deteccion), n.items?.nombre || n.item_nombre || '', n.moldeador, cant, peso || '', +(cant*peso).toFixed(2) || '', n.tipo_defecto || '']
+    }),
+  ]
+  if (ncs.length === 0) hNc.push(['Sin no conformidades de Calidad en este período'])
+  const wsNc = XLSX.utils.aoa_to_sheet(hNc)
+  wsNc['!cols'] = [12,12,28,24,10,14,10,28].map(w=>({wch:w}))
+  XLSX.utils.book_append_sheet(wb, wsNc, 'NC Calidad')
+
   return wb
 }
 
@@ -266,8 +310,8 @@ export default function InformeNomina() {
 
   async function descargarExcel() {
     if (!resumen) return
-    const { ordenes, fundidas, avances } = resumen
-    const wb = generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances)
+    const { ordenes, fundidas, avances, ncs } = resumen
+    const wb = generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances, ncs)
     XLSX.writeFile(wb, `Nomina_Fundicion_${MESES[mes-1]}_Q${quincena}_${anio}.xlsx`)
 
     const ya = historial.find(h => h.anio === anio && h.mes === mes && h.quincena === quincena)
@@ -290,8 +334,8 @@ export default function InformeNomina() {
   async function reDescargar(informe) {
     setDescargando(informe.id)
     try {
-      const { ordenes, fundidas, avances } = await fetchDatosPeriodo(informe.anio, informe.mes, informe.quincena)
-      const wb = generarWorkbook(informe.anio, informe.mes, informe.quincena, ordenes, fundidas, avances)
+      const { ordenes, fundidas, avances, ncs } = await fetchDatosPeriodo(informe.anio, informe.mes, informe.quincena)
+      const wb = generarWorkbook(informe.anio, informe.mes, informe.quincena, ordenes, fundidas, avances, ncs)
       XLSX.writeFile(wb, `Nomina_Fundicion_${MESES[informe.mes-1]}_Q${informe.quincena}_${informe.anio}.xlsx`)
     } catch(e) {
       alert('Error al regenerar: ' + e.message)
@@ -300,7 +344,7 @@ export default function InformeNomina() {
     }
   }
 
-  const personas = resumen ? calcularPersonas(resumen.ordenes, resumen.fundidas, resumen.avances) : []
+  const personas = resumen ? calcularPersonas(resumen.ordenes, resumen.fundidas, resumen.avances, resumen.ncs) : []
 
   return (
     <div className="max-w-3xl mx-auto p-4 pb-20">
@@ -395,6 +439,9 @@ export default function InformeNomina() {
                       <th className="text-center px-2 py-3">✓ Conf.</th>
                       <th className="text-center px-2 py-3">✗ NC</th>
                       <th className="text-center px-2 py-3">%</th>
+                      <th className="text-center px-2 py-3">Kg conf.</th>
+                      <th className="text-center px-2 py-3" title="No conformidades registradas en Calidad (bodega Fundición) en el período">NC calidad</th>
+                      <th className="text-center px-2 py-3" title="Kg conformes − kg de las NC de calidad">Kg a pagar</th>
                       <th className="text-center px-2 py-3">Fund.</th>
                     </tr>
                   </thead>
@@ -420,6 +467,15 @@ export default function InformeNomina() {
                               </span>
                             ) : '—'}
                           </td>
+                          <td className="px-2 py-3 text-center text-xs font-semibold text-gray-500 tabular-nums">
+                            {p.kgConformes>0 ? p.kgConformes.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-center text-xs tabular-nums">
+                            {p.ncCalidad>0 ? <span className="font-semibold text-red-500">{p.ncCalidad} · −{p.kgNcCalidad.toLocaleString('es-CO',{maximumFractionDigits:1})} kg</span> : '—'}
+                          </td>
+                          <td className="px-2 py-3 text-center font-bold text-feisen-texto tabular-nums">
+                            {p.kgAPagar>0 ? p.kgAPagar.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}
+                          </td>
                           <td className="px-2 py-3 text-center">
                             {enFundidas>0 ? (
                               <div className="flex flex-col items-center gap-0.5 text-xs">
@@ -443,7 +499,11 @@ export default function InformeNomina() {
                       </td>
                       <td className="px-2 py-3 text-center text-green-600">{personas.reduce((s,p)=>s+p.conformes,0)}</td>
                       <td className="px-2 py-3 text-center text-red-500">{personas.reduce((s,p)=>s+p.nc,0)}</td>
-                      <td /><td />
+                      <td />
+                      <td className="px-2 py-3 text-center text-gray-500 tabular-nums">{personas.reduce((s,p)=>s+p.kgConformes,0).toLocaleString('es-CO',{maximumFractionDigits:1})}</td>
+                      <td className="px-2 py-3 text-center text-red-500 tabular-nums">{personas.reduce((s,p)=>s+p.ncCalidad,0) || '—'}</td>
+                      <td className="px-2 py-3 text-center tabular-nums">{personas.reduce((s,p)=>s+p.kgAPagar,0).toLocaleString('es-CO',{maximumFractionDigits:1})}</td>
+                      <td />
                     </tr>
                   </tfoot>
                 </table>
@@ -459,7 +519,7 @@ export default function InformeNomina() {
 
           <button onClick={descargarExcel}
             className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 transition-opacity mb-6">
-            <Download size={16} /> Descargar Excel completo (4 hojas)
+            <Download size={16} /> Descargar Excel completo (5 hojas)
           </button>
         </>
       )}

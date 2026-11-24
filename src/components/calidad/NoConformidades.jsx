@@ -7,6 +7,7 @@ import Spinner from '../shared/Spinner'
 import Modal from '../shared/Modal'
 import Alerta from '../shared/Alerta'
 import { MOTIVOS_NC_FUNDICION } from '../fundicion/indicadoresFundicion'
+import { ITEM_VACEADERO_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { ShieldAlert, Plus, RefreshCw, ChevronRight, Check, X, Search, User, AlertTriangle } from '../shared/iconos'
 
 // Tipos de defecto según el área (2026-11-20, KPIs 2027): Fundición usa la misma lista que la
@@ -30,6 +31,17 @@ function tiposDe(bodegaId) {
 }
 // Quién responde por la pieza y a qué orden se refiere, según el área
 const esMec = bodegaId => bodegaId === BODEGA_MECANIZADOS
+const esFund = bodegaId => bodegaId === BODEGA_FUNDICION
+
+// Consecutivo del usuario (SAL-/ENT-iniciales-0001), igual que en Fundidas y Recogida
+async function generarNumero(perfil, prefijo) {
+  const iniciales = (perfil?.nombre || 'USR').trim().split(/\s+/).map(n => n.charAt(0).toUpperCase()).join('')
+  const pre = `${prefijo}-${iniciales}-`
+  const { data: last } = await supabase.from('movimientos').select('numero').like('numero', `${pre}%`)
+    .order('numero', { ascending: false }).limit(1).maybeSingle()
+  const n = last?.numero ? parseInt(last.numero.replace(pre, ''), 10) || 0 : 0
+  return `${pre}${String(n + 1).padStart(4, '0')}`
+}
 
 const DESTINOS = [
   { value: 'vaceadero', label: 'Vaceadero (refundir)' },
@@ -83,6 +95,11 @@ export default function NoConformidades() {
   const [guardando,     setGuardando]     = useState(false)
   const [msg,           setMsg]           = useState(null)
 
+  // NC de Fundición ya guardada a la que le falta descontar el inventario (reintento sin duplicar)
+  const [pendienteInv,  setPendienteInv]  = useState(null)
+  // Moldeadores para elegir: los de RRHH y los nombres que ya se usan en las órdenes de moldeo
+  const [moldeadores,   setMoldeadores]   = useState([])
+
   // Selector de item
   const [busqItem,        setBusqItem]        = useState('')
   const [mostrarItems,    setMostrarItems]    = useState(false)
@@ -91,14 +108,21 @@ export default function NoConformidades() {
 
   async function cargar() {
     setCargando(true)
-    const [{ data: ncsData }, { data: itsData }, { data: bodData }] = await Promise.all([
+    const [{ data: ncsData }, { data: itsData }, { data: bodData }, rrhh, usados] = await Promise.all([
       supabase.from('no_conformidades')
         .select('*, items(nombre), bodegas(nombre), detectado_por:profiles!no_conformidades_detectado_por_fkey(nombre), cerrado_por:profiles!no_conformidades_cerrado_por_fkey(nombre)')
         .order('created_at', { ascending: false })
         .limit(500),
-      fetchAllPages((d, h) => supabase.from('items').select('id, nombre, bodega_id').eq('activo', true).order('nombre').order('id').range(d, h)),
+      fetchAllPages((d, h) => supabase.from('items').select('id, nombre, bodega_id, peso_unitario, precio_costo').eq('activo', true).order('nombre').order('id').range(d, h)),
       supabase.from('bodegas').select('id, nombre').order('nombre'),
+      supabase.rpc('moldeadores_fundicion'),
+      supabase.from('ordenes_moldeo_piezas').select('asignado_a').not('asignado_a', 'is', null).limit(3000),
     ])
+    const nombres = [
+      ...(rrhh?.error ? [] : (rrhh?.data || []).map(m => `${m.nombres || ''} ${m.apellidos || ''}`.trim())),
+      ...(usados?.data || []).map(r => (r.asignado_a || '').trim()),
+    ].filter(Boolean)
+    setMoldeadores([...new Map(nombres.map(n => [n.toUpperCase(), n])).values()].sort((a, b) => a.localeCompare(b, 'es')))
     setNcs(ncsData || [])
     setItems(itsData || [])
     setBodegas(bodData || [])
@@ -107,14 +131,31 @@ export default function NoConformidades() {
 
   // ── Crear NC ──────────────────────────────────────────────────────────────────
   async function crearNC() {
+    // La NC ya quedó guardada en un intento anterior: solo falta el inventario
+    if (pendienteInv) { await descontarInventario(pendienteInv); return }
     if (!form.cantidad_afectada || Number(form.cantidad_afectada) <= 0) {
       setMsg({ tipo: 'error', texto: 'La cantidad debe ser mayor a 0.' }); return
     }
     if (!form.bodega_id) { setMsg({ tipo: 'error', texto: 'Elige el área donde se encontró.' }); return }
     if (!form.tipo_defecto) { setMsg({ tipo: 'error', texto: 'Elige el tipo de defecto.' }); return }
     const tipoDefecto = form.tipo_defecto === 'Otro' ? (form.tipo_defecto_otro.trim() ? `Otro: ${form.tipo_defecto_otro.trim()}` : 'Otro') : form.tipo_defecto
+    // Fundición: la pieza se descuenta del inventario y los kg se le restan al moldeador (Angie, 24/11/2026)
+    const fund = esFund(form.bodega_id)
+    const item = fund ? items.find(i => i.id === form.item_id) : null
+    if (fund && !item) { setMsg({ tipo: 'error', texto: 'Elige la pieza de la lista: hace falta para descontarla del inventario de Fundición.' }); return }
+    if (fund && !form.moldeador.trim()) { setMsg({ tipo: 'error', texto: 'Elige el moldeador: se le restan los kg de estas piezas.' }); return }
     setGuardando(true)
     setMsg(null)
+    if (fund) {
+      const { data: st, error: eSt } = await supabase.from('stock').select('cantidad_actual')
+        .eq('item_id', item.id).eq('bodega_id', BODEGA_FUNDICION).maybeSingle()
+      const hay = Number(st?.cantidad_actual ?? 0)
+      if (eSt || hay < Number(form.cantidad_afectada)) {
+        setMsg({ tipo: 'error', texto: eSt ? 'No se pudo revisar el stock: ' + eSt.message
+          : `En Fundición hay ${hay} de "${item.nombre}" y la NC es de ${form.cantidad_afectada}. Si las piezas ya salieron a otra bodega, registra la NC en esa área.` })
+        setGuardando(false); return
+      }
+    }
 
     // Generar número
     let numero
@@ -145,12 +186,64 @@ export default function NoConformidades() {
       return
     }
 
+    if (fund) {
+      await descontarInventario({ numero, item_id: item.id, nombre: item.nombre, cantidad: Number(form.cantidad_afectada),
+        peso: Number(item.peso_unitario || 0), precio: Number(item.precio_costo || 0), fecha: form.fecha_deteccion })
+      return
+    }
     setGuardando(false)
     setModalCrear(false)
     setForm(FORM_VACIO)
     setBusqItem('')
     setMsg({ tipo: 'exito', texto: `${numero} registrada correctamente.` })
     cargar()
+  }
+
+  // Fundición: salen las piezas del stock y su peso entra al VACEADERO (se refunde). Cada movimiento
+  // se revisa antes de insertar (referencia = número de la NC), así un reintento no lo repite.
+  async function descontarInventario(p) {
+    setGuardando(true); setMsg(null)
+    try {
+      const cc = await nombreBodega(BODEGA_FUNDICION, 'FUNDICIÓN')
+      const ya = async (tipo, itemId) => {
+        const { data, error } = await supabase.from('movimientos').select('id').eq('referencia', p.numero)
+          .eq('tipo', tipo).eq('item_id', itemId).eq('revertido', false).limit(1)
+        if (error) throw error
+        return (data || []).length > 0
+      }
+      const base = {
+        centro_costo: cc, usuario_id: perfil.id, referencia: p.numero, fecha_movimiento: p.fecha || null,
+        foto_remision_url: null, destino: null, numero_of: null, serial_motor: null, cliente: null,
+      }
+      if (!(await ya('salida', p.item_id))) {
+        const { error } = await supabase.from('movimientos').insert({
+          ...base, numero: await generarNumero(perfil, 'SAL'), tipo: 'salida', item_id: p.item_id,
+          bodega_origen_id: BODEGA_FUNDICION, bodega_destino_id: null, cantidad: p.cantidad,
+          precio_costo_snapshot: p.precio, proveedor: null, motivo: `No conformidad ${p.numero}`,
+        })
+        if (error) throw error
+      }
+      const kg = Math.round(p.cantidad * p.peso * 1000) / 1000
+      if (kg > 0 && !(await ya('entrada', ITEM_VACEADERO_ID))) {
+        const { error } = await supabase.from('movimientos').insert({
+          ...base, numero: await generarNumero(perfil, 'ENT'), tipo: 'entrada', item_id: ITEM_VACEADERO_ID,
+          bodega_origen_id: null, bodega_destino_id: BODEGA_FUNDICION, cantidad: kg,
+          precio_costo_snapshot: 0, proveedor: 'Producción interna', motivo: `Vaceadero no conformidad ${p.numero}: ${p.cantidad} × ${p.nombre}`,
+        })
+        if (error) throw error
+      }
+      setPendienteInv(null)
+      setModalCrear(false)
+      setForm(FORM_VACIO)
+      setBusqItem('')
+      setMsg({ tipo: 'exito', texto: `${p.numero} registrada: salieron ${p.cantidad} × ${p.nombre} de Fundición${kg > 0 ? ` y ${kg.toLocaleString('es-CO')} kg entraron al vaceadero` : ''}.` })
+      cargar()
+    } catch (e) {
+      setPendienteInv(p)
+      setMsg({ tipo: 'error', texto: `La NC ${p.numero} quedó registrada, pero no se pudo descontar el inventario: ${e.message}. Toca "Reintentar descuento": no se vuelve a crear la NC.` })
+    } finally {
+      setGuardando(false)
+    }
   }
 
   // ── Cerrar NC ─────────────────────────────────────────────────────────────────
@@ -188,6 +281,7 @@ export default function NoConformidades() {
     const bod = bodegas.find(b => b.id === bodegaPorRol)
     setForm({ ...FORM_VACIO, fecha_deteccion: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }), bodega_id: bod?.id || '', bodega_nombre: bod?.nombre || '' })
     setBusqItem('')
+    setPendienteInv(null)
     setModalCrear(true)
   }
 
@@ -398,6 +492,7 @@ export default function NoConformidades() {
                 {mostrarItems && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                     {items
+                      .filter(i => !esFund(form.bodega_id) || i.bodega_id === BODEGA_FUNDICION)
                       .filter(i => !busqItem.trim() || i.nombre.toLowerCase().includes(busqItem.toLowerCase()))
                       .slice(0, 30)
                       .map(i => (
@@ -415,8 +510,8 @@ export default function NoConformidades() {
                   </div>
                 )}
               </div>
-              {/* Nombre manual si no está en inventario */}
-              {!form.item_id && (
+              {/* Nombre manual si no está en inventario (en Fundición no: hay que descontarla) */}
+              {!form.item_id && !esFund(form.bodega_id) && (
                 <input value={form.item_nombre}
                   onChange={e => setF('item_nombre', e.target.value)}
                   placeholder="O escribe el nombre manualmente"
@@ -498,14 +593,23 @@ export default function NoConformidades() {
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1">{esMec(form.bodega_id) ? 'Operario responsable' : 'Moldeador responsable'}</label>
                 <input value={form.moldeador} onChange={e => setF('moldeador', e.target.value)}
-                  placeholder={esMec(form.bodega_id) ? 'Nombre del operario' : 'Nombre del moldeador'}
+                  list={esFund(form.bodega_id) ? 'nc-moldeadores' : undefined}
+                  placeholder={esMec(form.bodega_id) ? 'Nombre del operario' : esFund(form.bodega_id) ? 'Elige o escribe el moldeador *' : 'Nombre del moldeador'}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                <datalist id="nc-moldeadores">{moldeadores.map(n => <option key={n} value={n} />)}</datalist>
               </div>
             </div>
 
-            <p className="text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-xl flex gap-2">
-              <AlertTriangle size={16} className="shrink-0" /> Los movimientos de inventario y el ajuste de nómina se hacen manualmente desde sus respectivos módulos.
-            </p>
+            {esFund(form.bodega_id) ? (
+              <p className="text-xs text-feisen-texto-2 bg-feisen-fondo px-3 py-2 rounded-xl flex gap-2">
+                <AlertTriangle size={16} className="shrink-0" />
+                Al registrar, las piezas salen del inventario de Fundición, su peso entra al vaceadero y los kg se le restan al moldeador en Fundición › Nómina.
+              </p>
+            ) : (
+              <p className="text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-xl flex gap-2">
+                <AlertTriangle size={16} className="shrink-0" /> Los movimientos de inventario y el ajuste de nómina se hacen manualmente desde sus respectivos módulos.
+              </p>
+            )}
 
             <div className="flex gap-3 pt-1">
               <button onClick={() => { setModalCrear(false); setMsg(null) }}
@@ -514,7 +618,7 @@ export default function NoConformidades() {
               </button>
               <button onClick={crearNC} disabled={guardando}
                 className="flex-1 bg-feisen-rojo text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-60">
-                {guardando ? 'Guardando...' : 'Registrar NC'}
+                {guardando ? 'Guardando...' : pendienteInv ? 'Reintentar descuento' : 'Registrar NC'}
               </button>
             </div>
           </div>
@@ -564,9 +668,15 @@ export default function NoConformidades() {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul resize-none" />
             </div>
 
-            <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl font-medium">
-              Recuerda hacer manualmente: el movimiento de inventario y el ajuste de nómina del moldeador si aplica.
-            </p>
+            {esFund(ncACerrar.bodega_id) ? (
+              <p className="text-xs text-feisen-texto-2 bg-feisen-fondo px-3 py-2 rounded-xl">
+                El inventario ya se descontó al registrarla y los kg se restan solos en la nómina de Fundición.
+              </p>
+            ) : (
+              <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-xl font-medium">
+                Recuerda hacer manualmente: el movimiento de inventario y el ajuste de nómina del moldeador si aplica.
+              </p>
+            )}
 
             <div className="flex gap-3">
               <button onClick={() => { setNcACerrar(null); setMsg(null) }}

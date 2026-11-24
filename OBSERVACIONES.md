@@ -2679,6 +2679,12 @@ módulo de permisos `fundicion`). Decisiones de Angie:
   vacío como `<c t="str"><v></v></c>` y Excel lo rechaza: las celdas vacías llevan una marca que se cambia en el
   XML por `<c r s/>` (vacía con su color). Confirmado por Angie: abre sin el mensaje.
 - **Pendiente:** subir la plantilla llena para crear las órdenes (aún no existe; por ahora solo se descarga).
+- **24/11 (sin subir, esperando al jefe de Fundición):** Angie aclaró que en "Por máquina" las piezas del BOM deben
+  salir solas para asignarles moldeador. `utils/plantillaMoldeo.js` quedó reescrito así (cambio local, sin commit):
+  fecha única arriba (un archivo = una orden), un bloque por máquina con "Máquinas a producir" y debajo sus piezas
+  (cantidad = máquinas × por máquina) con moldeador por pieza; resumen con piezas sin moldeador y carga por
+  moldeador; "Piezas sueltas" sin fecha. En `main` sigue la versión anterior (fecha por fila). Subir cuando el jefe
+  la apruebe.
 
 ## 2026-11-24 · Aluminio en Mecanizados: sin mecanizar y mecanizado
 
@@ -2697,3 +2703,22 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Balance (Angie: "como el hierro"): sin mecanizar en Materia prima › Mecanizados; mecanizado en Producto en
   proceso › Material mecanizado. Las poleas que siguen en Fundición quedan en "Poleas de aluminio" (terminado).
 - `GestionProductos.jsx` tiene un modal "mecanizar" (`abrirMecanizar`) que nadie abre: no se tocó.
+
+## 2026-11-24 · No conformidades de Calidad en Fundición: descuentan inventario y kg del moldeador
+
+- Pedido de Angie: cuando el jefe de Fundición encuentra producto no conforme después de la recogida (al procesar),
+  lo registra en Calidad con fecha, pieza, motivo, cantidad, moldeador y observaciones, y eso se descuenta del
+  inventario de Fundición y de los kg del moldeador. Decisiones: se descuenta **al registrar** la NC; el hierro
+  **vuelve al vaceadero**; en la nómina se **resta**.
+- `calidad/NoConformidades.jsx` (área Fundición): pieza obligatoria de la lista de Fundición y moldeador obligatorio
+  (lista: moldeadores de RRHH + nombres ya usados en órdenes de moldeo, o se escribe). Revisa que haya stock; al
+  guardar: salida de la pieza (`SAL-…`, referencia = número de la NC, costo de la pieza) y entrada al VACEADERO de
+  cantidad × peso (`ENT-…`). Reintento sin duplicar (revisa movimientos con esa referencia). Otras áreas siguen igual
+  (manual).
+- `reportes/InformeNomina.jsx`: columnas "Kg conf.", "NC calidad" y **"Kg a pagar" = kg conformes − kg de NC de
+  Calidad (bodega Fundición, por `fecha_deteccion` del período)**; hoja nueva "NC Calidad" en el Excel. Los nombres
+  se juntan sin importar mayúsculas, tildes ni espacios. Las NC de la recogida ya no están en los conformes: no se
+  cuentan dos veces.
+- Al 24/11 solo había 1 NC de Fundición (sept., sin moldeador): no cambia ninguna quincena pasada.
+- Pendiente de decidir: una pieza con defecto de fundición encontrada en **Mecanizados** (ya transferida) se registra
+  en esa área y hoy no descuenta ni le resta al moldeador.

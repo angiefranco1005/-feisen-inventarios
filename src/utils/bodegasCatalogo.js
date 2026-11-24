@@ -29,6 +29,8 @@ export const CAT_MATERIA_PRIMA_FUNDICION_ID = '24537e0a-88b5-4714-a7b1-0e8814e1c
 export const CAT_FUNDIDO_HIERRO_ID          = 'c643d650-cff3-49c6-bf39-663fc003535f' // MATERIAL FUNDIDO HIERRO
 export const CAT_ALUMINIO_FUNDICION_ID      = 'e28e93da-652d-47c6-af6f-f7d8ce601022' // aluminio en bruto (lingote) para coquillar
 export const CAT_POLEAS_ALUMINIO_ID         = 'd0e46316-a3a1-41dd-b7e9-39c252ae3ed1' // poleas de aluminio coquilladas (producto terminado)
+// Ítems de Fundición que la lógica mueve sola
+export const ITEM_VACEADERO_ID = 'afc4f062-48c1-47cc-92c2-c9e4536bfff5' // hierro que vuelve al horno (kg)
 
 // Acepta un objeto bodega ({id}) o un id suelto.
 export const esBodegaFundicion   = (b) => !!b && (b.id ?? b) === BODEGA_FUNDICION_ID
