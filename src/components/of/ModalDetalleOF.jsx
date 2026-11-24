@@ -4,6 +4,7 @@ import Modal from './shared/Modal'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatoOF, formatFecha, estadoTexto, estadoClase, ESTADO_BADGE_CLASE, TRANSPORTE_NOMBRE, nombreTransporte } from './shared/formatters'
 import { Paperclip } from '../shared/iconos'
+import { MotorLinea } from './shared/motoresOF'
 
 // Errores de despacho (KPI 2027 de Logística, 2026-11-20). Se marcan sobre la entrega ya
 // registrada, normalmente cuando el cliente avisa; van por la función of_marcar_error_entrega.
@@ -126,7 +127,7 @@ export default function ModalDetalleOF({ orden, onCerrar }) {
                 <tr key={item.id} className="border-b border-gray-100 align-top">
                   <td className="py-2 pr-2">
                     <p className="font-medium text-feisen-gris-oscuro">{item.producto}</p>
-                    <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}</p>
+                    <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}<MotorLinea item={item} /></p>
                   </td>
                   <td className="py-2 pr-2 font-bold text-feisen-azul">{item.cantidad}</td>
                   <td className="py-2 pr-2">

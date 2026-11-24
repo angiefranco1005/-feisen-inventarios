@@ -15,6 +15,7 @@ import RegistrarMovimientoAlmacenista from './components/movimientos/RegistrarMo
 import Historial          from './components/movimientos/Historial'
 import MotoresSerial      from './components/movimientos/MotoresSerial'
 import ListaPedidos       from './components/pedidos/ListaPedidos'
+import MotoresOF         from './components/logistica/MotoresOF'
 import GestionConfig      from './components/config/GestionConfig'
 import HubReportes        from './components/reportes/HubReportes'
 import CorteInventario    from './components/reportes/CorteInventario'
@@ -112,7 +113,7 @@ function AppRoutes() {
     '/productos': <GestionProductos />, '/movimientos/nuevo': registrarMov, '/movimientos': <Historial />, '/motores': <MotoresSerial />,
     '/transferencias': <TransferenciasPendientes />, '/mecanizados/paquetes': <GestionPaquetes />,
     '/reportes': <HubReportes />, '/reportes/corte': <CorteInventario />, '/reportes/inventario-fisico': <InventarioFisico />, '/reportes/kardex': <InformeKardex />,
-    '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />, '/proveedores': <Proveedores />,
+    '/pedidos': <ListaPedidos />, '/motores-of': <MotoresOF />, '/ordenes-compra': <OrdenesCompra />, '/proveedores': <Proveedores />,
     '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
     '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/coquillada': <Coquillada />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
     '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeTransferenciasInternas origenFundicion />,

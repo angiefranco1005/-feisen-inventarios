@@ -16,11 +16,12 @@ import {
   pendienteProducir, disponibleDespacho, ofTotalmenteDespachada, nombreTransporte, estadoOF, alertaPromesa
 } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
+import { MotorLinea } from './shared/motoresOF'
 
 const SELECT_ORDEN_COMPLETA = `
   *,
   creador:profiles!ordenes_fabricacion_creado_por_fkey ( nombre ),
-  items_of ( *, producciones:of_producciones (*, registrado_por_perfil:profiles!of_producciones_registrado_por_fkey(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles!of_entregas_registrado_por_fkey(nombre)) )
+  items_of ( *, motor_item:items(nombre), producciones:of_producciones (*, registrado_por_perfil:profiles!of_producciones_registrado_por_fkey(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles!of_entregas_registrado_por_fkey(nombre)) )
 `
 
 export default function ListaOrdenes() {
@@ -397,7 +398,7 @@ function TarjetaOF({ orden, esAdmin, puedeEditarOF, puedeDespacharOF, filtroEsta
                 <span className="text-feisen-texto-2"> · {item.color} · </span>
                 <span className="font-semibold tabular-nums">{item.cantidad} uds</span>
               </p>
-              {item.detalle && <p className="text-xs text-feisen-gris-medio mt-0.5">{item.detalle}</p>}
+              {(item.detalle || item.motor) && <p className="text-xs text-feisen-gris-medio mt-0.5">{item.detalle}<MotorLinea item={item} /></p>}
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <BadgeCentro centro={item.centro_costo} />
                 <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${ESTADO_BADGE_CLASE[estadoClase(item)]}`}>{estadoTexto(item)}</span>
@@ -626,7 +627,7 @@ function VistaJefeArea({ ordenes, centroCosto, filtroEstado, onRegistrarFabricac
                     <p className="font-medium text-feisen-gris-oscuro text-sm">{item.producto}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ESTADO_BADGE_CLASE[estadoClase(item)]}`}>{estadoTexto(item)}</span>
                   </div>
-                  <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}</p>
+                  <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}<MotorLinea item={item} /></p>
                   <p className="font-bold text-feisen-azul text-sm">Cant.: {item.cantidad}</p>
                   <BarraProgreso label="Fabricado" valor={item.producido} total={item.cantidad} color="#064794" />
                   <div className="flex flex-col gap-2 pt-1">
@@ -679,7 +680,7 @@ function VistaJefeArea({ ordenes, centroCosto, filtroEstado, onRegistrarFabricac
                     <tr key={item.id} className="border-b border-gray-100">
                       <td className="py-2 pr-2">
                         <p className="font-medium text-feisen-gris-oscuro">{item.producto}</p>
-                        <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}</p>
+                        <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}<MotorLinea item={item} /></p>
                       </td>
                       <td className="px-2 font-bold text-feisen-azul">{item.cantidad}</td>
                       <td className="px-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ESTADO_BADGE_CLASE[estadoClase(item)]}`}>{estadoTexto(item)}</span></td>
@@ -752,7 +753,7 @@ function VistaLogistica({ ordenes, filtroEstado }) {
                     <p className="font-medium text-feisen-gris-oscuro text-sm">{item.producto}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ESTADO_BADGE_CLASE[estadoClase(item)]}`}>{estadoTexto(item)}</span>
                   </div>
-                  <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}</p>
+                  <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}<MotorLinea item={item} /></p>
                   <div className="flex items-center justify-between text-xs text-feisen-gris-medio">
                     <span>Fabricado: {item.producido}/{item.cantidad}</span>
                     <span className="font-semibold text-feisen-azul">Disponible: {disponibleDespacho(item)}</span>
@@ -796,7 +797,7 @@ function VistaLogistica({ ordenes, filtroEstado }) {
                     <tr key={item.id} className="border-b border-gray-100">
                       <td className="py-2 pr-2">
                         <p className="font-medium text-feisen-gris-oscuro">{item.producto}</p>
-                        <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}</p>
+                        <p className="text-xs text-feisen-gris-medio">{item.color}{item.detalle ? ' · ' + item.detalle : ''}<MotorLinea item={item} /></p>
                       </td>
                       <td className="px-2"><span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ESTADO_BADGE_CLASE[estadoClase(item)]}`}>{estadoTexto(item)}</span></td>
                       <td className="px-2 text-feisen-gris-medio">{item.producido}/{item.cantidad}</td>

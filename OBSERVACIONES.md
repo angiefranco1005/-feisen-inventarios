@@ -2723,3 +2723,27 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - **Decidido (Angie, 24/11):** una pieza con defecto de fundición encontrada en **Mecanizados** (ya transferida) se
   registra en esa área como hasta ahora: no descuenta inventario solo ni le resta al moldeador. Solo las NC del área
   Fundición lo hacen.
+
+## 2026-11-24 · Motor de cada línea de OF y pantalla «Motores para OF»
+- **Problema (Angie):** ventas escribía el motor en el detalle de la OF y Logística (Efraín) se equivocaba al pedir: no veía
+  qué motores piden las OF ni si alcanzaba lo del almacén. Se eligió la alternativa 1 de 3 (motor como producto).
+- **Base:** `items_of.motor` ('sin' | 'cliente' | 'feisen', NULL = línea vieja) y `items_of.motor_item_id` (FK a `items`,
+  solo con 'feisen'). Migración `supabase/migraciones/2026-11-24_motor_en_lineas_of.sql` (aplicada, re-ejecutable).
+- **OF (`NuevaOrden.jsx`):** «¿Lleva motor?» es obligatorio al agregar un producto; con «Motor Feisen» se elige el motor
+  (buscador con existencias, `SelectorMotor` en `of/shared/motoresOF.jsx`). En una OF existente cada línea tiene
+  «Indicar / Cambiar motor» (también en líneas bloqueadas: el motor no es producción) y se guarda con `update`.
+  Las listas de OF y el detalle muestran la etiqueta del motor (`MotorLinea`; embed `motor_item:items(nombre)`).
+- **Solo motores propios:** se ofrecen y cuentan los de la bodega MOTORES **menos la categoría EQUIPMASTER STORE**, que son
+  motores de un cliente que Feisen le guarda (decisión de Angie 24/11). El filtro es por nombre de categoría (`esDeCliente`).
+- **«Motores para OF» (`/motores-of`, `logistica/MotoresOF.jsx`):** módulo `ordenes_compra` (Logística y admin), en el menú
+  bajo Pedidos. Por motor: piden (OF no canceladas), hay (stock MOTORES), en camino (pedido_items con ese `item_id` en
+  pedidos pendiente / en_transito / parcialmente_recibido) y falta. Pendiente de una OF y motor =
+  cantidad − máx(entregado, motores ya sacados con serial para esa OF). `motor_seriales.numero_of` es texto libre
+  ("OF 312", "312", "072"): se compara por los dígitos. Las líneas 'feisen' sin motor elegido salen aparte y no se cuentan.
+  «Pedir faltantes» abre Pedidos › Nuevo con los motores y cantidades (`location.state.pedirItems`).
+- **Las 16 líneas activas que mencionaban motor se clasificaron a mano el 24/11:** 2 sin motor (OF 544, 572), 5 del cliente
+  (586 ×2, 602, 608, 620), 5 con motor elegido (592 Forte 13, 603 Goodyear 7 —el «en préstamo»—, 605 pluma → WEG 4 HP
+  1800 RPM, 611 Megapack 7 diésel, 611 Goodyear 9) y 4 de Feisen **sin elegir**: 605 cortadora de ladrillo (WEG 5 HP
+  trifásico, no está en el catálogo), 611 vibrador (6,5 HP sin marca), 612 cortadora (Honda 13 HP: solo existe en
+  Equipmaster) y 615 allanadora («motor genérico»). Las otras ~110 líneas activas quedaron NULL (no se pregunta hacia atrás).
+- **Ojo catálogo:** «WEG 4 HP 1800 RPM» está repetido en MOTORES CONSTRU (dos ítems, ambos en 0); se usó 66eb88d8….

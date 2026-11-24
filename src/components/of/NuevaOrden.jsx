@@ -8,6 +8,7 @@ import SelectBuscable from './shared/SelectBuscable'
 import AutocompletarTexto from './shared/AutocompletarTexto'
 import { Plus, X, Paperclip, Check, ArrowLeft, ArrowRight } from '../shared/iconos'
 import { CENTRO_NOMBRE, TRANSPORTE_NOMBRE, hoyISO, formatoOF, formatFecha } from './shared/formatters'
+import { SelectorMotor, cargarMotoresFeisen, textoMotor } from './shared/motoresOF'
 
 const PASOS = [
   { n: 1, label: 'Cliente y fechas' },
@@ -46,6 +47,10 @@ export default function NuevaOrden() {
   const [lCantidad, setLCantidad] = useState(1)
   const [lCentro, setLCentro] = useState('')
   const [lDetalle, setLDetalle] = useState('')
+  const [lMotor, setLMotor] = useState('') // 'sin' | 'cliente' | 'feisen'
+  const [lMotorItem, setLMotorItem] = useState(null)
+  const [motores, setMotores] = useState([]) // motores propios de la bodega MOTORES con existencia
+  const [motorEditIdx, setMotorEditIdx] = useState(null) // línea ya agregada a la que se le está cambiando el motor
 
   // Paso 3
   const [ciudad, setCiudad] = useState('')
@@ -60,7 +65,7 @@ export default function NuevaOrden() {
     if (editando) cargarOrden()
   }, [ordenEditandoId])
 
-  useEffect(() => { cargarProductos(); cargarClientes(); if (!editando) cargarProximoNumero() }, [])
+  useEffect(() => { cargarProductos(); cargarClientes(); cargarMotoresFeisen().then(setMotores); if (!editando) cargarProximoNumero() }, [])
 
   async function cargarProximoNumero() {
     const { data } = await supabase.from('ordenes_fabricacion')
@@ -103,6 +108,7 @@ export default function NuevaOrden() {
       id: it.id,
       producto: it.producto, color: it.color, cantidad: it.cantidad,
       centro_costo: it.centro_costo, detalle: it.detalle || '',
+      motor: it.motor || null, motor_item_id: it.motor_item_id || null,
       bloqueado: it.producido > 0 || it.entregado > 0,
     })))
     setIdsOriginales((items || []).map(it => it.id))
@@ -114,16 +120,30 @@ export default function NuevaOrden() {
     if (!lCentro) { setMsg({ tipo: 'error', texto: 'Selecciona el centro de costo antes de agregar el producto.' }); return }
     const cant = Number(lCantidad)
     if (!cant || cant <= 0) { setMsg({ tipo: 'error', texto: 'La cantidad debe ser mayor que cero.' }); return }
+    if (!lMotor) { setMsg({ tipo: 'error', texto: 'Indica si la máquina lleva motor.' }); return }
+    if (lMotor === 'feisen' && !lMotorItem) { setMsg({ tipo: 'error', texto: 'Elige cuál motor de Feisen lleva.' }); return }
     setMsg(null)
     setLineas(ls => [...ls, {
       producto: lProducto, color: lColor.trim() || '-', cantidad: cant,
       centro_costo: lCentro, detalle: lDetalle.trim(),
+      motor: lMotor, motor_item_id: lMotor === 'feisen' ? lMotorItem : null,
     }])
-    setLColor(''); setLCantidad(1); setLDetalle('')
+    setLColor(''); setLCantidad(1); setLDetalle(''); setLMotor(''); setLMotorItem(null)
   }
 
   function quitarLinea(idx) {
     setLineas(ls => ls.filter((_, i) => i !== idx))
+    setMotorEditIdx(null)
+  }
+
+  // Cambiar el motor de una línea ya agregada (en las OF viejas o al corregir)
+  function cambiarMotorLinea(idx, cambios) {
+    setLineas(ls => ls.map((l, i) => {
+      if (i !== idx) return l
+      const n = { ...l, ...cambios, motorCambiado: true }
+      if (n.motor !== 'feisen') n.motor_item_id = null
+      return n
+    }))
   }
 
   async function guardar() {
@@ -132,6 +152,8 @@ export default function NuevaOrden() {
     // Toda OF nueva sale de una cotización (2026-11-03). Las OF viejas sin cotización se pueden seguir editando.
     if (!editando && !numeroCotizacion.trim()) { setMsg({ tipo: 'error', texto: 'El número de cotización es obligatorio para crear la OF.' }); setPaso(1); return }
     if (lineas.length === 0) { setMsg({ tipo: 'error', texto: 'Agrega al menos un producto.' }); setPaso(2); return }
+    const sinMotor = lineas.find(l => l.motorCambiado && l.motor === 'feisen' && !l.motor_item_id)
+    if (sinMotor) { setMsg({ tipo: 'error', texto: `Elige cuál motor de Feisen lleva ${sinMotor.producto}.` }); setPaso(2); return }
     if (!ciudad.trim()) { setMsg({ tipo: 'error', texto: 'La ciudad de destino es obligatoria.' }); setPaso(3); return }
 
     setGuardando(true)
@@ -188,9 +210,16 @@ export default function NuevaOrden() {
         const nuevasLineas = lineas.filter(l => !l.id)
         if (nuevasLineas.length) {
           const { error: errItems } = await supabase.from('items_of').insert(
-            nuevasLineas.map(l => ({ orden_id: ordenId, producto: l.producto, color: l.color, cantidad: l.cantidad, centro_costo: l.centro_costo, detalle: l.detalle || null }))
+            nuevasLineas.map(l => filaItem(ordenId, l))
           )
           if (errItems) throw errItems
+        }
+
+        // Líneas existentes a las que se les cambió el motor
+        for (const l of lineas.filter(x => x.id && x.motorCambiado)) {
+          const { error: errMotor } = await supabase.from('items_of')
+            .update({ motor: l.motor, motor_item_id: l.motor_item_id }).eq('id', l.id)
+          if (errMotor) throw errMotor
         }
       } else {
         const { data: nueva, error } = await supabase.from('ordenes_fabricacion')
@@ -199,7 +228,7 @@ export default function NuevaOrden() {
         if (error) throw error
         ordenId = nueva.id
         const { error: errItems } = await supabase.from('items_of').insert(
-          lineas.map(l => ({ orden_id: ordenId, producto: l.producto, color: l.color, cantidad: l.cantidad, centro_costo: l.centro_costo, detalle: l.detalle || null }))
+          lineas.map(l => filaItem(ordenId, l))
         )
         if (errItems) {
           // La OF quedó creada pero sin productos: se marca cancelada para que no aparezca vacía
@@ -309,8 +338,14 @@ export default function NuevaOrden() {
             </Campo>
           </div>
           <div className="sm:col-span-2">
+            <Campo label="¿Lleva motor? *">
+              <SelectorMotor motor={lMotor} setMotor={setLMotor} motorItemId={lMotorItem} setMotorItemId={setLMotorItem}
+                motores={motores} cantidad={lCantidad} />
+            </Campo>
+          </div>
+          <div className="sm:col-span-2">
             <Campo label="Detalle (opcional)">
-              <textarea rows={2} value={lDetalle} onChange={e => setLDetalle(e.target.value)} placeholder="Ej: con parrilla adicional, motor a gasolina" className={INPUT} />
+              <textarea rows={2} value={lDetalle} onChange={e => setLDetalle(e.target.value)} placeholder="Ej: con parrilla adicional" className={INPUT} />
             </Campo>
           </div>
         </div>
@@ -327,7 +362,8 @@ export default function NuevaOrden() {
         {lineas.length === 0 && <p className="px-5 pb-4 pt-1 text-sm text-feisen-gris-medio italic">Todavía no has agregado productos.</p>}
         <div className="divide-y divide-feisen-borde-suave">
           {lineas.map((l, idx) => (
-            <div key={idx} className="px-5 py-3 flex items-center gap-3">
+            <div key={idx} className="px-5 py-3">
+            <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1 text-sm">
                 <p className="text-feisen-texto">
                   <span className="font-medium">{l.producto}</span>
@@ -336,7 +372,13 @@ export default function NuevaOrden() {
                 </p>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-gray-100 text-feisen-texto-2">{CENTRO_NOMBRE[l.centro_costo]}</span>
+                  <ChipMotor linea={l} motores={motores} />
                   {l.detalle && <span className="text-xs text-feisen-gris-medio">{l.detalle}</span>}
+                  {l.id && (
+                    <button type="button" onClick={() => setMotorEditIdx(motorEditIdx === idx ? null : idx)} className="text-xs text-feisen-azul font-medium hover:underline">
+                      {motorEditIdx === idx ? 'Listo' : (l.motor ? 'Cambiar motor' : 'Indicar motor')}
+                    </button>
+                  )}
                 </div>
               </div>
               {l.bloqueado ? (
@@ -344,6 +386,14 @@ export default function NuevaOrden() {
               ) : (
                 <button onClick={() => quitarLinea(idx)} aria-label={`Quitar ${l.producto}`} className="text-feisen-gris-medio hover:text-feisen-rojo p-1"><X size={16} /></button>
               )}
+            </div>
+            {motorEditIdx === idx && (
+              <div className="mt-3 p-3 rounded-lg bg-feisen-fondo">
+                <SelectorMotor motor={l.motor || ''} setMotor={m => cambiarMotorLinea(idx, { motor: m })}
+                  motorItemId={l.motor_item_id} setMotorItemId={id => cambiarMotorLinea(idx, { motor_item_id: id })}
+                  motores={motores} cantidad={l.cantidad} />
+              </div>
+            )}
             </div>
           ))}
         </div>
@@ -478,6 +528,23 @@ export default function NuevaOrden() {
       </div>
     </div>
   )
+}
+
+function filaItem(ordenId, l) {
+  return {
+    orden_id: ordenId, producto: l.producto, color: l.color, cantidad: l.cantidad, centro_costo: l.centro_costo,
+    detalle: l.detalle || null, motor: l.motor || null, motor_item_id: l.motor === 'feisen' ? l.motor_item_id : null,
+  }
+}
+
+function ChipMotor({ linea, motores }) {
+  const nombre = motores.find(m => m.id === linea.motor_item_id)?.nombre
+  const t = textoMotor(linea, nombre)
+  if (!t) return null
+  const tono = linea.motor === 'feisen'
+    ? (linea.motor_item_id ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-amber-50 text-amber-800')
+    : 'bg-gray-100 text-feisen-texto-2'
+  return <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${tono}`}>{t}</span>
 }
 
 const INPUT = 'w-full border border-feisen-borde rounded-lg px-3 py-2 text-sm bg-white text-feisen-texto placeholder:text-feisen-gris-medio focus:outline-none focus:ring-2 focus:ring-feisen-azul/25 focus:border-feisen-azul'

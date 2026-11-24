@@ -51,7 +51,7 @@ export default function Calendario() {
     const { data } = await supabase.from('ordenes_fabricacion').select(`
       *,
       creador:profiles!ordenes_fabricacion_creado_por_fkey ( nombre ),
-      items_of ( *, producciones:of_producciones (*, registrado_por_perfil:profiles!of_producciones_registrado_por_fkey(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles!of_entregas_registrado_por_fkey(nombre)) )
+      items_of ( *, motor_item:items(nombre), producciones:of_producciones (*, registrado_por_perfil:profiles!of_producciones_registrado_por_fkey(nombre)), entregas:of_entregas (*, registrado_por_perfil:profiles!of_entregas_registrado_por_fkey(nombre)) )
     `)
     setOrdenes(data || [])
   }

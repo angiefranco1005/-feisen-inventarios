@@ -41,7 +41,7 @@ export const MODULOS = [
   { clave: 'pedidos',        grupo: 'Compras', nombre: 'Pedidos internos', detalle: 'Registra: los suyos · Todo: gestiona los de todos', niveles: ['registra', 'todo'], usaBodega: true,
     rutas: ['/pedidos'] },
   { clave: 'ordenes_compra', grupo: 'Compras', nombre: 'Órdenes de compra', detalle: 'a proveedores', niveles: ['todo'],
-    rutas: ['/ordenes-compra', '/proveedores'] },
+    rutas: ['/ordenes-compra', '/proveedores', '/motores-of'] },
 
   { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, coquillada, BOM, nómina', niveles: ['todo'], usaBodega: true,
     rutas: ['/fundidas', '/fundidas/nueva', '/moldeo', '/moldeo/nueva', '/moldeo/catalogo', '/recogida', '/coquillada', '/nomina/fundicion', '/analitica/fundicion'] },

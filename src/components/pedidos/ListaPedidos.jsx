@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Spinner from '../shared/Spinner'
@@ -579,13 +579,17 @@ export default function ListaPedidos() {
   const [formTransito, setFormTransito] = useState({ numero_oc: '', fecha_estimada: '' })
 
   const [searchParams] = useSearchParams()
+  const location = useLocation()
 
   useEffect(() => { cargar() }, [])
 
   // Abrir modal nuevo si llega con ?nuevo=1 (desde botón "Crear pedido" en alertas de stock)
   useEffect(() => {
     if (searchParams.get('nuevo') === '1') {
-      setItems([{ ...ITEM0 }]); setObs(''); setPrioridad('normal'); setFotoMuestra('')
+      // Desde «Motores para OF» llegan los motores que faltan ya puestos
+      const pre = location.state?.pedirItems
+      setItems(pre?.length ? pre.map(it => ({ ...ITEM0, ...it })) : [{ ...ITEM0 }])
+      setObs(location.state?.obs || ''); setPrioridad('normal'); setFotoMuestra('')
       setModalNuevo(true)
     }
   }, [searchParams])
