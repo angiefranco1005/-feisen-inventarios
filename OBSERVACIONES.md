@@ -2601,3 +2601,19 @@ Pedido de Angie: todo KPI de los jefes debe medirse con datos reales del ERP. L�
 ## 2026-11-23 · Inicio de gerencia sin pestaña Resumen
 
 - A pedido de Angie se quitó la pestaña **Resumen** (y con ella la lista «Requiere tu atención» y las cifras por módulo). El Inicio de ADMIN abre en **Ventas**; un enlace viejo con `?vista=resumen` cae ahí. Los pendientes siguen marcando con un punto rojo/ámbar la pestaña de su módulo (`avisoDe`).
+
+## 2026-11-24 · EEFF: qué mes manda en el renglón de Mano de obra
+
+Decisión de Angie: **la mano de obra se toma tal como sale en las cuentas del estado de resultados del mes. No se mira la fecha de causación ni la de pago.** Si la cuenta de nómina de un mes trae un valor, ese es el valor que entra, y punto. No se toca código: es dejar escrito el criterio con el que ya venía calculando la pantalla.
+
+Cómo queda cada mitad del renglón (verificado en el código y en la base):
+
+- **Feisen**: de Odoo, cuentas **7205xx** salvo la **720511** (dotación, tiene renglón propio), **por la fecha del asiento**. Es la única fecha disponible: **no hay ningún campo en Odoo que diga a qué mes pertenece la nómina**.
+- **FC**: de la nómina del ERP (RRHH › Nómina), **por el periodo trabajado** —año y mes del periodo—, no por la fecha de pago. Cargadas hoy: **16–31 de octubre, aprobada, $91.177.004**, y **1–15 de noviembre, en borrador, $81.522.734**. La **primera quincena de octubre no está en el ERP**: va escrita a mano en las casillas de octubre.
+
+Dos advertencias que quedaron anotadas junto a la decisión:
+
+- Como Feisen va por la fecha del asiento, **una nómina causada con fecha del mes siguiente sale corrida** en el estado de resultados. **No se corrige en el EEFF**, se corrige causando cada nómina con la fecha de su mes. Con **una sola** nómina causada por mes el **nivel** del renglón es correcto aunque la etiqueta esté corrida; **el riesgo real es un mes con ninguna o con dos**.
+- **El cálculo no mira el estado de la quincena**: una quincena **en borrador ya entra** al estado de resultados, así que si alguien le mueve algo, **la cifra del mes cambia sola**.
+
+Dónde quedó en `EEFF-CRITERIOS.md`: sección **5.2 Mano de obra** (el criterio y las dos advertencias), sección **9 Avisos** (resumen) y la tabla de la sección **11** (fila del 24/11). También se le sumó a la lista de lo pedido a contabilidad el punto de **causar cada nómina con la fecha del mes que le corresponde**.

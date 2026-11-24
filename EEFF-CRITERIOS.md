@@ -5,7 +5,7 @@ Es la referencia: si un criterio cambia, se cambia aquí y en el código al mism
 
 - Pantalla: **Finanzas › EEFF** (`src/components/finanzas/Eeff.jsx`). Solo la ve ADMIN.
 - Empresas: **Feisen** (Construequipos Franco S.A.S.) y **FC**. Cada renglón muestra las dos y el total.
-- Última actualización: **20 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
+- Última actualización: **24 de noviembre de 2026**. Mes de referencia con el que se calibró: **octubre 2026**.
 
 > **Antes de comparar dos cifras de este documento, ten esto en cuenta: los datos de Odoo se mueven mientras contabilidad trabaja.** Dos números tomados con horas de diferencia pueden **no coincidir sin que ninguno esté mal**. Pasó **tres veces el 18/11/2026**: el **inventario**, las **cuentas de socios** y el **IVA por pagar** (la cuenta 240814 subió $10.000.000 en medio de la sesión y con eso cambió el pasivo del balance). Así que si ves dos cifras que no cuadran, **mira primero la fecha y la hora de cada una** antes de concluir que algo está mal calculado. Esto vale solo de **octubre en adelante**: los meses que salen del Excel ya están cerrados y no se mueven.
 
@@ -965,6 +965,20 @@ Lo que no trae centro **va todo a Construequipos**, no se reparte: esa es la pla
 - La **nómina ya cargada en el ERP** (RRHH › Nómina) del mes, por el centro de costo de cada colaborador. Se toma el **total devengado**, porque es lo que cuesta el trabajo; las deducciones (seguridad, anticipos) se le descuentan al colaborador y no bajan el costo. **La gente de administración no entra**: va en nómina administrativa.
 - **Más las quincenas que falten**, escritas a mano. FC paga por quincena; cuando una no está en el ERP, se escribe.
 
+#### Qué mes es el que manda: el de las cuentas, y nada más (decidido por Angie el 24/11/2026)
+
+**La mano de obra se toma tal como sale en las cuentas del estado de resultados del mes. No se mira la fecha de causación ni la de pago.** Si la cuenta de nómina de un mes trae un valor, ese es el valor que entra al renglón, y punto. No se reparte, no se corre de mes, no se ajusta.
+
+Dicho renglón por renglón, que es lo que de verdad hace el cálculo hoy:
+
+- **Feisen** va por la **fecha del asiento** en Odoo. Es la única fecha que Odoo tiene: **no hay ningún campo que diga a qué mes pertenece la nómina**. Si el asiento quedó con fecha de octubre, es mano de obra de octubre.
+- **FC** va por el **periodo trabajado** —el año y el mes del periodo de nómina del ERP—, **no por la fecha en que se paga**. Hoy el ERP tiene cargadas dos quincenas: la del **16 al 31 de octubre**, aprobada, por **$91.177.004**, y la del **1 al 15 de noviembre**, todavía en **borrador**, por **$81.522.734**. **La primera quincena de octubre no está en el ERP**: esa se escribió a mano en las casillas de octubre.
+
+Dos advertencias que hay que leer junto con la decisión:
+
+- **Como Feisen va por la fecha del asiento, una nómina causada en el mes equivocado se ve corrida.** Si contabilidad causa la nómina de un mes con fecha del mes siguiente, el estado de resultados la muestra en el mes que no es. **Eso no se corrige en el EEFF**: se corrige **causando cada nómina con la fecha de su mes**. Mientras cada mes tenga **una sola** nómina causada, el **nivel** del renglón es correcto aunque la etiqueta esté corrida; **el riesgo real es un mes con ninguna o con dos**.
+- **El cálculo no mira el estado de la quincena.** Una quincena en **borrador** ya entra al estado de resultados. Si alguien le mueve algo a un borrador, **la cifra del mes cambia sola**, sin que nadie toque el EEFF.
+
 ---
 
 ## 6. Costos indirectos (CIF)
@@ -1132,6 +1146,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 ## 9. Avisos
 
 - **El periodo de nómina de octubre está en borrador.** Al cerrarlo las cifras pueden cambiar.
+- **La mano de obra se toma como salga en las cuentas del mes, sin mirar causación ni pago** (decisión de Angie del 24/11/2026). Feisen va por la **fecha del asiento** de las cuentas 7205xx —la única fecha que Odoo tiene— y FC por el **periodo trabajado** de la nómina del ERP. De ahí salen dos cosas que conviene tener presentes: si contabilidad **causa la nómina de un mes con fecha del mes siguiente**, el estado de resultados la muestra **corrida**, y eso **no se arregla en el EEFF** sino causando cada nómina con la fecha de su mes; y como **el cálculo no mira el estado de la quincena**, una quincena **en borrador ya está sumando**, así que si alguien le mueve algo, la cifra del mes **cambia sola**. Ver la sección 5.2.
 - **Desde noviembre, con las dos quincenas en el ERP, hay que borrar las casillas de la primera quincena** o quedarán sumando de más. Son dos sitios: las de **mano de obra de FC** (una por centro), que se borran desde la pantalla, y la de **nómina administrativa de FC** (una sola para toda la empresa), que **ya no está en la pantalla y hay que pedir que la borren**.
 - **Los datos de Odoo se mueven mientras contabilidad trabaja el mes.** Conviene volver a mirar antes de dar un mes por cerrado. Esto solo pasa de octubre en adelante: los meses del Excel ya están cerrados y no se mueven. **Y no es teoría: el 18/11/2026 pasó tres veces en un día** —el **inventario**, las **cuentas de socios** y el **IVA por pagar**—. El último se vio claro: la cuenta **240814 "Iva Por Pagar"** pasó de **$60.356.000** a **$70.356.000** en medio de la sesión, y con eso el pasivo total del balance subió de $1.699.653.878 a **$1.709.653.878**. **Dos cifras tomadas con horas de diferencia pueden no coincidir sin que ninguna esté mal**: antes de concluir que algo está mal cuadrado, mira a qué hora se tomó cada una.
 - **No hay que "arreglar" los meses viejos leyéndolos de Odoo.** Antes de octubre Odoo está incompleto y daría cifras que parecen buenas y no lo son. Si alguna vez hay que cambiar un mes de enero a septiembre, se cambia el Excel y se vuelve a generar `eeffHistorico.js`.
@@ -1160,7 +1175,7 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 - **No se sabe quién prestó los $100.000.000 de la 219500.** La tabla de amortización no lo dice. El nombre de la cuenta sugiere un particular, no un banco, pero **eso hay que confirmarlo**.
 - **La cuenta 210510 "Crédito Bancolombia No. 3292 Sept 2026" está en menos $6.666.666.** Un pasivo en negativo no existe: o se pagó de más o se registró al revés. Y el "3292" se parece al **Credipago de Davivienda 10081013292** ($3.333.334), así que puede ser la **misma deuda registrada en dos lados y mal**. No se tocó nada; es pregunta para la contadora.
 - **Del cupo CrediExpress de Davivienda (6700456801301403) hay $13.650.000 usados, no cero.** El cupo aprobado son **$50.000.000** y lo no usado **no es deuda** y no entra al balance; lo usado está en la **210511** y ya está contado. **Corrige lo que decía antes este aviso**, cuando con el extracto de agosto se dio el cupo por intacto. Ver la sección 2.3.
-- **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado.
+- **Lo que está pedido a contabilidad** (carta en `Desktop/EEFF`): marcar el centro de costo en todas las compras, registrar el costo de ventas todos los meses, acordar el criterio de materia prima contra insumos, revisar junio y unificar el proveedor HIGH SIERRA. Falta agregarle el caso de METAL BARCAS, que tiene el centro equivocado, y **causar cada nómina con la fecha del mes que le corresponde**: el estado de resultados lee la mano de obra de Feisen por la fecha del asiento, así que una nómina causada con fecha del mes siguiente se muestra en el mes que no es, y ahí el arreglo está en la causación, no en el informe (ver la sección 5.2).
 
 ---
 
@@ -1336,5 +1351,6 @@ Otra que hay que recordar: la **513503** (teléfono) ya está en servicios públ
 | 20/11 | **La corrección de la casilla NO se verificó contra la pantalla.** Se escribió directo en la base de datos y no se abrió el balance, porque la sesión del navegador está cerrada. **Queda pendiente** (está en la tabla de la sección 10). Y queda abierto lo de siempre: **$5.043.784 sin identificar** (el 0,86 % del grupo 21, no corrientes por defecto), la **210510** en negativo y **quién prestó los $100.000.000** de la 219500 |
 | 20/11 | **La cuenta 210510 "Crédito Bancolombia No. 3292 Sept 2026" está en menos $6.666.666 al 31/10, y eso no es parte del faltante.** Un pasivo en negativo no existe: o se pagó de más o se registró al revés. El "3292" se parece al **Credipago de Davivienda 10081013292** ($3.333.334), así que puede ser la **misma deuda registrada en dos lados y mal**. **No se tocó nada**; es pregunta para la contadora. Ver la sección 2.3 |
 | 20/11 | **Las deudas de difícil cobro quedan como no corrientes, y ya no es propuesta mía: lo decidió Angie.** Palabras suyas: *"las deudas de difícil cobro es mejor dejarlas como no corrientes"*. La **1390** y la **1399** siguen mostrándose igual que antes —**ninguna cifra del balance cambió**—; lo que cambia es que el criterio **deja de estar pendiente de confirmar**. Entre las dos quedan unos **$400.000**, así que mueven muy poco la razón corriente y el capital de trabajo. **No confundir con la decisión del 19/11**, que es otra: esa fue la de los **anticipos de impuestos (1355), que sí son corrientes**. Ver la sección 2.3 |
+| 24/11 | **La mano de obra se toma como salga en las cuentas del mes: no se mira causación ni pago.** Lo decidió Angie. Si la cuenta de nómina de un mes trae un valor, ese es el valor que entra. **Feisen** sale de Odoo, cuentas **7205xx** sin la 720511, **por la fecha del asiento** —es la única fecha que Odoo tiene, no hay campo que diga a qué mes pertenece la nómina—. **FC** sale de la nómina del ERP **por el periodo trabajado**, no por la fecha de pago; hoy el ERP tiene la quincena del **16 al 31 de octubre** aprobada ($91.177.004) y la del **1 al 15 de noviembre** en borrador ($81.522.734), y **la primera quincena de octubre está escrita a mano**. Quedan dos advertencias: una nómina **causada con fecha del mes siguiente** se ve **corrida** y eso se arregla en la causación, no en el EEFF (con una sola nómina al mes el nivel del renglón es correcto; el riesgo es un mes con ninguna o con dos), y **una quincena en borrador ya suma**, así que si se la mueven, la cifra del mes cambia sola. Ver la sección 5.2 |
 
 > El detalle de cada decisión, con los números con que se comprobó, está en `OBSERVACIONES.md`, en las secciones del 11 y el 13 de noviembre de 2026.
