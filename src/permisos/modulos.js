@@ -95,7 +95,7 @@ export const PERMISOS_INICIALES = {
   CONSULTOR:        { historial: 've', manuales: 've' },
   COMERCIAL:        { of: 'registra', manuales: 've' },
   DESPACHOS:        { of: 've', productos: 've', manuales: 've' },
-  JEFE_MANTENIMIENTO: { of: 've', pedidos: 'registra', manuales: 've' },
+  JEFE_MANTENIMIENTO: { pedidos: 'registra', manuales: 've', innovacion: 'todo', mantenimiento: 'registra', mecanizados: 'todo', calidad: 'registra' },
   RRHH:             { rrhh: 'todo', productos: 'registra', movimientos: 'registra', historial: 've', pedidos: 'registra', manuales: 've' },
 }
 

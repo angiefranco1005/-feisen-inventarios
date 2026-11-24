@@ -190,6 +190,24 @@ const MOBILE_JEFE_FUNDICION = [
   { to: '/calidad',                        icon: SealCheck,      label: 'Calidad' },
 ]
 
+// Leonardo Cardozo: Jefe de Mantenimiento, Innovación y Diseño (pedido de Angie, 2026-11-24:
+// Innovación visible y sin OF). Proyectos va de primero para que también salga en la barra del celular.
+const NAV_JEFE_MANTENIMIENTO = [
+  { to: '/dashboard',            icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/innovacion',           icon: Lightbulb,       label: 'Proyectos de innovación', corto: 'Proyectos' },
+  { to: '/mantenimiento',        icon: Toolbox,         label: 'Equipos de planta', corto: 'Equipos' },
+  { to: '/mecanizados/registro', icon: Wrench,          label: 'Registro de mecanizado', corto: 'Mecanizado' },
+  { to: '/calidad',              icon: SealCheck,       label: 'Calidad' },
+  { to: '/pedidos',              icon: ShoppingCart,    label: 'Pedidos' },
+]
+const MOBILE_JEFE_MANTENIMIENTO = [
+  { to: '/dashboard',            icon: LayoutDashboard, label: 'Inicio' },
+  { to: '/innovacion',           icon: Lightbulb,       label: 'Proyectos' },
+  { to: '/mantenimiento',        icon: Toolbox,         label: 'Equipos' },
+  { to: '/mecanizados/registro', icon: Wrench,          label: 'Mecanizado' },
+  { to: '/pedidos',              icon: ShoppingCart,    label: 'Pedidos' },
+]
+
 const NAV_RRHH = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Inicio' },
   { to: '/rrhh/empleados',   icon: UsersThree,   label: 'Colaboradores' },
@@ -231,6 +249,7 @@ const BADGE = {
   JEFE_MECANIZADOS:  { color: 'bg-purple-600 text-white',    label: 'Jefe Mecanizados' },
   JEFE_ENSAMBLE:     { color: 'bg-teal-600 text-white',      label: 'Jefe Ensamble' },
   RRHH:              { color: 'bg-pink-600 text-white',      label: 'Recursos Humanos' },
+  JEFE_MANTENIMIENTO: { color: 'bg-slate-600 text-white',    label: 'Mantenimiento e Innovación' },
 }
 
 export default function Layout({ children }) {
@@ -261,6 +280,7 @@ export default function Layout({ children }) {
 
   // Menú: el orden curado de cada rol, filtrado por sus permisos (Configuración › Permisos),
   // más los módulos que se le hayan dado y no estaban en su lista, agrupados por módulo.
+  const esJefeMantenimiento = !esAdmin && (rolPreview || perfil?.rol) === 'JEFE_MANTENIMIENTO'
   const navBase = esAdmin          ? NAV_ADMIN
     : esLogistica        ? NAV_LOGISTICA
     : esAlmacenista      ? NAV_ALMACENISTA
@@ -270,6 +290,7 @@ export default function Layout({ children }) {
     : esJefeEnsamble     ? NAV_JEFE_ENSAMBLE
     : esConsultor        ? NAV_CONSULTOR
     : esRRHH             ? NAV_RRHH
+    : esJefeMantenimiento ? NAV_JEFE_MANTENIMIENTO
     : []
   const permitido = item => item.to === '/dashboard' || puedeRuta(item.to)
   // Órdenes de fabricación a la mano para quien no es admin (jefes de área, comerciales, despachos):
@@ -294,6 +315,7 @@ export default function Layout({ children }) {
     : esJefeEnsamble     ? MOBILE_JEFE_ENSAMBLE
     : esConsultor        ? MOBILE_CONSULTOR
     : esRRHH             ? MOBILE_RRHH
+    : esJefeMantenimiento ? MOBILE_JEFE_MANTENIMIENTO
     : []).filter(permitido)
   if (itemOF && mobileCurada.length) mobileCurada.splice(1, 0, itemOF)
   const mobileItems = mobileCurada.length >= 3 ? mobileCurada.slice(0, 6) : navItems.filter(i => !i.abajo).slice(0, 5)
