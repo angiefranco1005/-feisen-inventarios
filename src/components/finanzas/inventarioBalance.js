@@ -74,10 +74,11 @@ export const RENGLONES = [
     id: 'almacen', tipo: 'prima', nombre: 'Almacén', bodegas: ['ALMACEN'],
     nota: 'toda la bodega en una sola línea, incluido el fundido guardado ahí',
   },
-  { id: 'lamina', tipo: 'prima', nombre: 'Lámina', claves: ['CORTE Y DOBLEZ|LAMINA'] },
+  // Desde el 24/11/2026 las categorías llevan " - BODEGA" al final (migración 2026-11-24_categorias_sufijo_bodega.sql)
+  { id: 'lamina', tipo: 'prima', nombre: 'Lámina', claves: ['CORTE Y DOBLEZ|LAMINA - CORTE Y DOBLEZ'] },
   {
     id: 'mp_fundicion', tipo: 'prima', nombre: 'Materia prima de Fundición',
-    claves: ['FUNDICIÓN|MATERIA PRIMA', 'FUNDICIÓN|ALUMINIO - FUNDICIÓN'],
+    claves: ['FUNDICIÓN|MATERIA PRIMA - FUNDICIÓN', 'FUNDICIÓN|ALUMINIO - FUNDICIÓN'],
   },
   {
     id: 'ferreteria', tipo: 'prima', nombre: 'Ferretería', bodegas: ['FERRETERIA'],
@@ -88,7 +89,7 @@ export const RENGLONES = [
     id: 'mecanizados', tipo: 'prima', nombre: 'Mecanizados',
     nota: 'aceros, fundición y ferretería de esa bodega, juntos',
     claves: [
-      'MECANIZADOS|ACEROS',
+      'MECANIZADOS|ACEROS - MECANIZADOS',
       'MECANIZADOS|FUNDICIÓN - MECANIZADOS',
       'MECANIZADOS|FERRETERIA - MECANIZADOS',
       'MECANIZADOS|ALUMINIO - MECANIZADOS',
@@ -115,11 +116,11 @@ export const RENGLONES = [
   {
     id: 'fundido', tipo: 'proceso', nombre: 'Material fundido de hierro',
     nota: 'el que está en Fundición y el que ya pasó a Armado y soldadura',
-    claves: ['FUNDICIÓN|MATERIAL FUNDIDO HIERRO', 'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO'],
+    claves: ['FUNDICIÓN|MATERIAL FUNDIDO HIERRO - FUNDICIÓN', 'ARMADO Y SOLDADURA|MATERIAL FUNDIDO HIERRO - FUNDICIÓN'],
   },
   {
     id: 'material_mecanizado', tipo: 'proceso', nombre: 'Material mecanizado',
-    claves: ['MECANIZADOS|PRODUCTO MECANIZADO'],
+    claves: ['MECANIZADOS|PRODUCTO MECANIZADO - MECANIZADOS'],
   },
 
   // ── Producto terminado y mercancía ──
@@ -129,7 +130,9 @@ export const RENGLONES = [
   // que los escribe ella. El tercero sí está.
   {
     id: 'poleas_aluminio', tipo: 'terminado', nombre: 'Poleas de aluminio',
-    aMano: true, nota: 'no está en el ERP: lo sacas tú',
+    // Desde el 24/11/2026 la coquillada las registra en Fundición; lo escrito a mano sigue mandando si lo hay
+    claves: ['FUNDICIÓN|POLEAS ALUMINIO - FUNDICIÓN'],
+    aMano: true, nota: 'las coquilladas desde el 24/11 vienen del ERP; si escribes una cifra, manda la tuya',
   },
   {
     id: 'maquinas', tipo: 'terminado', nombre: 'Máquinas terminadas',
@@ -137,7 +140,7 @@ export const RENGLONES = [
   },
   {
     id: 'motores', tipo: 'terminado', nombre: 'Motores Constru',
-    claves: ['MOTORES|MOTORES CONSTRU'],
+    claves: ['MOTORES|MOTORES CONSTRU - MOTORES'],
   },
 
   // ── No es inventario de venta ──
@@ -161,7 +164,7 @@ export const RENGLONES = [
   // renglón siga sin `tipo`.
   {
     id: 'equipmaster', nombre: 'Equipmaster Store',
-    claves: ['MOTORES|EQUIPMASTER STORE'],
+    claves: ['MOTORES|EQUIPMASTER STORE - MOTORES'],
   },
 ]
 

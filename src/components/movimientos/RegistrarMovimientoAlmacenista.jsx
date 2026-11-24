@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { subirFirma } from '../../utils/firmas'
 import { useAuth } from '../../contexts/AuthContext'
-import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, nombreBodega } from '../../utils/bodegasCatalogo'
+import { esBodegaFundicion, esBodegaMecanizados, BODEGA_ENSAMBLE_ID, CAT_MATERIA_PRIMA_FUNDICION_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { Plus, Trash2, Search, Check, Flame, ShoppingCart, Wrench, Factory, Settings, X, CalendarDays, ArrowUpRight, ArrowDownLeft } from '../shared/iconos'
 import Alerta from '../shared/Alerta'
 import Spinner from '../shared/Spinner'
@@ -637,8 +637,8 @@ export default function RegistrarMovimientoAlmacenista() {
     // La materia prima de Fundición no es transferencia interna: se descuenta sola al registrar la fundida
     // (decisión de Angie, 11/11/2026). La base de datos también lo bloquea (trigger trg_bloquear_mp_fundicion).
     if (esInterna) {
-      const { data: cats } = await supabase.from('items').select('nombre, categorias(nombre)').in('id', agrupados.map(p => p.item_id))
-      const mp = (cats || []).filter(i => i.categorias?.nombre === 'MATERIA PRIMA').map(i => i.nombre)
+      const { data: cats } = await supabase.from('items').select('nombre, categoria_id').in('id', agrupados.map(p => p.item_id))
+      const mp = (cats || []).filter(i => i.categoria_id === CAT_MATERIA_PRIMA_FUNDICION_ID).map(i => i.nombre)
       if (mp.length) {
         setError(`La materia prima no se transfiere a otra bodega (${mp.join(', ')}). Se descuenta sola al registrar la fundida en Fundición › Fundidas.`)
         return

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { BODEGA_FUNDICION_ID, nombreBodega } from '../../utils/bodegasCatalogo'
+import { BODEGA_FUNDICION_ID, CAT_MATERIA_PRIMA_FUNDICION_ID, nombreBodega } from '../../utils/bodegasCatalogo'
 import { coincideBusqueda } from '../../utils/busqueda'
 import {
   ClipboardList, ChevronRight, Search, Plus, AlertTriangle, TrendingUp, Calendar,
@@ -219,11 +219,11 @@ export default function ListaOrdenesMoldeo() {
 
   async function cargarArenas() {
     const { data: its } = await supabase.from('items')
-      .select('id, nombre, unidad_medida, precio_costo, categorias(nombre)')
+      .select('id, nombre, unidad_medida, precio_costo, categoria_id')
       .eq('bodega_id', BODEGA_FUNDICION_ID).eq('activo', true)
       .ilike('nombre', '%arena%')
       .order('nombre')
-    const lista = (its || []).filter(i => (i.categorias?.nombre || '').trim().toUpperCase() === 'MATERIA PRIMA')
+    const lista = (its || []).filter(i => i.categoria_id === CAT_MATERIA_PRIMA_FUNDICION_ID)
     if (lista.length === 0) { setArenas([]); return }
     const { data: st } = await supabase.from('stock')
       .select('item_id, cantidad_actual').in('item_id', lista.map(i => i.id)).eq('bodega_id', BODEGA_FUNDICION_ID)

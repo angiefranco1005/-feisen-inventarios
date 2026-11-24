@@ -445,9 +445,24 @@ function SeccionBodegas({ datos, abrir }) {
 }
 
 // ─── CATEGORÍAS ───────────────────────────────────────────────────────────────
+// Las categorías llevan su bodega al final ("DOTACIÓN - ALMACEN") para no confundir nombres
+// repetidos entre bodegas (decisión de Angie, 24/11/2026). Si ya termina en " - BODEGA" o se
+// llama igual que la bodega, se deja como está. Al cambiar de bodega se cambia el sufijo.
+function nombreConBodega(nombre, bodega, bodegas) {
+  const conocidas = new Set(bodegas.map(x => x.nombre.trim().toUpperCase()))
+  const b = (bodega || '').trim()
+  let n = nombre.trim().replace(/\s+/g, ' ')
+  // Quitar un sufijo de bodega que ya tenga (por si se cambió de bodega)
+  const m = n.match(/^(.*\S)\s+-\s+([^-]+)$/)
+  if (m && conocidas.has(m[2].trim().toUpperCase())) n = m[1]
+  if (!b || n.toUpperCase() === b.toUpperCase()) return n
+  return `${n} - ${b}`
+}
+
 function PanelCategoria({ categoria, datos, onCerrar, onGuardado }) {
   const nuevo = !categoria
   const activas = datos.bodegas.filter(b => b.activo)
+  const bodegaDe = id => datos.bodegas.find(b => b.id === id)?.nombre || ''
   const [form, setForm] = useState({ nombre: categoria?.nombre || '', bodega_id: categoria?.bodega_id || activas[0]?.id || '' })
   const [msg, setMsg] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -457,7 +472,7 @@ function PanelCategoria({ categoria, datos, onCerrar, onGuardado }) {
     e.preventDefault(); setMsg('')
     if (!form.bodega_id) { setMsg('Elige una bodega.'); return }
     setGuardando(true)
-    const datosCat = { nombre: form.nombre.trim(), bodega_id: form.bodega_id }
+    const datosCat = { nombre: nombreConBodega(form.nombre, bodegaDe(form.bodega_id), datos.bodegas), bodega_id: form.bodega_id }
     const { error } = nuevo
       ? await supabase.from('categorias').insert(datosCat)
       : await supabase.from('categorias').update(datosCat).eq('id', categoria.id)
@@ -489,6 +504,9 @@ function PanelCategoria({ categoria, datos, onCerrar, onGuardado }) {
         <div>
           <Etiqueta htmlFor="c-nombre">Nombre</Etiqueta>
           <input id="c-nombre" required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Rodamientos" className={claseInput} />
+          {form.nombre.trim() && form.bodega_id && (
+            <p className="text-xs text-feisen-texto-2 mt-1.5">Se guardará como <span className="font-medium text-feisen-texto">{nombreConBodega(form.nombre, bodegaDe(form.bodega_id), datos.bodegas)}</span></p>
+          )}
         </div>
         {!nuevo && productos === 0 && (
           <button type="button" onClick={eliminar} className="text-sm font-medium text-feisen-rojo">Eliminar categoría</button>

@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, UserList, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -47,6 +47,7 @@ const NAV_ADMIN = [
   { to: '/fundidas',                          icon: Flame,           label: 'Fundidas',           modulo: 'Fundición' },
   { to: '/moldeo',                            icon: Layers,          label: 'Moldeo',             modulo: 'Fundición' },
   { to: '/recogida',                          icon: TrayArrowDown,    label: 'Recogida',           modulo: 'Fundición' },
+  { to: '/coquillada',                        icon: Disc,             label: 'Coquillada',         modulo: 'Fundición' },
   { to: '/moldeo/catalogo',                   icon: TreeStructure,         label: 'BOM',                modulo: 'Fundición' },
   { to: '/nomina/fundicion',                  icon: Money, label: 'Nómina',             modulo: 'Fundición' },
   { to: '/analitica/fundicion',               icon: ChartLine,        label: 'Analítica',          modulo: 'Fundición' },
@@ -114,6 +115,7 @@ const NAV_JEFE_FUNDICION = [
   { to: '/fundidas',                       icon: Flame,            label: 'Fundidas',  grupo: 'Fundición' },
   { to: '/moldeo',                         icon: Layers,           label: 'Moldeo',    grupo: 'Fundición' },
   { to: '/recogida',                       icon: TrayArrowDown,     label: 'Recogida',  grupo: 'Fundición' },
+  { to: '/coquillada',                     icon: Disc,              label: 'Coquillada', grupo: 'Fundición' },
   { to: '/nomina/fundicion',               icon: Money,  label: 'Nómina',    grupo: 'Fundición' },
   { to: '/analitica/fundicion',            icon: ChartLine,         label: 'Analítica', grupo: 'Fundición' },
   { to: '/moldeo/catalogo',                icon: TreeStructure,          label: 'BOM',       grupo: 'Fundición' },

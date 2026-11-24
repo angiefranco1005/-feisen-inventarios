@@ -10,6 +10,11 @@ export const BODEGA_MECANIZADOS_ID = '03a709ac-0bee-457a-80a1-0a1603218d34'
 export const BODEGA_ENSAMBLE_ID    = '7f0e4d7e-8c85-40d3-84c5-7857e26f624a' // "Producción y Ensamble"
 export const BODEGA_ALMACEN_ID     = '176a39af-2ca6-482e-83ec-8ba53e30f142'
 export const CAT_PRODUCTO_MECANIZADO_ID = 'bff5d482-1647-426c-a88f-dedd72ff5b06'
+// Categorías de Fundición que la lógica reconoce (sus nombres llevan " - FUNDICIÓN" desde el 24/11/2026)
+export const CAT_MATERIA_PRIMA_FUNDICION_ID = '24537e0a-88b5-4714-a7b1-0e8814e1c43c' // hierro colado, carbón, arenas…
+export const CAT_FUNDIDO_HIERRO_ID          = 'c643d650-cff3-49c6-bf39-663fc003535f' // MATERIAL FUNDIDO HIERRO
+export const CAT_ALUMINIO_FUNDICION_ID      = 'e28e93da-652d-47c6-af6f-f7d8ce601022' // aluminio en bruto (lingote) para coquillar
+export const CAT_POLEAS_ALUMINIO_ID         = 'd0e46316-a3a1-41dd-b7e9-39c252ae3ed1' // poleas de aluminio coquilladas (producto terminado)
 
 // Acepta un objeto bodega ({id}) o un id suelto.
 export const esBodegaFundicion   = (b) => !!b && (b.id ?? b) === BODEGA_FUNDICION_ID

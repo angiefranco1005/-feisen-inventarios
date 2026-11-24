@@ -30,6 +30,7 @@ import GestionBOM          from './components/fundicion/GestionBOM'
 import RecogidaFundida     from './components/fundicion/RecogidaFundida'
 import AnaliticaFundicion  from './components/fundicion/AnaliticaFundicion'
 import InicioFundicion     from './components/fundicion/InicioFundicion'
+import Coquillada          from './components/fundicion/Coquillada'
 import InformeNomina       from './components/reportes/InformeNomina'
 import RegistroMecanizado       from './components/mecanizados/RegistroMecanizado'
 import GestionPaquetes          from './components/mecanizados/GestionPaquetes'
@@ -113,7 +114,7 @@ function AppRoutes() {
     '/reportes': <HubReportes />, '/reportes/corte': <CorteInventario />, '/reportes/inventario-fisico': <InventarioFisico />, '/reportes/kardex': <InformeKardex />,
     '/pedidos': <ListaPedidos />, '/ordenes-compra': <OrdenesCompra />, '/proveedores': <Proveedores />,
     '/fundidas': <ListaFundidas />, '/fundidas/nueva': <RegistrarFundida />, '/moldeo': <ListaOrdenesMoldeo />, '/moldeo/nueva': <CrearOrdenMoldeo />,
-    '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
+    '/moldeo/catalogo': <GestionBOM />, '/recogida': <RecogidaFundida />, '/coquillada': <Coquillada />, '/nomina/fundicion': <InformeNomina />, '/analitica/fundicion': <AnaliticaFundicion />,
     '/reportes/balance-hierro': <InformeBalanceHierro />, '/reportes/ventas-internas-fundicion': <InformeTransferenciasInternas origenFundicion />,
     '/reportes/transferencias-internas': <InformeTransferenciasInternas />,
     '/mecanizados/registro': <RegistroMecanizado />, '/ensamble': <PlanillasProduccion />, '/ensamble/seriales': <SerialesMaquina />,

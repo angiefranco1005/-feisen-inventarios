@@ -2625,3 +2625,36 @@ Dónde quedó en `EEFF-CRITERIOS.md`: sección **5.2 Mano de obra** (el criterio
 - Con OK de Angie también: 35"/51"/52" TIPO A ($0 → $5.950/$8.670/$8.840), 23'' ($12.650 → $3.910) y 28'' ($4.720 → $4.760). Neto +$104.460. Todas las tipo A activas cumplen la regla. Ojo: 35"/51"/52" (comillas " y unidad "unidad") parecen duplicados de las 35''/51''/52'' inactivas.
 - Correas tipo B: regla de Angie = pulgadas × $190. Aplicado (24/11) a las 22 de la lista en $0 (63'' a 84''), +$5.793.860. Ojo: las tipo B de 23'' a 62'' ya tenían precio pero calculado ×170 (regla de las A) — 36 de ellas; 23'' B en $12.650 y 28'' B en $4.720 como pasaba en las A. Solo 31 y 35" B ya iban ×190. Con OK de Angie se pasaron las 38 a ×190 (+$356.100). Todas las correas A y B activas cumplen su regla.
 - 2026-11-24: Angie pasó precios de 19 seggers y retenedores (imagen en el chat); cargados en `items.precio_costo` (+$3.338.500 en inventario). Con eso no quedan seggers ni retenedores activos en $0.
+
+## 2026-11-24 · Coquillada de poleas de aluminio y categorías con su bodega
+
+**Categorías con sufijo de bodega** (`2026-11-24_categorias_sufijo_bodega.sql`, **aplicada 24/11 con OK de Angie**): Angie eligió renombrar las
+categorías con " - BODEGA" al final (DOTACIÓN existía en Administración y en Almacén). No se tocan las que ya
+terminaban en su bodega (FUNDICIÓN - MECANIZADOS…) ni las que se llaman como su bodega (FERRETERIA,
+MANTENIMIENTO). Configuración › Categorías agrega el sufijo sola al crear o mover una categoría y muestra
+"Se guardará como …".
+- Lo que reconocía categorías por NOMBRE ahora usa ID (`src/utils/bodegasCatalogo.js`): moldeo (arenas),
+  bloqueo de transferir materia prima (pantalla y trigger `bloquear_mp_fundicion`), EEFF (transferencia de
+  hierro y materia prima excluida). El balance (`inventarioBalance.js`) agrupa por "BODEGA|CATEGORÍA" con los
+  nombres nuevos. **Si se renombra una categoría usada en el balance, hay que cambiar su clave ahí.**
+
+**Coquillada** (`2026-11-24_coquillada_poleas.sql`, **aplicada 24/11 con OK de Angie**: 49 poleas, LINGOTE ALUMINIO en Fundición; pantalla `fundicion/Coquillada.jsx`, ruta `/coquillada`,
+módulo de permisos `fundicion`). Decisiones de Angie:
+- El almacenista entrega a Fundición el aluminio del día: transferencia de **LINGOTE ALUMINIO** de Almacén a
+  Fundición (se crea con el mismo nombre en Fundición, categoría ALUMINIO - FUNDICIÓN, para que la
+  transferencia lo encuentre sola).
+- Un solo registro por coquillada: fecha, observaciones y por polea buenas y dañadas.
+- Se descuenta del aluminio de Fundición **peso × buenas**; las dañadas se anotan pero su aluminio **vuelve al
+  horno** (no se descuenta; queda en `kg_retorno`). Ej.: 10 kg, sale bien un ARO DESPULPADORA de 1 kg → 9 kg.
+- Las buenas entran a Fundición en la categoría nueva **POLEAS ALUMINIO - FUNDICIÓN** (aparte del aluminio en
+  bruto, para que el balance las cuente como producto terminado: renglón "Poleas de aluminio", que sigue
+  aceptando cifra a mano y esa manda si existe).
+- Las 49 referencias se crean con nombre y peso **tal cual la lista de Angie** ("1 1/2X 1", "8X2", "TAMBOR"…),
+  costo inicial = kg × costo del lingote.
+- No deja guardar si el aluminio en Fundición no alcanza (dice cuánto pedir). Reintento sin duplicar: la
+  coquillada, sus poleas y cada movimiento se revisan antes de insertar (referencia `COQ-xxxx`).
+- Tablas `coquilladas` (numero por secuencia) y `coquillada_piezas`; RLS como `fundidas`.
+- Probado en la demo (`vite.fundicion-demo`): falta de aluminio, guardado normal y fallo a mitad. No probado
+  contra la base real.
+- Pendiente de revisar con Angie: "ZAPATAS" (1,495 kg) y "ZAPATAS ALUMINIO" (0,75 kg) quedan como dos
+  productos distintos; en Almacén ya existen POLEA 10X1 AL, ZAPATA GRANDE AL… con otros nombres (no se tocan).

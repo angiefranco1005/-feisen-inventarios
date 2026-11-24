@@ -14,6 +14,7 @@
 import { supabase } from '../../lib/supabase'
 import { fetchAllPages } from '../../utils/fetchAllPages'
 import { normCentro, SIN_CENTRO } from './comun'
+import { CAT_FUNDIDO_HIERRO_ID, CAT_MATERIA_PRIMA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import { HISTORICO, hayHistorico } from './eeffHistorico'
 
 export const PRECIO_KG_HIERRO = 5500
@@ -326,18 +327,18 @@ export async function leerErpMes(mes) {
   const { data: bods } = await supabase.from('bodegas').select('id, nombre').ilike('nombre', '%fundic%')
   const ids = (bods || []).map(b => b.id)
   const { data, error: err } = await fetchAllPages((d, h) => supabase.from('movimientos')
-    .select('id, numero, cantidad, precio_costo_snapshot, bodega_origen_id, bodega_destino_id, items(nombre, peso_unitario, categorias(nombre)), bodegas_destino:bodega_destino_id(nombre)')
+    .select('id, numero, cantidad, precio_costo_snapshot, bodega_origen_id, bodega_destino_id, items(nombre, peso_unitario, categoria_id), bodegas_destino:bodega_destino_id(nombre)')
     .eq('tipo', 'salida').in('bodega_origen_id', ids).not('bodega_destino_id', 'is', null)
     .is('revertido_en', null).or('revertido.is.null,revertido.eq.false')
     .or(`and(fecha_movimiento.gte.${desde},fecha_movimiento.lte.${hasta}),and(fecha_movimiento.is.null,created_at.gte.${desde}T00:00:00,created_at.lte.${hasta}T23:59:59)`)
     .order('id').range(d, h))
   if (err) throw err
-  const piezas = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIAL FUNDIDO HIERRO')
+  const piezas = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categoria_id === CAT_FUNDIDO_HIERRO_ID)
   const kg = piezas.reduce((s, x) => s + Number(x.cantidad) * (Number(x.items?.peso_unitario) || 0), 0)
   const sinPeso = piezas.filter(x => !Number(x.items?.peso_unitario)).length
   // Materia prima de Fundición registrada como salida a otra bodega (errores de registro de oct 2026):
   // no es transferencia interna, se descuenta aquí y se deja la observación (decisión de Angie, 11/11)
-  const mp = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categorias?.nombre === 'MATERIA PRIMA')
+  const mp = (data || []).filter(x => x.bodega_destino_id !== x.bodega_origen_id && x.items?.categoria_id === CAT_MATERIA_PRIMA_FUNDICION_ID)
   const excluido = mp.length ? {
     valor: mp.reduce((s, x) => s + Number(x.cantidad) * (Number(x.precio_costo_snapshot) || 0), 0),
     documentos: [...new Set(mp.map(x => x.numero))].sort(),

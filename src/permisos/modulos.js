@@ -43,8 +43,8 @@ export const MODULOS = [
   { clave: 'ordenes_compra', grupo: 'Compras', nombre: 'Órdenes de compra', detalle: 'a proveedores', niveles: ['todo'],
     rutas: ['/ordenes-compra', '/proveedores'] },
 
-  { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, BOM, nómina', niveles: ['todo'], usaBodega: true,
-    rutas: ['/fundidas', '/fundidas/nueva', '/moldeo', '/moldeo/nueva', '/moldeo/catalogo', '/recogida', '/nomina/fundicion', '/analitica/fundicion'] },
+  { clave: 'fundicion',      grupo: 'Producción', nombre: 'Fundición', detalle: 'fundidas, moldeo, recogida, coquillada, BOM, nómina', niveles: ['todo'], usaBodega: true,
+    rutas: ['/fundidas', '/fundidas/nueva', '/moldeo', '/moldeo/nueva', '/moldeo/catalogo', '/recogida', '/coquillada', '/nomina/fundicion', '/analitica/fundicion'] },
   { clave: 'informes_fundicion', grupo: 'Producción', nombre: 'Informes de fundición', detalle: 'balance de hierro, ventas internas, transferencias internas', niveles: ['ve'],
     rutas: ['/reportes/balance-hierro', '/reportes/ventas-internas-fundicion', '/reportes/transferencias-internas'] },
   { clave: 'mecanizados',    grupo: 'Producción', nombre: 'Mecanizados', detalle: 'registro de mecanizado', niveles: ['todo'], usaBodega: true,
