@@ -2621,4 +2621,4 @@ Dónde quedó en `EEFF-CRITERIOS.md`: sección **5.2 Mano de obra** (el criterio
 ## 2026-11-24 — Precio de correas tipo A
 - Regla de Angie: correa tipo A = pulgadas × $170 por unidad (ej. A 74 = $12.580). El catálogo ya seguía esa regla de 24'' a 62''.
 - Aplicado a las 4 de "Artículos sin precio – Almacén 18/11" que estaban en $0: A67 $11.390, A68 $11.560, A70 $11.900, A74 $12.580 (+$340.340 en valor de inventario). `items` no guarda historial de precios.
-- Pendiente de decisión: CORREA 35"/51"/52" TIPO A activas en $0 (duplicadas con comillas " y unidad "unidad", 10 und c/u, no estaban en el PDF); 23'' TIPO A en $12.650 (por la regla serían $3.910); 28'' TIPO A en $4.720 (regla: $4.760).
+- Con OK de Angie también: 35"/51"/52" TIPO A ($0 → $5.950/$8.670/$8.840), 23'' ($12.650 → $3.910) y 28'' ($4.720 → $4.760). Neto +$104.460. Todas las tipo A activas cumplen la regla. Ojo: 35"/51"/52" (comillas " y unidad "unidad") parecen duplicados de las 35''/51''/52'' inactivas.
