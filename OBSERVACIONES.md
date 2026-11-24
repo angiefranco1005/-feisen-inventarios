@@ -2617,3 +2617,8 @@ Dos advertencias que quedaron anotadas junto a la decisión:
 - **El cálculo no mira el estado de la quincena**: una quincena **en borrador ya entra** al estado de resultados, así que si alguien le mueve algo, **la cifra del mes cambia sola**.
 
 Dónde quedó en `EEFF-CRITERIOS.md`: sección **5.2 Mano de obra** (el criterio y las dos advertencias), sección **9 Avisos** (resumen) y la tabla de la sección **11** (fila del 24/11). También se le sumó a la lista de lo pedido a contabilidad el punto de **causar cada nómina con la fecha del mes que le corresponde**.
+
+## 2026-11-24 — Precio de correas tipo A
+- Regla de Angie: correa tipo A = pulgadas × $170 por unidad (ej. A 74 = $12.580). El catálogo ya seguía esa regla de 24'' a 62''.
+- Aplicado a las 4 de "Artículos sin precio – Almacén 18/11" que estaban en $0: A67 $11.390, A68 $11.560, A70 $11.900, A74 $12.580 (+$340.340 en valor de inventario). `items` no guarda historial de precios.
+- Pendiente de decisión: CORREA 35"/51"/52" TIPO A activas en $0 (duplicadas con comillas " y unidad "unidad", 10 und c/u, no estaban en el PDF); 23'' TIPO A en $12.650 (por la regla serían $3.910); 28'' TIPO A en $4.720 (regla: $4.760).
