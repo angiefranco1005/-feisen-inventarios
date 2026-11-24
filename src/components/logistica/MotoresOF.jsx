@@ -15,7 +15,7 @@ import { formatoOF, formatFecha, hoyISO } from '../of/shared/formatters'
 
 const PEDIDO_ABIERTO = ['pendiente', 'en_transito', 'parcialmente_recibido']
 
-export default function MotoresOF() {
+export default function MotoresOF({ enInicio = false }) {
   const navigate = useNavigate()
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
@@ -62,9 +62,11 @@ export default function MotoresOF() {
   if (cargando) return <Spinner texto="Contando motores..." />
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className={enInicio ? 'space-y-3.5' : 'max-w-4xl mx-auto space-y-5'}>
       <div>
-        <h1 className="text-xl font-semibold text-feisen-texto">Motores para OF</h1>
+        {enInicio
+          ? <h2 className="text-base font-semibold text-feisen-texto">Motores para OF</h2>
+          : <h1 className="text-xl font-semibold text-feisen-texto">Motores para OF</h1>}
         <p className="text-sm text-feisen-texto-2 mt-0.5">Los motores de Feisen que piden las OF pendientes, contra lo que hay en la bodega MOTORES y lo que viene en pedidos.</p>
       </div>
       {error && <p className="text-sm text-feisen-rojo">No se pudo cargar: {error}</p>}

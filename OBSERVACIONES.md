@@ -2735,8 +2735,9 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   Las listas de OF y el detalle muestran la etiqueta del motor (`MotorLinea`; embed `motor_item:items(nombre)`).
 - **Solo motores propios:** se ofrecen y cuentan los de la bodega MOTORES **menos la categoría EQUIPMASTER STORE**, que son
   motores de un cliente que Feisen le guarda (decisión de Angie 24/11). El filtro es por nombre de categoría (`esDeCliente`).
-- **«Motores para OF» (`/motores-of`, `logistica/MotoresOF.jsx`):** módulo `ordenes_compra` (Logística y admin), en el menú
-  bajo Pedidos. Por motor: piden (OF no canceladas), hay (stock MOTORES), en camino (pedido_items con ese `item_id` en
+- **«Motores para OF» (`logistica/MotoresOF.jsx`):** va al final de la pestaña **Logística del Inicio** (`InicioGerencia`,
+  prop `enInicio`), la de gerencia y la de Efraín. Primero fue ruta `/motores-of` en el menú; Angie pidió el mismo día
+  pasarla al Inicio, así que la ruta y la opción del menú se quitaron. Por motor: piden (OF no canceladas), hay (stock MOTORES), en camino (pedido_items con ese `item_id` en
   pedidos pendiente / en_transito / parcialmente_recibido) y falta. Pendiente de una OF y motor =
   cantidad − máx(entregado, motores ya sacados con serial para esa OF). `motor_seriales.numero_of` es texto libre
   ("OF 312", "312", "072"): se compara por los dígitos. Las líneas 'feisen' sin motor elegido salen aparte y no se cuentan.

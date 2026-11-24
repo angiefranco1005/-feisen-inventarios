@@ -10,6 +10,7 @@ import DashboardOF from '../../of/Dashboard'
 import InformeSinRotacion from './InformeSinRotacion'
 import DashboardLogistica from '../../logistica/Dashboard'
 import IndicadoresLogistica from './IndicadoresLogistica'
+import MotoresOF from '../../logistica/MotoresOF'
 
 // Inicio de gerencia: une el antiguo Inicio y Analítica, por pestañas para no llenar la
 // pantalla (2026-11-04): cada módulo tiene su pestaña (Ventas = dashboard de Odoo, Pedidos OF =
@@ -516,6 +517,8 @@ export default function InicioGerencia({ modo = 'gerencia' }) {
             </Tarjeta>
 
             <IndicadoresLogistica mensual={logistica.mensual} porBodega={logistica.porBodega} />
+            {/* Motores para OF (2026-11-24): va aquí y no en el menú, pedido de Angie */}
+            <div className="lg:col-span-2"><MotoresOF enInicio /></div>
           </div>
       )}
       {vista === 'produccion' && (
