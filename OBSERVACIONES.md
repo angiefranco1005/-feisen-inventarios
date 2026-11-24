@@ -2658,3 +2658,24 @@ módulo de permisos `fundicion`). Decisiones de Angie:
   contra la base real.
 - Pendiente de revisar con Angie: "ZAPATAS" (1,495 kg) y "ZAPATAS ALUMINIO" (0,75 kg) quedan como dos
   productos distintos; en Almacén ya existen POLEA 10X1 AL, ZAPATA GRANDE AL… con otros nombres (no se tocan).
+
+## 2026-11-24 · Plantilla de Excel para planear el moldeo
+
+- Pedido del jefe de Fundición: poder planear el moldeo en Excel además de la app. Botón **"Descargar
+  plantilla"** en Nueva orden de moldeo (`utils/plantillaMoldeo.js`). Se arma al descargar con las listas al
+  día: piezas de Fundición (MATERIAL FUNDIDO HIERRO), máquinas activas, BOM y moldeadores.
+- Dos pestañas para llenar, como en la app: **Por máquina** (Fecha · Máquina · Cantidad de máquinas ·
+  Moldeador; kg = cantidad × kg por máquina del BOM) y **Piezas sueltas** (Fecha · Pieza · Cantidad ·
+  Moldeador). Las filas con la misma fecha, en las dos pestañas, forman una orden. Pestañas de consulta:
+  BOM, Piezas, Listas. Celdas amarillas = llenar; filas grises = ejemplo; resumen con "que no están en la lista".
+- Desplegables de máquina, pieza y moldeador. Moldeador solo **avisa** si el nombre no está (deja escribir).
+  xlsx-js-style no escribe validaciones: se agregan al XML abriendo el .xlsx con `XLSX.CFB`, junto con
+  encabezado fijo y `fullCalcOnLoad` (las fórmulas no traen valor guardado).
+- Moldeadores: función `moldeadores_fundicion()` (`2026-11-24_moldeadores_fundicion.sql`, **aplicada 24/11 con OK de Angie**; probada: Jefe de Fundición ve 4, Almacenista 0; mismo patrón que
+  `operarios_mecanizado`): solo nombres de empleados activos de Fundición Hierro con cargo '%MOLD%' (en RRHH
+  dice "MOLDEDADOR"), y solo a ADMIN, RRHH y JEFE_FUNDICION. Si falla, la plantilla sale sin esa lista.
+- **Gotchas de Excel (24/11, Angie veía "Encontramos un problema con contenido"):** (1) `<dataValidations>` debe ir
+  ANTES de `<ignoredErrors>` (SheetJS lo escribe justo tras `<sheetData>`); (2) xlsx-js-style escribe un texto
+  vacío como `<c t="str"><v></v></c>` y Excel lo rechaza: las celdas vacías llevan una marca que se cambia en el
+  XML por `<c r s/>` (vacía con su color). Confirmado por Angie: abre sin el mensaje.
+- **Pendiente:** subir la plantilla llena para crear las órdenes (aún no existe; por ahora solo se descarga).

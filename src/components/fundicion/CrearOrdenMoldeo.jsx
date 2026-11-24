@@ -6,9 +6,10 @@ import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import { coincideBusqueda } from '../../utils/busqueda'
 import {
   CheckCircle2, Plus, Trash2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Check,
-  Search, AlertTriangle, RefreshCw, Factory, Package,
+  Search, AlertTriangle, RefreshCw, Factory, Package, FileDown,
 } from '../shared/iconos'
 import { EncabezadoPagina, Contador } from '../shared/ui'
+import { descargarPlantillaMoldeo } from '../../utils/plantillaMoldeo'
 
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -189,6 +190,7 @@ export default function CrearOrdenMoldeo() {
   const [exito,          setExito]          = useState(null)
   // Orden ya insertada en un intento que falló después (máquinas o piezas): { id, numero }
   const [ordenCreada,    setOrdenCreada]    = useState(null)
+  const [bajandoPlantilla, setBajandoPlantilla] = useState(false)
   const [proximoNumero,  setProximoNumero]  = useState(null)
 
   useEffect(() => { cargar() }, [])
@@ -437,6 +439,13 @@ export default function CrearOrdenMoldeo() {
       </div>
     </div>
   )
+  async function bajarPlantilla() {
+    setBajandoPlantilla(true)
+    try { await descargarPlantillaMoldeo() }
+    catch (e) { setError('No se pudo preparar la plantilla: ' + e.message) }
+    finally { setBajandoPlantilla(false) }
+  }
+
   const clasePrincipal = 'inline-flex items-center justify-center gap-1.5 bg-feisen-azul text-white rounded-lg px-4 sm:px-5 min-h-[48px] text-[15px] font-semibold disabled:opacity-60 hover:opacity-90 active:scale-[.98] transition shrink-0'
 
   return (
@@ -446,6 +455,12 @@ export default function CrearOrdenMoldeo() {
         subtitulo={proximoNumero
           ? <>Será la <span className="font-mono font-medium text-feisen-texto">{numOrden(proximoNumero)}</span> · elige las máquinas y el sistema calcula las piezas.</>
           : 'Elige las máquinas a producir y el sistema calcula las piezas a moldear.'}>
+        {/* Plantilla de Excel para planear fuera de la app (por máquina y piezas sueltas), con las listas al día */}
+        <button type="button" onClick={bajarPlantilla} disabled={bajandoPlantilla}
+          title="Excel para planear el moldeo: por máquina o por pieza, con listas de piezas, máquinas y moldeadores"
+          className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-60">
+          <FileDown size={16} /> {bajandoPlantilla ? 'Preparando…' : 'Descargar plantilla'}
+        </button>
         <Link to="/moldeo"
           className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
           Ver órdenes
