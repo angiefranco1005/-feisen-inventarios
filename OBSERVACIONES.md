@@ -2748,3 +2748,9 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   trifásico, no está en el catálogo), 611 vibrador (6,5 HP sin marca), 612 cortadora (Honda 13 HP: solo existe en
   Equipmaster) y 615 allanadora («motor genérico»). Las otras ~110 líneas activas quedaron NULL (no se pregunta hacia atrás).
 - **Ojo catálogo:** «WEG 4 HP 1800 RPM» está repetido en MOTORES CONSTRU (dos ítems, ambos en 0); se usó 66eb88d8….
+
+## 2026-11-24 — Facturas de Feisen sin línea de costo en Odoo
+- Angie pidió identificar qué facturas de Feisen en Odoo no tienen línea de costo. Se revisó con la función `facturas-sin-costo`, que solo lee, se llama con el token de cron y quedó activa.
+- Resultado: **ninguna de las 819 facturas de cliente publicadas (abril–24 nov 2026) tiene línea de costo**. 704 de ellas facturan productos almacenables.
+- Causa: en Odoo Feisen **todas las categorías de producto** (062, 063, 204, 258, Goods, Services, Expenses) tienen la valoración de inventario en **periódica** (`property_valuation = periodic`, costo estándar, cuenta 140500). Con valoración periódica, Odoo no genera el asiento de costo al facturar, aunque la compañía tenga la contabilidad anglosajona activada. Para que lo genere, las categorías tendrían que pasar a valoración **perpetua (automática)** y tener cuenta de costo. Eso es decisión de contabilidad y lo cambia en Odoo; aplicaría solo a facturas nuevas.
+- Por eso la 613500 de Feisen se mueve a saltos (asientos manuales). Así lo sigue tomando EEFF: materia prima = compras a 140500.
