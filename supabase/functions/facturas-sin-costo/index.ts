@@ -1,5 +1,6 @@
 // Revisión puntual (24/11/2026, pedido de Angie): facturas de cliente publicadas de Feisen en Odoo
 // sin línea de costo (los apuntes display_type 'cogs' que Odoo crea al facturar productos almacenables).
+// { sin_centro: true }: líneas de venta sin centro de costo (plan analítico "Líneas de costo"), que era lo que Angie preguntaba.
 // Solo lectura. Se llama con el token de cron (header x-cron-token, vault 'ventas_odoo_cron').
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -40,7 +41,17 @@ Deno.serve(async (req) => {
     if (!clave) throw new Error('Falta ODOO_FEISEN_APIKEY')
 
     const compania = await odoo(clave, 'res.company', 'search_read', { domain: [], fields: ['name', 'anglo_saxon_accounting'] })
-    if ((await req.json().catch(() => ({}))).categorias) {
+    const cuerpo = await req.json().catch(() => ({}))
+    // Sin centro: líneas de venta (y de notas crédito) sin distribución analítica (plan "Líneas de costo")
+    if (cuerpo.sin_centro) {
+      const sin = await todo(clave, 'account.move.line',
+        [['move_id.move_type', 'in', ['out_invoice', 'out_refund']], ['parent_state', '=', 'posted'], ['display_type', '=', 'product'], ['analytic_distribution', '=', false]],
+        ['move_id', 'date', 'partner_id', 'product_id', 'name', 'quantity', 'balance', 'move_type'])
+      const planes = await odoo(clave, 'account.analytic.plan', 'search_read', { domain: [], fields: ['name'] })
+      return responder({ compania, planes, lineas: sin.map(l => ({ factura: nombre(l.move_id), fecha: l.date, cliente: nombre(l.partner_id),
+        producto: nombre(l.product_id) || l.name, cantidad: l.quantity, valor: -l.balance, tipo: l.move_type })) })
+    }
+    if (cuerpo.categorias) {
       const categorias = await odoo(clave, 'product.category', 'search_read', {
         domain: [], fields: ['complete_name', 'property_valuation', 'property_cost_method', 'property_stock_valuation_account_id', 'property_account_expense_categ_id'],
       })
