@@ -27,7 +27,7 @@ function useAncho(query) {
 
 // Índice del árbol: cada proceso y cada enlace de sub-pieza con su ruta de nombres y su camino
 // de enlaces (para abrir las ramas al ir a él). También los totales por rubro sumados por niveles.
-function indexar(arbol) {
+export function indexar(arbol) {
   const raizId = arbol.raizId
   const nombreRaiz = arbol.fichas[raizId]?.nombre
   const corto = (n) => nombreCorto(n, nombreRaiz)
@@ -408,7 +408,7 @@ function Fila({ nivel, tipo, numero, nombre, completo, extra, total, abierto, av
   )
 }
 
-function Panel({ arbol, idx, sel, fichaId, nombreRaiz, onCambio, onSeleccionar, onQuitado, onAgregado }) {
+export function Panel({ arbol, idx, sel, fichaId, nombreRaiz, onCambio, onSeleccionar, onQuitado, onAgregado }) {
   if (sel.tipo === 'proceso' && idx.procesos[sel.id]) {
     const n = idx.procesos[sel.id]
     return <PanelProceso arbol={arbol} proceso={n.proceso} ruta={n.ruta} hermanos={n.hermanos} onCambio={onCambio} onQuitado={onQuitado} />
