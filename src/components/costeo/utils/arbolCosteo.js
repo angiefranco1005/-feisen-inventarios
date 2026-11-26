@@ -42,10 +42,14 @@ export async function cargarArbol(raizId, { conDetalle = false } = {}) {
   // Observaciones abiertas por ficha (2026-11-26): solo el conteo, para el ícono junto al nombre.
   // Si falla (ej. sin la tabla), el árbol carga igual sin conteos.
   const obsConsulta = supabase.from('costeo_ficha_observaciones').select('ficha_id').eq('resuelta', false).in('ficha_id', lista)
-  const [res, obs] = await Promise.all([Promise.all(consultas), obsConsulta])
+  // Planos por ficha (2026-11-26): solo el conteo, para el ícono FileText. Si falla, sin conteos.
+  const planosConsulta = supabase.from('costeo_ficha_planos').select('ficha_id').in('ficha_id', lista)
+  const [res, obs, pls] = await Promise.all([Promise.all(consultas), obsConsulta, planosConsulta])
   for (const r of res) if (r.error) throw r.error
   const observaciones = {}
   for (const o of obs.error ? [] : obs.data || []) observaciones[o.ficha_id] = (observaciones[o.ficha_id] || 0) + 1
+  const planos = {}
+  for (const p of pls.error ? [] : pls.data || []) planos[p.ficha_id] = (planos[p.ficha_id] || 0) + 1
   const [fi, rs, pr, cr, mt, tr] = res
   const procesoIds = (pr.data || []).map((p) => p.id)
   const mo = procesoIds.length
@@ -70,6 +74,7 @@ export async function cargarArbol(raizId, { conDetalle = false } = {}) {
     costos: porId(cr.data, 'proceso_id'),
     hijos: agrupar(enlaces, 'contenedor_id', porFecha),
     observaciones, // fichaId → nº de observaciones sin resolver
+    planos, // fichaId → nº de planos adjuntos
     manoObra: agrupar(mo.data, 'proceso_id', (a, b) => a.orden - b.orden || porFecha(a, b)),
     materiales: conDetalle ? agrupar(mt.data, 'proceso_id', porFecha) : {},
     tiempos: conDetalle

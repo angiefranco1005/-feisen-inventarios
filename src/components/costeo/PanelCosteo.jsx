@@ -11,6 +11,7 @@ import ProcesoMateriales from './ProcesoMateriales'
 import ProcesoManoObra from './ProcesoManoObra'
 import ProcesoTiempos from './ProcesoTiempos'
 import Observaciones from './Observaciones'
+import Planos from './Planos'
 
 // Panel de detalle del árbol de costeo (opción B elegida por Angie el 2026-11-06): a la derecha en
 // escritorio, a pantalla completa en celular. Muestra un proceso (mano de obra, materia prima,
@@ -290,6 +291,8 @@ export function PanelPieza({ arbol, fichaId, enlace, ruta, nombreRaiz, enCamino,
       </div>
 
       <Observaciones fichaId={fichaId} onCambio={onCambio} />
+
+      <Planos fichaId={fichaId} onCambio={onCambio} />
 
       {enlace && (
         <div className="mt-8 pt-4 border-t border-feisen-borde-suave flex flex-wrap items-center gap-x-2">

@@ -5,6 +5,7 @@ import { formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
 import { falta, normalizar } from './datosPasos'
 import { IndicadorObservaciones } from '../Observaciones'
+import { IndicadorPlanos } from '../Planos'
 
 // Paso 2 · Hojas de ruta como secuencia de fichas (opción B; Angie, 2026-11-26).
 // Cada pieza es un renglón con sus operaciones en orden. Cada ficha dice la máquina, quién la hace
@@ -226,6 +227,7 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
                 {r.esConjunto && !r.raiz ? `Ensamble · ${r.nombre}` : r.nombre}
               </h3>
               <IndicadorObservaciones n={arbol.observaciones?.[r.fichaId]} />
+              <IndicadorPlanos n={arbol.planos?.[r.fichaId]} />
               {r.cant !== 1 && <span className="text-xs text-feisen-texto-2">× {formatNumber(r.cant, r.cant % 1 ? 2 : 0)}</span>}
               {!r.esConjunto && !procs.length && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Sin ruta</span>}
             </div>
