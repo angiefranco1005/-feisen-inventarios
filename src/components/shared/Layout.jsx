@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Coins, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -61,14 +61,9 @@ const NAV_ADMIN = [
   { to: '/of/calendario',                     icon: CalendarDots,    label: 'Calendario',         modulo: 'Ventas' },
   { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
-  // Costeo por pasos (2026-11-25): el menú sigue el orden del costeo. Responsables, CIF y Equipos quedan dentro de "0 · Bases".
-  // 2026-11-26: "Fichas y precio" (tablero de todas las máquinas) va de primero; los pasos 0–4 debajo.
-  { to: '/costeo',                            icon: Calculator,      label: 'Fichas y precio', modulo: 'Costeo' },
-  { to: '/costeo/bases',                      icon: Coins,           label: '0 · Bases',          modulo: 'Costeo' },
-  { to: '/costeo/pasos/despiece',             icon: TreeStructure,   label: '1 · Despiece',       modulo: 'Costeo' },
-  { to: '/costeo/pasos/ruta',                 icon: ListChecks,      label: '2 · Hojas de ruta',  modulo: 'Costeo' },
-  { to: '/costeo/pasos/materia',              icon: Package,         label: '3 · Materia prima',  modulo: 'Costeo' },
-  { to: '/costeo/pasos/tiempos',              icon: CalendarClock,   label: '4 · Tiempos',        modulo: 'Costeo' },
+  // Costeo (2026-11-26, Angie): un solo ítem. Las etapas (despiece, hojas de ruta, materia prima, tiempos)
+  // se ven dentro de cada máquina; las bases (responsables, CIF, equipos) se abren desde el inicio de Costeo.
+  { to: '/costeo',                            icon: Calculator,      label: 'Fichas de costeo',   modulo: 'Costeo' },
   { to: '/rrhh/empleados',                    icon: UsersThree,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },
@@ -353,9 +348,6 @@ export default function Layout({ children }) {
     if (to.includes('?')) return ruta + location.search === to
     if (ruta === to) return true
     if (to === '/reportes' && ruta.startsWith('/reportes')) return true
-    // Responsables, CIF y Equipos de costeo viven dentro de "0 · Bases" (no tienen ítem propio)
-    const basesCosteo = ['/costeo/etapas', '/costeo/cif', '/costeo/equipos'].some(r => ruta.startsWith(r))
-    if (basesCosteo) return to === '/costeo/bases'
     return ruta.startsWith(to + '/') && !navItems.some(i => i.to === ruta)
   }
   const moduloActual = navItems.find(i => i.modulo && esActivo(i.to))?.modulo

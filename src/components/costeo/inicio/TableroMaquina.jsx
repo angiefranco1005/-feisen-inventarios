@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase'
 import { formatCOP } from '../utils/format'
 import { nombreCorto, tipoTitulo } from '../utils/nombres'
 import { cargarDatosCosteo, pct, periodoTexto } from './datosInicio'
+import EtapasMaquina from './EtapasMaquina'
 import { Anillo, BarraPrecio, COLORES, Leyenda, RAYADO, nombreProducto } from './piezasTablero'
 
 // Tablero de una máquina (2026-11-26, opción B estilo Stripe): cómo se reparte el precio de venta
@@ -51,7 +52,7 @@ export default function TableroMaquina() {
   return (
     <div className="max-w-7xl mx-auto flex gap-8 tabular-nums">
       <aside aria-label="Máquinas" className="hidden lg:flex w-64 flex-none flex-col gap-1.5">
-        <Link to="/costeo" className="text-xs text-feisen-azul hover:underline px-2 pb-2">← Todas las máquinas</Link>
+        <Link to="/costeo" className="text-xs text-feisen-azul hover:underline px-2 pb-2">← Fichas de costeo</Link>
         {otras.map((o) => {
           const activa = o.fichaId === id
           return (
@@ -76,7 +77,7 @@ export default function TableroMaquina() {
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col gap-6">
-        <Link to="/costeo" className="lg:hidden text-xs text-feisen-azul hover:underline">← Todas las máquinas</Link>
+        <Link to="/costeo" className="lg:hidden text-xs text-feisen-azul hover:underline">← Fichas de costeo</Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs text-feisen-texto-2">Fichas y precio</div>
@@ -87,9 +88,10 @@ export default function TableroMaquina() {
           </div>
           <div className="flex gap-2">
             <Link to={`/costeo/fichas/${m.fichaId}`} className="h-10 px-3 inline-flex items-center rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">Abrir ficha</Link>
-            <Link to={`/costeo/pasos/despiece?maquina=${m.fichaId}`} className="h-10 px-4 inline-flex items-center rounded-lg bg-feisen-azul text-white text-sm font-medium hover:opacity-90">Seguir costeando</Link>
           </div>
         </div>
+
+        <EtapasMaquina maquinaId={m.fichaId} activa="resumen" />
 
         <section className="bg-white border border-[#ECEEF1] rounded-[14px] p-5 sm:p-6 flex flex-col gap-5">
           <div className="flex flex-wrap items-end justify-between gap-5">

@@ -2792,3 +2792,13 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - **Avance:** conjuntos de primer nivel con costo > 0, divididos entre el total de conjuntos. Una máquina sin conjuntos pero con costo propio cuenta como completa.
 - `tipoTitulo` ahora escribe "bulto/bultos" en minúscula.
 - Probado en la demo de costeo (con datos reales de ventas Feisen), en escritorio y a 375 px sin scroll horizontal. No se ha probado contra la base real.
+
+## 2026-11-26 (tarde) · Costeo: un solo ítem en el menú, las etapas van dentro de cada máquina
+
+- **Pedido de Angie:** en el menú de Costeo solo debe salir "Fichas de costeo", y las etapas del costeo deben verse al entrar a cada máquina, no como ítems del menú.
+- **Menú:** el módulo Costeo tiene un solo ítem, "Fichas de costeo" (`/costeo`). Todas las subrutas `/costeo/*` lo marcan como activo, incluidas etapas, CIF y equipos; ya no existe el caso especial de "0 · Bases".
+- **Etapas por máquina:** el componente `inicio/EtapasMaquina.jsx` muestra las pestañas "Precio y utilidad · 1 Despiece · 2 Hojas de ruta · 3 Materia prima · 4 Tiempos", siempre con `?maquina=<id>` y con el conteo de lo que falta. Sale en:
+  - el tablero de la máquina (`/costeo/maquina/:id`);
+  - cada paso (`/costeo/pasos/:paso`). Ahí se quitaron la banda azul vieja y el selector de máquina; el título ahora es el nombre de la máquina, con "← Fichas de costeo" para volver.
+- **Bases** (responsables, CIF, equipos) valen para todas las máquinas. Se abren desde el botón "Bases: tarifas, CIF y equipos" del inicio, y la pantalla ahora se llama "Bases del costeo".
+- Las rutas de los pasos siguen en `modulos.js` para que los permisos funcionen, aunque ya no estén en el menú.

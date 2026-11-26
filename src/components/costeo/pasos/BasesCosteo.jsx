@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 
-// Paso 0 del costeo por pasos: lo que vale para todas las máquinas (tarifas, CIF y equipos).
+// Bases del costeo (se abre desde el inicio de Costeo): lo que vale para todas las máquinas (tarifas, CIF y equipos).
 // Solo agrupa las pantallas que ya existían; cada una sigue en su ruta de siempre.
 const BASES = [
   { to: '/costeo/etapas', titulo: 'Responsables por etapa', texto: 'Quién hace cada etapa, cómo se le paga y su centro de costo. Se usa al crear cada proceso.' },
@@ -12,8 +12,8 @@ const BASES = [
 export default function BasesCosteo() {
   return (
     <div className="max-w-4xl mx-auto">
-      <p className="text-xs text-feisen-texto-2">Costeo por pasos</p>
-      <h1 className="text-xl font-semibold text-feisen-texto tracking-tight">Paso 0 · Bases</h1>
+      <Link to="/costeo" className="text-xs text-feisen-azul hover:underline">← Fichas de costeo</Link>
+      <h1 className="text-xl font-semibold text-feisen-texto tracking-tight mt-1">Bases del costeo</h1>
       <p className="text-sm text-feisen-texto-2 mt-0.5">Lo que vale para todas las máquinas. Conviene tenerlo listo antes de costear, porque de aquí salen las tarifas y el CIF.</p>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         {BASES.map((b) => (
@@ -25,9 +25,6 @@ export default function BasesCosteo() {
           </Link>
         ))}
       </div>
-      <Link to="/costeo/pasos/despiece" className="mt-6 inline-flex items-center gap-1.5 h-10 rounded-lg bg-feisen-azul px-4 text-sm font-medium text-white hover:opacity-90">
-        Seguir con el paso 1 · Despiece <ArrowRight size={14} />
-      </Link>
     </div>
   )
 }

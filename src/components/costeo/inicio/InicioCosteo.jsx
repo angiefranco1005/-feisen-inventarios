@@ -76,7 +76,8 @@ export default function InicioCosteo() {
           <h1 className="text-2xl font-semibold tracking-tight text-feisen-texto mt-1">Tus máquinas</h1>
           <p className="text-sm text-feisen-texto-2 mt-1">Precio = promedio facturado por Feisen en Odoo{periodo ? ` · ${periodo}` : ''} · se actualiza solo</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/costeo/bases" className="h-10 px-3 inline-flex items-center rounded-lg text-sm text-feisen-texto-2 hover:bg-feisen-fondo">Bases: tarifas, CIF y equipos</Link>
           <Link to="/costeo?catalogo=pieza" className="h-10 px-3 inline-flex items-center rounded-lg text-sm text-feisen-texto-2 hover:bg-feisen-fondo">Catálogo de piezas</Link>
           <button type="button" onClick={() => setNueva(true)} className="h-10 px-4 rounded-lg bg-feisen-rojo text-white text-sm font-medium hover:opacity-90">+ Nueva ficha</button>
         </div>
@@ -134,7 +135,7 @@ export default function InicioCosteo() {
       {!maquinas.length && !datos.sinFicha.length && <p className="text-sm text-feisen-texto-2">Todavía no hay máquinas. Crea la primera ficha con «+ Nueva ficha».</p>}
 
       <p className="text-xs text-feisen-texto-2">
-        Al tocar una tarjeta se abre esa máquina a fondo.{' '}
+        Al tocar una tarjeta se abre esa máquina con sus etapas de costeo.{' '}
         <Link to="/costeo?vista=lista" className="text-feisen-azul hover:underline">Ver la lista para renombrar o eliminar fichas</Link>
       </p>
 

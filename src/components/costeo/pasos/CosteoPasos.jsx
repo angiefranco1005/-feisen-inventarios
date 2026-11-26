@@ -4,7 +4,8 @@ import { ArrowRight, Download, Search, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { cargarArbol } from '../utils/arbolCosteo'
 import { formatCOP, formatNumber } from '../utils/format'
-import { nombreCorto } from '../utils/nombres'
+import { nombreCorto, tipoTitulo } from '../utils/nombres'
+import EtapasMaquina from '../inicio/EtapasMaquina'
 import { porPiezaTexto } from '../utils/tiempos'
 import { indexar, Panel } from '../ArbolTab'
 import TraerFundicion from './TraerFundicion'
@@ -28,7 +29,7 @@ function leerMaquinaGuardada() {
 export default function CosteoPasos() {
   const { paso: pasoUrl } = useParams()
   const paso = PASOS.find((p) => p.id === pasoUrl) || PASOS[0]
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const [maquinas, setMaquinas] = useState(null)
   const [arbol, setArbol] = useState(null)
   const [error, setError] = useState('')
@@ -54,6 +55,7 @@ export default function CosteoPasos() {
     const pedida = params.get('maquina') || leerMaquinaGuardada()
     return maquinas.some((m) => m.id === pedida) ? pedida : maquinas[0].id
   }, [maquinas, params])
+  const maquinaActual = (maquinas || []).find((m) => m.id === maquinaId)
 
   useEffect(() => {
     if (!maquinaId) return
@@ -102,7 +104,6 @@ export default function CosteoPasos() {
     return { filas, procesos, idx: indexar(arbol), cuenta: conteos(arbol, filas, procesos) }
   }, [arbol])
 
-  const qs = maquinaId ? `?maquina=${maquinaId}` : ''
 
   if (maquinas && !maquinas.length) {
     return (
@@ -118,45 +119,28 @@ export default function CosteoPasos() {
 
   return (
     <div className="max-w-7xl mx-auto -mt-1">
-      {/* Encabezado + máquina */}
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-        <div>
-          <p className="text-xs text-feisen-texto-2">Costeo por pasos</p>
-          <h1 className="text-xl font-semibold text-feisen-texto tracking-tight">
-            Paso {paso.n} · {paso.nombre}
-          </h1>
-          <p className="text-sm text-feisen-texto-2 mt-0.5">{paso.ayuda}</p>
+      {/* Encabezado: la máquina y sus etapas (2026-11-26: las etapas ya no van en el menú) */}
+      <Link to={maquinaId ? `/costeo/maquina/${maquinaId}` : '/costeo'} className="text-xs text-feisen-azul hover:underline">← Fichas de costeo</Link>
+      <div className="flex flex-wrap items-end justify-between gap-3 mt-1 mb-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-feisen-texto tracking-tight">{maquinaActual ? tipoTitulo(maquinaActual.nombre) : 'Costeo'}</h1>
+          <p className="text-sm text-feisen-texto-2 mt-0.5">
+            Paso {paso.n} · {paso.nombre}: {paso.ayuda}
+          </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="text-xs text-feisen-texto-2 flex flex-col gap-1">
-            Máquina
-            <select
-              value={maquinaId || ''}
-              onChange={(e) => setParams({ maquina: e.target.value }, { replace: true })}
-              className="h-10 min-w-[240px] rounded-lg border border-feisen-borde bg-white px-3 text-sm text-feisen-texto"
-            >
-              {(maquinas || []).map((m) => (
-                <option key={m.id} value={m.id}>{m.nombre}</option>
-              ))}
-            </select>
-          </label>
-          {maquinaId && (
-            <Link to={`/costeo/fichas/${maquinaId}`} className="h-10 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm text-feisen-azul hover:bg-feisen-azul-suave">
-              Ver ficha y precio <ArrowRight size={14} />
-            </Link>
-          )}
-        </div>
+        {maquinaId && (
+          <Link to={`/costeo/fichas/${maquinaId}`} className="h-10 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm text-feisen-azul hover:bg-feisen-azul-suave">
+            Abrir ficha <ArrowRight size={14} />
+          </Link>
+        )}
       </div>
+      {maquinaId && (
+        <div className="mb-4">
+          <EtapasMaquina maquinaId={maquinaId} activa={paso.id} cuentas={datos?.cuenta} />
+        </div>
+      )}
 
       <div className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
-        {/* Pestañas de pasos (banda azul, estilo Airtable) */}
-        <nav aria-label="Pasos del costeo" className="flex gap-0.5 px-2 pt-2 bg-feisen-azul overflow-x-auto">
-          <Pestana to={`/costeo/bases`} activa={false} etiqueta="0 · Bases" />
-          {PASOS.map((p) => (
-            <Pestana key={p.id} to={`/costeo/pasos/${p.id}${qs}`} activa={p.id === paso.id} etiqueta={`${p.n} · ${p.nombre}`} cuenta={datos?.cuenta[p.id]} />
-          ))}
-          <Pestana to={maquinaId ? `/costeo/maquina/${maquinaId}` : '/costeo'} activa={false} etiqueta="5 · Precio y utilidad" />
-        </nav>
 
         {/* Barra de herramientas */}
         <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-feisen-borde">
@@ -255,24 +239,6 @@ export default function CosteoPasos() {
   )
 }
 
-function Pestana({ to, activa, etiqueta, cuenta }) {
-  return (
-    <Link
-      to={to}
-      aria-current={activa ? 'page' : undefined}
-      className={`shrink-0 inline-flex items-center gap-2 whitespace-nowrap rounded-t-lg px-3 py-2.5 text-[13px] ${
-        activa ? 'bg-white text-feisen-azul font-semibold' : 'text-white/80 hover:text-white hover:bg-white/10'
-      }`}
-    >
-      {etiqueta}
-      {cuenta > 0 && (
-        <span className={`min-w-[20px] rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums ${activa ? 'bg-amber-100 text-amber-800' : 'bg-white/20 text-white'}`}>
-          {cuenta}
-        </span>
-      )}
-    </Link>
-  )
-}
 
 // Etiqueta de color (chip) estilo Airtable.
 const TONOS = {
