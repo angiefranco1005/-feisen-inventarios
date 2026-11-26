@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Download, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { formatCOP, formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
-import { construirPlantillaTiempos, duracion, etapasSugeridas, lecturasNecesarias, leerPlantillaTiempos, segundosPorPieza } from '../utils/plantillaTiempos'
+import { LECTURAS, construirPlantillaTiempos, duracion, etapasSugeridas, lecturasNecesarias, leerPlantillaTiempos, segundosPorPieza } from '../utils/plantillaTiempos'
 import { falta } from './datosPasos'
 
 // Paso 4 · Tiempos por etapas con plantilla de Excel (Angie, 2026-11-26).
@@ -15,6 +15,41 @@ import { falta } from './datosPasos'
 const cop = (n) => formatCOP(n).replace(/,00$/, '')
 const BTN = 'h-10 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm'
 const hoyISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+const ok = ({ error: e, data }) => {
+  if (e) throw new Error(e.message)
+  return data
+}
+
+// Deja UNA fila en costeo_tiempos_reales (origen 'etapas') para la operación, calculada con TODAS sus
+// etapas y lecturas tal como quedaron guardadas en la base. La usan la subida de la plantilla y la toma
+// a mano, para que las dos calculen igual. Devuelve los segundos por pieza (0 si no hay lecturas).
+async function recalcularResumen({ proceso, persona, fuente }) {
+  const et = ok(await supabase.from('costeo_proceso_etapas').select('id, piezas_por_vez').eq('proceso_id', proceso.id)) || []
+  const ids = et.map((e) => e.id)
+  const lec = ids.length ? ok(await supabase.from('costeo_etapa_lecturas').select('etapa_id, segundos').in('etapa_id', ids)) || [] : []
+  const todas = et.map((e) => ({ piezas: e.piezas_por_vez, lecturas: lec.filter((l) => l.etapa_id === e.id).map((l) => Number(l.segundos)) }))
+  const seg = segundosPorPieza(todas)
+  const medidas = todas.filter((e) => e.lecturas.some((x) => x > 0)).length
+  ok(await supabase.from('costeo_tiempos_reales').delete().eq('proceso_id', proceso.id).eq('origen', 'etapas'))
+  if (seg > 0) {
+    ok(
+      await supabase.from('costeo_tiempos_reales').insert({
+        ficha_id: proceso.ficha_id,
+        proceso_id: proceso.id,
+        mano_obra_id: persona?.mano_obra_id || null,
+        responsable: persona?.nombre || null,
+        etapa: proceso.nombre,
+        fecha: hoyISO(),
+        num_operarios: 1,
+        horas: seg / 3600,
+        unidades: 1,
+        notas: `${fuente}: ${medidas} etapas medidas (${duracion(seg)} por pieza)`,
+        origen: 'etapas',
+      })
+    )
+  }
+  return seg
+}
 
 export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta, onAbrir, onCambio }) {
   const [etapas, setEtapas] = useState(null) // { [procesoId]: [{ id, nombre, piezas_por_vez, orden, lecturas: [...] }] }
@@ -126,10 +161,6 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
   async function guardar() {
     setGuardando(true)
     setError('')
-    const ok = ({ error: e, data }) => {
-      if (e) throw new Error(e.message)
-      return data
-    }
     try {
       let nEtapas = 0
       let nLecturas = 0
@@ -146,30 +177,8 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
           nEtapas++
           nLecturas += et.lecturas.length
         }
-        // Etapas guardadas que no venían en el archivo: se conservan y cuentan para el total.
-        const enArchivo = new Set(op.etapas.map((e) => e.id).filter(Boolean))
-        const otras = (etapas?.[op.procesoId] || []).filter((e) => !enArchivo.has(e.id)).map((e) => ({ piezas: e.piezas_por_vez, lecturas: e.lecturas.map((l) => Number(l.segundos)) }))
-        const seg = segundosPorPieza([...op.etapas, ...otras])
-        ok(await supabase.from('costeo_tiempos_reales').delete().eq('proceso_id', op.procesoId).eq('origen', 'etapas'))
-        if (seg > 0) {
-          const persona = (arbol.manoObra[op.procesoId] || [])[0]
-          const medidas = op.etapas.filter((e) => e.lecturas.length).length + otras.filter((e) => e.lecturas.length).length
-          ok(
-            await supabase.from('costeo_tiempos_reales').insert({
-              ficha_id: op.p.proceso.ficha_id,
-              proceso_id: op.procesoId,
-              mano_obra_id: persona?.mano_obra_id || null,
-              responsable: persona?.nombre || null,
-              etapa: op.p.proceso.nombre,
-              fecha: hoyISO(),
-              num_operarios: 1,
-              horas: seg / 3600,
-              unidades: 1,
-              notas: `Plantilla de etapas: ${medidas} etapas medidas (${duracion(seg)} por pieza)`,
-              origen: 'etapas',
-            })
-          )
-        }
+        // Etapas guardadas que no venían en el archivo se conservan y cuentan para el total.
+        await recalcularResumen({ proceso: op.p.proceso, persona: (arbol.manoObra[op.procesoId] || [])[0], fuente: 'Plantilla de etapas' })
       }
       setRevision(null)
       setAviso(`Listo: ${nEtapas} etapas y ${nLecturas} lecturas guardadas.`)
@@ -191,7 +200,7 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
     <div>
       <div className="px-3 sm:px-4 py-3 border-b border-feisen-borde-suave bg-feisen-azul-suave/40 flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[240px] text-sm text-feisen-texto-2">
-          <span className="font-medium text-feisen-texto">Plantilla de tiempos.</span> Descárgala, toma 3 lecturas por etapa con cronómetro y súbela; te avisa solo si una etapa larga necesita más. Si la vuelves a subir con más lecturas, se actualiza.
+          <span className="font-medium text-feisen-texto">Plantilla de tiempos.</span> Descárgala, toma 3 lecturas por etapa con cronómetro y súbela; te avisa solo si una etapa larga necesita más. Si la vuelves a subir con más lecturas, se actualiza. También puedes escribir los tiempos a mano en cada operación, con «Tomar a mano» o «Editar tiempos».
         </div>
         <button type="button" onClick={descargar} disabled={!etapas} className={`${BTN} border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave disabled:opacity-60`}>
           <Download size={15} /> Descargar plantilla
@@ -213,7 +222,7 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
       ) : (
         <div className="divide-y divide-feisen-borde-suave">
           {visibles.map((p) => (
-            <Operacion key={p.key} p={p} titulo={titulo(p)} etapas={etapas?.[p.proceso.id] || []} manuales={(arbol.tiempos[p.proceso.id] || []).filter((t) => t.origen !== 'etapas').length} onAbrir={onAbrir} />
+            <Operacion key={p.key} p={p} titulo={titulo(p)} etapas={etapas?.[p.proceso.id] || []} manuales={(arbol.tiempos[p.proceso.id] || []).filter((t) => t.origen !== 'etapas').length} persona={(arbol.manoObra[p.proceso.id] || [])[0]} onAbrir={onAbrir} onGuardado={async (msg) => { setAviso(msg); await cargarEtapas(); await onCambio() }} />
           ))}
         </div>
       )}
@@ -224,7 +233,8 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
   )
 }
 
-function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
+function Operacion({ p, titulo, etapas, manuales, persona, onAbrir, onGuardado }) {
+  const [editando, setEditando] = useState(false)
   if (p.proceso.externo) {
     return (
       <section className="px-3 sm:px-4 py-3 text-sm text-feisen-texto-2">
@@ -248,9 +258,25 @@ function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
         {Number(p.costo.total_mod) > 0 && <span className="text-sm tabular-nums text-feisen-texto-2">MO {cop(p.costo.total_mod)}</span>}
         {sinPersona && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Falta quién lo hace (paso 2)</span>}
         <button type="button" onClick={() => onAbrir({ tipo: 'proceso', id: p.proceso.id })} className="text-xs text-feisen-azul hover:underline">Detalle</button>
+        {!editando && (
+          <button type="button" onClick={() => setEditando(true)} className={`${BTN} h-9 border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave`}>
+            <Pencil size={14} /> {datos.length ? 'Editar tiempos' : 'Tomar a mano'}
+          </button>
+        )}
       </div>
-      {!datos.length ? (
-        <p className="mt-1 text-xs text-feisen-texto-2">Sin etapas todavía: vienen propuestas en la plantilla.{manuales ? ` Tiene ${manuales} ${manuales === 1 ? 'medición' : 'mediciones'} sueltas de antes.` : ''}</p>
+      {editando ? (
+        <EditorTiempos
+          proceso={p.proceso}
+          etapas={etapas}
+          persona={persona}
+          onCancelar={() => setEditando(false)}
+          onGuardado={async (msg) => {
+            setEditando(false)
+            await onGuardado(msg)
+          }}
+        />
+      ) : !datos.length ? (
+        <p className="mt-1 text-xs text-feisen-texto-2">Sin etapas todavía: vienen propuestas en la plantilla, o tómalos a mano.{manuales ? ` Tiene ${manuales} ${manuales === 1 ? 'medición' : 'mediciones'} sueltas de antes.` : ''}</p>
       ) : (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm border-collapse">
@@ -295,6 +321,215 @@ function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
         </div>
       )}
     </section>
+  )
+}
+
+// Lectura escrita a mano: «230» = 230 s; «3:50» = 3 min 50 s (acepta coma decimal). '' = vacía.
+function leerSegundos(texto) {
+  const t = String(texto ?? '').trim().replace(',', '.')
+  if (!t) return { vacia: true }
+  const m = t.match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/)
+  if (m) return Number(m[2]) >= 60 ? { error: 'Los segundos van de 0 a 59' } : { seg: Number(m[1]) * 60 + Number(m[2]) }
+  const n = Number(t)
+  if (!Number.isFinite(n) || !/^\d*\.?\d+$|^-/.test(t)) return { error: 'Escribe segundos (230) o min:seg (3:50)' }
+  return n > 0 ? { seg: n } : { error: 'Debe ser mayor que 0' }
+}
+const textoSeg = (s) => {
+  const n = Number(s)
+  if (!(n > 0)) return ''
+  if (n < 60) return String(Math.round(n * 100) / 100)
+  const m = Math.floor(n / 60)
+  const r = Math.round((n - m * 60) * 100) / 100
+  return r >= 60 ? `${m + 1}:00` : `${m}:${String(r).padStart(2, '0')}`
+}
+let llave = 0
+const filaNueva = (nombre = '') => ({ key: `n${++llave}`, id: null, nombre, piezas: '1', lecturas: Array(LECTURAS).fill(''), operario: '', fecha: hoyISO(), notas: null, guardadas: 0 })
+
+// Toma de tiempos a mano, sin plantilla (Angie, 2026-11-26). Editor en línea para UNA operación: no se
+// guarda nada hasta «Guardar». Al guardar: actualiza/crea/borra etapas, reemplaza sus lecturas y
+// recalcula la fila resumen con recalcularResumen (la misma función que usa la subida del Excel).
+function EditorTiempos({ proceso, etapas, persona, onCancelar, onGuardado }) {
+  const [filas, setFilas] = useState(() =>
+    etapas.length
+      ? etapas.map((e) => {
+          const xs = e.lecturas.map((l) => textoSeg(l.segundos))
+          return {
+            key: e.id,
+            id: e.id,
+            nombre: e.nombre,
+            piezas: String(e.piezas_por_vez ?? 1),
+            lecturas: [...xs, ...Array(Math.max(0, LECTURAS - xs.length)).fill('')],
+            operario: e.lecturas.find((l) => l.operario)?.operario || '',
+            fecha: e.lecturas.find((l) => l.fecha)?.fecha || hoyISO(),
+            notas: e.lecturas.find((l) => l.notas)?.notas || null,
+            guardadas: e.lecturas.length,
+          }
+        })
+      : etapasSugeridas(proceso.nombre).map((n) => filaNueva(n))
+  )
+  const [intentado, setIntentado] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState('')
+
+  const cambiar = (i, campo, v) => setFilas((fs) => fs.map((f, k) => (k === i ? { ...f, [campo]: v } : f)))
+  const cambiarLectura = (i, j, v) => setFilas((fs) => fs.map((f, k) => (k === i ? { ...f, lecturas: f.lecturas.map((x, m) => (m === j ? v : x)) } : f)))
+  const mover = (i, d) =>
+    setFilas((fs) => {
+      const j = i + d
+      if (j < 0 || j >= fs.length) return fs
+      const c = [...fs]
+      ;[c[i], c[j]] = [c[j], c[i]]
+      return c
+    })
+  const quitar = (i) => {
+    const f = filas[i]
+    if (f.guardadas > 0 && !window.confirm(`¿Quitar la etapa «${f.nombre || 'sin nombre'}» y sus ${f.guardadas} lecturas guardadas? Se borra al guardar.`)) return
+    setFilas((fs) => fs.filter((_, k) => k !== i))
+  }
+
+  // Cálculo en vivo y validación.
+  const calc = filas.map((f) => {
+    const lect = f.lecturas.map(leerSegundos)
+    const xs = lect.filter((l) => l.seg > 0).map((l) => l.seg)
+    const pz = Number(String(f.piezas).trim().replace(',', '.'))
+    const piezasOk = String(f.piezas).trim() !== '' && Number.isFinite(pz) && pz > 0
+    const prom = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0
+    const errores = []
+    if (!f.nombre.trim() && (xs.length || f.id)) errores.push('Escribe el nombre de la etapa.')
+    if (!piezasOk) errores.push('«Piezas que salen cada vez» debe ser un número mayor que 0.')
+    return { lect, xs, pz: piezasOk ? pz : 1, piezasOk, prom, porPieza: prom / (piezasOk ? pz : 1), errores }
+  })
+  const total = calc.reduce((s, c) => s + c.porPieza, 0)
+  const hayErrores = calc.some((c) => c.errores.length || c.lect.some((l) => l.error))
+
+  async function guardar() {
+    setIntentado(true)
+    setError('')
+    if (hayErrores) return setError('Revisa los campos en rojo antes de guardar.')
+    setGuardando(true)
+    try {
+      // Filas en blanco (sin nombre, sin lecturas y nuevas) no se guardan.
+      const quedan = filas.map((f, i) => ({ f, c: calc[i] })).filter(({ f, c }) => f.id || f.nombre.trim() || c.xs.length)
+      const siguen = new Set(quedan.map(({ f }) => f.id).filter(Boolean))
+      const borrar = etapas.filter((e) => !siguen.has(e.id)).map((e) => e.id)
+      if (borrar.length) {
+        ok(await supabase.from('costeo_etapa_lecturas').delete().in('etapa_id', borrar))
+        ok(await supabase.from('costeo_proceso_etapas').delete().in('id', borrar))
+      }
+      let nLecturas = 0
+      for (const [i, { f, c }] of quedan.entries()) {
+        const fila = { nombre: f.nombre.trim(), piezas_por_vez: c.pz, orden: i + 1 }
+        let id = f.id
+        if (id) ok(await supabase.from('costeo_proceso_etapas').update(fila).eq('id', id))
+        else id = ok(await supabase.from('costeo_proceso_etapas').insert({ proceso_id: proceso.id, ...fila }).select())[0].id
+        ok(await supabase.from('costeo_etapa_lecturas').delete().eq('etapa_id', id))
+        if (c.xs.length) {
+          ok(
+            await supabase.from('costeo_etapa_lecturas').insert(
+              c.xs.map((s, k) => ({ etapa_id: id, n: k + 1, segundos: Math.round(s * 100) / 100, operario: f.operario.trim() || null, fecha: f.fecha || null, notas: f.notas || null }))
+            )
+          )
+        }
+        nLecturas += c.xs.length
+      }
+      const seg = await recalcularResumen({ proceso, persona, fuente: 'Tiempos a mano' })
+      await onGuardado(`Listo: ${proceso.nombre} · ${quedan.length} etapas y ${nLecturas} lecturas guardadas${seg > 0 ? ` (${duracion(seg)} por pieza)` : ''}.`)
+    } catch (err) {
+      setError('No se pudo guardar todo: ' + (err.message || err) + '. Lo que alcanzó a guardarse quedó; revisa y vuelve a guardar.')
+      setGuardando(false)
+    }
+  }
+
+  const campo = 'h-10 rounded-lg border bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul/30'
+  const borde = (mal) => (mal ? 'border-feisen-rojo' : 'border-feisen-borde')
+  const icono = 'w-10 h-10 grid place-items-center rounded-lg text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-30'
+  return (
+    <div className="mt-2 rounded-xl border border-feisen-azul bg-white p-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <div className="font-medium text-sm text-feisen-texto">Tiempos a mano</div>
+        <div className="flex-1 min-w-[200px] text-xs text-feisen-texto-2">Cada lectura en segundos (230) o minutos:segundos (3:50). Con 3 por etapa basta para empezar.</div>
+        {total > 0 && <div className="text-sm tabular-nums font-semibold text-feisen-texto">{duracion(total)} <span className="font-normal text-xs text-feisen-texto-2">por pieza</span></div>}
+      </div>
+
+      <ol className="mt-3 space-y-3">
+        {filas.map((f, i) => {
+          const c = calc[i]
+          const pct = total > 0 ? c.porPieza / total : 0
+          const faltan = Math.max(0, lecturasNecesarias(c.xs, total > 0 ? pct : null) - c.xs.length)
+          const errLect = c.lect.find((l) => l.error)?.error
+          return (
+            <li key={f.key} className="rounded-lg border border-feisen-borde-suave bg-feisen-gris/40 p-2">
+              <div className="flex items-center gap-1">
+                <span className="w-6 text-center text-xs text-feisen-texto-2 tabular-nums">{i + 1}</span>
+                <input value={f.nombre} onChange={(e) => cambiar(i, 'nombre', e.target.value)} placeholder="Nombre de la etapa" aria-label={`Nombre de la etapa ${i + 1}`} className={`${campo} ${borde(intentado && !f.nombre.trim() && (c.xs.length || f.id))} min-w-0 flex-1`} />
+                <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Subir etapa" title="Subir" className={icono}><ArrowUp size={16} /></button>
+                <button type="button" onClick={() => mover(i, 1)} disabled={i === filas.length - 1} aria-label="Bajar etapa" title="Bajar" className={icono}><ArrowDown size={16} /></button>
+                <button type="button" onClick={() => quitar(i)} aria-label="Quitar etapa" title="Quitar etapa" className={`${icono} hover:text-feisen-rojo`}><Trash2 size={16} /></button>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-feisen-texto-2">
+                  <span className="block mb-0.5">Piezas que salen cada vez</span>
+                  <input value={f.piezas} onChange={(e) => cambiar(i, 'piezas', e.target.value)} inputMode="decimal" className={`${campo} ${borde(intentado && !c.piezasOk)} w-24 text-right tabular-nums`} />
+                </label>
+                <label className="text-xs text-feisen-texto-2 flex-1 min-w-[120px]">
+                  <span className="block mb-0.5">Operario (opcional)</span>
+                  <input value={f.operario} onChange={(e) => cambiar(i, 'operario', e.target.value)} className={`${campo} ${borde(false)} w-full`} />
+                </label>
+                <label className="text-xs text-feisen-texto-2">
+                  <span className="block mb-0.5">Fecha</span>
+                  <input type="date" value={f.fecha} onChange={(e) => cambiar(i, 'fecha', e.target.value)} className={`${campo} ${borde(false)} w-40`} />
+                </label>
+              </div>
+
+              <div className="mt-2 text-xs text-feisen-texto-2">Lecturas</div>
+              <div className="mt-0.5 overflow-x-auto -mx-1 px-1 pb-1">
+                <div className="flex gap-1.5 w-max">
+                  {f.lecturas.map((v, j) => (
+                    <input
+                      key={j}
+                      value={v}
+                      onChange={(e) => cambiarLectura(i, j, e.target.value)}
+                      inputMode="text"
+                      autoComplete="off"
+                      placeholder={String(j + 1)}
+                      aria-label={`Etapa ${i + 1}, lectura ${j + 1}`}
+                      className={`${campo} ${borde(c.lect[j].error && (intentado || v.trim().length > 0))} w-[4.5rem] text-right tabular-nums placeholder:text-feisen-texto-2/50`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs tabular-nums text-feisen-texto-2">
+                <span>Promedio <b className="font-medium text-feisen-texto">{c.xs.length ? duracion(c.prom) : '—'}</b></span>
+                <span>Por pieza <b className="font-medium text-feisen-texto">{c.xs.length ? duracion(c.porPieza) : '—'}</b></span>
+                {pct > 0 && <span>Peso {Math.round(pct * 100)} %</span>}
+                <span>
+                  ¿Bastan?{' '}
+                  {!c.xs.length ? <span className="text-amber-700">Sin lecturas</span> : faltan === 0 ? <span className="text-emerald-700">Sí</span> : <span className="text-amber-700">Faltan {faltan}</span>}
+                </span>
+              </div>
+              {(errLect || (intentado && c.errores.length > 0)) && (
+                <ul className="mt-1 text-xs text-feisen-rojo">
+                  {errLect && <li>Lectura: {errLect}.</li>}
+                  {intentado && c.errores.map((e) => <li key={e}>{e}</li>)}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+
+      <button type="button" onClick={() => setFilas((fs) => [...fs, filaNueva()])} className={`${BTN} mt-2 text-feisen-azul hover:bg-feisen-azul-suave`}>
+        <Plus size={15} /> Etapa
+      </button>
+
+      {error && <p className="mt-2 text-sm text-feisen-rojo">{error}</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={guardar} disabled={guardando} className={`${BTN} bg-feisen-azul text-white font-medium hover:opacity-90 disabled:opacity-60`}>{guardando ? 'Guardando…' : 'Guardar'}</button>
+        <button type="button" onClick={onCancelar} disabled={guardando} className={`${BTN} text-feisen-texto-2 hover:bg-feisen-fondo`}>Cancelar</button>
+      </div>
+    </div>
   )
 }
 
