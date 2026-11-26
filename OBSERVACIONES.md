@@ -2836,3 +2836,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - **Herramientas:** botón "Ocultar piezas sin hoja de ruta" y zoom del 50 al 160 %.
 - **El layout es SVG calculado a mano, sin librerías.** Los nombres largos se cortan con "…" y el nombre completo sale al pasar el mouse.
 - Probado en la demo. Con datos reales, Fondo tiene 0,103 h c/u (6,2 min).
+
+## 2026-11-26 · OF: valor del flete a facturar (opcional)
+
+- Angie pidió que el asesor pueda poner, al crear la OF, cuánto se le factura al cliente por el flete.
+- Columna `ordenes_fabricacion.valor_flete numeric(14,0)`, NULL = sin dato. CHECK `>= 0`. Migración `2026-11-26_of_valor_flete.sql`, aplicada.
+- **Dónde se pone:** en `NuevaOrden.jsx`, paso Envío. Se escribe con puntos de miles y se guarda solo en dígitos. Sale en el resumen lateral si se llenó.
+- **Dónde se ve:**
+  - En la franja de envío de la tarjeta de la OF (`ListaOrdenes.jsx` › TarjetaOF).
+  - En `ModalDetalleOF.jsx` (lista y calendario), en el bloque de envío. Ese bloque lo ocultan los jefes de área, así que ellos no ven el flete.
+  - Despachos (VistaLogistica) no lo muestra.
+- Probado por impersonación de un COMERCIAL: crea, edita y lee el valor; un valor negativo se rechaza. Se usó número fijo -901 y rollback, sin gastar la secuencia.

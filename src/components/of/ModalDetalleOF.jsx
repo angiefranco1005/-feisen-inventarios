@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { formatoOF, formatFecha, estadoTexto, estadoClase, ESTADO_BADGE_CLASE, TRANSPORTE_NOMBRE, nombreTransporte } from './shared/formatters'
 import { Paperclip } from '../shared/iconos'
 import { MotorLinea } from './shared/motoresOF'
+import { formatCOP } from '../../utils/formatters'
 
 // Errores de despacho (KPI 2027 de Logística, 2026-11-20). Se marcan sobre la entrega ya
 // registrada, normalmente cuando el cliente avisa; van por la función of_marcar_error_entrega.
@@ -96,6 +97,7 @@ export default function ModalDetalleOF({ orden, onCerrar }) {
             <p className="text-feisen-gris-medio">{orden.direccion || '-'}</p>
             <p className="text-feisen-gris-medio">{orden.contacto || '-'}</p>
             <p className="text-feisen-gris-medio">{TRANSPORTE_NOMBRE[orden.transporte] || orden.transporte}{orden.nombre_transportadora ? ' — ' + orden.nombre_transportadora : ''}</p>
+            {orden.valor_flete != null && <p className="text-feisen-gris-medio tabular-nums">Flete a facturar: <span className="font-semibold text-feisen-gris-oscuro">{formatCOP(orden.valor_flete)}</span></p>}
             {orden.archivo_oc_url && (
               <a href={orden.archivo_oc_url} target="_blank" rel="noreferrer" className="text-feisen-azul inline-block mt-1">
                 <Paperclip size={14} className="inline -mt-0.5 mr-1" />{orden.archivo_oc_nombre || 'Orden de compra adjunta'}

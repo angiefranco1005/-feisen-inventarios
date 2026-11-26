@@ -17,6 +17,7 @@ import {
 } from './shared/formatters'
 import { useAutoRefrescar } from './shared/useAutoRefrescar'
 import { MotorLinea } from './shared/motoresOF'
+import { formatCOP } from '../../utils/formatters'
 
 const SELECT_ORDEN_COMPLETA = `
   *,
@@ -380,6 +381,7 @@ function TarjetaOF({ orden, esAdmin, puedeEditarOF, puedeDespacharOF, filtroEsta
       <div className="px-5 py-2 bg-feisen-fondo border-y border-feisen-borde-suave text-xs text-feisen-texto-2 flex items-center gap-3 flex-wrap">
         <span className="flex items-center gap-1"><MapPin size={13} strokeWidth={1.8} /> {orden.ciudad}</span>
         <span className="flex items-center gap-1 min-w-0"><Truck size={13} strokeWidth={1.8} /> <span className="truncate">{nombreTransporte(orden)}</span></span>
+        {orden.valor_flete != null && <span className="tabular-nums">Flete a facturar: <span className="font-medium text-feisen-texto">{formatCOP(orden.valor_flete)}</span></span>}
       </div>
 
       {orden.notas && (

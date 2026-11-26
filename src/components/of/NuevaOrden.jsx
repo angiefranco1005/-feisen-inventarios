@@ -9,6 +9,11 @@ import AutocompletarTexto from './shared/AutocompletarTexto'
 import { Plus, X, Paperclip, Check, ArrowLeft, ArrowRight } from '../shared/iconos'
 import { CENTRO_NOMBRE, TRANSPORTE_NOMBRE, hoyISO, formatoOF, formatFecha } from './shared/formatters'
 import { SelectorMotor, cargarMotoresFeisen, textoMotor } from './shared/motoresOF'
+import { formatCOP } from '../../utils/formatters'
+
+// Solo dígitos: '1.250.000' → '1250000'
+const soloDigitos = v => String(v ?? '').replace(/\D/g, '')
+const conPuntos = d => d ? Number(d).toLocaleString('es-CO') : ''
 
 const PASOS = [
   { n: 1, label: 'Cliente y fechas' },
@@ -58,6 +63,7 @@ export default function NuevaOrden() {
   const [contacto, setContacto] = useState('')
   const [transporte, setTransporte] = useState('propio_cliente')
   const [nombreTransportadora, setNombreTransportadora] = useState('')
+  const [valorFlete, setValorFlete] = useState('') // solo dígitos, opcional
   const [archivo, setArchivo] = useState(null) // File nuevo a subir
   const [archivoActual, setArchivoActual] = useState(null) // {url, nombre} ya guardado
 
@@ -102,6 +108,7 @@ export default function NuevaOrden() {
       setContacto(orden.contacto || '')
       setTransporte(orden.transporte)
       setNombreTransportadora(orden.nombre_transportadora || '')
+      setValorFlete(orden.valor_flete != null ? soloDigitos(orden.valor_flete) : '')
       if (orden.archivo_oc_url) setArchivoActual({ url: orden.archivo_oc_url, nombre: orden.archivo_oc_nombre })
     }
     setLineas((items || []).map(it => ({
@@ -189,6 +196,7 @@ export default function NuevaOrden() {
         contacto: contacto.trim() || null,
         transporte,
         nombre_transportadora: nombreTransportadora.trim() || null,
+        valor_flete: valorFlete ? Number(valorFlete) : null,
         archivo_oc_url: archivoUrl,
         archivo_oc_nombre: archivoNombre,
       }
@@ -414,6 +422,13 @@ export default function NuevaOrden() {
       <Campo label="Nombre de la transportadora (si aplica)">
         <input value={nombreTransportadora} onChange={e => setNombreTransportadora(e.target.value)} placeholder="Ej: Coordinadora, TCC, Envía..." className={INPUT} />
       </Campo>
+      <Campo label="Valor del flete a facturar (opcional)">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-feisen-texto-2 pointer-events-none">$</span>
+          <input value={conPuntos(valorFlete)} onChange={e => setValorFlete(soloDigitos(e.target.value).slice(0, 12))}
+            inputMode="numeric" placeholder="Ej: 150.000" className={`${INPUT} pl-7 tabular-nums`} />
+        </div>
+      </Campo>
       <Campo label="Contacto y teléfono en destino">
         <input value={contacto} onChange={e => setContacto(e.target.value)} placeholder="Ej: Andrés Ruiz - 300 123 4567" className={INPUT} />
       </Campo>
@@ -518,6 +533,7 @@ export default function NuevaOrden() {
             <FilaResumen label="Cotización" valor={numeroCotizacion.trim()} />
             <FilaResumen label="Productos" valor={lineas.length ? `${lineas.length} · ${totalUnidades} uds` : ''} />
             <FilaResumen label="Envío" valor={ciudad.trim() && `${ciudad.trim()} · ${TRANSPORTE_CORTO[transporte] || ''}`} />
+            {valorFlete && <FilaResumen label="Flete a facturar" valor={formatCOP(Number(valorFlete))} />}
           </dl>
           {(archivo || archivoActual) && (
             <div className="mt-3 px-3 py-2 bg-feisen-fondo rounded-lg text-xs text-feisen-texto-2 flex items-center gap-2">
