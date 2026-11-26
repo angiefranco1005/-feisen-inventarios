@@ -166,7 +166,7 @@ export default function CosteoPasos() {
               <Download size={14} /> Traer piezas de fundición
             </button>
           )}
-          {arbol && (
+          {arbol && paso.id !== 'tiempos' && (
             <button type="button" onClick={() => setSel({ tipo: 'raiz' })} className="h-9 rounded-md bg-feisen-rojo px-3 text-sm font-medium text-white hover:opacity-90">
               + Agregar pieza
             </button>

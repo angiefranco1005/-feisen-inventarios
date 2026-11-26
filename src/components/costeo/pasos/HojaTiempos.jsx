@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Download, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { formatCOP, formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
@@ -58,6 +58,9 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
   const [guardando, setGuardando] = useState(false)
   const [aviso, setAviso] = useState('')
   const archivo = useRef(null)
+  const [menu, setMenu] = useState(false) // menú «Plantilla de Excel»
+  const [piezasAbiertas, setPiezasAbiertas] = useState(() => new Set())
+  const [opsAbiertas, setOpsAbiertas] = useState(() => new Set())
 
   const internos = useMemo(() => procesos.filter((p) => !p.proceso.externo), [procesos])
   const nombreMaquina = tipoTitulo(arbol.fichas[arbol.raizId]?.nombre || 'Máquina')
@@ -190,25 +193,67 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
     setGuardando(false)
   }
 
+  // Vista «desplegables por pieza» (Angie, 2026-11-26): arriba tres números; abajo una línea por pieza
+  // (cerrada al entrar) y, al abrirla, una línea por operación; al abrir la operación, sus etapas.
   const q = buscar.trim().toLowerCase()
   const visibles = procesos.filter((p) => {
     const nombre = `${p.fila?.ficha?.nombre || ''} ${p.proceso.nombre}`.toLowerCase()
     return (!q || nombre.includes(q)) && (!soloFalta || falta.tiempos(p.proceso, p.costo))
   })
+  const filtrando = !!q || soloFalta
+  const resumenDe = (p) => resumenOperacion(etapas?.[p.proceso.id] || [])
+  const grupos = []
+  for (const p of visibles) {
+    const fichaId = p.fila?.fichaId || arbol.raizId
+    let g = grupos.find((x) => x.fichaId === fichaId)
+    if (!g) {
+      const nombre = !p.fila ? 'Ensamble final de la máquina' : p.fila.esConjunto ? `Ensamble · ${corto(p.fila.ficha?.nombre)}` : corto(p.fila.ficha?.nombre)
+      g = { fichaId, nombre, cant: p.fila?.cant ?? 1, ops: [] }
+      grupos.push(g)
+    }
+    g.ops.push(p)
+  }
+  // Números de arriba: mano de obra de una máquina completa (tiempo por pieza × cuántas lleva).
+  const conTiempo = internos.filter((p) => resumenDe(p).total > 0)
+  const totalMaquina = internos.reduce((s, p) => s + resumenDe(p).total * (p.fila?.cantTotal ?? 1), 0)
+  const masLarga = conTiempo.reduce((m, p) => {
+    const t = resumenDe(p).total * (p.fila?.cantTotal ?? 1)
+    return !m || t > m.t ? { p, t } : m
+  }, null)
+  const alternar = (setFn, key) =>
+    setFn((c) => {
+      const n = new Set(c)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
 
   return (
     <div>
-      <div className="px-3 sm:px-4 py-3 border-b border-feisen-borde-suave bg-feisen-azul-suave/40 flex flex-wrap items-center gap-3">
-        <div className="flex-1 min-w-[240px] text-sm text-feisen-texto-2">
-          <span className="font-medium text-feisen-texto">Plantilla de tiempos.</span> Descárgala, toma 3 lecturas por etapa con cronómetro y súbela; te avisa solo si una etapa larga necesita más. Si la vuelves a subir con más lecturas, se actualiza. También puedes escribir los tiempos a mano en cada operación, con «Tomar a mano» o «Editar tiempos».
+      <div className="px-3 sm:px-4 pt-4 pb-3 grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))]">
+        <Numero titulo="Mano de obra por máquina" valor={totalMaquina > 0 ? duracion(totalMaquina) : '—'} />
+        <Numero titulo="Operaciones con tiempo" valor={`${conTiempo.length} de ${internos.length}`} />
+        <Numero titulo="Lo que más demora" valor={masLarga ? masLarga.p.proceso.nombre : '—'} nota={masLarga ? `${masLarga.p.fila ? corto(masLarga.p.fila.ficha?.nombre) : 'Ensamble final'} · ${duracion(masLarga.t)}` : ''} />
+      </div>
+      <div className="px-3 sm:px-4 pb-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-feisen-texto-2 flex-1 min-w-[200px]">Toca una pieza para ver sus operaciones, y una operación para ver sus etapas.</span>
+        <div className="relative">
+          <button type="button" onClick={() => setMenu((m) => !m)} aria-expanded={menu} className={`${BTN} h-9 border border-feisen-borde bg-white text-feisen-texto hover:bg-feisen-fondo`}>
+            <FileSpreadsheet size={15} /> Plantilla de Excel <ChevronDown size={14} />
+          </button>
+          {menu && (
+            <div className="absolute right-0 z-20 mt-1 w-64 rounded-xl border border-feisen-borde bg-white p-1 shadow-lg">
+              <button type="button" disabled={!etapas} onClick={() => { setMenu(false); descargar() }} className="w-full flex items-start gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-feisen-fondo disabled:opacity-60">
+                <Download size={15} className="mt-0.5 text-feisen-azul" />
+                <span><span className="block text-feisen-texto">Descargar plantilla</span><span className="block text-xs text-feisen-texto-2">Para tomar los tiempos en planta: 3 lecturas por etapa.</span></span>
+              </button>
+              <button type="button" onClick={() => { setMenu(false); archivo.current?.click() }} className="w-full flex items-start gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-feisen-fondo">
+                <Upload size={15} className="mt-0.5 text-feisen-azul" />
+                <span><span className="block text-feisen-texto">Subir plantilla llena</span><span className="block text-xs text-feisen-texto-2">Te muestra un resumen antes de guardar.</span></span>
+              </button>
+            </div>
+          )}
+          <input ref={archivo} type="file" accept=".xlsx,.xls" onChange={leer} className="hidden" />
         </div>
-        <button type="button" onClick={descargar} disabled={!etapas} className={`${BTN} border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave disabled:opacity-60`}>
-          <Download size={15} /> Descargar plantilla
-        </button>
-        <button type="button" onClick={() => archivo.current?.click()} className={`${BTN} bg-feisen-azul text-white font-medium hover:opacity-90`}>
-          <Upload size={15} /> Subir plantilla
-        </button>
-        <input ref={archivo} type="file" accept=".xlsx,.xls" onChange={leer} className="hidden" />
       </div>
       {error && <p className="px-4 py-3 text-sm text-feisen-rojo">{error}</p>}
       {aviso && <p className="px-4 py-3 text-sm text-emerald-800 bg-emerald-50">{aviso}</p>}
@@ -220,107 +265,175 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
       ) : !visibles.length ? (
         <p className="px-6 py-10 text-center text-sm text-feisen-texto-2">Todas las operaciones tienen su tiempo.</p>
       ) : (
-        <div className="divide-y divide-feisen-borde-suave">
-          {visibles.map((p) => (
-            <Operacion key={p.key} p={p} titulo={titulo(p)} etapas={etapas?.[p.proceso.id] || []} manuales={(arbol.tiempos[p.proceso.id] || []).filter((t) => t.origen !== 'etapas').length} persona={(arbol.manoObra[p.proceso.id] || [])[0]} onAbrir={onAbrir} onGuardado={async (msg) => { setAviso(msg); await cargarEtapas(); await onCambio() }} />
-          ))}
+        <div className="px-3 sm:px-4 pb-4 flex flex-col gap-2">
+          {grupos.map((g) => {
+            const abierto = filtrando || piezasAbiertas.has(g.fichaId)
+            const internasG = g.ops.filter((p) => !p.proceso.externo)
+            const totalG = internasG.reduce((s, p) => s + resumenDe(p).total, 0)
+            const estadoG = !internasG.length ? 'gris' : internasG.every((p) => resumenDe(p).estado === 'ok') ? 'ok' : totalG > 0 ? 'falta' : 'gris'
+            return (
+              <section key={g.fichaId} className="rounded-xl border border-feisen-borde bg-white overflow-hidden">
+                <button type="button" onClick={() => alternar(setPiezasAbiertas, g.fichaId)} aria-expanded={abierto} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-feisen-fondo">
+                  {abierto ? <ChevronDown size={16} className="text-feisen-texto-2 flex-none" /> : <ChevronRight size={16} className="text-feisen-texto-2 flex-none" />}
+                  <Punto estado={estadoG} />
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    <span className="font-semibold text-feisen-texto">{g.nombre}</span>
+                    {g.cant !== 1 && <span className="text-xs text-feisen-texto-2"> × {formatNumber(g.cant, g.cant % 1 ? 2 : 0)}</span>}
+                    <span className="hidden sm:inline text-xs text-feisen-texto-2"> · {g.ops.length} {g.ops.length === 1 ? 'operación' : 'operaciones'}</span>
+                  </span>
+                  <span className={`flex-none text-right tabular-nums ${totalG > 0 ? 'text-sm font-semibold text-feisen-texto' : 'text-xs text-feisen-texto-2'}`}>
+                    {totalG > 0 ? duracion(totalG) : 'Sin tiempos'}
+                    {totalG > 0 && <span className="hidden sm:inline text-xs font-normal text-feisen-texto-2"> por pieza</span>}
+                  </span>
+                </button>
+                {abierto &&
+                  g.ops.map((p) => (
+                    <Operacion
+                      key={p.key}
+                      p={p}
+                      resumen={resumenDe(p)}
+                      etapas={etapas?.[p.proceso.id] || []}
+                      abierta={filtrando || opsAbiertas.has(p.proceso.id)}
+                      onAlternar={() => alternar(setOpsAbiertas, p.proceso.id)}
+                      manuales={(arbol.tiempos[p.proceso.id] || []).filter((t) => t.origen !== 'etapas').length}
+                      persona={(arbol.manoObra[p.proceso.id] || [])[0]}
+                      onAbrir={onAbrir}
+                      onGuardado={async (msg) => {
+                        setAviso(msg)
+                        await cargarEtapas()
+                        await onCambio()
+                      }}
+                    />
+                  ))}
+              </section>
+            )
+          })}
         </div>
       )}
-      <div className="px-4 py-2 bg-feisen-gris text-xs text-feisen-texto-2">
-        {internos.length} operaciones internas · {internos.filter((p) => !falta.tiempos(p.proceso, p.costo)).length} con tiempo
-      </div>
     </div>
   )
 }
 
-function Operacion({ p, titulo, etapas, manuales, persona, onAbrir, onGuardado }) {
-  const [editando, setEditando] = useState(false)
-  if (p.proceso.externo) {
-    return (
-      <section className="px-3 sm:px-4 py-3 text-sm text-feisen-texto-2">
-        <span className="font-medium text-feisen-texto">{titulo}</span> · <span className="rounded px-1.5 text-[11px] font-medium bg-amber-50 text-amber-800">Externa</span> no lleva toma de tiempos.
-      </section>
-    )
-  }
+// Estado de una operación a partir de sus etapas guardadas.
+function resumenOperacion(etapas) {
   const datos = etapas.map((e) => {
-    const xs = e.lecturas.map((l) => Number(l.segundos))
+    const xs = e.lecturas.map((l) => Number(l.segundos)).filter((x) => x > 0)
     const prom = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0
     return { ...e, xs, prom, porPieza: prom / (Number(e.piezas_por_vez) || 1) }
   })
   const total = datos.reduce((s, e) => s + e.porPieza, 0)
-  const sinPersona = Number(p.costo.lineas_mano_obra || 0) === 0
+  let faltan = 0
+  let sinTomar = 0
+  for (const e of datos) {
+    if (!e.xs.length) sinTomar++
+    else faltan += Math.max(0, lecturasNecesarias(e.xs, total > 0 ? e.porPieza / total : null) - e.xs.length)
+  }
+  const estado = total <= 0 ? 'gris' : faltan || sinTomar ? 'falta' : 'ok'
+  const texto = !datos.length ? 'Sin etapas' : total <= 0 ? 'Sin tomar' : faltan ? `Faltan ${faltan} ${faltan === 1 ? 'toma' : 'tomas'}` : sinTomar ? `${sinTomar} ${sinTomar === 1 ? 'etapa' : 'etapas'} sin tomar` : `${datos.length} ${datos.length === 1 ? 'etapa' : 'etapas'}`
+  return { datos, total, estado, texto }
+}
+
+function Punto({ estado }) {
+  return <span className={`w-2 h-2 rounded-full flex-none ${estado === 'ok' ? 'bg-emerald-600' : estado === 'falta' ? 'bg-amber-500' : 'bg-feisen-borde'}`} aria-hidden="true" />
+}
+
+function Numero({ titulo, valor, nota }) {
   return (
-    <section className="px-3 sm:px-4 py-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-medium text-feisen-texto">{titulo}</h3>
-        <span className="flex-1" />
-        {total > 0 && <span className="text-sm tabular-nums font-semibold text-feisen-texto">{duracion(total)} <span className="font-normal text-xs text-feisen-texto-2">por pieza</span></span>}
-        {Number(p.costo.total_mod) > 0 && <span className="text-sm tabular-nums text-feisen-texto-2">MO {cop(p.costo.total_mod)}</span>}
-        {sinPersona && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Falta quién lo hace (paso 2)</span>}
-        <button type="button" onClick={() => onAbrir({ tipo: 'proceso', id: p.proceso.id })} className="text-xs text-feisen-azul hover:underline">Detalle</button>
-        {!editando && (
-          <button type="button" onClick={() => setEditando(true)} className={`${BTN} h-9 border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave`}>
-            <Pencil size={14} /> {datos.length ? 'Editar tiempos' : 'Tomar a mano'}
-          </button>
-        )}
+    <div className="rounded-lg bg-feisen-fondo px-3 py-2.5 min-w-0">
+      <div className="text-xs text-feisen-texto-2">{titulo}</div>
+      <div className="text-lg font-semibold text-feisen-texto tabular-nums truncate">{valor}</div>
+      {nota && <div className="text-xs text-feisen-texto-2 truncate">{nota}</div>}
+    </div>
+  )
+}
+
+function Operacion({ p, resumen, etapas, abierta, onAlternar, manuales, persona, onAbrir, onGuardado }) {
+  const [editando, setEditando] = useState(false)
+  if (p.proceso.externo) {
+    return (
+      <div className="flex items-center gap-2 border-t border-feisen-borde-suave px-3 py-2 pl-9 text-sm text-feisen-texto-2">
+        <Punto estado="gris" />
+        <span className="truncate">{p.proceso.nombre}</span>
+        <span className="ml-auto text-xs">Externa · no lleva tiempo</span>
       </div>
-      {editando ? (
-        <EditorTiempos
-          proceso={p.proceso}
-          etapas={etapas}
-          persona={persona}
-          onCancelar={() => setEditando(false)}
-          onGuardado={async (msg) => {
-            setEditando(false)
-            await onGuardado(msg)
-          }}
-        />
-      ) : !datos.length ? (
-        <p className="mt-1 text-xs text-feisen-texto-2">Sin etapas todavía: vienen propuestas en la plantilla, o tómalos a mano.{manuales ? ` Tiene ${manuales} ${manuales === 1 ? 'medición' : 'mediciones'} sueltas de antes.` : ''}</p>
-      ) : (
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm border-collapse">
-            <thead>
-              <tr className="text-xs text-feisen-texto-2 text-left">
-                <th className="font-medium py-1 pr-2">Etapa</th>
-                <th className="font-medium py-1 px-2 text-right">Piezas cada vez</th>
-                <th className="font-medium py-1 px-2 text-right">Lecturas</th>
-                <th className="font-medium py-1 px-2 text-right">Promedio</th>
-                <th className="font-medium py-1 px-2 text-right">Por pieza</th>
-                <th className="font-medium py-1 px-2 w-32">Peso</th>
-                <th className="font-medium py-1 pl-2">¿Bastan?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {datos.map((e) => {
-                const pct = total > 0 ? e.porPieza / total : 0
-                const faltan = Math.max(0, lecturasNecesarias(e.xs, total > 0 ? pct : null) - e.xs.length)
-                return (
-                  <tr key={e.id} className="border-t border-feisen-borde-suave tabular-nums [&>td:not(:first-child)]:whitespace-nowrap">
-                    <td className="py-1.5 pr-2 text-feisen-texto">{e.nombre}</td>
-                    <td className="py-1.5 px-2 text-right">{formatNumber(e.piezas_por_vez, e.piezas_por_vez % 1 ? 2 : 0)}</td>
-                    <td className="py-1.5 px-2 text-right">{e.xs.length || '—'}</td>
-                    <td className="py-1.5 px-2 text-right">{e.xs.length ? duracion(e.prom) : '—'}</td>
-                    <td className="py-1.5 px-2 text-right font-medium">{e.xs.length ? duracion(e.porPieza) : '—'}</td>
-                    <td className="py-1.5 px-2">
-                      {pct > 0 && (
-                        <span className="flex items-center gap-1.5 text-xs text-feisen-texto-2">
-                          <span className="h-2 rounded-full bg-feisen-azul" style={{ width: `${Math.max(4, pct * 80)}px` }} />
-                          {Math.round(pct * 100)} %
+    )
+  }
+  const { datos, total } = resumen
+  const sinPersona = Number(p.costo.lineas_mano_obra || 0) === 0
+  const ver = abierta || editando
+  return (
+    <div className="border-t border-feisen-borde-suave">
+      <button type="button" onClick={onAlternar} aria-expanded={ver} className="w-full flex items-center gap-2 px-3 py-2 pl-5 sm:pl-7 text-left hover:bg-feisen-fondo">
+        {ver ? <ChevronDown size={14} className="text-feisen-texto-2 flex-none" /> : <ChevronRight size={14} className="text-feisen-texto-2 flex-none" />}
+        <Punto estado={resumen.estado} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-feisen-texto">
+            {p.proceso.nombre}
+            {p.proceso.cargo_nombre && <span className="hidden sm:inline text-feisen-texto-2"> · {tipoTitulo(p.proceso.cargo_nombre)}</span>}
+          </span>
+          <span className={`block text-xs ${resumen.estado === 'ok' ? 'text-feisen-texto-2' : 'text-amber-700'}`}>{resumen.texto}</span>
+        </span>
+        <span className="flex-none text-right text-sm font-semibold tabular-nums text-feisen-texto">{total > 0 ? duracion(total) : '—'}</span>
+      </button>
+      {ver && (
+        <div className="bg-feisen-fondo/60 border-t border-feisen-borde-suave px-3 sm:pl-14 pl-8 pr-3 py-3">
+          {sinPersona && <p className="mb-2 text-xs text-amber-700">Falta quién lo hace: ponle el cargo en el paso 2 · Hojas de ruta.</p>}
+          {editando ? (
+            <EditorTiempos
+              proceso={p.proceso}
+              etapas={etapas}
+              persona={persona}
+              onCancelar={() => setEditando(false)}
+              onGuardado={async (msg) => {
+                setEditando(false)
+                await onGuardado(msg)
+              }}
+            />
+          ) : (
+            <>
+              {!datos.length ? (
+                <p className="text-xs text-feisen-texto-2">Sin etapas todavía: vienen propuestas en la plantilla, o tómalos a mano.{manuales ? ` Tiene ${manuales} ${manuales === 1 ? 'medición' : 'mediciones'} sueltas de antes.` : ''}</p>
+              ) : (
+                <ul className="flex flex-col gap-1.5 max-w-2xl">
+                  {datos.map((e) => {
+                    const pct = total > 0 ? e.porPieza / total : 0
+                    const faltan = e.xs.length ? Math.max(0, lecturasNecesarias(e.xs, total > 0 ? pct : null) - e.xs.length) : 0
+                    return (
+                      <li key={e.id} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(60px,30%)_96px] items-center gap-3 text-sm" title={e.xs.length ? `${e.xs.length} lecturas · promedio ${duracion(e.prom)}` : ''}>
+                        <span className="min-w-0 text-feisen-texto">
+                          {e.nombre}
+                          {Number(e.piezas_por_vez) !== 1 && <span className="text-xs text-feisen-texto-2"> (salen {formatNumber(e.piezas_por_vez, e.piezas_por_vez % 1 ? 2 : 0)})</span>}
                         </span>
-                      )}
-                    </td>
-                    <td className="py-1.5 pl-2 text-xs">
-                      {!e.xs.length ? <span className="text-amber-700">Sin lecturas</span> : faltan === 0 ? <span className="text-emerald-700">Sí</span> : <span className="text-amber-700">Faltan {faltan}</span>}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                        <span className="hidden sm:block h-1.5 rounded-full bg-feisen-azul-suave">
+                          <span className="block h-1.5 rounded-full bg-feisen-azul" style={{ width: `${Math.round(pct * 100)}%` }} />
+                        </span>
+                        <span className="text-right tabular-nums whitespace-nowrap">
+                          {!e.xs.length ? (
+                            <span className="text-xs rounded px-1.5 py-0.5 bg-amber-50 text-amber-800">Sin tomar</span>
+                          ) : (
+                            <>
+                              {duracion(e.porPieza)}
+                              {faltan > 0 && <span className="block text-[11px] text-amber-700">faltan {faltan}</span>}
+                            </>
+                          )}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => setEditando(true)} className={`${BTN} h-9 border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave`}>
+                  <Pencil size={14} /> {datos.length ? 'Editar tiempos' : 'Tomar a mano'}
+                </button>
+                {Number(p.costo.total_mod) > 0 && <span className="text-xs text-feisen-texto-2 tabular-nums">Mano de obra {cop(p.costo.total_mod)} por pieza</span>}
+                <button type="button" onClick={() => onAbrir({ tipo: 'proceso', id: p.proceso.id })} className="text-xs text-feisen-azul hover:underline">Ver detalle</button>
+              </div>
+            </>
+          )}
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
