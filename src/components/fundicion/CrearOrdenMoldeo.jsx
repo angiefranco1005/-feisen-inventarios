@@ -160,10 +160,10 @@ function InputSug({ value, onChange, placeholder, storageKey, etiqueta }) {
         className={claseInput}
       />
       {mostrar && sugs.length > 0 && (
-        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 max-h-44 overflow-y-auto overscroll-contain">
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-lg mt-1 max-h-[min(22rem,50vh)] overflow-y-auto overscroll-contain">
           {sugs.map(s => (
             <button key={s} type="button" onMouseDown={() => { onChange(s); setMostrar(false) }}
-              className="w-full text-left px-3 min-h-[40px] text-sm text-feisen-texto hover:bg-feisen-azul-suave">{s}</button>
+              className="w-full text-left px-3 min-h-[44px] text-sm text-feisen-texto hover:bg-feisen-azul-suave">{s}</button>
           ))}
         </div>
       )}
@@ -719,7 +719,7 @@ export default function CrearOrdenMoldeo() {
           <div className="grid lg:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] gap-5 items-start">
 
             {/* ── Piezas a moldear ───────────────────────────────────────── */}
-            <Tarjeta sinPadding titulo="Piezas a moldear"
+            <Tarjeta sinPadding sinRecorte titulo="Piezas a moldear"
               detalle={piezas.length === 0 ? 'Ninguna todavía'
                 : `${piezas.length} ${piezas.length === 1 ? 'pieza' : 'piezas'}${nBom ? ` · ${nBom} del BOM` : ''}${nLibres ? ` · ${nLibres} ${nLibres === 1 ? 'adicional' : 'adicionales'}` : ''}`}
               accion={hayMaquinas && (

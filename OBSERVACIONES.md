@@ -2876,6 +2876,17 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   encendido salió la primera carga); el buscador los incluye. Nómina: cuenta participaciones Pis / Lad / Pic por
   persona (tabla, leyenda, Excel hoja resumen y hoja Fundidas). Migración `2026-11-26_fundidas_cargos_horno.sql`.
   No se valida que la primera carga sea después del encendido (puede pasar de medianoche). Probado en la demo.
+- **26/11 · Listas de empleados más grandes.** La de moldeador en Nueva orden (`InputSug`) y la del personal de la
+  fundida muestran ~8 nombres (`max-h-[min(22rem,50vh)]`, shadow-lg); la tarjeta "Piezas a moldear" ya no recorta
+  (`sinRecorte`).
+- **26/11 · Personal de la fundida: menú de internos o externo.** Cada campo de personal (horneros, vaceadores,
+  auxiliares, pisan, arreglan/ladrillan, pican) abre un menú: "Internos · Fundición", "Internos · otras áreas" (de
+  RRHH, vía `colaboradores_fundida()`: SECURITY DEFINER, solo nombre completo y área de activos, para ADMIN/RRHH/
+  JEFE_FUNDICION) y "Externos usados antes" (localStorage, ya no guarda internos ahí). Si el nombre no está:
+  "Usar «…» como externo". Debajo dice Interno / Externo (sin importar tildes ni mayúsculas). Se sigue guardando el
+  nombre como texto. Si la función no existe o falla, el campo sigue como texto libre. Migración
+  `2026-11-26_colaboradores_fundida.sql`. Ojo nómina: si antes escribían un nombre corto ("DANIEL VILLAREAL") y ahora
+  eligen el completo de RRHH, en un período de transición pueden salir como dos personas.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

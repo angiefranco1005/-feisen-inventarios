@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { nombreBodega } from '../../utils/bodegasCatalogo'
+import { coincideBusqueda, sinTildes } from '../../utils/busqueda'
 import { EncabezadoPagina, useAviso } from '../shared/ui'
 import { Plus, X, XCircle, Clock, Users, Package, Flame, List } from '../shared/iconos'
 import { useUnaVez } from '../../hooks/useUnaVez'
@@ -65,56 +66,78 @@ function Etiqueta({ htmlFor, children, requerido, opcional }) {
   )
 }
 
-// Input con sugerencias desde localStorage
-function InputSugerencias({ value, onChange, placeholder, storageKey, ariaLabel }) {
+// Nombre comparable: sin tildes, mayúsculas ni espacios de más
+const claveNombre = n => sinTildes(String(n || '').replace(/\s+/g, ' ').trim())
+const AREAS = { fundicionHierro: 'Fundición', aluminio: 'Aluminio', construequipos: 'Construequipos', administracion: 'Administración' }
+
+// Campo de persona: menú con los colaboradores internos (de RRHH, vía colaboradores_fundida()) y
+// los externos usados antes (localStorage). Si no está, se escribe y se usa como externo
+// (gente contratada solo por el día). Debajo dice si quedó como Interno o Externo.
+function InputPersona({ value, onChange, placeholder, storageKey, ariaLabel, internos }) {
   const [mostrar, setMostrar] = useState(false)
-  const [sugerencias, setSugerencias] = useState([])
+  const texto = String(value || '')
+  const clave = claveNombre(texto)
+  const esInterno = !!clave && internos.some(c => claveNombre(c.nombre) === clave)
 
-  function abrirSugerencias() {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || '[]')
-    const filtradas = saved.filter(s => s.toLowerCase().includes((value || '').toLowerCase()) && s !== value)
-    setSugerencias(filtradas)
-    setMostrar(true)
+  const leerExternos = () => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] }
+  }
+  const coincide = n => !texto.trim() || coincideBusqueda(n, texto)
+  const deFundicion = internos.filter(c => c.area === 'fundicionHierro' && coincide(c.nombre))
+  const otrasAreas  = internos.filter(c => c.area !== 'fundicionHierro' && coincide(c.nombre))
+  const externos    = mostrar ? leerExternos()
+    .filter(n => !internos.some(c => claveNombre(c.nombre) === claveNombre(n)) && coincide(n)) : []
+  const exacto = [...internos.map(c => c.nombre), ...externos].some(n => claveNombre(n) === clave)
+
+  function elegir(n) { onChange(n); setMostrar(false) }
+  function guardarExterno(val) {
+    const v = String(val || '').trim()
+    if (!v || internos.some(c => claveNombre(c.nombre) === claveNombre(v))) return
+    try {
+      const saved = leerExternos()
+      if (!saved.some(x => claveNombre(x) === claveNombre(v))) localStorage.setItem(storageKey, JSON.stringify([v, ...saved].slice(0, 40)))
+    } catch { /* sin almacenamiento: no pasa nada */ }
   }
 
-  function seleccionar(s) {
-    onChange(s)
-    setMostrar(false)
-  }
-
-  function guardarSugerencia(val) {
-    if (!val?.trim()) return
-    const saved = JSON.parse(localStorage.getItem(storageKey) || '[]')
-    if (!saved.includes(val.trim())) {
-      localStorage.setItem(storageKey, JSON.stringify([val.trim(), ...saved].slice(0, 40)))
-    }
-  }
+  const fila = (n, detalle) => (
+    <button key={n + (detalle || '')} type="button" onMouseDown={() => elegir(n)}
+      className="w-full text-left px-3 min-h-[44px] text-sm text-feisen-texto hover:bg-feisen-fondo active:bg-feisen-azul-suave flex items-center justify-between gap-2">
+      <span className="min-w-0 truncate">{n}</span>
+      {detalle && <span className="shrink-0 text-xs text-feisen-texto-2">{detalle}</span>}
+    </button>
+  )
+  const titulo = t => <p className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{t}</p>
+  const hayAlgo = deFundicion.length + otrasAreas.length + externos.length > 0 || (texto.trim() && !exacto)
 
   return (
     <div className="relative">
       <input
         type="text"
         value={value}
-        onChange={e => onChange(e.target.value)}
-        onFocus={abrirSugerencias}
-        onBlur={() => { setTimeout(() => setMostrar(false), 150); guardarSugerencia(value) }}
+        onChange={e => { onChange(e.target.value); setMostrar(true) }}
+        onFocus={() => setMostrar(true)}
+        onBlur={() => { setTimeout(() => setMostrar(false), 150); guardarExterno(value) }}
         placeholder={placeholder}
         aria-label={ariaLabel}
         autoComplete="off"
         className={claseInput}
       />
-      {mostrar && sugerencias.length > 0 && (
-        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-lg shadow-sm mt-1 max-h-48 overflow-y-auto py-1">
-          {sugerencias.map(s => (
-            <button
-              key={s}
-              type="button"
-              onMouseDown={() => seleccionar(s)}
-              className="w-full text-left px-3 min-h-[44px] text-sm text-feisen-texto hover:bg-feisen-fondo active:bg-feisen-azul-suave"
-            >
-              {s}
+      {texto.trim() && (
+        <span className={`mt-1 inline-block text-[11px] font-medium px-1.5 py-px rounded-md ${esInterno ? 'bg-feisen-azul-suave text-feisen-azul' : 'bg-amber-50 text-amber-700'}`}>
+          {esInterno ? 'Interno' : 'Externo'}
+        </span>
+      )}
+      {mostrar && hayAlgo && (
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-lg shadow-lg mt-1 max-h-[min(22rem,50vh)] overflow-y-auto overscroll-contain py-1">
+          {texto.trim() && !exacto && (
+            <button type="button" onMouseDown={() => { guardarExterno(texto); setMostrar(false) }}
+              className="w-full text-left px-3 min-h-[44px] text-sm font-medium text-feisen-azul hover:bg-feisen-azul-suave flex items-center gap-1.5">
+              <Plus size={15} className="shrink-0" /> <span className="truncate">Usar «{texto.trim()}» como externo</span>
             </button>
-          ))}
+          )}
+          {deFundicion.length > 0 && <>{titulo('Internos · Fundición')}{deFundicion.map(c => fila(c.nombre))}</>}
+          {otrasAreas.length > 0 && <>{titulo('Internos · otras áreas')}{otrasAreas.map(c => fila(c.nombre, AREAS[c.area] || c.area))}</>}
+          {externos.length > 0 && <>{titulo('Externos usados antes')}{externos.map(n => fila(n))}</>}
         </div>
       )}
     </div>
@@ -122,7 +145,7 @@ function InputSugerencias({ value, onChange, placeholder, storageKey, ariaLabel 
 }
 
 // Lista dinámica de personas
-function ListaPersonas({ label, singular, valores, onChange, storageKey, placeholder, requerido }) {
+function ListaPersonas({ label, singular, valores, onChange, storageKey, placeholder, requerido, internos = [] }) {
   function agregar() { onChange([...valores, '']) }
   function cambiar(i, v) { const a = [...valores]; a[i] = v; onChange(a) }
   function quitar(i) { onChange(valores.filter((_, idx) => idx !== i)) }
@@ -134,12 +157,13 @@ function ListaPersonas({ label, singular, valores, onChange, storageKey, placeho
         {valores.map((v, i) => (
           <div key={i} className="flex gap-1 items-center">
             <div className="flex-1 min-w-0">
-              <InputSugerencias
+              <InputPersona
                 value={v}
                 onChange={val => cambiar(i, val)}
                 placeholder={placeholder}
                 storageKey={storageKey}
                 ariaLabel={`${singular} ${i + 1}`}
+                internos={internos}
               />
             </div>
             {valores.length > 1 && (
@@ -228,6 +252,12 @@ export default function RegistrarFundida() {
   const [reparadores, setReparadores] = useState([''])
   const [picadores,   setPicadores]   = useState([''])
   const [horaCarga,   setHoraCarga]   = useState('')   // primera carga al caldero
+  // Colaboradores internos para el menú del personal (solo nombre y área). Si la función no existe
+  // o falla, el campo sigue funcionando como texto libre.
+  const [internos,    setInternos]    = useState([])
+  useEffect(() => {
+    supabase.rpc('colaboradores_fundida').then(({ data, error }) => { if (!error && Array.isArray(data)) setInternos(data.filter(c => c?.nombre)) })
+  }, [])
   const [materiales,  setMateriales]  = useState(
     Object.fromEntries(MATERIALES.map(m => [m.key, '']))
   )
@@ -465,32 +495,32 @@ export default function RegistrarFundida() {
         {/* ── PERSONAL ── */}
         <Bloque titulo="Personal" icono={Users} detalle="Toca un campo para ver nombres usados antes. Puedes escribir personas externas contratadas por el día.">
           <div className="grid sm:grid-cols-2 gap-x-4 gap-y-4">
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Horneros" singular="Hornero" requerido
               valores={horneros} onChange={setHorneros}
               storageKey="feisen_horneros" placeholder="Nombre del hornero"
             />
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Vaceadores" singular="Vaceador" requerido
               valores={vaceadores} onChange={setVaceadores}
               storageKey="feisen_vaceadores" placeholder="Nombre del vaceador"
             />
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Auxiliares" singular="Auxiliar"
               valores={auxiliares} onChange={setAuxiliares}
               storageKey="feisen_auxiliares" placeholder="Nombre del auxiliar"
             />
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Pisan el horno" singular="Persona que pisa" requerido
               valores={pisadores} onChange={setPisadores}
               storageKey="feisen_pisadores" placeholder="Quién pisa el horno"
             />
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Arreglan / ladrillan el horno" singular="Persona que arregla" requerido
               valores={reparadores} onChange={setReparadores}
               storageKey="feisen_reparadores_horno" placeholder="Quién arregla o ladrilla"
             />
-            <ListaPersonas
+            <ListaPersonas internos={internos}
               label="Pican" singular="Persona que pica" requerido
               valores={picadores} onChange={setPicadores}
               storageKey="feisen_picadores" placeholder="Quién pica"
