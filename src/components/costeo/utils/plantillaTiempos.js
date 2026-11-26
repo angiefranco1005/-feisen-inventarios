@@ -2,7 +2,7 @@
 // Una hoja «Tiempos»: por cada operación interna de la máquina (en el orden de la hoja de ruta) una
 // fila gris con «Pieza · n · Operación · Cargo» y debajo sus etapas. Cada etapa: «Piezas que salen
 // cada vez» (1 = se hace para cada pieza; 3 = una vez sirve para 3 piezas, ej. subir la lámina de la
-// que salen 3 conos), hasta 6 lecturas en segundos y, calculado en el Excel, promedio, segundos por pieza y
+// que salen 3 conos), hasta 6 lecturas (segundos o min:seg) y, calculado en el Excel, promedio, segundos por pieza y
 // si bastan las lecturas. Regla reducida (2026-11-26, Angie no tiene tiempo para 10 tomas):
 //   · mínimo 3 lecturas por etapa;
 //   · etapas que pesan menos del 10 % del tiempo de la operación: con 3 basta;
@@ -10,6 +10,10 @@
 //       n' = ( 20 · √(n·Σx² − (Σx)²) / Σx )²   (con ±5 % sería 40 y pide 4 veces más lecturas)
 // La columna A (oculta) lleva el código: P:<proceso> en la fila de la operación, E:<etapa> en etapas
 // ya guardadas, vacía en etapas nuevas o sugeridas, T en el total. Al leer, una etapa sin código se crea.
+// Lecturas en minutos:segundos (2026-11-26): Excel convierte «3:50» en la hora 3 h 50 min (0,1597 de día).
+// Por eso toda fórmula pasa cada lectura a segundos igual que segundosDe(): número < 1 = m:ss escrito
+// (valor × 1440), ≥ 1 = ya son segundos, vacía o texto = no cuenta. Promedio, por pieza y total se
+// calculan en días (segundos ÷ 86400) para mostrarlos con formato [m]:ss.
 // Mismos cuidados que plantillaMoldeo.js: celdas vacías con estilo vía marca + limpieza del XML, y
 // «recalcular al abrir» porque las fórmulas no traen valor guardado.
 import XLSX from 'xlsx-js-style'
@@ -74,6 +78,15 @@ const col = (c) => XLSX.utils.encode_col(c)
 const C_ID = 0, C_ETAPA = 1, C_PIEZAS = 2, C_L1 = 3
 const C_PROM = C_L1 + LECTURAS, C_PIEZA = C_PROM + 1, C_BASTAN = C_PIEZA + 1, C_OPERARIO = C_BASTAN + 1, C_FECHA = C_OPERARIO + 1, C_NOTAS = C_FECHA + 1
 
+// Fórmulas de un rango de lecturas pasadas a segundos. SUMPRODUCT con argumentos separados toma el
+// texto como 0 y no necesita entrada matricial (Excel 2016+, LibreOffice); las celdas vacías no pasan «>0».
+const leidas = (rg) => `COUNTIF(${rg},">0")`
+const sumaSeg = (rg) => `(SUMPRODUCT(--(${rg}>=1),${rg})+1440*SUMPRODUCT(--(${rg}>0),--(${rg}<1),${rg}))`
+const sumaCuadSeg = (rg) => `(SUMPRODUCT(--(${rg}>=1),${rg},${rg})+1440^2*SUMPRODUCT(--(${rg}>0),--(${rg}<1),${rg},${rg}))`
+const F_MINSEG = '[m]:ss'
+// Lecturas: menos de 1 (un m:ss escrito) se ve como 3:50 y no como 3:50:00; el resto, como número.
+const F_LECTURA = '[<1]h:mm;General'
+
 const isoAFecha = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
 
 // operaciones: [{ procesoId, titulo, etapas: [{ id|null, nombre, piezas, lecturas: [seg], operario, fecha (iso), notas }] }]
@@ -83,17 +96,21 @@ export function construirPlantillaTiempos({ maquina, operaciones }) {
     const ref = XLSX.utils.encode_cell({ r, c })
     ws[ref] = v === '' || v == null ? { t: 's', v: VACIA, s } : { v, t: typeof v === 'number' ? 'n' : 's', s }
   }
+  const lectura = (r, c, v) => {
+    pon(r, c, v, est.entradaNum)
+    ws[XLSX.utils.encode_cell({ r, c })].z = F_LECTURA
+  }
   const formula = (r, c, f, s, z) => {
     ws[XLSX.utils.encode_cell({ r, c })] = { t: 'n', f, s, ...(z ? { z } : {}) }
   }
   const merges = []
 
   pon(0, C_ETAPA, `Toma de tiempos · ${maquina}`, est.titulo)
-  pon(1, C_ETAPA, 'Escribe en las celdas amarillas los SEGUNDOS de cada lectura del cronómetro (o minutos:segundos, ej. 2:15). Con 3 lecturas por etapa basta para empezar; la columna «¿Bastan?» avisa solo si una etapa larga varía mucho. Truco: si cronometras varias piezas seguidas de una vez (ej. 5 cortes), escribe 5 en «Piezas que salen cada vez».', est.gris)
+  pon(1, C_ETAPA, 'Escribe en las celdas amarillas cada lectura del cronómetro en segundos (ej. 230) o en minutos:segundos (ej. 3:50); el Excel entiende las dos y muestra promedio y tiempo por pieza en minutos:segundos. Con 3 lecturas por etapa basta para empezar; la columna «¿Bastan?» avisa solo si una etapa larga varía mucho. Truco: si cronometras varias piezas seguidas de una vez (ej. 5 cortes), escribe 5 en «Piezas que salen cada vez».', est.gris)
   pon(2, C_ETAPA, '«Piezas que salen cada vez»: 1 si la etapa se hace para cada pieza. Si una vez sirve para varias (ej. subir una lámina de la que salen 3 conos), escribe cuántas. Para agregar una etapa, escríbela en una fila amarilla vacía. No borres las filas azules.', est.gris)
   merges.push({ s: { r: 1, c: C_ETAPA }, e: { r: 1, c: C_NOTAS } }, { s: { r: 2, c: C_ETAPA }, e: { r: 2, c: C_NOTAS } })
 
-  const enc = ['Código', 'Etapa', 'Piezas que salen cada vez', ...Array.from({ length: LECTURAS }, (_, i) => String(i + 1)), 'Promedio (s)', 'Segundos por pieza', '¿Bastan las lecturas?', 'Operario', 'Fecha (dd/mm/aaaa)', 'Notas']
+  const enc = ['Código', 'Etapa', 'Piezas que salen cada vez', ...Array.from({ length: LECTURAS }, (_, i) => String(i + 1)), 'Promedio (min:seg)', 'Tiempo por pieza (min:seg)', '¿Bastan las lecturas?', 'Operario', 'Fecha (dd/mm/aaaa)', 'Notas']
   enc.forEach((t, c) => pon(FILA_ENC - 1, c, t, est.encab))
 
   let r = FILA_ENC
@@ -112,23 +129,25 @@ export function construirPlantillaTiempos({ maquina, operaciones }) {
       pon(r, C_ID, et.id ? `E:${et.id}` : '', est.codigo)
       pon(r, C_ETAPA, et.nombre || '', est.entrada)
       pon(r, C_PIEZAS, et.nombre ? Number(et.piezas) || 1 : '', est.entradaNum)
-      for (let i = 0; i < LECTURAS; i++) pon(r, C_L1 + i, et.lecturas?.[i] > 0 ? Math.round(et.lecturas[i] * 10) / 10 : '', est.entradaNum)
-      formula(r, C_PROM, `IF(COUNT(${rango})=0,"",AVERAGE(${rango}))`, est.calculo, '0.0')
-      formula(r, C_PIEZA, `IF(${col(C_PROM)}${R}="","",${col(C_PROM)}${R}/MAX(1,N(${col(C_PIEZAS)}${R})))`, est.calculo, '0.0')
-      const nn = `ROUNDUP((${K}*SQRT(MAX(0,COUNT(${rango})*SUMSQ(${rango})-SUM(${rango})^2))/SUM(${rango}))^2,0)`
+      // Lecturas guardadas en segundos (≥ 1: un valor < 1 se leería como m:ss).
+      for (let i = 0; i < LECTURAS; i++) lectura(r, C_L1 + i, et.lecturas?.[i] > 0 ? Math.max(1, Math.round(et.lecturas[i] * 10) / 10) : '')
+      const n = leidas(rango), S = sumaSeg(rango)
+      formula(r, C_PROM, `IF(${n}=0,"",${S}/${n}/86400)`, est.calculo, F_MINSEG)
+      formula(r, C_PIEZA, `IF(${col(C_PROM)}${R}="","",${col(C_PROM)}${R}/MAX(1,N(${col(C_PIEZAS)}${R})))`, est.calculo, F_MINSEG)
+      const nn = `ROUNDUP((${K}*SQRT(MAX(0,${n}*${sumaCuadSeg(rango)}-${S}^2))/${S})^2,0)`
       const tot = `$${col(C_PIEZA)}$${filaTotal}`
       const pide = `IF(AND(N(${tot})>0,N(${col(C_PIEZA)}${R})/N(${tot})<0.1),${MINIMO},MAX(${MINIMO},${nn}))`
-      ws[XLSX.utils.encode_cell({ r, c: C_BASTAN })] = { t: 's', f: `IF(COUNT(${rango})=0,"",IF(COUNT(${rango})>=${pide},"Sí","Faltan "&(${pide}-COUNT(${rango}))))`, s: est.calculo }
+      ws[XLSX.utils.encode_cell({ r, c: C_BASTAN })] = { t: 's', f: `IF(${n}=0,"",IF(${n}>=${pide},"Sí","Faltan "&(${pide}-${n})))`, s: est.calculo }
       pon(r, C_OPERARIO, et.operario || '', est.entrada)
       pon(r, C_FECHA, isoAFecha(et.fecha), est.entrada)
       pon(r, C_NOTAS, et.notas || '', est.entrada)
       r++
     }
     pon(r, C_ID, 'T', est.codigo)
-    pon(r, C_ETAPA, 'Total por pieza (segundos)', est.total)
+    pon(r, C_ETAPA, 'Total por pieza (min:seg)', est.total)
     for (let c = C_PIEZAS; c <= C_NOTAS; c++) pon(r, c, '', est.total)
-    formula(r, C_PIEZA, `SUM(${col(C_PIEZA)}${primera + 1}:${col(C_PIEZA)}${r})`, est.total, '0.0')
-    formula(r, C_PROM, `IF(${col(C_PIEZA)}${r + 1}=0,"",${col(C_PIEZA)}${r + 1}/60)`, est.total, '0.0" min"')
+    formula(r, C_PIEZA, `SUM(${col(C_PIEZA)}${primera + 1}:${col(C_PIEZA)}${r})`, est.total, F_MINSEG)
+    formula(r, C_PROM, `IF(${col(C_PIEZA)}${r + 1}=0,"",${col(C_PIEZA)}${r + 1}*86400)`, est.total, '0" s"')
     r += 2
   }
 

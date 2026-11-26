@@ -3027,3 +3027,10 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 ## 2026-11-26 · Tiempos: menos lecturas (Angie no tiene tiempo para 10 tomas)
 
 - Regla nueva en plantilla y ERP (`lecturasNecesarias(valores, peso)`): mínimo **3** lecturas por etapa; etapas que pesan menos del 10 % del tiempo de la operación quedan con 3; las demás usan la fórmula con **95 % de confianza y ±10 %** (constante 20 en vez de 40, que era ±5 % y pedía 4 veces más). La plantilla trae 6 columnas de lecturas en vez de 10. Truco documentado en la hoja: cronometrar varias piezas seguidas y poner ese número en «Piezas que salen cada vez».
+
+## 2026-11-26 · Plantilla de tiempos: lecturas en minutos:segundos
+
+- Reporte de Angie: escribió lecturas como `3:50` y `5:00`; Excel las vuelve hora (3 h 50 min = 0,1597 de día) y las fórmulas daban Promedio 0,2, por pieza 0,1 y total 0,0 min.
+- `utils/plantillaTiempos.js`: las fórmulas pasan cada lectura a segundos igual que `segundosDe()` (número < 1 = m:ss escrito, × 1440; ≥ 1 = segundos; vacías y texto no cuentan) con `COUNTIF(">0")` y `SUMPRODUCT` (sin entrada matricial, Excel 2016+ y LibreOffice) en promedio, por pieza, «¿Bastan?» (n, Σx, Σx²) y total. Promedio, «Tiempo por pieza» y total se muestran en `[m]:ss`; el total también en segundos en la columna Promedio. Las celdas de lectura tienen formato `[<1]h:mm;General` para que `3:50` siga viéndose `3:50` y 230 se vea 230. Instrucción de la fila 2 actualizada. Columnas y columna A sin cambios.
+- Lecturas guardadas menores de 1 s se escriben como 1 (si no, se leerían como m:ss).
+- Probado con Node: XML bien formado; celdas simuladas `3:50` (con `[h]:mm` y con el formato nuevo) y `230` → el lector devuelve 230 y 300; `vite build` pasa. LibreOffice no está instalado: las fórmulas no se verificaron calculando en una hoja real (falta abrirla en Excel).
