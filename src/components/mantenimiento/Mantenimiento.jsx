@@ -56,11 +56,14 @@ export default function Mantenimiento() {
     if (esAdmin) {
       const [co, ce] = await Promise.all([
         fetchAllPages((d, h) => supabase.from('mant_orden_costos').select('orden_id, costo_total').range(d, h)),
-        supabase.from('costeo_equipos_planta').select('id, nombre, mantenimiento_anual').order('nombre'),
+        supabase.from('costeo_equipos_planta').select('*').order('nombre'),
       ])
       const m = {}
       for (const c of co.data || []) m[c.orden_id] = (m[c.orden_id] || 0) + Number(c.costo_total)
-      setCostoOrden(m); setEquiposCosteo(ce.data || [])
+      // vinculado: ya tiene ficha en Mantenimiento (contando las dadas de baja)
+      const { data: vin } = await supabase.from('mant_equipos').select('costeo_equipo_id').not('costeo_equipo_id', 'is', null)
+      const usados = new Set((vin || []).map(x => x.costeo_equipo_id))
+      setCostoOrden(m); setEquiposCosteo((ce.data || []).map(c => ({ ...c, vinculado: usados.has(c.id) })))
     }
     setCargando(false)
   }, [esAdmin])
@@ -271,7 +274,7 @@ export default function Mantenimiento() {
       )}
       {equipoPanel && (
         <FichaEquipo equipo={equipoPanel} tareas={tareasDe(equipoPanel.id)} ordenes={ordenes.filter(o => o.equipo_id === equipoPanel.id)}
-          costoOrden={costoOrden} presupuesto={presupuestoDe(equipoPanel)} onCerrar={cerrarPanel}
+          costoOrden={costoOrden} presupuesto={presupuestoDe(equipoPanel)} costeo={equiposCosteo.find(c => c.id === equipoPanel.costeo_equipo_id)} onCerrar={cerrarPanel}
           onEditar={() => abrir('editar', equipoPanel.id)} onReportar={() => abrir('reportar', '1', { eq: equipoPanel.id })}
           onAbrirOrden={o => abrir('orden', o.id)} onCambio={m => { avisar(m); cargar() }} />
       )}

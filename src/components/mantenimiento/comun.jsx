@@ -68,3 +68,17 @@ export const fechaCorta = f => f
 
 export const campo = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-sm focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 export const etiquetaCampo = 'block text-sm font-medium text-feisen-texto mb-1.5'
+
+// Datos del formato FO-MAN-001 «Registro de equipo» (ver 2026-11-26_mant_equipos_registro.sql)
+export const FUENTES_ENERGIA = ['Eléctrica', 'Gas natural', 'Gas propano (GLP)', 'ACPM / diésel', 'Aire comprimido', 'Manual']
+export const SERVICIOS = ['Aire comprimido', 'Agua de enfriamiento', 'Refrigerante / aceite soluble', 'Gas inerte (argón, CO2)']
+export const VOLTAJES = ['110 V', '220 V', '440 V']
+export const ESTADO_LLEGADA = { nuevo: 'Nuevo', usado: 'Usado', reconstruido: 'Reconstruido' }
+export const FASES = { monofasico: 'Monofásico', trifasico: 'Trifásico' }
+
+// kW para Costeo a partir de la potencia de placa
+const A_KW = { kW: 1, HP: 0.746, CV: 0.7355 }
+export const kwDe = (potencia, unidad) => {
+  const p = Number(potencia)
+  return p > 0 && A_KW[unidad] ? Math.round(p * A_KW[unidad] * 100) / 100 : null
+}

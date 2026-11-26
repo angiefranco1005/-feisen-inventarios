@@ -2,16 +2,18 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatCOP } from '../../utils/formatters'
+import { calcularCostosEquipo } from '../costeo/utils/equipoCosto'
 import { PanelLateral, Segmentado } from '../shared/ui'
 import { CalendarCheck, ListChecks, Pencil, Plus, Trash2, Wrench } from '../shared/iconos'
 import {
   IMPORTANCIA, ESTADO_EQUIPO, ESTADO_ORDEN, Etiqueta, Titulo, campo, etiquetaCampo,
-  textoProxima, diasHasta, fechaCorta, horasEntre, hoyCol, sumarDias,
+  textoProxima, diasHasta, fechaCorta, horasEntre, hoyCol, sumarDias, ESTADO_LLEGADA, FASES, kwDe,
 } from './comun'
 
-// Ficha de un equipo: datos, plan preventivo, últimas órdenes y (solo ADMIN) costo del año
+// Ficha de un equipo: datos del formato FO-MAN-001 (identificación y técnicos), valor y costeo
+// (solo ADMIN, de costeo_equipos_planta), plan preventivo, últimas órdenes y costo del año
 // frente al presupuesto de mantenimiento que tiene en Costeo.
-export default function FichaEquipo({ equipo, tareas, ordenes, costoOrden, presupuesto, onCerrar, onEditar, onReportar, onAbrirOrden, onCambio }) {
+export default function FichaEquipo({ equipo, tareas, ordenes, costoOrden, presupuesto, costeo, onCerrar, onEditar, onReportar, onAbrirOrden, onCambio }) {
   const { esAdmin } = useAuth()
   const [formTarea, setFormTarea] = useState(null) // null | {} (nueva) | tarea
   const imp = IMPORTANCIA[equipo.importancia]
@@ -21,6 +23,9 @@ export default function FichaEquipo({ equipo, tareas, ordenes, costoOrden, presu
   const costoAnio = delAnio.reduce((s, o) => s + (costoOrden[o.id] || 0), 0)
   const horasParado = delAnio.reduce((s, o) => s + horasEntre(o.inicio_paro, o.fin_paro), 0)
 
+  const kw = kwDe(equipo.potencia, equipo.potencia_unidad)
+  const costos = calcularCostosEquipo(costeo)
+  const num = n => Number(n).toLocaleString('es-CO', { maximumFractionDigits: 2 })
   const dato = (t, v) => <div><p className="text-[11.5px] text-feisen-texto-2">{t}</p><p className="text-sm text-feisen-texto">{v || '—'}</p></div>
 
   return (
@@ -45,15 +50,63 @@ export default function FichaEquipo({ equipo, tareas, ordenes, costoOrden, presu
       </>}>
 
       <section className="space-y-2.5">
-        <Titulo>Datos</Titulo>
+        <Titulo>Identificación</Titulo>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
           {dato('Marca y modelo', [equipo.marca, equipo.modelo].filter(Boolean).join(' · '))}
           {dato('Serie', equipo.serie)}
+          {dato('Año de fabricación', equipo.anio_fabricacion)}
+          {dato('Ubicación', equipo.ubicacion)}
           {dato('En la planta desde', equipo.fecha_compra && fechaCorta(equipo.fecha_compra) + ' ' + equipo.fecha_compra.slice(0, 4))}
           {dato('Garantía', equipo.garantia_hasta ? (diasHasta(equipo.garantia_hasta) >= 0 ? `Hasta el ${fechaCorta(equipo.garantia_hasta)} ${equipo.garantia_hasta.slice(0, 4)}` : 'Vencida') : null)}
+          {dato('Se compró a', [equipo.proveedor, equipo.proveedor_telefono].filter(Boolean).join(' · '))}
+          {dato('Llegó', ESTADO_LLEGADA[equipo.estado_llegada])}
         </div>
+        {equipo.funcion && dato('Qué hace / qué produce', <span className="whitespace-pre-line">{equipo.funcion}</span>)}
         {equipo.notas && <p className="text-sm text-feisen-texto-2 whitespace-pre-line">{equipo.notas}</p>}
       </section>
+
+      <section className="space-y-2.5">
+        <Titulo>Datos técnicos y energía</Titulo>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+          {dato('Fuente de energía', (equipo.fuentes_energia || []).join(', '))}
+          {dato('Voltaje y fases', [equipo.voltaje, FASES[equipo.fases]].filter(Boolean).join(' · '))}
+          {dato('Potencia', equipo.potencia ? `${num(equipo.potencia)} ${equipo.potencia_unidad}${equipo.potencia_unidad !== 'kW' && kw ? ` (${num(kw)} kW)` : ''}` : null)}
+          {dato('Motores', equipo.num_motores)}
+          {dato('Amperaje', equipo.amperaje && `${num(equipo.amperaje)} A`)}
+          {dato('Frecuencia', equipo.frecuencia_hz && `${num(equipo.frecuencia_hz)} Hz`)}
+          {dato('Consumo de gas / combustible', equipo.consumo_combustible)}
+          {dato('Capacidad', equipo.capacidad)}
+        </div>
+        {dato('Otros servicios', (equipo.servicios || []).join(', '))}
+      </section>
+
+      {esAdmin && (
+        <section className="space-y-2.5">
+          <Titulo>Valor y costeo</Titulo>
+          {costeo ? <>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+              {dato('Centro de costo', costeo.centro_costo)}
+              {dato('Activo fijo', equipo.activo_fijo)}
+              {dato('Valor del activo', costeo.valor_activo > 0 && formatCOP(costeo.valor_activo))}
+              {dato('Saldo por depreciar', costeo.saldo_pendiente_depreciar > 0 && formatCOP(costeo.saldo_pendiente_depreciar))}
+              {dato('Vida útil restante', costeo.vida_util_anios > 0 && `${num(costeo.vida_util_anios)} años`)}
+              {dato('Tarifa de energía', costeo.tarifa_kwh > 0 && `${formatCOP(costeo.tarifa_kwh)} por kWh`)}
+              {dato('Horas disponibles al año', costeo.horas_disponibles_anio > 0 && num(costeo.horas_disponibles_anio))}
+              {dato('kW en Costeo', costeo.kw_instalados > 0 && num(costeo.kw_instalados))}
+            </div>
+            <div className="rounded-lg bg-feisen-fondo px-3 py-2.5 space-y-1.5 text-sm">
+              {[['Depreciación al año', costos.depreciacionAnual], ['Mantenimiento al año', Number(costeo.mantenimiento_anual) || 0], ['Energía al año', costos.energiaAnual]].map(([t, val]) => (
+                <div key={t} className="flex justify-between"><span className="text-feisen-texto-2">{t}</span><span className="tabular-nums">{formatCOP(val)}</span></div>
+              ))}
+              <div className="flex justify-between pt-1.5 border-t border-feisen-borde"><span className="font-medium">Valor hora-máquina</span>
+                <b className="tabular-nums font-semibold">{costos.valorHora > 0 ? formatCOP(costos.valorHora) : 'Faltan las horas al año'}</b></div>
+            </div>
+            <p className="text-xs text-feisen-texto-2">Es el mismo equipo de Costeo › Equipos de planta; con este valor se costean las piezas que pasan por él.</p>
+          </> : (
+            <p className="text-sm text-feisen-texto-2">Sin valor en Costeo. Llénalo en «Editar ficha» › Valor del equipo{equipo.activo_fijo ? ` (activo fijo ${equipo.activo_fijo})` : ''}.</p>
+          )}
+        </section>
+      )}
 
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
