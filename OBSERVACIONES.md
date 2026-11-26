@@ -2827,6 +2827,17 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   corrigen solos. La nómina avisa en amarillo qué piezas con avance o conformes siguen sin peso. Probado en la demo
   (`?sinpeso=1` deja sin peso una pieza de la primera orden por recoger): bloquea sin peso, guarda el peso y recoge. El
   aviso de nómina no se pudo ver en la demo (el mock no trae la pieza dentro del avance).
+- **26/11 · Editar una orden de moldeo ya creada: agregar y quitar piezas.** El "Editar" de la orden (solo pendientes)
+  ya cambiaba fecha, cantidad y moldeador; ahora además agrega piezas (buscador, o "Crear «…»" para una pieza nueva,
+  peso opcional) y quita piezas ("Quitar" / "Deshacer", se aplica al guardar). **Regla:** una pieza con avance diario no
+  se puede quitar ni bajar de lo moldeado, porque `ordenes_moldeo_avances` tiene FK con ON DELETE CASCADE hacia
+  `ordenes_moldeo_piezas` (borrar la línea borraría el avance y los kg del moldeador en la nómina). Lo moldeado se
+  consulta al abrir la edición y otra vez al guardar antes de borrar. La orden debe quedar con al menos una pieza (si
+  no, "Cancelar orden"). Orden al guardar: fecha → cambios → borrados → nuevas (las nuevas quedan con id para no
+  duplicarlas si se reintenta). Las máquinas de la orden no se editan. La creación de pieza se movió a
+  `utils/piezasFundicion.js` (`crearPiezaFundicion`), que usan Nueva orden y Editar; `SelectorPieza` se exporta desde
+  `CrearOrdenMoldeo.jsx`. RLS: JEFE_FUNDICION ya tenía insert/update/delete en `ordenes_moldeo_piezas`; no se tocó la
+  base. Probado en la demo: quitar, deshacer, agregar existente, crear nueva, bloqueo bajo lo moldeado, guardar.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

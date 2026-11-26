@@ -6,10 +6,12 @@ import { BODEGA_FUNDICION_ID, CAT_MATERIA_PRIMA_FUNDICION_ID, nombreBodega } fro
 import { coincideBusqueda } from '../../utils/busqueda'
 import {
   ClipboardList, ChevronRight, Search, Plus, AlertTriangle, TrendingUp, Calendar,
-  Pencil, XCircle, X, Check, Clock,
+  Pencil, XCircle, X, Check, Clock, Trash2, RotateCcw,
 } from '../shared/iconos'
 import Modal from '../shared/Modal'
 import { EncabezadoPagina, Segmentado, Contador, PanelLateral, useAviso, useAtajoBuscar } from '../shared/ui'
+import { SelectorPieza } from './CrearOrdenMoldeo'
+import { crearPiezaFundicion, normalizarNombrePieza } from '../../utils/piezasFundicion'
 
 function numOrden(n) { return `ORD-MOL-${String(n).padStart(4, '0')}` }
 function fmtFecha(f) {
@@ -187,6 +189,12 @@ export default function ListaOrdenesMoldeo() {
   const [editForm,          setEditForm]          = useState({ fecha: '', piezas: [] })
   const [editGuardando,     setEditGuardando]     = useState(false)
   const [msgEdit,           setMsgEdit]           = useState('')
+  const [editItems,         setEditItems]         = useState([])    // catálogo de piezas de Fundición para agregar
+  const [editNuevaItem,     setEditNuevaItem]     = useState(null)
+  const [editNuevaCant,     setEditNuevaCant]     = useState('')
+  const [editCrear,         setEditCrear]         = useState(null)  // { nombre, peso } pieza nueva que no existe
+  const [editCreando,       setEditCreando]       = useState(false)
+  const [editSelKey,        setEditSelKey]        = useState(0)     // reinicia el buscador al agregar
   // Filtro por estado (chips): 'todas' (sin canceladas, como antes) | 'pendiente' | 'completado' | 'cancelado'
   const [filtroEstado,      setFiltroEstado]      = useState('todas')
 
@@ -388,46 +396,139 @@ export default function ListaOrdenesMoldeo() {
   }
 
   // ── Editar orden ──────────────────────────────────────────────────────────────
-  function abrirEdicion(orden) {
+  // Se puede cambiar la fecha, la cantidad y el moldeador de cada pieza, agregar piezas (o crear una
+  // nueva) y quitar piezas. Una pieza que ya tiene avance diario NO se puede quitar ni bajar de lo
+  // moldeado: al borrar la línea la base borra su avance (y con él los kg del moldeador en la nómina).
+  async function abrirEdicion(orden) {
+    const piezasOrden = orden.ordenes_moldeo_piezas || []
     setEditForm({
       fecha: orden.fecha || '',
-      piezas: (orden.ordenes_moldeo_piezas || []).map(p => ({
-        id: p.id,
+      piezas: piezasOrden.map(p => ({
+        clave: p.id, id: p.id, item_id: p.item_id,
         nombre: p.items?.nombre || '',
         cantidad_planeada: String(p.cantidad_planeada || ''),
         asignado_a: p.asignado_a || '',
+        moldeado: avancesData[orden.id]?.[p.id]?.total || 0,
+        quitar: false,
       })),
     })
-    setMsgEdit('')
+    setMsgEdit(''); setEditNuevaItem(null); setEditNuevaCant(''); setEditCrear(null)
     setEditModal(orden)
+    // Lo moldeado se consulta de nuevo (puede no estar cargado o haber cambiado)
+    const ids = piezasOrden.map(p => p.id)
+    const [{ data: av }, { data: its }] = await Promise.all([
+      ids.length ? supabase.from('ordenes_moldeo_avances').select('orden_pieza_id, cantidad_moldeada').in('orden_pieza_id', ids) : { data: [] },
+      supabase.from('items').select('id, nombre, peso_unitario').eq('bodega_id', BODEGA_FUNDICION_ID).eq('activo', true).order('nombre'),
+    ])
+    const mold = {}
+    for (const a of (av || [])) mold[a.orden_pieza_id] = (mold[a.orden_pieza_id] || 0) + Number(a.cantidad_moldeada || 0)
+    setEditForm(prev => ({ ...prev, piezas: prev.piezas.map(p => p.id ? { ...p, moldeado: mold[p.id] || 0 } : p) }))
+    setEditItems(its || [])
+  }
+
+  function agregarEnEdicion(item, cant) {
+    const n = Number(cant) || 0
+    if (!item || !(n > 0)) { setMsgEdit('Elige la pieza y escribe una cantidad mayor que cero.'); return }
+    setEditForm(prev => ({
+      ...prev,
+      piezas: [...prev.piezas, {
+        clave: 'nueva-' + Date.now(), id: null, item_id: item.id, nombre: item.nombre,
+        cantidad_planeada: String(n), asignado_a: '', moldeado: 0, quitar: false,
+      }],
+    }))
+    setEditNuevaItem(null); setEditNuevaCant(''); setMsgEdit(''); setEditSelKey(k => k + 1)
+  }
+
+  async function crearEnEdicion() {
+    setEditCreando(true); setMsgEdit('')
+    try {
+      const it = await crearPiezaFundicion({ nombre: editCrear?.nombre, peso: editCrear?.peso, bodegaId: BODEGA_FUNDICION_ID, conocidos: editItems })
+      setEditItems(prev => prev.some(i => i.id === it.id) ? prev : [...prev, it].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      if (Number(editNuevaCant) > 0) agregarEnEdicion(it, editNuevaCant)
+      else setEditNuevaItem(it)
+      setEditCrear(null)
+    } catch (e) {
+      setMsgEdit(e.message || String(e))
+    } finally {
+      setEditCreando(false)
+    }
   }
 
   async function guardarEdicion() {
-    setEditGuardando(true)
     setMsgEdit('')
-    const { error: e1 } = await supabase.from('ordenes_moldeo')
-      .update({ fecha: editForm.fecha }).eq('id', editModal.id)
-    if (e1) { setMsgEdit('Error: ' + e1.message); setEditGuardando(false); return }
-
-    for (const p of editForm.piezas) {
-      const { error: e2 } = await supabase.from('ordenes_moldeo_piezas').update({
-        cantidad_planeada: Number(p.cantidad_planeada) || 0,
-        asignado_a: p.asignado_a.trim() || null,
-      }).eq('id', p.id)
-      if (e2) { setMsgEdit('Error en pieza: ' + e2.message); setEditGuardando(false); return }
+    const quedan  = editForm.piezas.filter(p => !p.quitar)
+    const quitar  = editForm.piezas.filter(p => p.quitar && p.id)
+    if (!editForm.fecha) { setMsgEdit('Elige la fecha de la orden.'); return }
+    if (quedan.length === 0) { setMsgEdit('La orden debe quedar con al menos una pieza. Si ya no va, usa "Cancelar orden".'); return }
+    for (const p of quedan) {
+      const n = Number(p.cantidad_planeada) || 0
+      if (!(n > 0)) { setMsgEdit(`"${p.nombre}": la cantidad debe ser mayor que cero (o quita la pieza).`); return }
+      if (n < p.moldeado) { setMsgEdit(`"${p.nombre}": ya tiene ${p.moldeado} moldeadas; la cantidad no puede quedar en menos.`); return }
     }
-
-    setEditGuardando(false)
-    avisar(`Cambios guardados en ${numOrden(editModal.numero)}`)
-    setEditModal(null)
-    cargar()
+    setEditGuardando(true)
+    try {
+      // Revisar en la base que las piezas a quitar sigan sin avance (alguien pudo registrarlo mientras tanto)
+      if (quitar.length) {
+        const { data: av, error: eAv } = await supabase.from('ordenes_moldeo_avances')
+          .select('orden_pieza_id').in('orden_pieza_id', quitar.map(p => p.id)).limit(1)
+        if (eAv) throw eAv
+        if ((av || []).length) {
+          const p = quitar.find(x => x.id === av[0].orden_pieza_id)
+          throw new Error(`"${p?.nombre}" ya tiene avance registrado; no se puede quitar. Recarga la orden.`)
+        }
+      }
+      const { error: e1 } = await supabase.from('ordenes_moldeo').update({ fecha: editForm.fecha }).eq('id', editModal.id)
+      if (e1) throw e1
+      for (const p of quedan.filter(x => x.id)) {
+        const { error: e2 } = await supabase.from('ordenes_moldeo_piezas').update({
+          cantidad_planeada: Number(p.cantidad_planeada) || 0,
+          asignado_a: p.asignado_a.trim() || null,
+        }).eq('id', p.id)
+        if (e2) throw e2
+      }
+      if (quitar.length) {
+        const { error: e3 } = await supabase.from('ordenes_moldeo_piezas').delete().in('id', quitar.map(p => p.id))
+        if (e3) throw e3
+      }
+      const nuevas = quedan.filter(x => !x.id)
+      if (nuevas.length) {
+        const { data: ins, error: e4 } = await supabase.from('ordenes_moldeo_piezas').insert(nuevas.map(p => ({
+          orden_id: editModal.id, item_id: p.item_id,
+          cantidad_planeada: Number(p.cantidad_planeada) || 0, asignado_a: p.asignado_a.trim() || null,
+        }))).select('id')
+        if (e4) throw e4
+        // Si algo falla después y se reintenta, estas líneas ya no se vuelven a insertar
+        const idsNuevos = (ins || []).map(r => r.id)
+        setEditForm(prev => {
+          let k = 0
+          return { ...prev, piezas: prev.piezas.map(p => (!p.id && !p.quitar && idsNuevos[k]) ? { ...p, id: idsNuevos[k++] } : p) }
+        })
+      }
+      const cambios = [quitar.length && `${quitar.length} quitada${quitar.length > 1 ? 's' : ''}`, nuevas.length && `${nuevas.length} agregada${nuevas.length > 1 ? 's' : ''}`].filter(Boolean).join(', ')
+      avisar(`Cambios guardados en ${numOrden(editModal.numero)}${cambios ? ` (${cambios})` : ''}`)
+      setEditModal(null)
+      setAvancesData(prev => { const c = { ...prev }; delete c[editModal.id]; return c })
+      await cargar()
+      if (expandido) {
+        const { data: o } = await supabase.from('ordenes_moldeo').select('id, ordenes_moldeo_piezas(id, item_id)').eq('id', editModal.id).maybeSingle()
+        if (o) cargarAvancesYStock({ ...editModal, ordenes_moldeo_piezas: o.ordenes_moldeo_piezas || [] }, fundBodegaId)
+      }
+    } catch (e) {
+      setMsgEdit('No se guardó: ' + (e.message || String(e)))
+    } finally {
+      setEditGuardando(false)
+    }
   }
 
-  function setPieza(idx, campo, val) {
+  function setPieza(clave, campo, val) {
     setEditForm(prev => ({
       ...prev,
-      piezas: prev.piezas.map((p, i) => i === idx ? { ...p, [campo]: val } : p),
+      piezas: prev.piezas.map(p => p.clave === clave ? { ...p, [campo]: val } : p),
     }))
+  }
+  function quitarEnEdicion(p) {
+    if (!p.id) { setEditForm(prev => ({ ...prev, piezas: prev.piezas.filter(x => x.clave !== p.clave) })); return }
+    setPieza(p.clave, 'quitar', !p.quitar)
   }
 
   // ── Búsqueda y filtros ────────────────────────────────────────────────────────
@@ -636,11 +737,6 @@ export default function ListaOrdenesMoldeo() {
       {editModal && (
         <Modal titulo={`Editar ${numOrden(editModal.numero)}`} onCerrar={() => setEditModal(null)}>
           <div className="space-y-4">
-            {msgEdit && (
-              <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-3 py-2.5 text-sm">
-                <AlertTriangle size={16} className="shrink-0 mt-px" /> {msgEdit}
-              </div>
-            )}
 
             <label className="block">
               <span className="text-xs font-medium text-feisen-texto-2 block mb-1">Fecha de la orden</span>
@@ -649,32 +745,94 @@ export default function ListaOrdenesMoldeo() {
                 className={claseInput} />
             </label>
 
+            {/* Agregar pieza (arriba, para que la lista de opciones caiga sobre las piezas) */}
+            <div className="rounded-lg border border-feisen-borde-suave bg-feisen-fondo p-3 space-y-2">
+              <p className="text-xs font-medium text-feisen-texto-2">Agregar pieza</p>
+              <SelectorPieza key={editSelKey} value={editNuevaItem?.nombre || ''} onChange={setEditNuevaItem} items={editItems}
+                placeholder="Buscar pieza…" onCrear={nombre => { setMsgEdit(''); setEditCrear({ nombre: normalizarNombrePieza(nombre), peso: '' }) }} />
+              {editCrear && (
+                <div className="rounded-lg border border-feisen-azul/40 bg-white p-3 space-y-2">
+                  <p className="text-sm font-medium text-feisen-texto">Crear pieza nueva</p>
+                  <input type="text" value={editCrear.nombre} aria-label="Nombre de la pieza nueva"
+                    onChange={e => setEditCrear(c => ({ ...c, nombre: e.target.value.toUpperCase() }))} className={claseInput} />
+                  <input type="text" inputMode="decimal" value={editCrear.peso} placeholder="Peso de una pieza en kg (opcional)"
+                    aria-label="Peso de una pieza en kg" onChange={e => setEditCrear(c => ({ ...c, peso: e.target.value }))}
+                    className={`${claseInput} tabular-nums`} />
+                  <p className="text-xs text-feisen-texto-2">Queda en Fundición › Material fundido hierro. Si no sabes el peso, se pide en la Recogida.</p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditCrear(null)} disabled={editCreando}
+                      className="flex-1 border border-feisen-borde rounded-lg min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">Cancelar</button>
+                    <button type="button" onClick={crearEnEdicion} disabled={editCreando}
+                      className="flex-1 bg-feisen-azul text-white rounded-lg min-h-[44px] text-sm font-semibold disabled:opacity-60">
+                      {editCreando ? 'Creando…' : 'Crear pieza'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input type="number" inputMode="numeric" min="1" value={editNuevaCant} placeholder="Cantidad"
+                  aria-label="Cantidad de la pieza a agregar" onChange={e => setEditNuevaCant(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && agregarEnEdicion(editNuevaItem, editNuevaCant)}
+                  className={`${claseInput} tabular-nums`} />
+                <button type="button" onClick={() => agregarEnEdicion(editNuevaItem, editNuevaCant)}
+                  className="shrink-0 inline-flex items-center gap-1.5 border border-feisen-azul text-feisen-azul bg-white rounded-lg px-4 min-h-[44px] text-sm font-semibold hover:bg-feisen-azul-suave">
+                  <Plus size={16} /> Agregar
+                </button>
+              </div>
+            </div>
+
             {editForm.piezas.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-feisen-texto-2 mb-1">Piezas · {editForm.piezas.length}</p>
+                <p className="text-xs font-medium text-feisen-texto-2 mb-1">
+                  Piezas · {editForm.piezas.filter(p => !p.quitar).length}
+                  {editForm.piezas.some(p => p.quitar) && <span className="text-feisen-rojo"> · {editForm.piezas.filter(p => p.quitar).length} por quitar</span>}
+                </p>
                 <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
-                  {editForm.piezas.map((p, idx) => (
-                    <li key={p.id} className="py-3 space-y-2">
-                      <p className="text-sm font-medium text-feisen-texto break-words">{p.nombre}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-2 sm:items-end">
-                        <div>
-                          <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Cantidad planeada</span>
-                          <Contador valor={p.cantidad_planeada} onCambiar={v => setPieza(idx, 'cantidad_planeada', v)}
-                            etiqueta={`Cantidad planeada de ${p.nombre}`} />
+                  {editForm.piezas.map(p => (
+                    <li key={p.clave} className={`py-3 space-y-2 ${p.quitar ? 'opacity-60' : ''}`}>
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium break-words ${p.quitar ? 'line-through text-feisen-texto-2' : 'text-feisen-texto'}`}>{p.nombre}</p>
+                          <p className="text-xs mt-0.5">
+                            {!p.id && <span className="text-feisen-azul font-medium">Nueva en esta orden</span>}
+                            {p.id && p.moldeado > 0 && <span className="text-feisen-texto-2">{p.moldeado} ya moldeadas · no se puede quitar</span>}
+                            {p.quitar && <span className="text-feisen-rojo font-medium">Se quitará al guardar</span>}
+                          </p>
                         </div>
-                        <label className="block">
-                          <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Moldeador asignado</span>
-                          <input type="text" value={p.asignado_a}
-                            onChange={e => setPieza(idx, 'asignado_a', e.target.value)}
-                            placeholder="Nombre del moldeador" className={claseInput} />
-                        </label>
+                        {p.moldeado > 0 ? null : (
+                          <button type="button" onClick={() => quitarEnEdicion(p)}
+                            aria-label={p.quitar ? `No quitar ${p.nombre}` : `Quitar ${p.nombre}`}
+                            className={`shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 min-h-[40px] text-sm font-medium ${p.quitar ? 'text-feisen-azul hover:bg-feisen-azul-suave' : 'text-feisen-rojo hover:bg-feisen-rojo-suave'}`}>
+                            {p.quitar ? <><RotateCcw size={15} /> Deshacer</> : <><Trash2 size={15} /> Quitar</>}
+                          </button>
+                        )}
                       </div>
+                      {!p.quitar && (
+                        <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-2 sm:items-end">
+                          <div>
+                            <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Cantidad planeada{p.moldeado > 0 ? ` (mín. ${p.moldeado})` : ''}</span>
+                            <Contador valor={p.cantidad_planeada} min={p.moldeado || 0} onCambiar={v => setPieza(p.clave, 'cantidad_planeada', v)}
+                              etiqueta={`Cantidad planeada de ${p.nombre}`} />
+                          </div>
+                          <label className="block">
+                            <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Moldeador asignado</span>
+                            <input type="text" value={p.asignado_a}
+                              onChange={e => setPieza(p.clave, 'asignado_a', e.target.value)}
+                              placeholder="Nombre del moldeador" className={claseInput} />
+                          </label>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
+            {msgEdit && (
+              <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-3 py-2.5 text-sm">
+                <AlertTriangle size={16} className="shrink-0 mt-px" /> {msgEdit}
+              </div>
+            )}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={() => setEditModal(null)}
                 className="flex-1 border border-feisen-borde rounded-lg min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">

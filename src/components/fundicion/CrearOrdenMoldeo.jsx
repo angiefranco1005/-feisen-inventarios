@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { BODEGA_FUNDICION_ID, CAT_FUNDIDO_HIERRO_ID } from '../../utils/bodegasCatalogo'
-import { coincideBusqueda, sinTildes } from '../../utils/busqueda'
+import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
+import { coincideBusqueda } from '../../utils/busqueda'
+import { crearPiezaFundicion } from '../../utils/piezasFundicion'
 import {
   CheckCircle2, Plus, Trash2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Check,
   Search, AlertTriangle, RefreshCw, Factory, Package, FileDown, Upload, X,
@@ -75,7 +76,7 @@ function Stepper({ paso, onBack }) {
 
 // ── Selector de pieza desde inventario ───────────────────────────────────────
 // Busca por palabras sueltas sin importar tildes ("polea 8" encuentra "POLEA 8 X 2B")
-function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [], onCrear }) {
+export function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [], onCrear }) {
   const [busqueda, setBusqueda] = useState(value || '')
   const [abierto,  setAbierto]  = useState(false)
 
@@ -332,35 +333,10 @@ export default function CrearOrdenMoldeo() {
   // plantilla), y lo agrega a la orden. Si ya existe con ese nombre (aunque esté inactivo o lo haya
   // creado un intento anterior que falló a medias), no lo duplica: usa el existente.
   async function crearPieza() {
-    const nombre = (nueva?.nombre || '').trim().replace(/\s+/g, ' ').toUpperCase()
-    const peso   = Number(String(nueva?.peso || '').replace(',', '.'))
-    const cant   = Number(nueva?.cantidad) || 0
-    if (!nombre)            { setErrorNueva('Escribe el nombre de la pieza.'); return }
-    if (String(nueva?.peso || '').trim() && !(peso > 0)) { setErrorNueva('El peso debe ser un número mayor que cero, o déjalo vacío.'); return }
-    if (!fundBodegaId)      { setErrorNueva('No se encontró la bodega Fundición. Recarga la página.'); return }
+    const cant = Number(nueva?.cantidad) || 0
     setCreandoPieza(true); setErrorNueva('')
     try {
-      const { data: mismos, error: eBus } = await supabase.from('items')
-        .select('id, nombre, peso_unitario, activo, categoria_id').eq('bodega_id', fundBodegaId).ilike('nombre', nombre)
-      if (eBus) throw eBus
-      const clave = sinTildes(nombre)
-      let item = (mismos || []).find(i => sinTildes(i.nombre) === clave)
-        || allItems.find(i => sinTildes(i.nombre) === clave)
-      if (item && item.activo === false) {
-        setErrorNueva(`Ya existe "${item.nombre}" pero está inactivo. Pide en Inventario › Productos que lo activen.`); return
-      }
-      if (!item) {
-        const { data: creado, error: eIns } = await supabase.from('items').insert({
-          nombre, bodega_id: fundBodegaId, categoria_id: CAT_FUNDIDO_HIERRO_ID, centro_costo: 'FUNDICIÓN',
-          unidad_medida: 'unidad', peso_unitario: peso > 0 ? peso : null, stock_minimo: 0, stock_maximo: 0,
-          updated_at: new Date().toISOString(),
-        }).select('id, nombre, peso_unitario').single()
-        if (eIns) throw eIns
-        item = creado
-        await supabase.from('stock').upsert(
-          { item_id: item.id, bodega_id: fundBodegaId, cantidad_actual: 0 }, { onConflict: 'item_id,bodega_id' })
-      }
-      const it = { id: item.id, nombre: item.nombre, peso_unitario: Number(item.peso_unitario) || 0 }
+      const it = await crearPiezaFundicion({ nombre: nueva?.nombre, peso: nueva?.peso, bodegaId: fundBodegaId, conocidos: allItems })
       setAllItems(prev => prev.some(i => i.id === it.id) ? prev
         : [...prev, it].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
       if (piezas.some(p => p.item_id === it.id)) {
@@ -376,7 +352,7 @@ export default function CrearOrdenMoldeo() {
       }
       setNueva(null); setError('')
     } catch (e) {
-      setErrorNueva('No se pudo crear la pieza: ' + (e.message || e) + '. Lo que llevas de la orden sigue aquí; intenta de nuevo.')
+      setErrorNueva((e.message || String(e)) + ' Lo que llevas de la orden sigue aquí.')
     } finally {
       setCreandoPieza(false)
     }
