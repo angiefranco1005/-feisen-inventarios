@@ -2857,6 +2857,17 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   tiene; mismo moldeador aunque cambien mayúsculas/tildes; "Sin moldeador" al final). Solo filtra lo que se ve: lo
   escrito en piezas de otros moldeadores también se guarda, y se avisa en azul cuántas hay. Además, buscador de piezas
   ("Buscar pieza…", por nombre de pieza o moldeador, sin tildes) que se combina con el filtro. Probado en la demo.
+- **26/11 · Arena obligatoria y corregir un avance por fecha.** (1) "Registrar avance del día" no guarda piezas sin
+  los kg de arena (si hay arenas en el catálogo). (2) En la orden (pendiente), pestaña Historial, cada día tiene
+  "Corregir": muestra las piezas y la arena de ese día ("antes N") para cambiarlas. Piezas: se borran los avances de
+  esa pieza y fecha y se inserta el nuevo valor (RLS de `ordenes_moldeo_avances` ya permite update/delete). Arena: la
+  reversión de movimientos es solo ADMIN (`movimientos_update`), así que se ajusta la DIFERENCIA con un movimiento de
+  la misma referencia ORD-MOL y fecha del avance, motivo "Corrección consumo arena moldeo del dd/mm/aaaa": salida si
+  sube (revisa stock), entrada (devolución a Fundición) si baja. El consumo de arena de la orden ahora es neto
+  (salidas − entradas de esa referencia). También obligatoria la arena si quedan piezas en el día. Reintento seguro
+  (lo ya guardado actualiza la base del formulario). Ningún otro reporte lee el consumo de arena. Probado en la demo:
+  bloqueo sin arena, corregir pieza + subir arena a 25 (salida), bajar a 10 (entrada de 15, neto 10). El mock no borra
+  de verdad, así que en la demo la pieza corregida aparece repetida.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 
@@ -2885,3 +2896,44 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   - En `ModalDetalleOF.jsx` (lista y calendario), en el bloque de envío. Ese bloque lo ocultan los jefes de área, así que ellos no ven el flete.
   - Despachos (VistaLogistica) no lo muestra.
 - Probado por impersonación de un COMERCIAL: crea, edita y lee el valor; un valor negativo se rechaza. Se usó número fijo -901 y rollback, sin gastar la secuencia.
+
+## 2026-11-26 · Ventas › Consecutivos de equipos (reemplaza el Excel «CONSECUTIVO EQUIPOS»)
+
+- **Pedido de Angie:** saber cuándo, con qué factura y a qué cliente se despachó cada consecutivo de equipo, leyéndolo de Odoo Feisen y FC. Eligió la opción A: una tabla por tipo de equipo, como el Excel.
+- **Cómo escriben los consecutivos los asesores:** en la nota de la cotización o factura de Odoo.
+  - Formato: «OF-0553 · REF 25753/ 4677, 4682/ 2158/ 25764». Hay un grupo por producto, separado con «/», en el orden de las líneas.
+  - «REF MOTOR SN …» son seriales de motor, no consecutivos.
+  - Nombres de documento: Feisen = CF6351 (cotización COT/2026/00999); FC = CF/2026/00791, con cinco cifras (cotización S01408).
+- **Tablas** (migración `2026-11-26_consecutivos_equipos.sql`, aplicada con el OK de Angie):
+  - `equipos_consecutivos`: tipo, consecutivo, fecha, OF, cliente, capacidad, documento, empresa, origen excel/odoo, odoo_ref. Única por (tipo, consecutivo, documento).
+  - `equipos_consecutivos_avisos`.
+  - RLS de solo lectura con `consecutivos_puede_ver()` (ADMIN, o nivel Registra/Todo en OF).
+  - No se escribe directo en las tablas: solo con `consecutivos_importar_excel` (ADMIN) y `consecutivos_cargar_odoo` (service_role).
+  - `consecutivos_resumen()` da los conteos por pestaña. `consecutivos_rangos()` da el rango reciente de cada tipo.
+- **Función `consecutivos-odoo`** (`supabase/functions/consecutivos-odoo/`): solo lee Odoo.
+  - Recorre las facturas publicadas que no están reversadas, más las cotizaciones confirmadas sin factura.
+  - **pg_cron `consecutivos-odoo-auto`:** a los 7 minutos de cada hora, últimos 60 días, con el token de Vault `ventas_odoo_cron`.
+  - **Botón «Actualizar desde Odoo»:** cualquiera que vea la pantalla lo puede usar. ADMIN puede pedir más días.
+  - **Con el token:** `accion: 'simular'` no guarda y devuelve un diagnóstico.
+- **Lector de la nota:** `leerNota.js`, JavaScript puro, se prueba con node.
+  - Producto → tipo de equipo, solo si el nombre empieza por el equipo; así «POLEA MEZCLADORA» no cuenta.
+  - Canastilla, gancho o balde «de pluma» son accesorios sin consecutivo.
+  - «ANDAMIO - COLGANTE» se reparte entre gancho y canastilla. Acepta etiquetas «REF GANCHOS: … REF CANASTA: …» y el andamio escrito en un solo grupo.
+  - Toma solo números sueltos de 1 a 6 cifras; corta en COLOR / OC / OF / MOTOR / NOTA.
+  - Si la nota no viene en el orden de la factura, corrige por rangos: un número fuera del rango de su tipo pasa al otro equipo de la misma factura que sí lo contiene.
+  - Lo que no se puede ubicar queda como tipo `revisar`.
+  - **Avisos** (solo facturas de los últimos 60 días): sin consecutivo, faltan N, revisar número, REF sin equipo (mantenimiento o servicio).
+- **Excel:** botón «Importar Excel», solo ADMIN. Lo lee el navegador con `leerExcelConsecutivos.js`.
+  - Lee 12 hojas; no lee MOTOR (los motores están en Motores por serial) ni MANTENIMIENTO.
+  - Solo toma las filas con cliente.
+  - Normaliza el documento (CF/2026/791 → CF/2026/00791), la empresa (por el formato del documento) y la capacidad («MEZ 1 1/2» → «1 1/2 B»).
+  - Fechas día/mes; un año imposible queda sin fecha.
+  - Al terminar, la pantalla relee 900 días de Odoo.
+  - En choque Odoo–Excel manda Odoo, y la fila queda «confirmada en Odoo» (odoo_ref).
+  - Prueba con el archivo del 26/11/2026: 14.087 filas.
+- **Pantalla:** `src/components/of/consecutivos/Consecutivos.jsx`, ruta `/of/consecutivos`, en el menú de Ventas («Consecutivos», nivel Registra).
+  - Pestañas por tipo, buscador en todos los tipos, filtro por empresa, descarga a Excel.
+  - Huecos de numeración en una fila ámbar; consecutivos «Repetido» en rojo; pestaña «Por revisar».
+- **Prueba sin guardar** (13 meses): Feisen 809 facturas / 835 consecutivos; FC 971 / 1.274.
+  - Las facturas FV-55xx de Feisen vienen de SIIGO, sin notas: no generan avisos porque son de más de 60 días.
+- **Pendiente:** que Angie importe el Excel desde la pantalla. Se hace con su usuario de administración; Claude no entra con claves.

@@ -40,6 +40,9 @@ async function generarNumSalida(perfil) {
 // Su consumo se anota en el avance del día y sale del stock como consumo (sin bodega destino),
 // con referencia ORD-MOL-xxxx y la fecha del avance.
 const MOTIVO_ARENA = 'Consumo arena moldeo'
+// Corregir un avance ya guardado: la arena no se revierte (solo ADMIN puede), se ajusta la diferencia con
+// otro movimiento de la misma referencia y fecha: salida si se gastó más, entrada (devolución) si menos.
+const MOTIVO_ARENA_CORR = 'Corrección consumo arena moldeo'
 const num = n => Number(n || 0).toLocaleString('es-CO')
 
 // Días que lleva abierta una orden (desde su fecha hasta hoy en Colombia)
@@ -165,6 +168,10 @@ export default function ListaOrdenesMoldeo() {
 
   // Panel avance diario
   const [panelAvance,  setPanelAvance]  = useState({})
+  // Corregir el avance de un día ya guardado: { ordenId, fecha, piezas:{id:str}, arenas:{id:str}, basePiezas, baseArenas }
+  const [corr,         setCorr]         = useState(null)
+  const [guardandoCorr, setGuardandoCorr] = useState(false)
+  const [errorCorr,    setErrorCorr]    = useState('')
   const [filtroMold,   setFiltroMold]   = useState({})  // { [ordenId]: clave del moldeador | '' (todos) } en el avance del día
   const [buscaAv,      setBuscaAv]      = useState({})  // { [ordenId]: texto } buscador de piezas en el avance del día
   const [avanceHoy,    setAvanceHoy]    = useState({})  // { [ordenId]: { [piezaId]: string } }
@@ -263,8 +270,8 @@ export default function ListaOrdenesMoldeo() {
         : { data: [] },
       arenaIds.length > 0
         ? supabase.from('movimientos')
-            .select('item_id, cantidad, fecha_movimiento')
-            .eq('referencia', numOrden(orden.numero)).eq('tipo', 'salida').eq('revertido', false)
+            .select('item_id, cantidad, fecha_movimiento, tipo')
+            .eq('referencia', numOrden(orden.numero)).in('tipo', ['salida', 'entrada']).eq('revertido', false)
             .in('item_id', arenaIds)
         : { data: [] },
     ])
@@ -280,11 +287,12 @@ export default function ListaOrdenesMoldeo() {
 
     setAvancesData(prev => ({ ...prev, [orden.id]: avMap }))
     setStockData(prev => ({ ...prev, [orden.id]: stMap }))
-    setArenaData(prev => ({ ...prev, [orden.id]: (arData || []).map(m => ({ item_id: m.item_id, fecha: m.fecha_movimiento, cantidad: Number(m.cantidad || 0) })) }))
+    setArenaData(prev => ({ ...prev, [orden.id]: (arData || []).map(m => ({ item_id: m.item_id, fecha: m.fecha_movimiento, cantidad: (m.tipo === 'entrada' ? -1 : 1) * Number(m.cantidad || 0) })) }))
   }
 
   async function toggle(orden) {
     const id = orden.id
+    setCorr(null)
     if (expandido === id) { setExpandido(null); return }
     setExpandido(id)
     if (!avancesData[id]) await cargarAvancesYStock(orden, fundBodegaId)
@@ -316,6 +324,11 @@ export default function ListaOrdenesMoldeo() {
 
     if (rows.length === 0 && filasArena.length === 0) {
       setErrorAv(prev => ({ ...prev, [orden.id]: 'Ingresa al menos una cantidad de piezas o los kg de arena usados.' }))
+      return
+    }
+    // La arena es obligatoria con el avance de piezas, para que no se quede sin diligenciar
+    if (rows.length > 0 && filasArena.length === 0 && !arenaYaGuardada[orden.id] && arenas.length > 0) {
+      setErrorAv(prev => ({ ...prev, [orden.id]: 'Escribe los kg de arena usados ese día: es obligatorio al registrar el avance de piezas.' }))
       return
     }
     if (arenas.some(a => decimal(getArena(orden.id, a.id)) < 0)) {
@@ -384,6 +397,104 @@ export default function ListaOrdenesMoldeo() {
         (arenaOk ? '. La arena ya quedó descontada: al reintentar solo se guardan las piezas.' : '') }))
     } finally {
       setGuardandoAv(null)
+    }
+  }
+
+  // ── Corregir el avance de un día ─────────────────────────────────────────────
+  function abrirCorreccion(orden, fecha) {
+    const avOrden = avancesData[orden.id] || {}
+    const basePiezas = {}
+    for (const p of (orden.ordenes_moldeo_piezas || [])) {
+      basePiezas[p.id] = (avOrden[p.id]?.dias || []).filter(d => d.fecha === fecha).reduce((s, d) => s + Number(d.cantidad || 0), 0)
+    }
+    const baseArenas = {}
+    for (const m of (arenaData[orden.id] || [])) if (m.fecha === fecha) baseArenas[m.item_id] = (baseArenas[m.item_id] || 0) + m.cantidad
+    const txt = n => (n > 0 ? String(Math.round(n * 1000) / 1000) : '')
+    setErrorCorr('')
+    setCorr({
+      ordenId: orden.id, fecha, basePiezas, baseArenas,
+      piezas: Object.fromEntries(Object.entries(basePiezas).map(([k, v]) => [k, txt(v)])),
+      arenas: Object.fromEntries(arenas.map(a => [a.id, txt(baseArenas[a.id] || 0)])),
+    })
+  }
+
+  async function guardarCorreccion(orden) {
+    if (!corr) return
+    setErrorCorr('')
+    const fecha = corr.fecha
+    const nuevasP = Object.fromEntries(Object.keys(corr.basePiezas).map(id => [id, Number(corr.piezas[id] || 0)]))
+    const nuevasA = Object.fromEntries(arenas.map(a => [a.id, decimal(corr.arenas[a.id])]))
+    if (Object.values(nuevasP).some(v => v < 0 || !Number.isFinite(v)) || Object.values(nuevasA).some(v => v < 0)) {
+      setErrorCorr('Las cantidades no pueden ser negativas.'); return
+    }
+    const totalP = Object.values(nuevasP).reduce((s, v) => s + v, 0)
+    const totalA = Object.values(nuevasA).reduce((s, v) => s + v, 0)
+    if (totalP > 0 && totalA <= 0 && arenas.length > 0) {
+      setErrorCorr('Escribe los kg de arena usados ese día: es obligatorio cuando hay piezas moldeadas.'); return
+    }
+    const deltasA = arenas
+      .map(a => ({ arena: a, delta: Math.round((nuevasA[a.id] - (corr.baseArenas[a.id] || 0)) * 1000) / 1000 }))
+      .filter(d => d.delta !== 0)
+    const cambiosP = Object.keys(nuevasP).filter(id => nuevasP[id] !== (corr.basePiezas[id] || 0))
+    if (!deltasA.length && !cambiosP.length) { setCorr(null); return }
+
+    setGuardandoCorr(true)
+    try {
+      // 1. Arena: solo la diferencia. Si sube, revisar que alcance el stock.
+      if (deltasA.length) {
+        const suben = deltasA.filter(d => d.delta > 0)
+        if (suben.length) {
+          const { data: st, error: errSt } = await supabase.from('stock')
+            .select('item_id, cantidad_actual').in('item_id', suben.map(d => d.arena.id)).eq('bodega_id', BODEGA_FUNDICION_ID)
+          if (errSt) throw errSt
+          const faltan = suben.filter(d => Number(st?.find(x => x.item_id === d.arena.id)?.cantidad_actual ?? 0) < d.delta)
+          if (faltan.length) {
+            setErrorCorr('No hay suficiente arena en la bodega Fundición para el aumento: ' + faltan.map(d =>
+              `${d.arena.nombre} (faltan ${kg(d.delta)} kg más, hay ${kg(st?.find(x => x.item_id === d.arena.id)?.cantidad_actual)} kg)`).join('; ') + '.')
+            return
+          }
+        }
+        const numSal = await generarNumSalida(perfil)
+        const cc     = await nombreBodega(BODEGA_FUNDICION_ID, 'FUNDICIÓN')
+        const { error: errAr } = await supabase.from('movimientos').insert(deltasA.map(d => ({
+          numero:                numSal,
+          tipo:                  d.delta > 0 ? 'salida' : 'entrada',
+          item_id:               d.arena.id,
+          bodega_origen_id:      d.delta > 0 ? BODEGA_FUNDICION_ID : null,
+          bodega_destino_id:     d.delta > 0 ? null : BODEGA_FUNDICION_ID,
+          cantidad:              Math.abs(d.delta),
+          precio_costo_snapshot: d.arena.precio_costo || 0,
+          centro_costo:          cc,
+          usuario_id:            perfil.id,
+          referencia:            numOrden(orden.numero),
+          fecha_movimiento:      fecha,
+          motivo:                `${MOTIVO_ARENA_CORR} del ${fmtFecha(fecha)}`,
+          foto_remision_url: null, destino: null,
+          numero_of: null, serial_motor: null, cliente: null, proveedor: null,
+        })))
+        if (errAr) throw errAr
+        // Ya quedó: si algo falla después y se reintenta, no se vuelve a mover la arena
+        setCorr(c => c && ({ ...c, baseArenas: { ...c.baseArenas, ...Object.fromEntries(deltasA.map(d => [d.arena.id, nuevasA[d.arena.id]])) } }))
+      }
+      // 2. Piezas: el avance de ese día para cada pieza cambiada se reemplaza por el nuevo valor
+      for (const id of cambiosP) {
+        const { error: eDel } = await supabase.from('ordenes_moldeo_avances').delete().eq('orden_pieza_id', id).eq('fecha', fecha)
+        if (eDel) throw eDel
+        if (nuevasP[id] > 0) {
+          const { error: eIns } = await supabase.from('ordenes_moldeo_avances').insert({
+            orden_pieza_id: id, fecha, cantidad_moldeada: nuevasP[id], registrado_por_id: perfil?.id || null,
+          })
+          if (eIns) throw eIns
+        }
+        setCorr(c => c && ({ ...c, basePiezas: { ...c.basePiezas, [id]: nuevasP[id] } }))
+      }
+      setCorr(null)
+      await Promise.all([cargarAvancesYStock(orden, fundBodegaId), cargarArenas()])
+      avisar(`Avance del ${fmtFecha(fecha)} corregido en ${numOrden(orden.numero)}`)
+    } catch (e) {
+      setErrorCorr('No se guardó todo: ' + (e.message || String(e)) + '. Lo que ya quedó no se repite al reintentar.')
+    } finally {
+      setGuardandoCorr(false)
     }
   }
 
@@ -947,8 +1058,14 @@ export default function ListaOrdenesMoldeo() {
     const arenaPorFecha = {}
     consArena.forEach(m => {
       arenaPorItem[m.item_id] = (arenaPorItem[m.item_id] || 0) + m.cantidad
-      ;(arenaPorFecha[m.fecha] ||= []).push(m)
+      const dia = (arenaPorFecha[m.fecha] ||= [])
+      const ya = dia.find(x => x.item_id === m.item_id)   // neto del día por arena (consumo − correcciones)
+      if (ya) ya.cantidad += m.cantidad; else dia.push({ ...m })
     })
+    for (const f of Object.keys(arenaPorFecha)) {
+      arenaPorFecha[f] = arenaPorFecha[f].filter(x => Math.abs(x.cantidad) > 0.0001)
+      if (!arenaPorFecha[f].length) delete arenaPorFecha[f]
+    }
     const fechasHistorial = [...new Set([...r.fechasDesc, ...Object.keys(arenaPorFecha)])].sort((a, b) => b.localeCompare(a))
     const resumenArena = totalArena > 0 && (
       <p className="text-xs text-feisen-texto-2 tabular-nums">
@@ -980,7 +1097,7 @@ export default function ListaOrdenesMoldeo() {
     )
 
     return (
-      <PanelLateral etiqueta={`Detalle de ${numOrden(orden.numero)}`} onCerrar={() => setExpandido(null)} encabezado={encabezado}>
+      <PanelLateral etiqueta={`Detalle de ${numOrden(orden.numero)}`} onCerrar={() => { setExpandido(null); setCorr(null) }} encabezado={encabezado}>
         {maquinas.length > 0 && (
           <section>
             <h4 className={`${claseEtiqueta} mb-1.5`}>Máquinas</h4>
@@ -1123,11 +1240,67 @@ export default function ListaOrdenesMoldeo() {
                     const entradas = r.historialPorFecha[fecha] || []
                     const arenaDia = arenaPorFecha[fecha] || []
                     const totalDia = entradas.reduce((s, e) => s + e.cantidad, 0)
+                    const editando = corr?.ordenId === orden.id && corr.fecha === fecha
+                    if (editando) return (
+                      <section key={fecha} className="rounded-xl border border-feisen-azul/40 p-3 space-y-3">
+                        <h4 className="flex items-center gap-1.5 text-sm font-semibold text-feisen-texto"><Pencil size={14} /> Corregir avance del {fmtFecha(fecha)}</h4>
+                        <p className="text-xs text-feisen-texto-2">Cambia lo que se moldeó y la arena gastada ese día. Pon 0 si no hubo.</p>
+                        <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
+                          {piezas.map(p => (
+                            <li key={p.id} className="flex items-center gap-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-feisen-texto break-words">{p.items?.nombre}</p>
+                                <p className="text-xs text-feisen-texto-2">{p.asignado_a || 'Sin moldeador'}{(corr.basePiezas[p.id] || 0) > 0 ? ` · antes ${num(corr.basePiezas[p.id])}` : ''}</p>
+                              </div>
+                              <Contador valor={corr.piezas[p.id] ?? ''} onCambiar={v => setCorr(c => ({ ...c, piezas: { ...c.piezas, [p.id]: v } }))}
+                                etiqueta={`Moldeadas el ${fmtFecha(fecha)} de ${p.items?.nombre || 'la pieza'}`} ancho="w-14" />
+                            </li>
+                          ))}
+                          {arenas.map(a => (
+                            <li key={a.id} className="flex items-center gap-3 py-2">
+                              <label htmlFor={`corr-ar-${a.id}`} className="flex-1 min-w-0">
+                                <span className="block text-sm text-feisen-texto break-words">{a.nombre}</span>
+                                <span className="block text-xs text-feisen-texto-2">Arena usada{(corr.baseArenas[a.id] || 0) > 0 ? ` · antes ${kg(corr.baseArenas[a.id])} kg` : ''}</span>
+                              </label>
+                              <div className="relative w-28 shrink-0">
+                                <input id={`corr-ar-${a.id}`} inputMode="decimal" value={corr.arenas[a.id] ?? ''} placeholder="0"
+                                  onChange={e => { const v = e.target.value.replace(/[^0-9.,]/g, ''); setCorr(c => ({ ...c, arenas: { ...c.arenas, [a.id]: v } })) }}
+                                  onFocus={e => e.target.select()}
+                                  className={`${claseInput} pr-9 text-right tabular-nums font-semibold`} />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">kg</span>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                        {errorCorr && (
+                          <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo text-sm rounded-lg px-3 py-2.5">
+                            <AlertTriangle size={16} className="shrink-0 mt-px" /> {errorCorr}
+                          </div>
+                        )}
+                        <p className="text-xs text-feisen-texto-2">Si cambias la arena, solo se mueve la diferencia en la bodega Fundición (sale si sube, vuelve si baja).</p>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setCorr(null)} disabled={guardandoCorr}
+                            className="border border-feisen-borde rounded-lg px-4 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">Cancelar</button>
+                          <button type="button" onClick={() => guardarCorreccion(orden)} disabled={guardandoCorr}
+                            className="flex-1 bg-feisen-azul text-white rounded-lg min-h-[44px] text-sm font-semibold disabled:opacity-60">
+                            {guardandoCorr ? 'Guardando…' : 'Guardar corrección'}
+                          </button>
+                        </div>
+                      </section>
+                    )
                     return (
                       <section key={fecha}>
-                        <h4 className="flex items-center justify-between text-xs font-semibold text-feisen-texto-2 mb-1">
+                        <h4 className="flex items-center justify-between gap-2 text-xs font-semibold text-feisen-texto-2 mb-1">
                           <span className="inline-flex items-center gap-1.5"><Calendar size={13} /> {fmtFecha(fecha)}</span>
-                          <span className="font-normal tabular-nums">{num(totalDia)} moldeadas</span>
+                          <span className="inline-flex items-center gap-2">
+                            <span className="font-normal tabular-nums">{num(totalDia)} moldeadas</span>
+                            {!completada && !cancelada && !corr && (
+                              <button type="button" onClick={() => abrirCorreccion(orden, fecha)}
+                                className="inline-flex items-center gap-1 rounded-md px-2 min-h-[32px] text-feisen-azul font-semibold hover:bg-feisen-azul-suave">
+                                <Pencil size={12} /> Corregir
+                              </button>
+                            )}
+                          </span>
                         </h4>
                         <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
                           {entradas.map((e, i) => (
