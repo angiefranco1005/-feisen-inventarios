@@ -364,6 +364,22 @@ export default function CrearOrdenMoldeo() {
   function actualizarPieza(clave, campo, val) {
     setPiezas(prev => prev.map(p => claveDe(p) === clave ? { ...p, [campo]: val } : p))
   }
+  // Repartir una pieza entre dos moldeadores: la línea se parte en dos (mitad y mitad) justo debajo;
+  // luego se ajustan las cantidades y se escribe el moldeador de la nueva. Cada línea lleva su avance.
+  function repartirPieza(clave) {
+    setPiezas(prev => {
+      const out = []
+      for (const p of prev) {
+        out.push(p)
+        if (claveDe(p) !== clave) continue
+        const total = Number(p.cantidad_planeada) || 0
+        if (total < 2) continue
+        out[out.length - 1] = { ...p, clave: claveDe(p), cantidad_planeada: Math.ceil(total / 2) }
+        out.push({ ...p, clave: `${p.item_id}|r${Date.now()}`, cantidad_planeada: Math.floor(total / 2), asignado_a: '', repartida: true })
+      }
+      return out
+    })
+  }
   function quitarPieza(clave) {
     setPiezas(prev => prev.filter(p => claveDe(p) !== clave))
   }
@@ -758,6 +774,12 @@ export default function CrearOrdenMoldeo() {
                             onChange={v => actualizarPieza(claveDe(p), 'asignado_a', v)}
                             placeholder="Moldeador" etiqueta={`Moldeador de ${p.nombre}`} storageKey="feisen_moldeadores" />
                         </div>
+                        {cant >= 2 && (
+                          <button type="button" onClick={() => repartirPieza(claveDe(p))}
+                            className="mt-1 text-xs font-medium text-feisen-azul hover:underline min-h-[32px]">
+                            Repartir con otro moldeador
+                          </button>
+                        )}
                       </li>
                     )
                   })}

@@ -195,6 +195,7 @@ export default function ListaOrdenesMoldeo() {
   const [editCrear,         setEditCrear]         = useState(null)  // { nombre, peso } pieza nueva que no existe
   const [editCreando,       setEditCreando]       = useState(false)
   const [editSelKey,        setEditSelKey]        = useState(0)     // reinicia el buscador al agregar
+  const [repartir,          setRepartir]          = useState(null)  // { clave, cantidad, moldeador } línea que se reparte
   // Filtro por estado (chips): 'todas' (sin canceladas, como antes) | 'pendiente' | 'completado' | 'cancelado'
   const [filtroEstado,      setFiltroEstado]      = useState('todas')
 
@@ -412,7 +413,7 @@ export default function ListaOrdenesMoldeo() {
         quitar: false,
       })),
     })
-    setMsgEdit(''); setEditNuevaItem(null); setEditNuevaCant(''); setEditCrear(null)
+    setMsgEdit(''); setEditNuevaItem(null); setEditNuevaCant(''); setEditCrear(null); setRepartir(null)
     setEditModal(orden)
     // Lo moldeado se consulta de nuevo (puede no estar cargado o haber cambiado)
     const ids = piezasOrden.map(p => p.id)
@@ -526,6 +527,35 @@ export default function ListaOrdenesMoldeo() {
       piezas: prev.piezas.map(p => p.clave === clave ? { ...p, [campo]: val } : p),
     }))
   }
+  // Repartir: parte de la cantidad de una línea pasa a otro moldeador (línea nueva de la misma pieza).
+  // También es la forma de cambiar de moldeador una pieza que ya tiene moldeadas: lo moldeado se queda
+  // a nombre de quien lo hizo y lo que falta pasa al nuevo.
+  function aplicarRepartir() {
+    const orig = editForm.piezas.find(p => p.clave === repartir?.clave)
+    if (!orig) { setRepartir(null); return }
+    const total = Number(orig.cantidad_planeada) || 0
+    const maximo = total - (orig.moldeado || 0)
+    const n = Number(repartir.cantidad) || 0
+    const quien = String(repartir.moldeador || '').trim()
+    if (!(n > 0) || n > maximo) { setMsgEdit(`"${orig.nombre}": puedes pasar entre 1 y ${maximo} piezas${orig.moldeado ? ` (ya hay ${orig.moldeado} moldeadas)` : ''}.`); return }
+    if (!quien) { setMsgEdit('Escribe a qué moldeador pasan las piezas.'); return }
+    setEditForm(prev => {
+      const piezas = []
+      for (const p of prev.piezas) {
+        if (p.clave !== orig.clave) { piezas.push(p); continue }
+        // Si pasa todo y la línea no tiene moldeadas, basta con cambiar el moldeador
+        if (n === total && !p.moldeado) { piezas.push({ ...p, asignado_a: quien }); continue }
+        piezas.push({ ...p, cantidad_planeada: String(total - n) })
+        piezas.push({
+          clave: 'nueva-' + Date.now(), id: null, item_id: p.item_id, nombre: p.nombre,
+          cantidad_planeada: String(n), asignado_a: quien, moldeado: 0, quitar: false, repartida: true,
+        })
+      }
+      return { ...prev, piezas }
+    })
+    setRepartir(null); setMsgEdit('')
+  }
+
   function quitarEnEdicion(p) {
     if (!p.id) { setEditForm(prev => ({ ...prev, piezas: prev.piezas.filter(x => x.clave !== p.clave) })); return }
     setPieza(p.clave, 'quitar', !p.quitar)
@@ -794,7 +824,7 @@ export default function ListaOrdenesMoldeo() {
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-medium break-words ${p.quitar ? 'line-through text-feisen-texto-2' : 'text-feisen-texto'}`}>{p.nombre}</p>
                           <p className="text-xs mt-0.5">
-                            {!p.id && <span className="text-feisen-azul font-medium">Nueva en esta orden</span>}
+                            {!p.id && <span className="text-feisen-azul font-medium">{p.repartida ? 'Repartida a otro moldeador' : 'Nueva en esta orden'}</span>}
                             {p.id && p.moldeado > 0 && <span className="text-feisen-texto-2">{p.moldeado} ya moldeadas · no se puede quitar</span>}
                             {p.quitar && <span className="text-feisen-rojo font-medium">Se quitará al guardar</span>}
                           </p>
@@ -818,9 +848,46 @@ export default function ListaOrdenesMoldeo() {
                             <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Moldeador asignado</span>
                             <input type="text" value={p.asignado_a}
                               onChange={e => setPieza(p.clave, 'asignado_a', e.target.value)}
-                              placeholder="Nombre del moldeador" className={claseInput} />
+                              readOnly={p.moldeado > 0 && perfil?.rol !== 'ADMIN'}
+                              placeholder="Nombre del moldeador" className={`${claseInput} read-only:bg-feisen-fondo read-only:text-feisen-texto-2`} />
                           </label>
                         </div>
+                      )}
+                      {!p.quitar && p.moldeado > 0 && (
+                        <p className="text-xs text-feisen-texto-2">
+                          Las {p.moldeado} moldeadas quedan a nombre de {p.asignado_a || 'quien las hizo'}. Para que otro moldeador siga con el resto, usa “Repartir”.
+                        </p>
+                      )}
+                      {!p.quitar && (Number(p.cantidad_planeada) || 0) - (p.moldeado || 0) > 0 && (
+                        repartir?.clave === p.clave ? (
+                          <div className="rounded-lg border border-feisen-azul/40 bg-feisen-azul-suave/40 p-3 space-y-2">
+                            <p className="text-sm font-medium text-feisen-texto">Pasar piezas a otro moldeador</p>
+                            <div className="flex gap-2">
+                              <input type="number" inputMode="numeric" min="1" value={repartir.cantidad}
+                                onChange={e => setRepartir(r => ({ ...r, cantidad: e.target.value }))}
+                                aria-label={`Cuántas piezas de ${p.nombre} pasan a otro moldeador`}
+                                className={`${claseInput} w-24 shrink-0 tabular-nums`} />
+                              <input type="text" value={repartir.moldeador} placeholder="Otro moldeador"
+                                onChange={e => setRepartir(r => ({ ...r, moldeador: e.target.value }))}
+                                aria-label="Moldeador que hará esas piezas" className={claseInput} />
+                            </div>
+                            <p className="text-xs text-feisen-texto-2">
+                              Máximo {(Number(p.cantidad_planeada) || 0) - (p.moldeado || 0)}. Quedan dos líneas de {p.nombre}, una por moldeador, cada una con su avance.
+                            </p>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setRepartir(null)}
+                                className="flex-1 border border-feisen-borde bg-white rounded-lg min-h-[40px] text-sm font-medium text-feisen-texto-2">Cancelar</button>
+                              <button type="button" onClick={aplicarRepartir}
+                                className="flex-1 bg-feisen-azul text-white rounded-lg min-h-[40px] text-sm font-semibold">Repartir</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button type="button"
+                            onClick={() => { setMsgEdit(''); setRepartir({ clave: p.clave, cantidad: String(Math.floor(((Number(p.cantidad_planeada) || 0) - (p.moldeado || 0)) / 2) || 1), moldeador: '' }) }}
+                            className="text-sm font-medium text-feisen-azul hover:underline min-h-[36px]">
+                            Repartir con otro moldeador
+                          </button>
+                        )
                       )}
                     </li>
                   ))}

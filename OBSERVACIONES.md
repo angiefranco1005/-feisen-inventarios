@@ -2838,6 +2838,15 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   `utils/piezasFundicion.js` (`crearPiezaFundicion`), que usan Nueva orden y Editar; `SelectorPieza` se exporta desde
   `CrearOrdenMoldeo.jsx`. RLS: JEFE_FUNDICION ya tenía insert/update/delete en `ordenes_moldeo_piezas`; no se tocó la
   base. Probado en la demo: quitar, deshacer, agregar existente, crear nueva, bloqueo bajo lo moldeado, guardar.
+- **26/11 · Repartir una pieza entre moldeadores / cambiar de moldeador** (ej. 20 piñones: 10 uno y 10 otro). Cada
+  moldeador va en su propia línea de la misma pieza, con su propio avance. Nueva orden: "Repartir con otro moldeador"
+  parte la línea en dos (mitad y mitad) para ajustar cantidades y moldeador. Editar orden: "Repartir con otro
+  moldeador" pide cuántas pasan (máximo = planeadas − moldeadas) y a quién; crea la línea nueva y baja la original.
+  **Cuidado:** el avance cuelga de la línea y la nómina toma el moldeador de la línea, así que cambiar el moldeador de
+  una línea con moldeadas le pasaría esos kg al nuevo. Por eso en Editar el moldeador de una línea con moldeadas
+  queda bloqueado (salvo ADMIN, para corregir un error) y el cambio se hace con Repartir. Si se pasa todo y la línea no
+  tiene moldeadas, solo cambia el moldeador. Probado en la demo (crear con reparto y guardar 4 líneas; editar
+  CHUMACERA 8 con 6 moldeadas → 6 Wilson + 2 Jhon, bloquea pasar más de 2).
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 
