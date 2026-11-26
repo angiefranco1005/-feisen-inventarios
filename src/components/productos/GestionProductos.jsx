@@ -12,7 +12,7 @@ import { exportarInventarioActual } from '../../utils/exportExcel'
 import { coincideBusqueda } from '../../utils/busqueda'
 import DetalleProducto, { ESTADOS, colorNivel } from './DetalleProducto'
 import ModalMinimosSugeridos from './ModalMinimosSugeridos'
-import { TALLAS_RAPIDAS, nombreConTalla } from '../rrhh/dotacion/dotacion'
+import { TALLAS_RAPIDAS, nombreConTalla, esCategoriaDotacion } from '../rrhh/dotacion/dotacion'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
@@ -778,7 +778,7 @@ export default function GestionProductos() {
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Bodega *</label>
                 <select required value={form.bodega_id}
-                  onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value, categoria_id: '' }))}
+                  onChange={e => setForm(f => ({ ...f, bodega_id: e.target.value, categoria_id: '', con_tallas: false }))}
                   className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white">
                   <option value="">Selecciona</option>
                   {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
@@ -786,7 +786,8 @@ export default function GestionProductos() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Categoría</label>
-                <select value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value }))}
+                <select value={form.categoria_id} onChange={e => setForm(f => ({ ...f, categoria_id: e.target.value,
+                    con_tallas: f.con_tallas && esCategoriaDotacion(categorias.find(c => c.id === e.target.value)?.nombre) }))}
                   className="w-full border border-feisen-borde rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white"
                   disabled={!form.bodega_id}>
                   <option value="">Sin categoría</option>
@@ -819,11 +820,12 @@ export default function GestionProductos() {
               </div>
             </div>
 
-            {!editando && (
+            {/* Tallas: solo para productos de la categoría Dotación */}
+            {!editando && esCategoriaDotacion(categorias.find(c => c.id === form.categoria_id)?.nombre) && (
               <div className="border border-feisen-borde rounded-xl px-4 py-3 space-y-2.5">
                 <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
                   <input type="checkbox" checked={form.con_tallas} onChange={e => setForm(f => ({ ...f, con_tallas: e.target.checked }))} className="w-4 h-4 accent-feisen-azul" />
-                  Este producto tiene tallas <span className="text-xs text-gray-400">(dotación: se crea un producto por talla)</span>
+                  Este producto tiene tallas <span className="text-xs text-gray-400">(se crea un producto por talla)</span>
                 </label>
                 {form.con_tallas && (
                   <>
