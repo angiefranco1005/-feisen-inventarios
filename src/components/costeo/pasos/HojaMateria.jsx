@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 import { formatCOP, formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
 import { falta, materialesDe } from './datosPasos'
+import { IndicadorObservaciones } from '../Observaciones'
 
 // Paso 3 · Materia prima con la pregunta "¿cuántas salen de una unidad?" (opción A; Angie, 2026-11-26).
 // El material se escoge del inventario (items, que se compran por unidad: lámina, ángulo, barra…).
@@ -60,6 +61,7 @@ export default function HojaMateria({ arbol, filas, corto, buscar, soloFalta, on
             <div style={{ paddingLeft: Math.min(f.nivel, 4) * 16 }}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <h3 className={`text-sm ${f.esConjunto ? 'font-semibold' : 'font-medium'} text-feisen-texto`}>{f.esConjunto ? `Ensamble · ${corto(f.ficha?.nombre)}` : corto(f.ficha?.nombre)}</h3>
+                <IndicadorObservaciones n={arbol.observaciones?.[f.fichaId]} />
                 {f.cant !== 1 && <span className="text-xs text-feisen-texto-2">× {formatNumber(f.cant, f.cant % 1 ? 2 : 0)}</span>}
                 {!f.esConjunto && !mats.length && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Sin material</span>}
                 <span className="flex-1" />

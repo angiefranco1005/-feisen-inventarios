@@ -11,6 +11,7 @@ import { indexar, Panel } from '../ArbolTab'
 import TraerFundicion from './TraerFundicion'
 import HojaRuta from './HojaRuta'
 import HojaMateria from './HojaMateria'
+import { IndicadorObservaciones } from '../Observaciones'
 import { PASOS, conteos, falta, filasDespiece, filasProcesos } from './datosPasos'
 
 // Costeo por pasos (opción B, estilo Airtable; Angie, 2026-11-25). Una pantalla por paso del costeo
@@ -311,6 +312,7 @@ function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onA
   const nombre = (f) => (
     <span className={f.esConjunto ? 'font-semibold text-feisen-texto' : 'text-feisen-texto'} style={{ paddingLeft: f.nivel * 18 }} title={f.ficha?.nombre}>
       {corto(f.ficha?.nombre)}
+      {arbol.observaciones?.[f.fichaId] > 0 && <> <IndicadorObservaciones n={arbol.observaciones[f.fichaId]} /></>}
     </span>
   )
   const cant = (f) => formatNumber(f.cant, f.cant % 1 ? 2 : 0)
