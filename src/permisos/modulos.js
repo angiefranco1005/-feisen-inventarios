@@ -70,7 +70,7 @@ export const MODULOS = [
   { clave: 'rrhh',           grupo: 'Administración', nombre: 'Recursos Humanos', detalle: 'colaboradores, nómina, novedades', niveles: ['todo'],
     rutas: ['/rrhh/empleados', '/rrhh/empleados/:id', '/rrhh/organigrama', '/rrhh/organigrama/:id', '/rrhh/novedades', '/rrhh/calendario',
       '/rrhh/nomina', '/rrhh/nomina/tarifas', '/rrhh/nomina/:periodoId', '/rrhh/nomina/:periodoId/:liqId',
-      '/rrhh/desempeno', '/rrhh/desempeno/:cicloId', '/rrhh/desempeno/:cicloId/:evalId'] },
+      '/rrhh/desempeno', '/rrhh/desempeno/:cicloId', '/rrhh/desempeno/:cicloId/:evalId', '/rrhh/dotacion'] },
   { clave: 'finanzas',       grupo: 'Administración', nombre: 'Finanzas', detalle: 'EEFF, cartera, por pagar, flujo de caja e impuestos (Odoo)', niveles: [], soloAdmin: true,
     rutas: ['/finanzas/eeff', '/finanzas/cartera', '/finanzas/por-pagar', '/finanzas/flujo', '/finanzas/impuestos'] },
   // Innovación: proyectos que el jefe de Innovación y Diseño (Leonardo, JEFE_MANTENIMIENTO) llena y

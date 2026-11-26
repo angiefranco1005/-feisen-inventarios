@@ -20,6 +20,7 @@ import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
 import NovedadesEmpleado from './NovedadesEmpleado'
 import DesempenoEmpleado from './desempeno/DesempenoEmpleado'
+import DotacionEmpleado from './dotacion/DotacionEmpleado'
 import { valoresHora } from './nomina/nominaCalculo'
 import ModalPreaviso from './ModalPreaviso'
 
@@ -174,6 +175,7 @@ const SECCIONES = [
   },
   { id: 'novedades', label: 'Novedades', icon: CalendarClock },
   { id: 'desempeno', label: 'Desempeño', icon: Target },
+  { id: 'dotacion',  label: 'Dotación',  icon: Shirt },
   { id: 'documentos', label: 'Documentos', icon: FolderOpen },
 ]
 
@@ -192,7 +194,7 @@ export default function FichaEmpleado() {
   const [msgFoto,     setMsgFoto]     = useState(null)
   const [cargando,    setCargando]    = useState(true)
   const [errorCarga,  setErrorCarga]  = useState(null)
-  const [tab,         setTab]         = useState('personal')
+  const [tab,         setTab]         = useState(() => { const s = new URLSearchParams(window.location.search).get('seccion'); return SECCIONES.some(x => x.id === s) ? s : 'personal' })
   const [editando,    setEditando]    = useState(null)  // id del bloque en edición
   const [form,        setForm]        = useState({})
   const [guardando,   setGuardando]   = useState(false)
@@ -394,6 +396,8 @@ export default function FichaEmpleado() {
             ? <NovedadesEmpleado empleado={emp} perfilId={perfil?.id} />
             : tab === 'desempeno'
             ? <DesempenoEmpleado empleadoId={emp.id} />
+            : tab === 'dotacion'
+            ? <DotacionEmpleado empleadoId={emp.id} />
             : seccion.bloques.map(b => (
               <Bloque key={b.id} bloque={b} registro={emp} ctx={ctx}
                 editando={editando === b.id} bloqueado={!!editando && editando !== b.id}

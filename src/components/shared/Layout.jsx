@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc, Hash } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, Shirt, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc, Hash } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -219,6 +219,7 @@ const NAV_RRHH = [
   { to: '/rrhh/nomina',      icon: Wallet,        label: 'Nómina' },
   { to: '/rrhh/desempeno',   icon: Target,        label: 'Desempeño' },
   // Bodega de Administración: dotación, papelería y aseo
+  { to: '/rrhh/dotacion',     icon: Shirt,        label: 'Entregar dotación', grupo: 'Bodega Administración' },
   { to: '/productos',         icon: Package,      label: 'Productos',  grupo: 'Bodega Administración' },
   { to: '/movimientos/nuevo', icon: ArrowsLeftRight,  label: 'Movimiento', grupo: 'Bodega Administración' },
   { to: '/movimientos',       icon: History,    label: 'Historial',  grupo: 'Bodega Administración' },

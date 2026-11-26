@@ -12,6 +12,7 @@ import { exportarInventarioActual } from '../../utils/exportExcel'
 import { coincideBusqueda } from '../../utils/busqueda'
 import DetalleProducto, { ESTADOS, colorNivel } from './DetalleProducto'
 import ModalMinimosSugeridos from './ModalMinimosSugeridos'
+import { TALLAS_RAPIDAS, nombreConTalla } from '../rrhh/dotacion/dotacion'
 
 const UNIDADES = ['unidad', 'kg', 'g', 'lb', 'm', 'cm', 'm²', 'L', 'ml', 'galón', 'rollo', 'par', 'caja', 'bulto', 'juego']
 
@@ -29,6 +30,9 @@ export default function GestionProductos() {
   // Solo ADMIN ve todas las bodegas y el valor del inventario; el resto (Logística incluida) solo su bodega asignada
   // Ve = solo consulta; Registra/Todo = edita (Configuración › Permisos)
   const puedeEditar = esAdmin || ['registra', 'todo'].includes(nivel('productos'))
+  // Precio de costo: gerencia, almacén, logística y RRHH (bodega de Administración: la dotación que
+  // asume el trabajador se le descuenta por este valor)
+  const puedePrecio = esAdmin || ['ALMACENISTA', 'LOGISTICA', 'RRHH'].includes(perfil?.rol)
   const puedeBorrar = (item) => esAdmin || (puedeEditar && (bodegasOperacion === null || bodegasOperacion.includes(item.bodega_id)))
 
   const [items,      setItems]      = useState([])
@@ -55,7 +59,7 @@ export default function GestionProductos() {
   const [formMec,         setFormMec]         = useState({ cantidad: '1', operario: '' })
   const [guardandoMec,    setGuardandoMec]    = useState(false)
 
-  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', stock_maximo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0' }
+  const FORM0 = { nombre: '', categoria_id: '', bodega_id: '', unidad_medida: 'unidad', precio_costo: '', stock_minimo: '0', stock_maximo: '0', foto_url: '', peso_unitario: '', cantidad_inicial: '0', con_tallas: false, tallas: [], talla_nueva: '' }
   const [form, setForm] = useState(FORM0)
 
   useEffect(() => { cargar() }, [])
@@ -184,19 +188,37 @@ export default function GestionProductos() {
       bodega_id:     form.bodega_id     || null,
       centro_costo:  bodega?.nombre     || '',
       unidad_medida: form.unidad_medida,
-      precio_costo:  (esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') ? (parseFloat(form.precio_costo) || 0) : undefined,
+      precio_costo:  puedePrecio ? (parseFloat(form.precio_costo) || 0) : undefined,
       stock_minimo:  parseFloat(form.stock_minimo) || 0,
       stock_maximo:  parseFloat(form.stock_maximo) || 0,
       foto_url:      form.foto_url      || null,
       peso_unitario: esFundicion ? (parseFloat(form.peso_unitario) || null) : null,
       updated_at:    new Date().toISOString(),
     }
-    if (!esAdmin && perfil?.rol !== 'ALMACENISTA' && perfil?.rol !== 'LOGISTICA') delete payload.precio_costo
+    if (!puedePrecio) delete payload.precio_costo
 
     let error
     if (editando) {
       ({ error } = await supabase.from('items').update(payload).eq('id', editando.id))
       if (error) { setMsg({ tipo: 'error', texto: 'Error: ' + error.message }); return }
+    } else if (form.con_tallas) {
+      // Producto con tallas (dotación): un producto por talla, "Camisa - Talla M", agrupados por producto_base
+      const tallas = form.tallas.filter(x => x.talla.trim())
+      if (!tallas.length) { setMsg({ tipo: 'error', texto: 'Agrega al menos una talla.' }); return }
+      const filas = tallas.map(x => ({ ...payload, nombre: nombreConTalla(payload.nombre, x.talla.trim()), talla: x.talla.trim(), producto_base: payload.nombre }))
+      const { data: nuevos, error: e1 } = await supabase.from('items').insert(filas).select('id, talla')
+      if (e1) { setMsg({ tipo: 'error', texto: 'Error: ' + e1.message }); return }
+      if (form.bodega_id) {
+        const cantPorTalla = new Map(tallas.map(x => [x.talla.trim(), parseFloat(x.cantidad) || 0]))
+        const { error: e2 } = await supabase.from('stock').upsert(
+          (nuevos || []).map(n => ({ item_id: n.id, bodega_id: form.bodega_id, cantidad_actual: cantPorTalla.get(n.talla) || 0 })),
+          { onConflict: 'item_id,bodega_id' })
+        if (e2) { setMsg({ tipo: 'error', texto: 'Productos creados pero error al guardar stock: ' + e2.message }); cargar(); return }
+      }
+      setMsg({ tipo: 'exito', texto: `Se crearon ${tallas.length} productos, uno por talla.` })
+      setModal(false)
+      cargar()
+      return
     } else {
       const { data: newItem, error: e1 } = await supabase.from('items').insert(payload).select('id').single()
       if (e1) { setMsg({ tipo: 'error', texto: 'Error: ' + e1.message }); return }
@@ -798,6 +820,52 @@ export default function GestionProductos() {
             </div>
 
             {!editando && (
+              <div className="border border-feisen-borde rounded-xl px-4 py-3 space-y-2.5">
+                <label className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={form.con_tallas} onChange={e => setForm(f => ({ ...f, con_tallas: e.target.checked }))} className="w-4 h-4 accent-feisen-azul" />
+                  Este producto tiene tallas <span className="text-xs text-gray-400">(dotación: se crea un producto por talla)</span>
+                </label>
+                {form.con_tallas && (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TALLAS_RAPIDAS.map(g => (
+                        <button key={g.label} type="button"
+                          onClick={() => setForm(f => ({ ...f, tallas: [...f.tallas, ...g.tallas.filter(t => !f.tallas.some(x => x.talla === t)).map(t => ({ talla: t, cantidad: '0' }))] }))}
+                          className="text-xs border border-feisen-borde rounded-full px-2.5 py-1 hover:bg-feisen-azul-suave hover:text-feisen-azul">+ {g.label}</button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input value={form.talla_nueva} onChange={e => setForm(f => ({ ...f, talla_nueva: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key !== 'Enter') return
+                          e.preventDefault()
+                          const t = form.talla_nueva.trim().toUpperCase()
+                          if (t && !form.tallas.some(x => x.talla === t)) setForm(f => ({ ...f, tallas: [...f.tallas, { talla: t, cantidad: '0' }], talla_nueva: '' }))
+                        }}
+                        placeholder="Otra talla y Enter (ej. XS, 46, Única)"
+                        className="flex-1 border border-feisen-borde rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul" />
+                    </div>
+                    {form.tallas.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {form.tallas.map((x, i) => (
+                          <div key={x.talla} className="flex items-center gap-1.5 border border-feisen-borde-suave rounded-lg pl-2.5 pr-1 py-1">
+                            <span className="text-sm font-medium w-10">{x.talla}</span>
+                            <input type="number" min="0" step="1" value={x.cantidad} title="Cantidad inicial"
+                              onChange={e => setForm(f => ({ ...f, tallas: f.tallas.map((y, j) => (j === i ? { ...y, cantidad: e.target.value } : y)) }))}
+                              className="w-16 border border-feisen-borde rounded-md px-2 py-1 text-sm" />
+                            <button type="button" onClick={() => setForm(f => ({ ...f, tallas: f.tallas.filter((_, j) => j !== i) }))}
+                              className="text-gray-400 hover:text-feisen-rojo px-1">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400">El número al lado de cada talla es la cantidad inicial en bodega (puede ser 0). Se crearán como "{form.nombre.trim() || 'Nombre'} - Talla M".</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {!editando && !form.con_tallas && (
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Cantidad inicial en bodega</label>
                 <input type="number" min="0" step="0.001" value={form.cantidad_inicial}
@@ -818,9 +886,9 @@ export default function GestionProductos() {
               </div>
             )}
 
-            {(esAdmin || perfil?.rol === 'ALMACENISTA' || perfil?.rol === 'LOGISTICA') && (
+            {puedePrecio && (
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Precio de costo (COP)</label>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Precio de costo (COP){form.con_tallas && ' — igual para todas las tallas'}</label>
                 <input type="number" min="0" step="1" value={form.precio_costo}
                   onChange={e => setForm(f => ({ ...f, precio_costo: e.target.value }))}
                   className="w-full border border-feisen-borde rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul"

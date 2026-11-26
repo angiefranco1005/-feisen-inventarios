@@ -74,6 +74,7 @@ export default function LiquidacionPersona() {
   const [piezas,    setPiezas]    = useState([])
   const [tarifas,   setTarifas]   = useState([])
   const [novedades, setNovedades] = useState([])
+  const [dotacion,  setDotacion]  = useState(0)      // dotación que asume en la quincena
   const [orden,     setOrden]     = useState([])     // ids de liquidaciones en orden alfabético (anterior/siguiente)
   const [verDias,   setVerDias]   = useState(false)
   const [cargando,  setCargando]  = useState(true)
@@ -93,11 +94,15 @@ export default function LiquidacionPersona() {
       supabase.from('nomina_liquidaciones').select('id, empleado_id').eq('periodo_id', periodoId),
     ])
     if (error) { setMsg({ tipo: 'error', texto: error.message }); setCargando(false); return }
-    const [{ data: e }, { data: novs }, { data: nombres }] = await Promise.all([
+    const [{ data: e }, { data: novs }, { data: nombres }, { data: dot }] = await Promise.all([
       supabase.from('empleados').select(CAMPOS_PAGO_EMPLEADO).eq('id', l.empleado_id).single(),
       supabase.from('novedades').select('*').eq('empleado_id', l.empleado_id).lte('fecha_inicio', p.fecha_fin).gte('fecha_fin', p.fecha_inicio),
       supabase.from('empleados').select('id, nombres, apellidos').in('id', (todas || []).map(t => t.empleado_id)),
+      // Dotación entregada en la quincena que el trabajador asume
+      supabase.from('dotacion_entregas').select('total, fecha_entrega').eq('empleado_id', l.empleado_id).eq('asume_costo', true)
+        .gte('fecha_entrega', p.fecha_inicio).lte('fecha_entrega', p.fecha_fin),
     ])
+    setDotacion((dot || []).reduce((s, x) => s + (Number(x.total) || 0), 0))
     const nom = new Map((nombres || []).map(n => [n.id, nombreCompleto(n)]))
     setOrden((todas || []).sort((a, b) => (nom.get(a.empleado_id) || '').localeCompare(nom.get(b.empleado_id) || '')).map(t => t.id))
     setLiq({
@@ -384,7 +389,15 @@ export default function LiquidacionPersona() {
             <div className={fila}>
               <div><L>Seguridad social (planilla)</L><Dinero value={liq.seguridad} disabled={cerrada} onChange={set('seguridad')} /></div>
               <div><L>Anticipo</L><Dinero value={liq.anticipo} disabled={cerrada} onChange={set('anticipo')} /></div>
-              <div><L>Dotación / herramienta</L><Dinero value={liq.dotacion_herramienta} disabled={cerrada} onChange={set('dotacion_herramienta')} /></div>
+              <div>
+                <L>Dotación / herramienta</L><Dinero value={liq.dotacion_herramienta} disabled={cerrada} onChange={set('dotacion_herramienta')} />
+                {dotacion > 0 && Number(liq.dotacion_herramienta || 0) !== dotacion && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    Dotación que asume en esta quincena: {formatoPesos(dotacion)}
+                    {!cerrada && <button type="button" onClick={() => set('dotacion_herramienta')(String(dotacion))} className="ml-1 text-feisen-azul hover:underline">Usar</button>}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="mt-4">
               <L>Otras deducciones</L>

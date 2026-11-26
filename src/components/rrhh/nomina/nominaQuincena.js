@@ -14,14 +14,19 @@ const valorNum = (v) => (v === null || v === undefined || v === '' ? null : Numb
 
 // Todo lo que hace falta para sugerir liquidaciones de una quincena
 export async function contextoQuincena(inicio, fin) {
-  const [{ data: empleados, error: e1 }, { data: novedades }] = await Promise.all([
+  const [{ data: empleados, error: e1 }, { data: novedades }, { data: dot }] = await Promise.all([
     supabase.from('empleados').select(CAMPOS_PAGO_EMPLEADO).order('nombres'),
     fetchAllPages((d, h) => supabase.from('novedades')
       .select('empleado_id, tipo, fecha_inicio, fecha_fin, por_horas, remunerado')
       .lte('fecha_inicio', fin).gte('fecha_fin', inicio).range(d, h)),
+    // Dotación que el trabajador asume, entregada en la quincena (se descuenta)
+    supabase.from('dotacion_entregas').select('empleado_id, total').eq('asume_costo', true)
+      .gte('fecha_entrega', inicio).lte('fecha_entrega', fin),
   ])
   if (e1) throw new Error(e1.message)
-  return { empleados: empleados || [], novedades: novedades || [] }
+  const dotacion = new Map()
+  for (const e of dot || []) dotacion.set(e.empleado_id, (dotacion.get(e.empleado_id) || 0) + (Number(e.total) || 0))
+  return { empleados: empleados || [], novedades: novedades || [], dotacion }
 }
 
 // Liquidación sugerida para una persona (sin guardar)
@@ -51,7 +56,7 @@ export function liquidacionSugerida(emp, inicio, fin, ctx) {
     descuento_tiempo_pieza: null,
     seguridad: valorNum(emp.aporte_ss),
     anticipo: null,
-    dotacion_herramienta: null,
+    dotacion_herramienta: ctx.dotacion?.get(emp.id) || null,
     otras_deducciones: [],
     observaciones: ausente > 0 ? `${ausente} día${ausente === 1 ? '' : 's'} laboral${ausente === 1 ? '' : 'es'} con novedad en la quincena.` : null,
   }
