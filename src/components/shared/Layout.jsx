@@ -62,12 +62,13 @@ const NAV_ADMIN = [
   { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
   // Costeo por pasos (2026-11-25): el menú sigue el orden del costeo. Responsables, CIF y Equipos quedan dentro de "0 · Bases".
+  // 2026-11-26: "Fichas y precio" (tablero de todas las máquinas) va de primero; los pasos 0–4 debajo.
+  { to: '/costeo',                            icon: Calculator,      label: 'Fichas y precio', modulo: 'Costeo' },
   { to: '/costeo/bases',                      icon: Coins,           label: '0 · Bases',          modulo: 'Costeo' },
   { to: '/costeo/pasos/despiece',             icon: TreeStructure,   label: '1 · Despiece',       modulo: 'Costeo' },
   { to: '/costeo/pasos/ruta',                 icon: ListChecks,      label: '2 · Hojas de ruta',  modulo: 'Costeo' },
   { to: '/costeo/pasos/materia',              icon: Package,         label: '3 · Materia prima',  modulo: 'Costeo' },
   { to: '/costeo/pasos/tiempos',              icon: CalendarClock,   label: '4 · Tiempos',        modulo: 'Costeo' },
-  { to: '/costeo',                            icon: Calculator,      label: '5 · Fichas y precio', modulo: 'Costeo' },
   { to: '/rrhh/empleados',                    icon: UsersThree,           label: 'Colaboradores',      modulo: 'Recursos Humanos' },
   { to: '/rrhh/organigrama',                  icon: Network,         label: 'Organigrama',        modulo: 'Recursos Humanos' },
   { to: '/rrhh/novedades',                    icon: CalendarClock,   label: 'Novedades',          modulo: 'Recursos Humanos' },

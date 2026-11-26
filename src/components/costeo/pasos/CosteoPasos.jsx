@@ -155,7 +155,7 @@ export default function CosteoPasos() {
           {PASOS.map((p) => (
             <Pestana key={p.id} to={`/costeo/pasos/${p.id}${qs}`} activa={p.id === paso.id} etiqueta={`${p.n} · ${p.nombre}`} cuenta={datos?.cuenta[p.id]} />
           ))}
-          <Pestana to={maquinaId ? `/costeo/fichas/${maquinaId}?tab=resumen` : '/costeo'} activa={false} etiqueta="5 · Fichas y precio" />
+          <Pestana to={maquinaId ? `/costeo/maquina/${maquinaId}` : '/costeo'} activa={false} etiqueta="5 · Precio y utilidad" />
         </nav>
 
         {/* Barra de herramientas */}

@@ -49,6 +49,7 @@ import CifMaestro           from './components/costeo/CifMaestro'
 import EquiposMaestro       from './components/costeo/EquiposMaestro'
 import CosteoPasos          from './components/costeo/pasos/CosteoPasos'
 import BasesCosteo          from './components/costeo/pasos/BasesCosteo'
+import TableroMaquina       from './components/costeo/inicio/TableroMaquina'
 import OrdenesCompra            from './components/compras/OrdenesCompra'
 import Proveedores               from './components/compras/Proveedores'
 import ListaEmpleados           from './components/rrhh/ListaEmpleados'
@@ -123,7 +124,7 @@ function AppRoutes() {
     '/calidad': <NoConformidades />, '/mantenimiento': <Mantenimiento />,
     '/of/nueva': <NuevaOrdenOFConClave />, '/of/ordenes': <ListaOrdenesOF />, '/of/resumen': <ResumenPlaneacionOF />, '/of/calendario': <CalendarioOF />,
     '/of/productos': <ProductosOF />, '/of/clientes': <ClientesOF />,
-    '/costeo': <CosteoFichas />, '/costeo/fichas/:id': <CosteoFicha />, '/costeo/etapas': <EtapasMaestro />, '/costeo/cif': <CifMaestro />, '/costeo/equipos': <EquiposMaestro />, '/costeo/bases': <BasesCosteo />, '/costeo/pasos/:paso': <CosteoPasos />,
+    '/costeo': <CosteoFichas />, '/costeo/fichas/:id': <CosteoFicha />, '/costeo/etapas': <EtapasMaestro />, '/costeo/cif': <CifMaestro />, '/costeo/equipos': <EquiposMaestro />, '/costeo/bases': <BasesCosteo />, '/costeo/pasos/:paso': <CosteoPasos />, '/costeo/maquina/:id': <TableroMaquina />,
     '/rrhh/empleados': <ListaEmpleados />, '/rrhh/empleados/:id': <FichaEmpleado />, '/rrhh/organigrama': <Organigrama />, '/rrhh/organigrama/:id': <FichaCargo />,
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,
     '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,

@@ -4,7 +4,7 @@
 // sigue mostrando en el panel y en el tooltip.
 const ACENTOS = { lamina: 'lámina', electrostatica: 'electrostática', camara: 'cámara', basculante: 'basculante' }
 const SIGLAS = new Set(['MIG', 'TIG', 'HP', 'CNC', 'CR', 'HR', 'OF'])
-const MENORES = new Set(['de', 'del', 'y', 'x', 'con', 'en', 'la', 'el', 'a', 'para', 'por'])
+const MENORES = new Set(['de', 'del', 'y', 'x', 'con', 'en', 'la', 'el', 'a', 'para', 'por', 'bulto', 'bultos'])
 
 export function tipoTitulo(s) {
   return String(s || '')

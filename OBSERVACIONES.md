@@ -2765,3 +2765,30 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - **Traer piezas de fundición** (paso 1): lee `maquinas_fundicion` + `bom_maquina_piezas` + `items.peso_unitario`, propone la máquina de fundición por parecido de nombre, deja escoger el conjunto destino, desmarca las que ya están en el despiece, y por cada pieza reusa la ficha del catálogo con el mismo nombre (sin importar mayúsculas/tildes) o la crea, y la enlaza con la cantidad por máquina. **No copia el peso** (sigue en Inventarios) ni crea materia prima.
 - Probado en el demo (`vite.costeo-demo.config.mjs`, mock en memoria con copia de los datos reales de la Mezcladora): los 4 pasos, el panel lateral, la importación (10 piezas dentro de Sistema de ataque; contadores 6 → 15) y el celular (375 px, sin scroll horizontal de página). No se probó contra la base real.
 - Pendientes que Angie puede pedir: costo de las piezas fundidas (peso × precio del kg de fundición como materia prima al traerlas), peso visible en el despiece, mismo permiso "solo registrar tiempos" para que los jefes entren solo al paso 4.
+
+## 2026-11-26 · Inicio de Costeo como tablero (estilo Stripe)
+
+- **Menú:** "Fichas y precio" (`/costeo`) va de primero en Costeo; debajo siguen los pasos 0–4. La pestaña 5 de los pasos se llama "Precio y utilidad" y abre el tablero de la máquina.
+- **Inicio (`/costeo`, `inicio/InicioCosteo.jsx`):**
+  - 4 resúmenes: ventas de la familia, máquinas con ficha, utilidad promedio y la que sigue por costear.
+  - La utilidad promedio solo cuenta máquinas con el costeo completo, ponderada por lo vendido.
+  - Una tarjeta por máquina con ficha: precio, barra MP/MO/CIF/utilidad (rayada = sin costear), costo, utilidad y % (marcado "provisional" mientras falten conjuntos), y anillo de avance.
+  - Los productos vendidos sin ficha salen con borde punteado; "Crear ficha" la crea ya vinculada a ese producto.
+  - Se puede filtrar "Solo con ficha" (se recuerda en localStorage).
+  - La lista vieja sigue en `/costeo?vista=lista` (para renombrar o eliminar) y el catálogo en `/costeo?catalogo=pieza`.
+- **Tablero de una máquina (`/costeo/maquina/:id`, `inicio/TableroMaquina.jsx`):**
+  - Cómo se reparte el precio, el avance por conjunto de primer nivel y el costo máximo para ganar 30/35/40 %.
+  - Selector "Producto en Odoo".
+  - En escritorio tiene a la izquierda la lista de las demás máquinas.
+- **Precio (`inicio/datosInicio.js`):**
+  - Promedio facturado por **Feisen** (sin FC) en `ventas_odoo`: valor / unidades de todos los meses cargados. Esa tabla se actualiza sola cada 15 min.
+  - Si la ficha tiene `precio_venta_actual > 0`, ese precio de lista manda.
+  - La familia que se muestra es la de los productos que empiezan por `MEZCLADORA` (constante `FAMILIA`) más los productos vinculados a fichas. Para mostrar otras líneas (vibros, etc.) hay que ampliar ese filtro.
+- **Vínculo ficha ↔ Odoo:**
+  - Columna nueva `costeo_fichas.producto_odoo` (migración `2026-11-26_costeo_producto_odoo.sql`, aplicada).
+  - Si está vacía, la app propone el producto por nombre: mismas palabras, sin contar "B", "bulto" ni "-", con un parecido de al menos 0,75. Ej.: "MEZCLADORA 1 1/2" ↔ "MEZCLADORA - 1 1/2 B".
+  - Los productos vinculados a mano se apartan antes de proponer los demás.
+- **Desglose MP/MO/CIF de la máquina completa:** se calcula en el cliente recorriendo `costeo_ficha_piezas` con las cantidades sobre los costos propios de `costeo_resumen`. El CIF incluye equipos.
+- **Avance:** conjuntos de primer nivel con costo > 0, divididos entre el total de conjuntos. Una máquina sin conjuntos pero con costo propio cuenta como completa.
+- `tipoTitulo` ahora escribe "bulto/bultos" en minúscula.
+- Probado en la demo de costeo (con datos reales de ventas Feisen), en escritorio y a 375 px sin scroll horizontal. No se ha probado contra la base real.
