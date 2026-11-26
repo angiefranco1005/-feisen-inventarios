@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { BODEGA_FUNDICION_ID, CAT_MATERIA_PRIMA_FUNDICION_ID, nombreBodega } from '../../utils/bodegasCatalogo'
-import { coincideBusqueda } from '../../utils/busqueda'
+import { coincideBusqueda, sinTildes } from '../../utils/busqueda'
 import {
   ClipboardList, ChevronRight, Search, Plus, AlertTriangle, TrendingUp, Calendar,
   Pencil, XCircle, X, Check, Clock, Trash2, RotateCcw,
@@ -165,6 +165,8 @@ export default function ListaOrdenesMoldeo() {
 
   // Panel avance diario
   const [panelAvance,  setPanelAvance]  = useState({})
+  const [filtroMold,   setFiltroMold]   = useState({})  // { [ordenId]: clave del moldeador | '' (todos) } en el avance del día
+  const [buscaAv,      setBuscaAv]      = useState({})  // { [ordenId]: texto } buscador de piezas en el avance del día
   const [avanceHoy,    setAvanceHoy]    = useState({})  // { [ordenId]: { [piezaId]: string } }
   const [fechaAvance,  setFechaAvance]  = useState({})
   const [guardandoAv,  setGuardandoAv]  = useState(null)
@@ -1190,8 +1192,67 @@ export default function ListaOrdenesMoldeo() {
               )}
 
               <p className="text-xs text-feisen-texto-2">Escribe cuántas piezas se moldearon. Deja en blanco las que no tuvieron avance.</p>
+              {(() => {
+                // Filtro por moldeador: solo cambia lo que se ve; lo escrito en los demás también se guarda
+                const claveMol = p => sinTildes(String(p.asignado_a || '').replace(/\s+/g, ' ').trim())
+                const mols = []
+                for (const p of piezas) {
+                  const k = claveMol(p)
+                  const m = mols.find(x => x.k === k)
+                  if (m) m.n++
+                  else mols.push({ k, nombre: (p.asignado_a || '').trim() || 'Sin moldeador', n: 1 })
+                }
+                mols.sort((a, b) => (a.k === '') - (b.k === '') || a.nombre.localeCompare(b.nombre, 'es'))
+                const sel = mols.some(m => m.k === filtroMold[orden.id]) ? filtroMold[orden.id] : ''
+                const consulta = buscaAv[orden.id] || ''
+                const visibles = piezas.filter(p =>
+                  (sel === '' || claveMol(p) === sel) &&
+                  (!consulta.trim() || coincideBusqueda(`${p.items?.nombre || ''} ${p.asignado_a || ''}`, consulta)))
+                const ocultasConCant = piezas.filter(p => !visibles.includes(p) && Number(getAv(orden.id, p.id)) > 0).length
+                const chip = (k, texto, n) => (
+                  <button key={k || '_todos'} type="button" aria-pressed={sel === k}
+                    onClick={() => setFiltroMold(prev => ({ ...prev, [orden.id]: k }))}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 min-h-[36px] text-sm font-medium transition-colors
+                      ${sel === k ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto hover:bg-feisen-fondo'}`}>
+                    {texto} <span className={`tabular-nums text-xs ${sel === k ? 'text-white/80' : 'text-feisen-texto-2'}`}>{n}</span>
+                  </button>
+                )
+                return (
+                  <>
+                    {mols.length > 1 && (
+                      <div role="group" aria-label="Ver piezas de un moldeador" className="flex gap-2 overflow-x-auto overscroll-contain -mx-5 px-5 pb-1">
+                        {chip('', 'Todos', piezas.length)}
+                        {mols.map(m => chip(m.k, m.nombre, m.n))}
+                      </div>
+                    )}
+                    {piezas.length > 1 && (
+                      <div className="relative">
+                        <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input type="search" value={consulta}
+                          onChange={e => setBuscaAv(prev => ({ ...prev, [orden.id]: e.target.value }))}
+                          placeholder="Buscar pieza…" aria-label="Buscar pieza en el avance"
+                          className={`${claseInput} pl-10 pr-10`} />
+                        {consulta && (
+                          <button type="button" onClick={() => setBuscaAv(prev => ({ ...prev, [orden.id]: '' }))} aria-label="Borrar búsqueda de pieza"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-gray-400 hover:text-feisen-texto"><X size={16} /></button>
+                        )}
+                      </div>
+                    )}
+                    {ocultasConCant > 0 && (
+                      <p className="text-xs text-feisen-azul">
+                        {ocultasConCant === 1 ? 'Hay 1 pieza oculta' : `Hay ${ocultasConCant} piezas ocultas`} por el filtro con cantidad escrita; también se guardan.
+                      </p>
+                    )}
+                    {visibles.length === 0 && consulta.trim() && (
+                      <p className="text-sm text-feisen-texto-2 bg-feisen-fondo rounded-lg px-3 py-2.5">
+                        Ninguna pieza coincide con «{consulta.trim()}»{sel !== '' ? ' para este moldeador' : ''}.{' '}
+                        <button type="button" onClick={() => setBuscaAv(prev => ({ ...prev, [orden.id]: '' }))}
+                          className="text-feisen-azul font-medium underline underline-offset-2 min-h-[44px] sm:min-h-0">Borrar búsqueda</button>
+                      </p>
+                    )}
+              {visibles.length > 0 && (
               <ul className="divide-y divide-feisen-borde-suave border-y border-feisen-borde-suave">
-                {piezas.map(p => {
+                {visibles.map(p => {
                   const av        = avOrden[p.id]?.total || 0
                   const pendiente = Math.max(0, Number(p.cantidad_planeada || 0) - av)
                   const cant      = Number(getAv(orden.id, p.id)) || 0
@@ -1211,6 +1272,10 @@ export default function ListaOrdenesMoldeo() {
                   )
                 })}
               </ul>
+              )}
+                  </>
+                )
+              })()}
             </section>
 
             {/* Arenas usadas en el día: salen del stock de la bodega Fundición */}

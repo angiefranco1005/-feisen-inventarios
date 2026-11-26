@@ -2853,6 +2853,10 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   líneas: lo que falta por moldear se descuenta de la original y, si se pide más (o la línea ya está completa), se suma
   a la orden en la línea del otro moldeador. Probado en la demo (CHUMACERA 8/6 moldeadas, pasar 5 → 6 + 5) y el cálculo
   de mínimos con los casos reales de la captura.
+- **26/11 · Filtro por moldeador en "Registrar avance del día".** Botones Todos / cada moldeador (con cuántas piezas
+  tiene; mismo moldeador aunque cambien mayúsculas/tildes; "Sin moldeador" al final). Solo filtra lo que se ve: lo
+  escrito en piezas de otros moldeadores también se guarda, y se avisa en azul cuántas hay. Además, buscador de piezas
+  ("Buscar pieza…", por nombre de pieza o moldeador, sin tildes) que se combina con el filtro. Probado en la demo.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 
