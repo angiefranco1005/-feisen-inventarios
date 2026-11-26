@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -6,10 +6,10 @@ import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
 import { coincideBusqueda } from '../../utils/busqueda'
 import {
   CheckCircle2, Plus, Trash2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Check,
-  Search, AlertTriangle, RefreshCw, Factory, Package, FileDown,
+  Search, AlertTriangle, RefreshCw, Factory, Package, FileDown, Upload, X,
 } from '../shared/iconos'
 import { EncabezadoPagina, Contador } from '../shared/ui'
-import { descargarPlantillaMoldeo } from '../../utils/plantillaMoldeo'
+import { descargarPlantillaMoldeo, leerPlantillaMoldeo } from '../../utils/plantillaMoldeo'
 
 function hoyCol() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -191,6 +191,10 @@ export default function CrearOrdenMoldeo() {
   // Orden ya insertada en un intento que falló después (máquinas o piezas): { id, numero }
   const [ordenCreada,    setOrdenCreada]    = useState(null)
   const [bajandoPlantilla, setBajandoPlantilla] = useState(false)
+  // Plantilla de Excel subida: { archivo, lineas, avisos } (se muestra un aviso arriba del paso 2)
+  const [plantillaCargada, setPlantillaCargada] = useState(null)
+  const [subiendo,       setSubiendo]       = useState(false)
+  const inputArchivo = useRef(null)
   const [proximoNumero,  setProximoNumero]  = useState(null)
 
   useEffect(() => { cargar() }, [])
@@ -308,11 +312,41 @@ export default function CrearOrdenMoldeo() {
     setLibreItem(null); setLibreCant(''); setError('')
   }
 
-  function actualizarPieza(item_id, campo, val) {
-    setPiezas(prev => prev.map(p => p.item_id === item_id ? { ...p, [campo]: val } : p))
+  // Cada línea se identifica por su `clave`: la pieza, o pieza + moldeador cuando viene de la plantilla
+  // (la misma pieza puede quedar repartida entre dos moldeadores)
+  const claveDe = p => p.clave || p.item_id
+  function actualizarPieza(clave, campo, val) {
+    setPiezas(prev => prev.map(p => claveDe(p) === clave ? { ...p, [campo]: val } : p))
   }
-  function quitarPieza(item_id) {
-    setPiezas(prev => prev.filter(p => p.item_id !== item_id))
+  function quitarPieza(clave) {
+    setPiezas(prev => prev.filter(p => claveDe(p) !== clave))
+  }
+
+  // Subir la plantilla llena: se carga en el paso 2 para revisar y guardar con "Guardar orden"
+  async function subirPlantilla(e) {
+    const archivo = e.target.files?.[0]
+    e.target.value = ''
+    if (!archivo) return
+    setError(''); setSubiendo(true)
+    try {
+      const leida = leerPlantillaMoldeo(await archivo.arrayBuffer(), { maquinas, items: allItems })
+      const ids = [...new Set(leida.lineas.map(l => l.item_id))]
+      let stockMap = {}
+      if (ids.length && fundBodegaId) {
+        const { data: st } = await supabase.from('stock').select('item_id, cantidad_actual').in('item_id', ids).eq('bodega_id', fundBodegaId)
+        for (const x of (st || [])) stockMap[x.item_id] = x.cantidad_actual ?? 0
+      }
+      setFecha(leida.fecha)
+      setCantidades(leida.cantidades)
+      setPiezas(leida.lineas.map((l, i) => ({ ...l, clave: `${l.item_id}|${i}`, stock_actual: stockMap[l.item_id] ?? null })))
+      setPlantillaCargada({ archivo: archivo.name, lineas: leida.lineas.length, avisos: leida.avisos })
+      setOrdenCreada(null)
+      setPaso(2)
+    } catch (err) {
+      setError(`No se pudo leer "${archivo.name}": ${err.message}`)
+    } finally {
+      setSubiendo(false)
+    }
   }
 
   async function handleGuardar() {
@@ -369,7 +403,7 @@ export default function CrearOrdenMoldeo() {
   function limpiar() {
     setFecha(hoyCol()); setPaso(1); setCantidades({})
     setPiezas([]); setLibreItem(null); setLibreCant('')
-    setError(''); setExito(null); setOrdenCreada(null)
+    setError(''); setExito(null); setOrdenCreada(null); setPlantillaCargada(null)
   }
 
   if (exito) {
@@ -459,7 +493,14 @@ export default function CrearOrdenMoldeo() {
         <button type="button" onClick={bajarPlantilla} disabled={bajandoPlantilla}
           title="Excel para planear el moldeo: por máquina o por pieza, con listas de piezas, máquinas y moldeadores"
           className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-60">
-          <FileDown size={16} /> {bajandoPlantilla ? 'Preparando…' : 'Descargar plantilla'}
+          <FileDown size={16} /> {bajandoPlantilla ? 'Preparando…' : <>Descargar<span className="hidden sm:inline"> plantilla</span></>}
+        </button>
+        <input ref={inputArchivo} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={subirPlantilla} className="hidden" aria-hidden="true" tabIndex={-1} />
+        <button type="button" onClick={() => inputArchivo.current?.click()} disabled={subiendo || !allItems.length}
+          title="Cargar la plantilla llena: queda en el paso 2 para revisarla y guardarla"
+          className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-60">
+          <Upload size={16} /> {subiendo ? 'Leyendo…' : <>Subir<span className="hidden sm:inline"> plantilla</span></>}
         </button>
         <Link to="/moldeo"
           className="inline-flex items-center gap-1.5 border border-feisen-borde bg-white rounded-lg px-3 min-h-[44px] text-sm font-medium text-feisen-texto-2 hover:bg-feisen-fondo">
@@ -472,6 +513,28 @@ export default function CrearOrdenMoldeo() {
       {error && (
         <div role="alert" className="flex items-start gap-2 bg-feisen-rojo-suave text-feisen-rojo rounded-lg px-4 py-3 text-sm font-medium">
           <AlertTriangle size={16} className="shrink-0 mt-px" /> {error}
+        </div>
+      )}
+
+      {plantillaCargada && paso === 2 && (
+        <div role="status" className="bg-white border border-feisen-borde rounded-xl px-4 py-3 text-sm space-y-2">
+          <div className="flex items-start gap-2">
+            <Upload size={16} className="shrink-0 mt-0.5 text-feisen-azul" />
+            <p className="flex-1 text-feisen-texto">
+              Se cargó <span className="font-medium">{plantillaCargada.archivo}</span>: {plantillaCargada.lineas} línea{plantillaCargada.lineas !== 1 ? 's' : ''},
+              fecha {fecha.split('-').reverse().join('/')}. Revise las piezas y los moldeadores y toque “Guardar orden”; todavía no se ha guardado nada.
+            </p>
+            <button type="button" onClick={() => setPlantillaCargada(null)} aria-label="Cerrar aviso"
+              className="-mr-1 -mt-1 w-9 h-9 grid place-items-center rounded-lg text-gray-400 hover:bg-feisen-fondo"><X size={16} /></button>
+          </div>
+          {plantillaCargada.avisos.length > 0 && (
+            <ul className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 space-y-1 text-xs text-amber-800">
+              {plantillaCargada.avisos.map((a, i) => (
+                <li key={i} className="flex items-start gap-1.5"><AlertTriangle size={13} className="shrink-0 mt-px" /> {a}</li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-feisen-texto-2">Si vuelve al paso 1 y recalcula, las piezas se agrupan de nuevo y cada una queda con un solo moldeador.</p>
         </div>
       )}
 
@@ -571,7 +634,7 @@ export default function CrearOrdenMoldeo() {
                     const cant   = Number(p.cantidad_planeada) || 0
                     const falta  = p.stock_actual != null && Number(p.stock_actual) < Number(p.cantidad_planeada)
                     return (
-                      <li key={p.item_id} className="px-4 sm:px-5 py-3">
+                      <li key={claveDe(p)} className="px-4 sm:px-5 py-3">
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-feisen-texto break-words">{p.nombre}</p>
@@ -588,16 +651,16 @@ export default function CrearOrdenMoldeo() {
                               {cant > 0 && p.peso_unitario > 0 && <span className="text-feisen-texto-2 tabular-nums">{kg(cant * p.peso_unitario)} kg</span>}
                             </p>
                           </div>
-                          <button type="button" onClick={() => quitarPieza(p.item_id)} aria-label={`Quitar ${p.nombre}`}
+                          <button type="button" onClick={() => quitarPieza(claveDe(p))} aria-label={`Quitar ${p.nombre}`}
                             className="-mr-2 -mt-1 w-11 h-11 grid place-items-center rounded-lg text-gray-400 hover:text-feisen-rojo hover:bg-feisen-rojo-suave transition-colors shrink-0">
                             <Trash2 size={17} />
                           </button>
                         </div>
                         <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-2 items-center">
-                          <Contador valor={p.cantidad_planeada} onCambiar={v => actualizarPieza(p.item_id, 'cantidad_planeada', v)}
+                          <Contador valor={p.cantidad_planeada} onCambiar={v => actualizarPieza(claveDe(p), 'cantidad_planeada', v)}
                             etiqueta={`Cantidad de ${p.nombre}`} ancho="w-14" />
                           <InputSug value={p.asignado_a}
-                            onChange={v => actualizarPieza(p.item_id, 'asignado_a', v)}
+                            onChange={v => actualizarPieza(claveDe(p), 'asignado_a', v)}
                             placeholder="Moldeador" etiqueta={`Moldeador de ${p.nombre}`} storageKey="feisen_moldeadores" />
                         </div>
                       </li>

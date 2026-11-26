@@ -2802,3 +2802,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   - cada paso (`/costeo/pasos/:paso`). Ahí se quitaron la banda azul vieja y el selector de máquina; el título ahora es el nombre de la máquina, con "← Fichas de costeo" para volver.
 - **Bases** (responsables, CIF, equipos) valen para todas las máquinas. Se abren desde el botón "Bases: tarifas, CIF y equipos" del inicio, y la pantalla ahora se llama "Bases del costeo".
 - Las rutas de los pasos siguen en `modulos.js` para que los permisos funcionen, aunque ya no estén en el menú.
+- **26/11 · Subir la plantilla llena** (subida junto con la versión por bloques; Julián la revisó y aprobó el formato el 26/11): botón **"Subir plantilla"**
+  en Nueva orden de moldeo. `leerPlantillaMoldeo()` (en `utils/plantillaMoldeo.js`) lee la fecha (B2), las máquinas
+  con su cantidad y sus piezas (cantidad = máquinas × "por máquina" de la plantilla, calculada en la app, no el valor
+  guardado por Excel) y las piezas sueltas; junta por pieza + moldeador (sin importar mayúsculas/tildes) y avisa de
+  piezas que no están en el catálogo, filas sin cantidad, piezas sin moldeador y máquinas inactivas. Rechaza la versión
+  anterior de la plantilla y archivos ajenos. **No guarda nada**: carga el paso 2 del formulario para revisar y "Guardar
+  orden" (misma lógica de guardado). Las líneas ahora se identifican por `clave` (la misma pieza puede ir con dos
+  moldeadores; la base lo permite). Si se vuelve al paso 1 y se recalcula, se agrupan de nuevo por pieza.
+- La pestaña "Piezas sueltas" ya no trae fila de ejemplo (se cargaría como pieza real).
+- Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
+  archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
