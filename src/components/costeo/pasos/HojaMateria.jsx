@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { formatCOP, formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
-import { falta, materialesDe } from './datosPasos'
+import { falta, materialesDe, normalizar } from './datosPasos'
 import { IndicadorObservaciones } from '../Observaciones'
 import { IndicadorPlanos } from '../Planos'
 
@@ -19,17 +19,53 @@ const cop = (n) => formatCOP(n).replace(/,00$/, '')
 const BTN = 'h-9 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm'
 const CAMPO = 'h-10 w-full rounded-lg border border-feisen-borde bg-white px-2 text-sm text-feisen-texto'
 
+const CLAVE_VISTA = 'costeo-materia-vista'
+const leerVista = () => {
+  try {
+    return window.localStorage.getItem(CLAVE_VISTA) === 'material' ? 'material' : 'pieza'
+  } catch {
+    return 'pieza'
+  }
+}
+const unidadCorta = (u) => {
+  const x = String(u || 'und').toLowerCase()
+  return ['unidad', 'unidades', 'und', 'un', 'u'].includes(x) ? 'und' : x
+}
+
+// Dos vistas (Angie, 2026-11-26): «Por pieza» (desplegables, para llenar) y «Por material» (qué
+// piezas salen de cada lámina/barra y cuánto gasta una máquina: sirve para revisar y comprar).
 export default function HojaMateria({ arbol, filas, corto, buscar, soloFalta, onCambio }) {
   const maquinaId = arbol.raizId
-  const [abierto, setAbierto] = useState(null) // { fichaId, materialId? }
+  const [vista, setVistaEstado] = useState(leerVista)
+  const [abierto, setAbierto] = useState(null) // formulario: { fichaId, materialId? }
+  const [piezasAbiertas, setPiezasAbiertas] = useState(() => new Set())
+  const [matsAbiertos, setMatsAbiertos] = useState(() => new Set())
   const [error, setError] = useState('')
+  const setVista = (v) => {
+    setVistaEstado(v)
+    try {
+      window.localStorage.setItem(CLAVE_VISTA, v)
+    } catch {
+      // Sin localStorage solo no se recuerda.
+    }
+  }
+  const alternar = (setFn, key) =>
+    setFn((c) => {
+      const n = new Set(c)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
 
-  const renglones = useMemo(() => {
-    const q = buscar.trim().toLowerCase()
-    return filas
-      .filter((f) => !q || (f.ficha?.nombre || '').toLowerCase().includes(q))
-      .filter((f) => !soloFalta || falta.materia(f, arbol))
-  }, [filas, buscar, soloFalta, arbol])
+  const q = buscar.trim().toLowerCase()
+  const coincide = (f) => !q || (f.ficha?.nombre || '').toLowerCase().includes(q)
+  const filtrando = !!q || soloFalta
+
+  // Por pieza: piezas (y conjuntos solo si tienen material propio).
+  const renglones = useMemo(
+    () => filas.filter((f) => coincide(f) && (!soloFalta || falta.materia(f, arbol)) && (!f.esConjunto || materialesDe(arbol, f.fichaId).length)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filas, q, soloFalta, arbol]
+  )
 
   if (!filas.length) return <p className="px-6 py-10 text-center text-sm text-feisen-texto-2">Primero agrega las piezas en el paso 1 · Despiece.</p>
 
@@ -38,6 +74,29 @@ export default function HojaMateria({ arbol, filas, corto, buscar, soloFalta, on
   const totalMaquina = filas.reduce((s, f) => s + costoPieza(f.fichaId) * f.cantTotal, 0)
   const hojas = filas.filter((f) => !f.esConjunto)
   const conMaterial = hojas.filter((f) => !falta.materia(f, arbol)).length
+  const masCara = filas.reduce((m, f) => {
+    const t = costoPieza(f.fichaId) * f.cantTotal
+    return t > 0 && (!m || t > m.t) ? { f, t } : m
+  }, null)
+
+  // Por material: cada material del inventario con las piezas que lo usan.
+  const materiales = []
+  for (const f of filas) {
+    for (const m of materialesDe(arbol, f.fichaId)) {
+      const clave = m.item_id || `nombre:${normalizar(m.items?.nombre || m.item_nombre_libre)}`
+      let g = materiales.find((x) => x.clave === clave)
+      if (!g) {
+        g = { clave, nombre: tipoTitulo(m.items?.nombre || m.item_nombre_libre || 'Material'), precio: precioDe(m), unidad: unidadCorta(m.items?.unidad_medida), enInventario: !!m.item_id, usos: [], unidades: 0 }
+        materiales.push(g)
+      }
+      const porMaquina = Number(m.cantidad || 0) * f.cantTotal
+      g.usos.push({ f, m, porMaquina })
+      g.unidades += porMaquina
+    }
+  }
+  for (const g of materiales) g.costo = g.unidades * g.precio
+  materiales.sort((a, b) => b.costo - a.costo)
+  const sinMaterial = hojas.filter((f) => falta.materia(f, arbol) && coincide(f))
 
   async function quitar(m) {
     if (!window.confirm(`¿Quitar ${m.items?.nombre ?? m.item_nombre_libre} de esta pieza?`)) return
@@ -47,82 +106,193 @@ export default function HojaMateria({ arbol, filas, corto, buscar, soloFalta, on
     onCambio()
   }
 
+  // Desde «Por material», ir a la pieza en «Por pieza» con su tarjeta abierta.
+  function irAPieza(fichaId, materialId) {
+    setVista('pieza')
+    setPiezasAbiertas((c) => new Set(c).add(fichaId))
+    setAbierto(materialId ? { fichaId, materialId } : { fichaId })
+  }
+
   return (
-    <div className="divide-y divide-feisen-borde-suave">
-      {error && <p className="px-4 py-3 text-sm text-feisen-rojo">{error}</p>}
-      {!renglones.length && <p className="px-4 py-8 text-center text-sm text-feisen-texto-2">Todas las piezas tienen su materia prima.</p>}
-      {renglones.map((f) => {
-        const mats = materialesDe(arbol, f.fichaId)
-        const primerProceso = [...(arbol.procesos[f.fichaId] || [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))[0]
-        const ab = abierto?.fichaId === f.fichaId ? abierto : null
-        const editando = ab?.materialId ? mats.find((m) => m.id === ab.materialId) : null
-        const costo = costoPieza(f.fichaId)
-        return (
-          <section key={f.key} className={`px-3 sm:px-4 py-3 ${f.esConjunto ? 'bg-feisen-fondo' : 'bg-white'}`}>
-            <div style={{ paddingLeft: Math.min(f.nivel, 4) * 16 }}>
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                <h3 className={`text-sm ${f.esConjunto ? 'font-semibold' : 'font-medium'} text-feisen-texto`}>{f.esConjunto ? `Ensamble · ${corto(f.ficha?.nombre)}` : corto(f.ficha?.nombre)}</h3>
-                <IndicadorObservaciones n={arbol.observaciones?.[f.fichaId]} />
-                <IndicadorPlanos n={arbol.planos?.[f.fichaId]} />
-                {f.cant !== 1 && <span className="text-xs text-feisen-texto-2">× {formatNumber(f.cant, f.cant % 1 ? 2 : 0)}</span>}
-                {!f.esConjunto && !mats.length && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Sin material</span>}
-                <span className="flex-1" />
-                {costo > 0 && (
-                  <span className="text-sm tabular-nums text-feisen-texto">
-                    {cop(costo)} <span className="text-xs text-feisen-texto-2">por pieza{f.cant !== 1 ? ` · ${cop(costo * f.cant)} × ${formatNumber(f.cant, f.cant % 1 ? 2 : 0)}` : ''}</span>
-                  </span>
-                )}
-              </div>
-
-              {mats.map((m) => (
-                <div key={m.id} className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-feisen-borde-suave bg-white px-3 py-2 text-sm">
-                  <span className="font-medium text-feisen-texto min-w-0">{tipoTitulo(m.items?.nombre || m.item_nombre_libre || 'Material')}</span>
-                  <span className="text-feisen-texto-2 tabular-nums">{lectura(m)}</span>
-                  <span className="flex-1" />
-                  {precioDe(m) > 0 ? (
-                    <span className="tabular-nums text-feisen-texto">{cop(Number(m.cantidad) * precioDe(m))}</span>
-                  ) : (
-                    <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">{m.item_id ? 'Sin precio en inventario' : 'No está en inventario'}</span>
-                  )}
-                  <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId, materialId: m.id })} aria-label="Editar material" className="w-8 h-8 grid place-items-center rounded-lg text-feisen-texto-2 hover:bg-feisen-fondo"><Pencil size={14} /></button>
-                  <button type="button" onClick={() => quitar(m)} aria-label="Quitar material" className="w-8 h-8 grid place-items-center rounded-lg text-feisen-texto-2 hover:text-feisen-rojo hover:bg-feisen-rojo-suave"><Trash2 size={14} /></button>
-                </div>
-              ))}
-
-              {!primerProceso ? (
-                <p className="mt-1.5 text-xs text-feisen-texto-2">
-                  {f.esConjunto ? 'Sin operaciones de ensamble.' : 'Primero ponle la hoja de ruta: el material entra en su primera operación.'}{' '}
-                  {!f.esConjunto && <Link to={`/costeo/pasos/ruta?maquina=${maquinaId}`} className="text-feisen-azul hover:underline">Ir al paso 2</Link>}
-                </p>
-              ) : (
-                !ab && (
-                  <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId })} className={`mt-2 ${BTN} border border-dashed border-feisen-borde text-feisen-texto-2 hover:text-feisen-azul hover:border-feisen-azul`}>
-                    <Plus size={14} /> Material
-                  </button>
-                )
-              )}
-
-              {ab && primerProceso && (
-                <FormMaterial
-                  key={ab.materialId || 'nuevo'}
-                  material={editando}
-                  proceso={primerProceso}
-                  nombrePieza={corto(f.ficha?.nombre)}
-                  onCerrar={() => setAbierto(null)}
-                  onGuardado={() => {
-                    setAbierto(null)
-                    onCambio()
-                  }}
-                />
-              )}
-            </div>
-          </section>
-        )
-      })}
-      <div className="px-4 py-2 bg-feisen-gris text-xs text-feisen-texto-2 flex flex-wrap justify-between gap-2">
-        <span>{conMaterial} de {hojas.length} piezas con material</span>
-        <span className="tabular-nums">Materia prima de la máquina: <b className="font-semibold text-feisen-texto">{cop(totalMaquina)}</b></span>
+    <div>
+      <div className="px-3 sm:px-4 pt-4 pb-3 grid gap-2.5 grid-cols-[repeat(auto-fit,minmax(min(100%,180px),1fr))]">
+        <Numero titulo="Materia prima por máquina" valor={totalMaquina > 0 ? cop(totalMaquina) : '—'} />
+        <Numero titulo="Piezas con material" valor={`${conMaterial} de ${hojas.length}`} />
+        {vista === 'pieza' ? (
+          <Numero titulo="Lo que más cuesta" valor={masCara ? corto(masCara.f.ficha?.nombre) : '—'} nota={masCara ? `${cop(masCara.t)} por máquina` : ''} />
+        ) : (
+          <Numero titulo="Materiales distintos" valor={String(materiales.length)} nota={sinMaterial.length ? `${sinMaterial.length} ${sinMaterial.length === 1 ? 'pieza' : 'piezas'} sin material` : ''} />
+        )}
       </div>
+      <div className="px-3 sm:px-4 pb-3 flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="Cómo ver la materia prima" className="inline-flex rounded-lg border border-feisen-borde p-0.5 bg-feisen-fondo">
+          {[
+            ['pieza', 'Por pieza'],
+            ['material', 'Por material'],
+          ].map(([v, t]) => (
+            <button key={v} type="button" role="tab" aria-selected={vista === v} onClick={() => setVista(v)} className={`h-9 rounded-md px-3 text-sm ${vista === v ? 'bg-white shadow-sm font-medium text-feisen-texto' : 'text-feisen-texto-2'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-feisen-texto-2">{vista === 'pieza' ? 'Toca una pieza para ver y agregar sus materiales.' : 'Qué piezas salen de cada material y cuánto gasta una máquina.'}</span>
+      </div>
+      {error && <p className="px-4 py-3 text-sm text-feisen-rojo">{error}</p>}
+
+      {vista === 'pieza' ? (
+        !renglones.length ? (
+          <p className="px-4 py-8 text-center text-sm text-feisen-texto-2">Todas las piezas tienen su materia prima.</p>
+        ) : (
+          <div className="px-3 sm:px-4 pb-4 flex flex-col gap-2">
+            {renglones.map((f) => {
+              const mats = materialesDe(arbol, f.fichaId)
+              const primerProceso = [...(arbol.procesos[f.fichaId] || [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))[0]
+              const ab = abierto?.fichaId === f.fichaId ? abierto : null
+              const editando = ab?.materialId ? mats.find((m) => m.id === ab.materialId) : null
+              const costo = costoPieza(f.fichaId)
+              const abierta = filtrando || piezasAbiertas.has(f.fichaId) || !!ab
+              const estado = !mats.length ? 'falta' : mats.some((m) => !(precioDe(m) > 0)) ? 'falta' : 'ok'
+              return (
+                <section key={f.key} className="rounded-xl border border-feisen-borde bg-white overflow-hidden">
+                  <button type="button" onClick={() => alternar(setPiezasAbiertas, f.fichaId)} aria-expanded={abierta} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-feisen-fondo">
+                    {abierta ? <ChevronDown size={16} className="text-feisen-texto-2 flex-none" /> : <ChevronRight size={16} className="text-feisen-texto-2 flex-none" />}
+                    <Punto estado={estado} />
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="font-semibold text-feisen-texto">{f.esConjunto ? `Ensamble · ${corto(f.ficha?.nombre)}` : corto(f.ficha?.nombre)}</span>
+                      {f.cant !== 1 && <span className="text-xs text-feisen-texto-2"> × {formatNumber(f.cant, f.cant % 1 ? 2 : 0)}</span>}
+                    </span>
+                    <IndicadorObservaciones n={arbol.observaciones?.[f.fichaId]} />
+                    <IndicadorPlanos n={arbol.planos?.[f.fichaId]} />
+                    <span className={`flex-none text-right tabular-nums ${costo > 0 ? 'text-sm font-semibold text-feisen-texto' : 'text-xs text-amber-700'}`}>
+                      {costo > 0 ? cop(costo) : mats.length ? 'Sin precio' : 'Sin material'}
+                      {costo > 0 && <span className="hidden sm:inline text-xs font-normal text-feisen-texto-2"> por pieza</span>}
+                    </span>
+                  </button>
+                  {abierta && (
+                    <div className="border-t border-feisen-borde-suave bg-feisen-fondo/60 px-3 sm:px-4 py-3 sm:pl-12">
+                      {mats.map((m) => (
+                        <div key={m.id} className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-feisen-borde-suave bg-white px-3 py-2 text-sm">
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium text-feisen-texto">{tipoTitulo(m.items?.nombre || m.item_nombre_libre || 'Material')}</span>
+                            <span className="block text-xs text-feisen-texto-2 tabular-nums">{lectura(m)}</span>
+                          </span>
+                          {precioDe(m) > 0 ? (
+                            <span className="tabular-nums text-feisen-texto">{cop(Number(m.cantidad) * precioDe(m))}</span>
+                          ) : (
+                            <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">{m.item_id ? 'Sin precio en inventario' : 'No está en inventario'}</span>
+                          )}
+                          <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId, materialId: m.id })} aria-label="Editar material" className="w-9 h-9 grid place-items-center rounded-lg text-feisen-texto-2 hover:bg-feisen-fondo"><Pencil size={14} /></button>
+                          <button type="button" onClick={() => quitar(m)} aria-label="Quitar material" className="w-9 h-9 grid place-items-center rounded-lg text-feisen-texto-2 hover:text-feisen-rojo hover:bg-feisen-rojo-suave"><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                      {!primerProceso ? (
+                        <p className="text-xs text-feisen-texto-2">
+                          {f.esConjunto ? 'Sin operaciones de ensamble.' : 'Primero ponle la hoja de ruta: el material entra en su primera operación.'}{' '}
+                          {!f.esConjunto && <Link to={`/costeo/pasos/ruta?maquina=${maquinaId}`} className="text-feisen-azul hover:underline">Ir al paso 2</Link>}
+                        </p>
+                      ) : (
+                        !ab && (
+                          <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId })} className={`mt-1 ${BTN} text-feisen-azul hover:bg-feisen-azul-suave`}>
+                            <Plus size={14} /> Material
+                          </button>
+                        )
+                      )}
+                      {ab && primerProceso && (
+                        <FormMaterial
+                          key={ab.materialId || 'nuevo'}
+                          material={editando}
+                          proceso={primerProceso}
+                          nombrePieza={corto(f.ficha?.nombre)}
+                          onCerrar={() => setAbierto(null)}
+                          onGuardado={() => {
+                            setAbierto(null)
+                            onCambio()
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </section>
+              )
+            })}
+          </div>
+        )
+      ) : (
+        <div className="px-3 sm:px-4 pb-4 flex flex-col gap-2">
+          {!soloFalta &&
+            materiales
+              .map((g) => ({ ...g, usos: g.usos.filter((u) => coincide(u.f)) }))
+              .filter((g) => g.usos.length)
+              .map((g) => {
+                const abierta = filtrando || matsAbiertos.has(g.clave)
+                return (
+                  <section key={g.clave} className="rounded-xl border border-feisen-borde bg-white overflow-hidden">
+                    <button type="button" onClick={() => alternar(setMatsAbiertos, g.clave)} aria-expanded={abierta} className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-feisen-fondo">
+                      {abierta ? <ChevronDown size={16} className="text-feisen-texto-2 flex-none" /> : <ChevronRight size={16} className="text-feisen-texto-2 flex-none" />}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-feisen-texto">{g.nombre}</span>
+                        <span className="block text-xs text-feisen-texto-2 tabular-nums">
+                          {formatNumber(g.unidades, 2)} {g.unidad} por máquina · {g.usos.length} {g.usos.length === 1 ? 'pieza' : 'piezas'}
+                          {g.precio > 0 ? ` · ${cop(g.precio)} / ${g.unidad}` : ''}
+                        </span>
+                      </span>
+                      <span className={`flex-none text-right tabular-nums ${g.costo > 0 ? 'text-sm font-semibold text-feisen-texto' : 'text-xs text-amber-700'}`}>{g.costo > 0 ? cop(g.costo) : g.enInventario ? 'Sin precio' : 'No está en inventario'}</span>
+                    </button>
+                    {abierta && (
+                      <ul className="border-t border-feisen-borde-suave bg-feisen-fondo/60 px-3 sm:px-4 py-2 sm:pl-12">
+                        {g.usos.map((u) => (
+                          <li key={u.m.id} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_minmax(60px,25%)_90px] items-center gap-3 py-1.5 text-sm">
+                            <button type="button" onClick={() => irAPieza(u.f.fichaId, u.m.id)} className="min-w-0 text-left hover:text-feisen-azul" title="Ver y editar en «Por pieza»">
+                              <span className="text-feisen-texto">{corto(u.f.ficha?.nombre)}</span>
+                              {u.f.cantTotal !== 1 && <span className="text-xs text-feisen-texto-2"> × {formatNumber(u.f.cantTotal, u.f.cantTotal % 1 ? 2 : 0)}</span>}
+                              <span className="block text-xs text-feisen-texto-2">{lectura(u.m)}</span>
+                            </button>
+                            <span className="hidden sm:block h-1.5 rounded-full bg-feisen-azul-suave">
+                              <span className="block h-1.5 rounded-full bg-feisen-azul" style={{ width: `${g.unidades > 0 ? Math.round((u.porMaquina / g.unidades) * 100) : 0}%` }} />
+                            </span>
+                            <span className="text-right tabular-nums whitespace-nowrap text-feisen-texto">
+                              {formatNumber(u.porMaquina, 2)} {g.unidad}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )
+              })}
+          {sinMaterial.length > 0 && (
+            <section className="rounded-xl border border-amber-200 bg-amber-50/50 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2.5">
+                <Punto estado="falta" />
+                <span className="text-sm font-semibold text-amber-900">Sin material</span>
+                <span className="text-xs text-amber-800">· {sinMaterial.length} {sinMaterial.length === 1 ? 'pieza' : 'piezas'}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 px-3 pb-3 sm:pl-9">
+                {sinMaterial.map((f) => (
+                  <button key={f.key} type="button" onClick={() => irAPieza(f.fichaId)} className="h-9 rounded-lg border border-amber-200 bg-white px-3 text-sm text-feisen-texto hover:border-feisen-azul hover:text-feisen-azul">
+                    {corto(f.ficha?.nombre)}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {!sinMaterial.length && (soloFalta || !materiales.length) && <p className="px-4 py-8 text-center text-sm text-feisen-texto-2">{materiales.length ? 'Todas las piezas tienen su materia prima.' : 'Todavía no hay materiales.'}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Punto({ estado }) {
+  return <span className={`w-2 h-2 rounded-full flex-none ${estado === 'ok' ? 'bg-emerald-600' : estado === 'falta' ? 'bg-amber-500' : 'bg-feisen-borde'}`} aria-hidden="true" />
+}
+
+function Numero({ titulo, valor, nota }) {
+  return (
+    <div className="rounded-lg bg-feisen-fondo px-3 py-2.5 min-w-0">
+      <div className="text-xs text-feisen-texto-2">{titulo}</div>
+      <div className="text-lg font-semibold text-feisen-texto tabular-nums truncate">{valor}</div>
+      {nota && <div className="text-xs text-feisen-texto-2 truncate">{nota}</div>}
     </div>
   )
 }

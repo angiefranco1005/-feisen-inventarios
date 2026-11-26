@@ -159,7 +159,7 @@ export default function CosteoPasos() {
             Solo lo que falta{datos ? ` (${datos.cuenta[paso.id]})` : ''}
           </button>
           <span className="flex-1" />
-          {arbol && paso.id !== 'tiempos' && (
+          {arbol && !['tiempos', 'materia'].includes(paso.id) && (
             <button type="button" onClick={() => setSel({ tipo: 'raiz' })} className="h-9 rounded-md bg-feisen-rojo px-3 text-sm font-medium text-white hover:opacity-90">
               + Agregar pieza
             </button>

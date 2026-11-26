@@ -3059,3 +3059,10 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 ## 2026-11-26 · Despiece: se quitó «Traer piezas de fundición»
 
 - Pedido de Angie. Se quitó el botón del paso 1 · Despiece y se borró `pasos/TraerFundicion.jsx` (copiaba al despiece las piezas que Fundición tiene en `bom_maquina_piezas` para la máquina). Si se necesita otra vez, está en el historial de git (commit anterior a este).
+
+## 2026-11-26 · Materia prima: dos vistas, «Por pieza» y «Por material»
+
+- Angie quiso las dos opciones. `pasos/HojaMateria.jsx`: arriba tres números (materia prima por máquina, piezas con material y «Lo que más cuesta» o «Materiales distintos» según la vista) y un selector «Por pieza | Por material» que se recuerda (localStorage `costeo-materia-vista`).
+- Por pieza: una tarjeta por pieza (los conjuntos solo si tienen material propio), cerrada al entrar, con punto de estado (ámbar = sin material o sin precio) y costo por pieza; adentro sus materiales (editar/quitar), «+ Material» o el aviso de hacer primero la ruta, y el mismo formulario de antes.
+- Por material: agrupa los materiales de toda la máquina (por `item_id`, o por nombre normalizado si no hay) con unidades por máquina (Σ cantidad × cantidad acumulada de la pieza), precio y costo; adentro las piezas que lo usan con barra de participación; tocar una pieza lleva a «Por pieza» con su formulario abierto. Al final, tarjeta ámbar «Sin material» con botones a esas piezas.
+- `CosteoPasos.jsx`: «+ Agregar pieza» tampoco sale en el paso 3.
