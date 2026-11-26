@@ -2887,6 +2887,12 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   nombre como texto. Si la función no existe o falla, el campo sigue como texto libre. Migración
   `2026-11-26_colaboradores_fundida.sql`. Ojo nómina: si antes escribían un nombre corto ("DANIEL VILLAREAL") y ahora
   eligen el completo de RRHH, en un período de transición pueden salir como dos personas.
+- **26/11 · Corrección: la fundida descontaba CARBÓN MOLIDO en vez de CARBON COKE.** `MATERIAL_ITEMS.carbon` apuntaba a
+  `7314b94c…` (CARBÓN MOLIDO, 1.050 kg); el horno usa CARBON COKE (`00045c40-1632-4c82-99e0-2448fe127b58`, 5.195 kg).
+  Por eso salía "Stock insuficiente… Carbón: necesitas 1580 kg, hay 1050 kg". Corregido el id y la etiqueta ("Carbón
+  coke") en Registrar fundida, detalle de fundidas y Analítica. Revisado en la base: ninguna fundida alcanzó a
+  descontar carbón (0 movimientos "Consumo horno fundición"), así que no hay movimientos que corregir. Caliza,
+  ferromolido y slax sí apuntan al producto correcto de Fundición.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

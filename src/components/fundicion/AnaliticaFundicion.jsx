@@ -236,7 +236,7 @@ export default function AnaliticaFundicion() {
     })
     const kgRef = sumHierroFun || 1
     const consumos = [
-      { label: 'Carbón',      kg: sumCarbon, ratio: sumCarbon / kgRef, color: 'bg-gray-600' },
+      { label: 'Carbón coke', kg: sumCarbon, ratio: sumCarbon / kgRef, color: 'bg-gray-600' },
       { label: 'Caliza',      kg: sumCaliza, ratio: sumCaliza / kgRef, color: 'bg-amber-500' },
       { label: 'Ferromolido', kg: sumFerro,  ratio: sumFerro  / kgRef, color: 'bg-orange-500' },
       { label: 'Exlac',       kg: sumExlac,  ratio: sumExlac  / kgRef, color: 'bg-blue-500'  },

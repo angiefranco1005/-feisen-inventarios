@@ -12,14 +12,14 @@ const FUND_BODEGA_ID = 'a0604489-2768-445b-8e68-e450ef8520ed'
 
 // Materiales del formulario que tienen item en inventario → se descontarán al guardar
 const MATERIAL_ITEMS = {
-  carbon:      '7314b94c-385c-4c22-b0f8-04861fbc644e', // CARBÓN
+  carbon:      '00045c40-1632-4c82-99e0-2448fe127b58', // CARBON COKE (antes apuntaba a CARBÓN MOLIDO, corregido 26/11/2026)
   caliza:      '8dac18cd-3909-4ea5-ace5-316a2cf6a894', // CALIZA
   ferromolido: '8a13934b-6d19-4ef1-975f-8b36f3429abd', // FERROMOLIDO
   exlac:       '55974f24-8892-475f-8658-eb57f5f496cc', // EXLAC (slax)
 }
 
 const MATERIAL_LABELS = {
-  carbon:      'Carbón',
+  carbon:      'Carbón coke',
   caliza:      'Caliza',
   ferromolido: 'Ferromolido',
   exlac:       'Exlac (slax)',
@@ -193,7 +193,7 @@ function ListaPersonas({ label, singular, valores, onChange, storageKey, placeho
 const MATERIALES = [
   { key: 'pesoVaceadero',     dbKey: 'peso_vaceadero',            label: 'Peso vaceadero',             unit: 'kg' },
   { key: 'hierroColado',      dbKey: 'hierro_colado',             label: 'Hierro colado',              unit: 'kg' },
-  { key: 'carbon',            dbKey: 'carbon',                    label: 'Carbón',                     unit: 'kg' },
+  { key: 'carbon',            dbKey: 'carbon',                    label: 'Carbón coke',                unit: 'kg' },
   { key: 'caliza',            dbKey: 'caliza',                    label: 'Caliza',                     unit: 'kg' },
   { key: 'ferromolido',       dbKey: 'ferromolido',               label: 'Ferromolido',                unit: 'kg' },
   { key: 'exlac',             dbKey: 'exlac',                     label: 'Exlac',                      unit: 'kg' },

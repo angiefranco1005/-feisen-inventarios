@@ -30,7 +30,7 @@ const MATERIALES = [
   { key: 'peso_vaceadero',            label: 'Peso vaceadero',            unit: 'kg' },
   { key: 'hierro_colado',             label: 'Hierro colado',             unit: 'kg' },
   { key: 'hierro_colado_contaminado', label: 'Hierro colado contaminado', unit: 'kg' },
-  { key: 'carbon',                    label: 'Carbón',                    unit: 'kg' },
+  { key: 'carbon',                    label: 'Carbón coke',               unit: 'kg' },
   { key: 'caliza',                    label: 'Caliza',                    unit: 'kg' },
   { key: 'ferromolido',               label: 'Ferromolido',               unit: 'kg' },
   { key: 'exlac',                     label: 'Exlac',                     unit: 'kg' },
