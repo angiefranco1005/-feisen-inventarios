@@ -2847,6 +2847,12 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   queda bloqueado (salvo ADMIN, para corregir un error) y el cambio se hace con Repartir. Si se pasa todo y la línea no
   tiene moldeadas, solo cambia el moldeador. Probado en la demo (crear con reparto y guardar 4 líneas; editar
   CHUMACERA 8 con 6 moldeadas → 6 Wilson + 2 Jhon, bloquea pasar más de 2).
+- **26/11 · Corrección: piezas con más moldeadas que planeadas** (ej. BOCÍN 90 planeadas / 96 moldeadas). No
+  mostraban "Repartir" y además la edición no dejaba guardar (exigía cantidad ≥ moldeado). Ahora el mínimo de una
+  línea es min(moldeado, lo planeado que tenía): no se baja, pero se puede dejar igual. "Repartir" sale en todas las
+  líneas: lo que falta por moldear se descuenta de la original y, si se pide más (o la línea ya está completa), se suma
+  a la orden en la línea del otro moldeador. Probado en la demo (CHUMACERA 8/6 moldeadas, pasar 5 → 6 + 5) y el cálculo
+  de mínimos con los casos reales de la captura.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

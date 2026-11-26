@@ -408,6 +408,7 @@ export default function ListaOrdenesMoldeo() {
         clave: p.id, id: p.id, item_id: p.item_id,
         nombre: p.items?.nombre || '',
         cantidad_planeada: String(p.cantidad_planeada || ''),
+        planOriginal: Number(p.cantidad_planeada) || 0,
         asignado_a: p.asignado_a || '',
         moldeado: avancesData[orden.id]?.[p.id]?.total || 0,
         quitar: false,
@@ -426,6 +427,11 @@ export default function ListaOrdenesMoldeo() {
     setEditForm(prev => ({ ...prev, piezas: prev.piezas.map(p => p.id ? { ...p, moldeado: mold[p.id] || 0 } : p) }))
     setEditItems(its || [])
   }
+
+  // Mínimo de una línea: no se puede bajar de lo ya moldeado. Si ya se moldeó MÁS de lo planeado (pasa),
+  // el mínimo es lo planeado que tenía (se puede dejar igual o subir, no bajar).
+  const minimoDe = p => p.id ? Math.min(p.moldeado || 0, p.planOriginal ?? (p.moldeado || 0)) : 0
+  const pendienteDe = p => Math.max(0, (Number(p.cantidad_planeada) || 0) - (p.moldeado || 0))
 
   function agregarEnEdicion(item, cant) {
     const n = Number(cant) || 0
@@ -464,7 +470,7 @@ export default function ListaOrdenesMoldeo() {
     for (const p of quedan) {
       const n = Number(p.cantidad_planeada) || 0
       if (!(n > 0)) { setMsgEdit(`"${p.nombre}": la cantidad debe ser mayor que cero (o quita la pieza).`); return }
-      if (n < p.moldeado) { setMsgEdit(`"${p.nombre}": ya tiene ${p.moldeado} moldeadas; la cantidad no puede quedar en menos.`); return }
+      if (n < minimoDe(p)) { setMsgEdit(`"${p.nombre}": ya tiene ${p.moldeado} moldeadas; la cantidad no puede quedar en menos de ${minimoDe(p)}.`); return }
     }
     setEditGuardando(true)
     try {
@@ -534,18 +540,19 @@ export default function ListaOrdenesMoldeo() {
     const orig = editForm.piezas.find(p => p.clave === repartir?.clave)
     if (!orig) { setRepartir(null); return }
     const total = Number(orig.cantidad_planeada) || 0
-    const maximo = total - (orig.moldeado || 0)
+    const pendiente = pendienteDe(orig)
     const n = Number(repartir.cantidad) || 0
     const quien = String(repartir.moldeador || '').trim()
-    if (!(n > 0) || n > maximo) { setMsgEdit(`"${orig.nombre}": puedes pasar entre 1 y ${maximo} piezas${orig.moldeado ? ` (ya hay ${orig.moldeado} moldeadas)` : ''}.`); return }
+    if (!(n > 0)) { setMsgEdit(`"${orig.nombre}": escribe cuántas piezas hará el otro moldeador.`); return }
     if (!quien) { setMsgEdit('Escribe a qué moldeador pasan las piezas.'); return }
     setEditForm(prev => {
       const piezas = []
       for (const p of prev.piezas) {
         if (p.clave !== orig.clave) { piezas.push(p); continue }
-        // Si pasa todo y la línea no tiene moldeadas, basta con cambiar el moldeador
-        if (n === total && !p.moldeado) { piezas.push({ ...p, asignado_a: quien }); continue }
-        piezas.push({ ...p, cantidad_planeada: String(total - n) })
+        // Línea sin moldeadas que pasa completa: basta con cambiar el moldeador
+        if (!p.moldeado && n >= total) { piezas.push({ ...p, asignado_a: quien, cantidad_planeada: String(n) }); continue }
+        // Lo que falta por moldear se descuenta de la original; si pide más, se suma a la orden
+        piezas.push({ ...p, cantidad_planeada: String(total - Math.min(n, pendiente)) })
         piezas.push({
           clave: 'nueva-' + Date.now(), id: null, item_id: p.item_id, nombre: p.nombre,
           cantidad_planeada: String(n), asignado_a: quien, moldeado: 0, quitar: false, repartida: true,
@@ -840,8 +847,8 @@ export default function ListaOrdenesMoldeo() {
                       {!p.quitar && (
                         <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-2 sm:items-end">
                           <div>
-                            <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Cantidad planeada{p.moldeado > 0 ? ` (mín. ${p.moldeado})` : ''}</span>
-                            <Contador valor={p.cantidad_planeada} min={p.moldeado || 0} onCambiar={v => setPieza(p.clave, 'cantidad_planeada', v)}
+                            <span className="text-[11px] text-feisen-texto-2 block mb-0.5">Cantidad planeada{minimoDe(p) > 0 ? ` (mín. ${minimoDe(p)})` : ''}</span>
+                            <Contador valor={p.cantidad_planeada} min={minimoDe(p)} onCambiar={v => setPieza(p.clave, 'cantidad_planeada', v)}
                               etiqueta={`Cantidad planeada de ${p.nombre}`} />
                           </div>
                           <label className="block">
@@ -858,7 +865,7 @@ export default function ListaOrdenesMoldeo() {
                           Las {p.moldeado} moldeadas quedan a nombre de {p.asignado_a || 'quien las hizo'}. Para que otro moldeador siga con el resto, usa “Repartir”.
                         </p>
                       )}
-                      {!p.quitar && (Number(p.cantidad_planeada) || 0) - (p.moldeado || 0) > 0 && (
+                      {!p.quitar && (Number(p.cantidad_planeada) || 0) > 0 && (
                         repartir?.clave === p.clave ? (
                           <div className="rounded-lg border border-feisen-azul/40 bg-feisen-azul-suave/40 p-3 space-y-2">
                             <p className="text-sm font-medium text-feisen-texto">Pasar piezas a otro moldeador</p>
@@ -872,7 +879,10 @@ export default function ListaOrdenesMoldeo() {
                                 aria-label="Moldeador que hará esas piezas" className={claseInput} />
                             </div>
                             <p className="text-xs text-feisen-texto-2">
-                              Máximo {(Number(p.cantidad_planeada) || 0) - (p.moldeado || 0)}. Quedan dos líneas de {p.nombre}, una por moldeador, cada una con su avance.
+                              {pendienteDe(p) > 0
+                                ? `Faltan ${pendienteDe(p)} por moldear en esta línea: se descuentan de aquí. Si pones más, se suman a la orden.`
+                                : `Esta línea ya está completa (${p.moldeado} moldeadas): las piezas se suman a la orden para el otro moldeador.`}
+                              {' '}Cada moldeador queda en su línea, con su avance.
                             </p>
                             <div className="flex gap-2">
                               <button type="button" onClick={() => setRepartir(null)}
@@ -883,7 +893,7 @@ export default function ListaOrdenesMoldeo() {
                           </div>
                         ) : (
                           <button type="button"
-                            onClick={() => { setMsgEdit(''); setRepartir({ clave: p.clave, cantidad: String(Math.floor(((Number(p.cantidad_planeada) || 0) - (p.moldeado || 0)) / 2) || 1), moldeador: '' }) }}
+                            onClick={() => { setMsgEdit(''); setRepartir({ clave: p.clave, cantidad: pendienteDe(p) > 0 ? String(Math.ceil(pendienteDe(p) / 2)) : '', moldeador: '' }) }}
                             className="text-sm font-medium text-feisen-azul hover:underline min-h-[36px]">
                             Repartir con otro moldeador
                           </button>
