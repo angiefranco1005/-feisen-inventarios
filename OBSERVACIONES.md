@@ -3023,3 +3023,7 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 ## 2026-11-26 · Costeo: quitar «Abrir ficha» de las pantallas de la máquina
 
 - Pedido de Angie. Se quitó el botón del encabezado en `TableroMaquina.jsx`, `CosteoPasos.jsx` y `DiagramaMaquina.jsx`. Se deja «Abrir su ficha» del panel de la pieza. La ficha sigue existiendo en `/costeo/fichas/:id` (y en la lista `/costeo?vista=lista`).
+
+## 2026-11-26 · Tiempos: menos lecturas (Angie no tiene tiempo para 10 tomas)
+
+- Regla nueva en plantilla y ERP (`lecturasNecesarias(valores, peso)`): mínimo **3** lecturas por etapa; etapas que pesan menos del 10 % del tiempo de la operación quedan con 3; las demás usan la fórmula con **95 % de confianza y ±10 %** (constante 20 en vez de 40, que era ±5 % y pedía 4 veces más). La plantilla trae 6 columnas de lecturas en vez de 10. Truco documentado en la hoja: cronometrar varias piezas seguidas y poner ese número en «Piezas que salen cada vez».

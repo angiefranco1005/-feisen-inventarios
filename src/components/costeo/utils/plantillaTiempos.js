@@ -2,16 +2,21 @@
 // Una hoja «Tiempos»: por cada operación interna de la máquina (en el orden de la hoja de ruta) una
 // fila gris con «Pieza · n · Operación · Cargo» y debajo sus etapas. Cada etapa: «Piezas que salen
 // cada vez» (1 = se hace para cada pieza; 3 = una vez sirve para 3 piezas, ej. subir la lámina de la
-// que salen 3 conos), 10 lecturas en segundos y, calculado en el Excel, promedio, segundos por pieza y
-// si bastan las lecturas (fórmula del estudio de tiempos, 95 % de confianza y ±5 % de error):
-//   n' = ( 40 · √(n·Σx² − (Σx)²) / Σx )²
+// que salen 3 conos), hasta 6 lecturas en segundos y, calculado en el Excel, promedio, segundos por pieza y
+// si bastan las lecturas. Regla reducida (2026-11-26, Angie no tiene tiempo para 10 tomas):
+//   · mínimo 3 lecturas por etapa;
+//   · etapas que pesan menos del 10 % del tiempo de la operación: con 3 basta;
+//   · las demás: fórmula del estudio de tiempos con 95 % de confianza y ±10 % de error
+//       n' = ( 20 · √(n·Σx² − (Σx)²) / Σx )²   (con ±5 % sería 40 y pide 4 veces más lecturas)
 // La columna A (oculta) lleva el código: P:<proceso> en la fila de la operación, E:<etapa> en etapas
 // ya guardadas, vacía en etapas nuevas o sugeridas, T en el total. Al leer, una etapa sin código se crea.
 // Mismos cuidados que plantillaMoldeo.js: celdas vacías con estilo vía marca + limpieza del XML, y
 // «recalcular al abrir» porque las fórmulas no traen valor guardado.
 import XLSX from 'xlsx-js-style'
 
-export const LECTURAS = 10
+export const LECTURAS = 6
+export const MINIMO = 3
+const K = 20 // 95 % de confianza, ±10 %
 const FILA_ENC = 5 // 1-based
 const VACIA = '§VACIA§'
 const AZUL = '064794'
@@ -54,16 +59,15 @@ export function etapasSugeridas(nombreOperacion) {
   return (SUGERIDAS.find(([re]) => re.test(n)) || [null, ['Preparar', 'Hacer la operación', 'Terminar']])[1]
 }
 
-// Cuántas lecturas pide la fórmula (null si no se puede calcular todavía).
-export function lecturasNecesarias(valores) {
+// Cuántas lecturas pide la regla (peso = parte del tiempo de la operación que es esta etapa, 0–1).
+export function lecturasNecesarias(valores, peso = null) {
   const xs = valores.map(Number).filter((x) => x > 0)
   const n = xs.length
-  if (n < 2) return null
+  if (!n) return MINIMO
+  if (peso != null && peso < 0.1) return MINIMO
   const s = xs.reduce((a, b) => a + b, 0)
   const ss = xs.reduce((a, b) => a + b * b, 0)
-  const dentro = n * ss - s * s
-  if (!(s > 0)) return null
-  return Math.max(1, Math.ceil(((40 * Math.sqrt(Math.max(0, dentro))) / s) ** 2))
+  return Math.max(MINIMO, Math.ceil(((K * Math.sqrt(Math.max(0, n * ss - s * s))) / s) ** 2))
 }
 
 const col = (c) => XLSX.utils.encode_col(c)
@@ -85,7 +89,7 @@ export function construirPlantillaTiempos({ maquina, operaciones }) {
   const merges = []
 
   pon(0, C_ETAPA, `Toma de tiempos · ${maquina}`, est.titulo)
-  pon(1, C_ETAPA, 'Escribe en las celdas amarillas los SEGUNDOS de cada lectura del cronómetro (o minutos:segundos, ej. 2:15). Para empezar, 10 lecturas por etapa; la columna «¿Bastan?» dice si hacen falta más.', est.gris)
+  pon(1, C_ETAPA, 'Escribe en las celdas amarillas los SEGUNDOS de cada lectura del cronómetro (o minutos:segundos, ej. 2:15). Con 3 lecturas por etapa basta para empezar; la columna «¿Bastan?» avisa solo si una etapa larga varía mucho. Truco: si cronometras varias piezas seguidas de una vez (ej. 5 cortes), escribe 5 en «Piezas que salen cada vez».', est.gris)
   pon(2, C_ETAPA, '«Piezas que salen cada vez»: 1 si la etapa se hace para cada pieza. Si una vez sirve para varias (ej. subir una lámina de la que salen 3 conos), escribe cuántas. Para agregar una etapa, escríbela en una fila amarilla vacía. No borres las filas azules.', est.gris)
   merges.push({ s: { r: 1, c: C_ETAPA }, e: { r: 1, c: C_NOTAS } }, { s: { r: 2, c: C_ETAPA }, e: { r: 2, c: C_NOTAS } })
 
@@ -100,6 +104,7 @@ export function construirPlantillaTiempos({ maquina, operaciones }) {
     merges.push({ s: { r, c: C_ETAPA }, e: { r, c: C_NOTAS } })
     r++
     const primera = r
+    const filaTotal = r + op.etapas.length + 2 + 1 // 1-based: etapas + 2 libres
     const filas = [...op.etapas, { id: null, nombre: '', piezas: null, lecturas: [] }, { id: null, nombre: '', piezas: null, lecturas: [] }]
     for (const et of filas) {
       const R = r + 1 // 1-based para fórmulas
@@ -110,8 +115,10 @@ export function construirPlantillaTiempos({ maquina, operaciones }) {
       for (let i = 0; i < LECTURAS; i++) pon(r, C_L1 + i, et.lecturas?.[i] > 0 ? Math.round(et.lecturas[i] * 10) / 10 : '', est.entradaNum)
       formula(r, C_PROM, `IF(COUNT(${rango})=0,"",AVERAGE(${rango}))`, est.calculo, '0.0')
       formula(r, C_PIEZA, `IF(${col(C_PROM)}${R}="","",${col(C_PROM)}${R}/MAX(1,N(${col(C_PIEZAS)}${R})))`, est.calculo, '0.0')
-      const nn = `ROUNDUP((40*SQRT(MAX(0,COUNT(${rango})*SUMSQ(${rango})-SUM(${rango})^2))/SUM(${rango}))^2,0)`
-      ws[XLSX.utils.encode_cell({ r, c: C_BASTAN })] = { t: 's', f: `IF(COUNT(${rango})<2,"",IF(${nn}<=COUNT(${rango}),"Sí","Faltan "&(${nn}-COUNT(${rango}))))`, s: est.calculo }
+      const nn = `ROUNDUP((${K}*SQRT(MAX(0,COUNT(${rango})*SUMSQ(${rango})-SUM(${rango})^2))/SUM(${rango}))^2,0)`
+      const tot = `$${col(C_PIEZA)}$${filaTotal}`
+      const pide = `IF(AND(N(${tot})>0,N(${col(C_PIEZA)}${R})/N(${tot})<0.1),${MINIMO},MAX(${MINIMO},${nn}))`
+      ws[XLSX.utils.encode_cell({ r, c: C_BASTAN })] = { t: 's', f: `IF(COUNT(${rango})=0,"",IF(COUNT(${rango})>=${pide},"Sí","Faltan "&(${pide}-COUNT(${rango}))))`, s: est.calculo }
       pon(r, C_OPERARIO, et.operario || '', est.entrada)
       pon(r, C_FECHA, isoAFecha(et.fecha), est.entrada)
       pon(r, C_NOTAS, et.notas || '', est.entrada)

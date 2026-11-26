@@ -7,7 +7,7 @@ import { construirPlantillaTiempos, duracion, etapasSugeridas, lecturasNecesaria
 import { falta } from './datosPasos'
 
 // Paso 4 · Tiempos por etapas con plantilla de Excel (Angie, 2026-11-26).
-// Descargar plantilla → el jefe toma los tiempos en planta (10 lecturas por etapa) → subirla.
+// Descargar plantilla → el jefe toma los tiempos en planta (3 lecturas por etapa para empezar) → subirla.
 // Al subir: se crean/actualizan las etapas (costeo_proceso_etapas), se reemplazan sus lecturas
 // (costeo_etapa_lecturas) y por cada operación se deja UNA medición en costeo_tiempos_reales con
 // origen 'etapas' (horas por pieza, unidades 1, a la persona de la operación). Así la mano de obra y
@@ -191,7 +191,7 @@ export default function HojaTiempos({ arbol, procesos, corto, buscar, soloFalta,
     <div>
       <div className="px-3 sm:px-4 py-3 border-b border-feisen-borde-suave bg-feisen-azul-suave/40 flex flex-wrap items-center gap-3">
         <div className="flex-1 min-w-[240px] text-sm text-feisen-texto-2">
-          <span className="font-medium text-feisen-texto">Plantilla de tiempos.</span> Descárgala, toma 10 lecturas por etapa con cronómetro y súbela. Si la vuelves a subir con más lecturas, se actualiza.
+          <span className="font-medium text-feisen-texto">Plantilla de tiempos.</span> Descárgala, toma 3 lecturas por etapa con cronómetro y súbela; te avisa solo si una etapa larga necesita más. Si la vuelves a subir con más lecturas, se actualiza.
         </div>
         <button type="button" onClick={descargar} disabled={!etapas} className={`${BTN} border border-feisen-borde bg-white text-feisen-azul hover:bg-feisen-azul-suave disabled:opacity-60`}>
           <Download size={15} /> Descargar plantilla
@@ -235,8 +235,7 @@ function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
   const datos = etapas.map((e) => {
     const xs = e.lecturas.map((l) => Number(l.segundos))
     const prom = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0
-    const necesita = lecturasNecesarias(xs)
-    return { ...e, xs, prom, porPieza: prom / (Number(e.piezas_por_vez) || 1), necesita }
+    return { ...e, xs, prom, porPieza: prom / (Number(e.piezas_por_vez) || 1) }
   })
   const total = datos.reduce((s, e) => s + e.porPieza, 0)
   const sinPersona = Number(p.costo.lineas_mano_obra || 0) === 0
@@ -269,7 +268,7 @@ function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
             <tbody>
               {datos.map((e) => {
                 const pct = total > 0 ? e.porPieza / total : 0
-                const faltan = e.necesita ? Math.max(0, e.necesita - e.xs.length) : null
+                const faltan = Math.max(0, lecturasNecesarias(e.xs, total > 0 ? pct : null) - e.xs.length)
                 return (
                   <tr key={e.id} className="border-t border-feisen-borde-suave tabular-nums [&>td:not(:first-child)]:whitespace-nowrap">
                     <td className="py-1.5 pr-2 text-feisen-texto">{e.nombre}</td>
@@ -286,7 +285,7 @@ function Operacion({ p, titulo, etapas, manuales, onAbrir }) {
                       )}
                     </td>
                     <td className="py-1.5 pl-2 text-xs">
-                      {!e.xs.length ? <span className="text-amber-700">Sin lecturas</span> : faltan === null ? <span className="text-feisen-texto-2">Faltan lecturas</span> : faltan === 0 ? <span className="text-emerald-700">Sí</span> : <span className="text-amber-700">Faltan {faltan}</span>}
+                      {!e.xs.length ? <span className="text-amber-700">Sin lecturas</span> : faltan === 0 ? <span className="text-emerald-700">Sí</span> : <span className="text-amber-700">Faltan {faltan}</span>}
                     </td>
                   </tr>
                 )
