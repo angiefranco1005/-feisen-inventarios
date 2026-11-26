@@ -3,10 +3,11 @@ import { PASOS } from '../pasos/datosPasos'
 
 // Etapas del costeo de UNA máquina (2026-11-26, Angie: "cuando entre a cada máquina ahí sí se muestren
 // las etapas"). Va arriba del tablero de la máquina y de cada paso, siempre con la misma máquina.
-// activa: 'resumen' | 'despiece' | 'ruta' | 'materia' | 'tiempos'. cuentas: { [paso]: cuántas faltan }.
+// activa: 'resumen' | 'despiece' | 'ruta' | 'materia' | 'tiempos' | 'diagrama'. cuentas: { [paso]: cuántas faltan }.
 export default function EtapasMaquina({ maquinaId, activa, cuentas }) {
   const etapas = [{ id: 'resumen', etiqueta: 'Precio y utilidad', to: `/costeo/maquina/${maquinaId}` }].concat(
-    PASOS.map((p) => ({ id: p.id, etiqueta: `${p.n} · ${p.nombre}`, to: `/costeo/pasos/${p.id}?maquina=${maquinaId}` }))
+    PASOS.map((p) => ({ id: p.id, etiqueta: `${p.n} · ${p.nombre}`, to: `/costeo/pasos/${p.id}?maquina=${maquinaId}` })),
+    [{ id: 'diagrama', etiqueta: 'Diagrama', to: `/costeo/diagrama/${maquinaId}` }]
   )
   return (
     <nav aria-label="Etapas del costeo de esta máquina" className="flex gap-1 overflow-x-auto border-b border-feisen-borde -mx-1 px-1">

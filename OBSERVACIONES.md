@@ -2813,3 +2813,18 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - La pestaña "Piezas sueltas" ya no trae fila de ejemplo (se cargaría como pieza real).
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
+
+## 2026-11-26 · Diagrama de operaciones por máquina
+
+- Angie escogió la opción A (cursograma sinóptico). Es la pestaña "Diagrama" de las etapas de cada máquina: `/costeo/diagrama/:id`, archivo `inicio/DiagramaMaquina.jsx`.
+- **Cómo se arma:** solo, con `cargarArbol` (despiece + hojas de ruta).
+  - Cada pieza baja en su columna con sus procesos en el orden de `costeo_procesos.orden`.
+  - Las columnas se juntan en "Ensamble · <conjunto>", siguen las operaciones del conjunto y al final sale "Ensamble final" y la máquina terminada.
+- **Numeración:** O-1, O-2… en el orden en que se hacen (primero las piezas, de izquierda a derecha).
+- **Símbolos:**
+  - Círculo azul = operación con tiempo; borde ámbar = sin tiempo.
+  - Cuadrado = inspección. Se detecta por el nombre del proceso: inspec / control / verific / calidad. No hay campo de tipo.
+- **Resumen arriba:** operaciones, sin tiempo, horas-hombre por máquina (horas_hombre_unidad × cantidad acumulada, solo lo medido) y piezas sin hoja de ruta.
+- **Herramientas:** botón "Ocultar piezas sin hoja de ruta" y zoom del 50 al 160 %.
+- **El layout es SVG calculado a mano, sin librerías.** Los nombres largos se cortan con "…" y el nombre completo sale al pasar el mouse.
+- Probado en la demo. Con datos reales, Fondo tiene 0,103 h c/u (6,2 min).

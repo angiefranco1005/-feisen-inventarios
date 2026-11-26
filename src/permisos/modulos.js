@@ -64,7 +64,7 @@ export const MODULOS = [
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: crea y ve solo sus propios documentos · Todo: ve todo, revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/manuales'] },
   { clave: 'costeo',         grupo: 'Administración', nombre: 'Costeo', detalle: 'fichas de costo', niveles: ['todo'],
-    rutas: ['/costeo', '/costeo/fichas/:id', '/costeo/etapas', '/costeo/cif', '/costeo/equipos', '/costeo/bases', '/costeo/pasos/:paso', '/costeo/maquina/:id',
+    rutas: ['/costeo', '/costeo/fichas/:id', '/costeo/etapas', '/costeo/cif', '/costeo/equipos', '/costeo/bases', '/costeo/pasos/:paso', '/costeo/maquina/:id', '/costeo/diagrama/:id',
       // Cada paso con su ruta exacta para que el menú los muestre (moduloDeRuta compara texto exacto)
       '/costeo/pasos/despiece', '/costeo/pasos/ruta', '/costeo/pasos/materia', '/costeo/pasos/tiempos'] },
   { clave: 'rrhh',           grupo: 'Administración', nombre: 'Recursos Humanos', detalle: 'colaboradores, nómina, novedades', niveles: ['todo'],
