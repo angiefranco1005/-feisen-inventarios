@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Copy, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Copy, Plus, Trash2, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
@@ -7,8 +7,8 @@ import { falta, normalizar } from './datosPasos'
 import { IndicadorObservaciones } from '../Observaciones'
 import { IndicadorPlanos } from '../Planos'
 
-// Paso 2 · Hojas de ruta como secuencia de fichas (opción B; Angie, 2026-11-26).
-// Cada pieza es un renglón con sus operaciones en orden. Cada ficha dice la máquina, quién la hace
+// Paso 2 · Hojas de ruta (Angie, 2026-11-26). Vista «lista con detalle»: piezas a la izquierda y la ruta
+// de la escogida a la derecha, paso a paso. Cada ficha dice la máquina, quién la hace
 // (cargo del organigrama) y si es interna o externa (con proveedor). Las operaciones se agregan con un
 // toque desde la biblioteca (costeo_operaciones), que trae esos datos llenos; la biblioteca aprende:
 // si una operación no tenía máquina o cargo y se lo pones, queda para la próxima.
@@ -26,6 +26,16 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
   const [abierto, setAbierto] = useState(null) // { fichaId, modo: 'agregar' | 'editar' | 'copiar', procesoId? }
   const [error, setError] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  // Pieza escogida (vista lista con detalle). En celular arranca en la lista; en computador, en la
+  // primera pieza sin ruta.
+  const [sel, setSel] = useState(undefined)
+  const [cerrados, setCerrados] = useState(() => new Set())
+  const alternar = (key) =>
+    setCerrados((c) => {
+      const n = new Set(c)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
 
   async function cargarCatalogos() {
     const [op, eq, ca, pr, mt] = await Promise.all([
@@ -60,6 +70,14 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
     if (!soloFalta && !q) out.push({ key: 'raiz', fichaId: arbol.raizId, nombre: 'Ensamble final de la máquina', nivel: 0, cant: 1, esConjunto: true, raiz: true })
     return out
   }, [filas, buscar, soloFalta, corto, arbol.raizId])
+
+  useEffect(() => {
+    if (sel !== undefined || !renglones.length) return
+    const grande = typeof window !== 'undefined' && window.matchMedia?.('(min-width: 640px)').matches
+    if (!grande) return setSel(null)
+    const primera = renglones.find((r) => !r.esConjunto && !(arbol.procesos[r.fichaId] || []).length) || renglones[0]
+    setSel(primera.key)
+  }, [renglones, sel, arbol.procesos])
 
   const procesosDe = (fichaId) => [...(arbol.procesos[fichaId] || [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
   const nombreEquipo = (id) => {
@@ -212,105 +230,182 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
   const piezas = filas.filter((f) => !f.esConjunto)
   const origenes = (destino) => renglones.filter((r) => r.fichaId !== destino && procesosDe(r.fichaId).length)
 
-  return (
-    <div className="divide-y divide-feisen-borde-suave">
-      {error && <p className="px-4 py-3 text-sm text-feisen-rojo">{error}</p>}
-      {!renglones.length && <p className="px-4 py-8 text-center text-sm text-feisen-texto-2">Todas las piezas tienen su hoja de ruta.</p>}
-      {renglones.map((r) => {
-        const procs = procesosDe(r.fichaId)
-        const ab = abierto?.fichaId === r.fichaId ? abierto : null
-        const editando = ab?.modo === 'editar' ? procs.find((p) => p.id === ab.procesoId) : null
-        return (
-          <section key={r.key} className={`px-3 sm:px-4 py-3 ${r.esConjunto ? 'bg-feisen-fondo' : 'bg-white'}`}>
-            <div className="flex flex-wrap items-baseline gap-x-2 mb-2" style={{ paddingLeft: Math.min(r.nivel, 4) * 16 }}>
-              <h3 className={`text-sm ${r.esConjunto ? 'font-semibold' : 'font-medium'} text-feisen-texto`}>
-                {r.esConjunto && !r.raiz ? `Ensamble · ${r.nombre}` : r.nombre}
-              </h3>
-              <IndicadorObservaciones n={arbol.observaciones?.[r.fichaId]} />
-              <IndicadorPlanos n={arbol.planos?.[r.fichaId]} />
-              {r.cant !== 1 && <span className="text-xs text-feisen-texto-2">× {formatNumber(r.cant, r.cant % 1 ? 2 : 0)}</span>}
-              {!r.esConjunto && !procs.length && <span className="text-xs rounded-full px-2 py-0.5 bg-amber-50 text-amber-800">Sin ruta</span>}
-            </div>
-            <div className="flex flex-wrap items-stretch gap-1.5" style={{ paddingLeft: Math.min(r.nivel, 4) * 16 }}>
-              {procs.map((p, i) => (
-                <div key={p.id} className="flex items-stretch gap-1.5">
-                  {i > 0 && <span className="self-center text-feisen-gris-medio" aria-hidden="true">→</span>}
-                  <Ficha
-                    n={i + 1}
-                    p={p}
-                    equipo={nombreEquipo(p.equipo_id)}
-                    proveedor={nombreProveedor(p.proveedor_id)}
-                    activa={editando?.id === p.id}
-                    onClick={() => setAbierto(editando?.id === p.id ? null : { fichaId: r.fichaId, modo: 'editar', procesoId: p.id })}
-                  />
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setAbierto(ab?.modo === 'agregar' ? null : { fichaId: r.fichaId, modo: 'agregar' })}
-                className={`self-center ${BTN} border border-dashed ${ab?.modo === 'agregar' ? 'border-feisen-azul text-feisen-azul bg-feisen-azul-suave' : 'border-feisen-borde text-feisen-texto-2 hover:text-feisen-azul hover:border-feisen-azul'}`}
-              >
-                <Plus size={14} /> Operación
-              </button>
-              {origenes(r.fichaId).length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAbierto(ab?.modo === 'copiar' ? null : { fichaId: r.fichaId, modo: 'copiar' })}
-                  className={`self-center ${BTN} text-feisen-texto-2 hover:text-feisen-azul`}
-                >
-                  <Copy size={14} /> Copiar ruta de…
-                </button>
-              )}
-            </div>
+  // Vista C (2026-11-26, Angie: "se ve desorganizado, mucho ruido"): lista de piezas a la izquierda,
+  // agrupada por conjunto (se puede cerrar), y a la derecha solo la ruta de la pieza escogida, paso a paso.
+  // En celular se ve una cosa a la vez.
+  const actual = renglones.find((r) => r.key === sel) || null
+  const visibles = []
+  let tapa = null // nivel del conjunto cerrado que tapa a sus piezas
+  for (const r of renglones) {
+    if (tapa !== null && r.nivel > tapa) continue
+    tapa = null
+    visibles.push(r)
+    if (r.esConjunto && !r.raiz && cerrados.has(r.key)) tapa = r.nivel
+  }
 
-            {ab?.modo === 'agregar' && cat && (
-              <Biblioteca operaciones={cat.operaciones} ocupado={ocupado} onEscoger={(op) => agregarDeBiblioteca(r.fichaId, op)} onOtra={(n) => agregarOtra(r.fichaId, n)} onCerrar={() => setAbierto(null)} />
-            )}
-            {ab?.modo === 'copiar' && (
-              <CopiarRuta origenes={origenes(r.fichaId)} procesosDe={procesosDe} ocupado={ocupado} onCopiar={(o) => copiar(r.fichaId, o)} onCerrar={() => setAbierto(null)} />
-            )}
-            {editando && cat && (
-              <Editor
-                key={editando.id}
-                p={editando}
-                claveEquipo={claveEquipo(editando.equipo_id)}
+  return (
+    <div>
+      {error && <p className="px-4 py-3 text-sm text-feisen-rojo">{error}</p>}
+      {!renglones.length ? (
+        <p className="px-4 py-8 text-center text-sm text-feisen-texto-2">Todas las piezas tienen su hoja de ruta.</p>
+      ) : (
+        <div className="sm:grid sm:grid-cols-[minmax(220px,300px)_minmax(0,1fr)] sm:min-h-[420px]">
+          {/* Lista de piezas */}
+          <nav aria-label="Piezas" className={`sm:border-r border-feisen-borde-suave py-2 ${actual ? 'hidden sm:block' : ''}`}>
+            {visibles.map((r) => {
+              const i = renglones.indexOf(r)
+              const procs = procesosDe(r.fichaId)
+              const on = r.key === sel
+              const grupo = r.esConjunto && !r.raiz
+              const cuenta = grupo ? contarDentro(renglones, i, (x) => !x.esConjunto, (x) => procesosDe(x.fichaId).length > 0) : null
+              const estado = !procs.length ? (r.esConjunto ? 'vacio' : 'falta') : procs.some((p) => !p.externo && !p.cargo_id && !p.cargo_nombre) ? 'falta' : 'ok'
+              return (
+                <div key={r.key} className="flex items-center" style={{ paddingLeft: 8 + Math.min(r.nivel, 4) * 14 }}>
+                  {grupo ? (
+                    <button type="button" onClick={() => alternar(r.key)} aria-label={cerrados.has(r.key) ? `Abrir ${r.nombre}` : `Cerrar ${r.nombre}`} className="w-7 h-9 grid place-items-center text-feisen-texto-2 hover:text-feisen-texto">
+                      {cerrados.has(r.key) ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
+                    </button>
+                  ) : (
+                    <span className="w-7" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSel(r.key)
+                      setAbierto(null)
+                    }}
+                    aria-current={on ? 'true' : undefined}
+                    className={`flex-1 min-w-0 mr-2 flex items-center gap-2 rounded-lg px-2 h-9 text-left text-sm ${on ? 'bg-feisen-azul-suave text-feisen-azul font-medium' : 'text-feisen-texto hover:bg-feisen-fondo'}`}
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-none ${estado === 'ok' ? 'bg-emerald-600' : estado === 'falta' ? 'bg-amber-500' : 'bg-feisen-borde'}`} aria-hidden="true" />
+                    <span className={`truncate ${grupo || r.raiz ? 'font-semibold' : ''}`}>{r.nombre}</span>
+                    {cuenta && <span className="ml-auto text-[11px] tabular-nums text-feisen-texto-2 flex-none">{cuenta.si}/{cuenta.total}</span>}
+                  </button>
+                </div>
+              )
+            })}
+          </nav>
+
+          {/* Ruta de la pieza escogida */}
+          <div className={`px-3 sm:px-6 py-4 ${actual ? '' : 'hidden sm:block'}`}>
+            {!actual ? (
+              <p className="text-sm text-feisen-texto-2 py-10 text-center">Escoge una pieza para ver y armar su ruta.</p>
+            ) : (
+              <Detalle
+                r={actual}
+                procs={procesosDe(actual.fichaId)}
+                arbol={arbol}
                 cat={cat}
+                abierto={abierto?.fichaId === actual.fichaId ? abierto : null}
+                setAbierto={setAbierto}
                 ocupado={ocupado}
-                primero={procs[0]?.id === editando.id}
-                ultimo={procs[procs.length - 1]?.id === editando.id}
-                onGuardar={(v) => guardar(editando, v)}
-                onMover={(paso) => mover(r.fichaId, editando, paso)}
-                onQuitar={() => quitar(editando)}
-                onCrearEquipo={crearEquipo}
-                onCerrar={() => setAbierto(null)}
+                nombreEquipo={nombreEquipo}
+                nombreProveedor={nombreProveedor}
+                claveEquipo={claveEquipo}
+                origenes={origenes(actual.fichaId)}
+                procesosDe={procesosDe}
+                onVolver={() => setSel(null)}
+                acciones={{ agregarDeBiblioteca, agregarOtra, guardar, mover, quitar, copiar, crearEquipo }}
               />
             )}
-          </section>
-        )
-      })}
-      <div className="px-4 py-2 bg-feisen-gris text-xs text-feisen-texto-2">
+          </div>
+        </div>
+      )}
+      <div className="px-4 py-2 border-t border-feisen-borde-suave bg-feisen-gris text-xs text-feisen-texto-2">
         {soloFalta || buscar ? `${renglones.length} mostradas` : `${conRuta} de ${piezas.length} piezas con ruta`}
       </div>
     </div>
   )
 }
 
-function Ficha({ n, p, equipo, proveedor, activa, onClick }) {
-  const faltaQuien = !p.externo && !p.cargo_id && !p.cargo_nombre
+function contarDentro(filas, i, cuenta, cumple) {
+  let total = 0
+  let si = 0
+  for (let k = i + 1; k < filas.length && filas[k].nivel > filas[i].nivel; k++) {
+    if (!cuenta(filas[k])) continue
+    total++
+    if (cumple(filas[k])) si++
+  }
+  return total ? { total, si } : null
+}
+
+function Detalle({ r, procs, arbol, cat, abierto, setAbierto, ocupado, nombreEquipo, nombreProveedor, claveEquipo, origenes, procesosDe, onVolver, acciones }) {
+  const editando = abierto?.modo === 'editar' ? procs.find((p) => p.id === abierto.procesoId) : null
+  const titulo = r.esConjunto && !r.raiz ? `Ensamble · ${r.nombre}` : r.nombre
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={activa}
-      className={`text-left rounded-lg border px-2.5 py-1.5 min-w-[150px] max-w-[220px] bg-white hover:border-feisen-azul ${activa ? 'border-feisen-azul ring-2 ring-feisen-azul/20' : 'border-feisen-borde'}`}
-    >
-      <div className="text-[13px] font-semibold text-feisen-texto truncate">
-        {n} · {p.nombre}
+    <div className="max-w-3xl">
+      <button type="button" onClick={onVolver} className="sm:hidden mb-2 h-9 inline-flex items-center gap-1 text-sm text-feisen-azul">
+        <ChevronLeft size={15} /> Piezas
+      </button>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <h3 className="text-lg font-semibold text-feisen-texto">{titulo}</h3>
+        {r.cant !== 1 && <span className="text-sm text-feisen-texto-2">× {formatNumber(r.cant, r.cant % 1 ? 2 : 0)}</span>}
+        <IndicadorObservaciones n={arbol.observaciones?.[r.fichaId]} />
+        <IndicadorPlanos n={arbol.planos?.[r.fichaId]} />
       </div>
-      <div className="text-xs text-feisen-texto-2 truncate">{p.externo ? proveedor || 'Proveedor sin escoger' : equipo || 'Sin máquina'}</div>
-      <div className={`text-xs truncate ${faltaQuien ? 'text-amber-700' : 'text-feisen-texto-2'}`}>{p.externo ? 'Tercero' : faltaQuien ? 'Falta quién lo hace' : tipoTitulo(p.cargo_nombre)}</div>
-      <span className={`mt-1 inline-block rounded px-1.5 text-[11px] font-medium ${p.externo ? 'bg-amber-50 text-amber-800' : 'bg-feisen-gris text-feisen-texto-2'}`}>{p.externo ? 'Externo' : 'Interno'}</span>
-    </button>
+      <p className="text-xs text-feisen-texto-2 mt-0.5">
+        {procs.length ? `${procs.length} ${procs.length === 1 ? 'paso' : 'pasos'}` : r.esConjunto ? 'Sin pasos de ensamble' : 'Todavía no tiene ruta'}
+        {r.esConjunto && !r.raiz ? ' · aquí van las uniones entre sus piezas' : ''}
+      </p>
+
+      <ol className="mt-4">
+        {procs.map((p, i) => {
+          const faltaQuien = !p.externo && !p.cargo_id && !p.cargo_nombre
+          const on = editando?.id === p.id
+          return (
+            <li key={p.id} className="relative pl-10 pb-3">
+              {i < procs.length - 1 && <span className="absolute left-[13px] top-7 bottom-0 w-px bg-feisen-borde" aria-hidden="true" />}
+              <span className={`absolute left-0 top-1 w-7 h-7 rounded-full grid place-items-center text-xs font-semibold tabular-nums ${on ? 'bg-feisen-azul text-white' : 'bg-feisen-azul-suave text-feisen-azul'}`}>{i + 1}</span>
+              <button type="button" onClick={() => setAbierto(on ? null : { fichaId: r.fichaId, modo: 'editar', procesoId: p.id })} aria-expanded={on} className="w-full text-left rounded-lg px-2 py-1 -mx-2 hover:bg-feisen-fondo">
+                <span className="flex items-center gap-2 text-sm font-medium text-feisen-texto">
+                  {p.nombre}
+                  {p.externo && <span className="rounded px-1.5 text-[11px] font-medium bg-amber-50 text-amber-800">Externo</span>}
+                </span>
+                <span className="block text-xs text-feisen-texto-2">
+                  {p.externo ? nombreProveedor(p.proveedor_id) || 'Proveedor sin escoger' : nombreEquipo(p.equipo_id) || 'Sin máquina'}
+                  {!p.externo && (faltaQuien ? <span className="text-amber-700"> · Falta quién lo hace</span> : ` · ${tipoTitulo(p.cargo_nombre)}`)}
+                </span>
+              </button>
+              {on && cat && (
+                <Editor
+                  key={p.id}
+                  p={p}
+                  claveEquipo={claveEquipo(p.equipo_id)}
+                  cat={cat}
+                  ocupado={ocupado}
+                  primero={i === 0}
+                  ultimo={i === procs.length - 1}
+                  onGuardar={(v) => acciones.guardar(p, v)}
+                  onMover={(paso) => acciones.mover(r.fichaId, p, paso)}
+                  onQuitar={() => acciones.quitar(p)}
+                  onCrearEquipo={acciones.crearEquipo}
+                  onCerrar={() => setAbierto(null)}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ol>
+
+      <div className="flex flex-wrap items-center gap-2 pl-10">
+        <button
+          type="button"
+          onClick={() => setAbierto(abierto?.modo === 'agregar' ? null : { fichaId: r.fichaId, modo: 'agregar' })}
+          className={`${BTN} ${abierto?.modo === 'agregar' ? 'bg-feisen-azul-suave text-feisen-azul' : 'text-feisen-azul hover:bg-feisen-azul-suave'}`}
+        >
+          <Plus size={14} /> Agregar paso
+        </button>
+        {origenes.length > 0 && (
+          <button type="button" onClick={() => setAbierto(abierto?.modo === 'copiar' ? null : { fichaId: r.fichaId, modo: 'copiar' })} className={`${BTN} text-feisen-texto-2 hover:text-feisen-azul`}>
+            <Copy size={14} /> Copiar ruta de…
+          </button>
+        )}
+      </div>
+      {abierto?.modo === 'agregar' && cat && (
+        <Biblioteca operaciones={cat.operaciones} ocupado={ocupado} onEscoger={(op) => acciones.agregarDeBiblioteca(r.fichaId, op)} onOtra={(n) => acciones.agregarOtra(r.fichaId, n)} onCerrar={() => setAbierto(null)} />
+      )}
+      {abierto?.modo === 'copiar' && <CopiarRuta origenes={origenes} procesosDe={procesosDe} ocupado={ocupado} onCopiar={(o) => acciones.copiar(r.fichaId, o)} onCerrar={() => setAbierto(null)} />}
+    </div>
   )
 }
 
@@ -415,13 +510,13 @@ function Editor({ p, claveEquipo, cat, ocupado, primero, ultimo, onGuardar, onMo
   return (
     <Caja titulo={`Editar operación`} onCerrar={onCerrar}>
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="grid gap-3 xl:grid-cols-2"
         onSubmit={(e) => {
           e.preventDefault()
           if (v.nombre.trim()) onGuardar(v)
         }}
       >
-        <label className="block sm:col-span-2">
+        <label className="block xl:col-span-2">
           <span className="block text-xs text-feisen-texto-2 mb-1">Operación</span>
           <input value={v.nombre} onChange={set('nombre')} list="ops-biblioteca" required className={CAMPO} />
           <datalist id="ops-biblioteca">
@@ -431,7 +526,7 @@ function Editor({ p, claveEquipo, cat, ocupado, primero, ultimo, onGuardar, onMo
           </datalist>
         </label>
 
-        <fieldset className="sm:col-span-2">
+        <fieldset className="xl:col-span-2">
           <legend className="block text-xs text-feisen-texto-2 mb-1">¿Dónde se hace?</legend>
           <div className="inline-flex rounded-lg border border-feisen-borde p-0.5 bg-feisen-fondo">
             {[
@@ -487,7 +582,7 @@ function Editor({ p, claveEquipo, cat, ocupado, primero, ultimo, onGuardar, onMo
             </label>
           </>
         ) : (
-          <div className="sm:col-span-2">
+          <div className="xl:col-span-2">
             <label className="block text-xs text-feisen-texto-2 mb-1" htmlFor="buscar-prov">Proveedor</label>
             <input id="buscar-prov" value={buscarProv} onChange={(e) => setBuscarProv(e.target.value)} placeholder="Buscar proveedor" className={`${CAMPO} mb-2`} />
             <select value={v.proveedor_id} onChange={set('proveedor_id')} className={CAMPO} aria-label="Proveedor">
@@ -499,7 +594,7 @@ function Editor({ p, claveEquipo, cat, ocupado, primero, ultimo, onGuardar, onMo
           </div>
         )}
 
-        <div className="sm:col-span-2 flex flex-wrap items-center gap-2 pt-1">
+        <div className="xl:col-span-2 flex flex-wrap items-center gap-2 pt-1">
           <button type="submit" disabled={ocupado} className={`${BTN} h-10 bg-feisen-azul text-white font-medium disabled:opacity-60`}>Guardar</button>
           <button type="button" disabled={ocupado || primero} onClick={() => onMover(-1)} className={`${BTN} h-10 text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-40`}><ArrowLeft size={14} /> Antes</button>
           <button type="button" disabled={ocupado || ultimo} onClick={() => onMover(1)} className={`${BTN} h-10 text-feisen-texto-2 hover:bg-feisen-fondo disabled:opacity-40`}>Después <ArrowRight size={14} /></button>
