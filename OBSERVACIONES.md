@@ -2779,7 +2779,7 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - **Tablero de una máquina (`/costeo/maquina/:id`, `inicio/TableroMaquina.jsx`):**
   - Cómo se reparte el precio, el avance por conjunto de primer nivel y el costo máximo para ganar 30/35/40 %.
   - Selector "Producto en Odoo".
-  - En escritorio tiene a la izquierda la lista de las demás máquinas.
+  - Ya no tiene la lista de las demás máquinas a la izquierda (Angie, 2026-11-26: no hace falta). Para cambiar de máquina se vuelve con «← Fichas de costeo».
 - **Precio (`inicio/datosInicio.js`):**
   - Promedio facturado por **Feisen** (sin FC) en `ventas_odoo`: valor / unidades de todos los meses cargados. Esa tabla se actualiza sola cada 15 min.
   - Si la ficha tiene `precio_venta_actual > 0`, ese precio de lista manda.

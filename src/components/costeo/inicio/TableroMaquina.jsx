@@ -5,11 +5,11 @@ import { formatCOP } from '../utils/format'
 import { nombreCorto, tipoTitulo } from '../utils/nombres'
 import { cargarDatosCosteo, pct, periodoTexto } from './datosInicio'
 import EtapasMaquina from './EtapasMaquina'
-import { Anillo, BarraPrecio, COLORES, Leyenda, RAYADO, nombreProducto } from './piezasTablero'
+import { Anillo, BarraPrecio, COLORES, Leyenda, RAYADO } from './piezasTablero'
 
 // Tablero de una máquina (2026-11-26, opción B estilo Stripe): cómo se reparte el precio de venta
 // (MP, MO, CIF, utilidad o lo que falta por costear), el avance por conjunto y cuánto puede costar
-// como máximo para ganar 30/35/40 %. A la izquierda, las demás máquinas.
+// como máximo para ganar 30/35/40 %.
 const METAS = [0.3, 0.35, 0.4]
 
 export default function TableroMaquina() {
@@ -45,39 +45,13 @@ export default function TableroMaquina() {
   }
 
   const periodo = periodoTexto(datos.meses)
-  const otras = [...datos.maquinas].sort((a, b) => b.valorVentas - a.valorVentas)
   const faltan = m.conjuntos.filter((c) => !(c.costo > 0)).length
   const textoRayado = m.conjuntos.length ? `Sin costear todavía: faltan ${faltan} de ${m.conjuntos.length} conjuntos` : 'Sin costear todavía'
 
   return (
-    <div className="max-w-7xl mx-auto flex gap-8 tabular-nums">
-      <aside aria-label="Máquinas" className="hidden lg:flex w-64 flex-none flex-col gap-1.5">
-        <Link to="/costeo" className="text-xs text-feisen-azul hover:underline px-2 pb-2">← Fichas de costeo</Link>
-        {otras.map((o) => {
-          const activa = o.fichaId === id
-          return (
-            <Link key={o.fichaId} to={`/costeo/maquina/${o.fichaId}`} className={`block rounded-[10px] p-3 ${activa ? 'bg-white shadow-[0_0_0_1px_#DCE3EE]' : 'hover:bg-white'}`}>
-              <div className="flex justify-between gap-2 text-sm">
-                <span className={`truncate ${activa ? 'font-semibold text-feisen-texto' : 'text-feisen-gris-oscuro'}`}>{tipoTitulo(o.nombre)}</span>
-                <span className="text-[11px] text-[#92400E] flex-none">{o.avance === null ? '' : `${Math.round(o.avance * 100)} %`}</span>
-              </div>
-              <div className="mt-2 h-1 rounded bg-[#ECEEF1]">
-                <div className="h-full rounded" style={{ width: `${(o.avance ?? (o.completo ? 1 : 0)) * 100}%`, background: o.completo ? '#16A34A' : '#D9A13B' }} />
-              </div>
-              <div className="mt-1.5 text-xs text-feisen-texto-2">{o.precio > 0 ? `Vende a ${formatCOP(o.precio)}` : 'Sin precio'}</div>
-            </Link>
-          )
-        })}
-        {datos.sinFicha.map((s) => (
-          <div key={s.producto} className="flex justify-between gap-2 px-3 py-2 text-sm text-feisen-texto-2">
-            <span className="truncate">{nombreProducto(s.producto)}</span>
-            <span className="text-[11px] text-feisen-gris-medio flex-none">Sin ficha</span>
-          </div>
-        ))}
-      </aside>
-
-      <main className="flex-1 min-w-0 flex flex-col gap-6">
-        <Link to="/costeo" className="lg:hidden text-xs text-feisen-azul hover:underline">← Fichas de costeo</Link>
+    <div className="max-w-6xl mx-auto tabular-nums">
+      <main className="min-w-0 flex flex-col gap-6">
+        <Link to="/costeo" className="text-xs text-feisen-azul hover:underline -mb-4">← Fichas de costeo</Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs text-feisen-texto-2">Fichas y precio</div>
