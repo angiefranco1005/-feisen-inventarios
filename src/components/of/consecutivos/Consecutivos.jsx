@@ -183,7 +183,7 @@ export default function Consecutivos() {
   if (cargando) return <Spinner texto="Cargando consecutivos..." />
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 pb-24">
+    <div className="max-w-7xl mx-auto space-y-4 pb-24">
       <EncabezadoPagina modulo="Ventas" titulo="Consecutivos de equipos"
         subtitulo={ultimaLectura ? `Odoo Feisen y FC · última lectura ${new Date(ultimaLectura).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Se llena con los consecutivos que se escriben en las notas de Odoo («REF 25768, 25769»).'}>
         <button onClick={() => actualizarOdoo()} disabled={actualizando} className={BOTON}>
@@ -201,7 +201,7 @@ export default function Consecutivos() {
       {msg && <Alerta tipo={msg.tipo} mensaje={msg.texto} />}
 
       {/* Pestañas por tipo de equipo */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
         {(tiposConDatos.length ? tiposConDatos : TIPOS_EQUIPO.slice(0, 6)).map(t => (
           <button key={t.clave} onClick={() => elegir(t.clave)}
             className={`whitespace-nowrap rounded-lg border px-3 py-1.5 text-[13px] transition-colors ${tipo === t.clave && !buscando ? 'bg-feisen-azul-suave border-feisen-azul/40 text-feisen-azul font-semibold' : 'bg-white border-feisen-borde text-feisen-texto-2 hover:text-feisen-texto'}`}>
