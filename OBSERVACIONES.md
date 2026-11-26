@@ -2868,6 +2868,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   (lo ya guardado actualiza la base del formulario). Ningún otro reporte lee el consumo de arena. Probado en la demo:
   bloqueo sin arena, corregir pieza + subir arena a 25 (salida), bajar a 10 (entrada de 15, neto 10). El mock no borra
   de verdad, así que en la demo la pieza corregida aparece repetida.
+- **26/11 · Fundida: cargos del horno y primera carga al caldero.** "Hora inicio" ahora se llama "Encendido del
+  horno" (misma columna `hora_inicio`). Nuevos, todos obligatorios en la app: hora de la primera carga al caldero
+  (`hora_primera_carga`), quién pisa el horno (`pisadores`), quién arregla / ladrilla (`reparadores_horno`) y quién pica
+  (`picadores`). Texto libre con sugerencias (localStorage), porque a veces son externos contratados por el día. En la
+  base las columnas son opcionales (fundidas viejas). Detalle de la fundida los muestra (y cuánto después del
+  encendido salió la primera carga); el buscador los incluye. Nómina: cuenta participaciones Pis / Lad / Pic por
+  persona (tabla, leyenda, Excel hoja resumen y hoja Fundidas). Migración `2026-11-26_fundidas_cargos_horno.sql`.
+  No se valida que la primera carga sea después del encendido (puede pasar de medianoche). Probado en la demo.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

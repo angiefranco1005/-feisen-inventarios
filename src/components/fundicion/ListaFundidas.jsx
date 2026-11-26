@@ -62,6 +62,7 @@ const personas = arr => (arr || []).filter(Boolean)
 const textoBusqueda = f => [
   numFun(f.numero), String(f.numero), fmtFecha(f.fecha),
   ...personas(f.horneros), ...personas(f.vaceadores), ...personas(f.auxiliares),
+  ...personas(f.pisadores), ...personas(f.reparadores_horno), ...personas(f.picadores),
   f.observaciones || '',
 ].join(' ')
 
@@ -254,19 +255,27 @@ function DetalleFundida({ f, onCerrar }) {
         <h4 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2 mb-1.5">Horario</h4>
         <div className="flex items-center gap-2 text-sm text-feisen-texto tabular-nums">
           <Clock size={16} className="text-feisen-texto-2 shrink-0" />
-          <span>{fmtHora(f.hora_inicio)} – {f.hora_fin ? fmtHora(f.hora_fin) : 'sin hora de fin'}</span>
+          <span>Encendido {fmtHora(f.hora_inicio)} – {f.hora_fin ? fmtHora(f.hora_fin) : 'sin hora de fin'}</span>
           {dur && <span className="text-feisen-texto-2">· {dur}</span>}
         </div>
+        {f.hora_primera_carga && (
+          <p className="mt-1 pl-6 text-sm text-feisen-texto tabular-nums">
+            Primera carga al caldero: {fmtHora(f.hora_primera_carga)}
+            {duracion(f.hora_inicio, f.hora_primera_carga) && <span className="text-feisen-texto-2"> · {duracion(f.hora_inicio, f.hora_primera_carga)} después del encendido</span>}
+          </p>
+        )}
       </section>
 
       <section>
         <h4 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2 mb-1.5">Personal</h4>
         <dl className="divide-y divide-feisen-borde-suave border border-feisen-borde-suave rounded-lg">
-          {[['Horneros', f.horneros], ['Vaceadores', f.vaceadores], ['Auxiliares', f.auxiliares]].map(([label, vals]) => {
+          {[['Horneros', f.horneros], ['Vaceadores', f.vaceadores], ['Auxiliares', f.auxiliares],
+            ['Pisan el horno', f.pisadores], ['Arreglan / ladrillan', f.reparadores_horno], ['Pican', f.picadores]].map(([label, vals]) => {
             const v = personas(vals)
+            if (!v.length && ['Pisan el horno', 'Arreglan / ladrillan', 'Pican'].includes(label) && !f.hora_primera_carga) return null // fundidas anteriores al cambio
             return (
               <div key={label} className="flex gap-3 px-3 py-2 text-sm">
-                <dt className="w-24 shrink-0 text-feisen-texto-2">{label}</dt>
+                <dt className="w-28 shrink-0 text-feisen-texto-2">{label}</dt>
                 <dd className="flex-1 min-w-0 text-feisen-texto">{v.length ? v.join(', ') : <span className="text-gray-400">—</span>}</dd>
               </div>
             )

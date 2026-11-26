@@ -56,7 +56,7 @@ async function fetchDatosPeriodo(anio, mes, quincena) {
 
     // Fundidas del período
     supabase.from('fundidas')
-      .select('id, numero, fecha, horneros, vaceadores, auxiliares')
+      .select('id, numero, fecha, horneros, vaceadores, auxiliares, pisadores, reparadores_horno, picadores')
       .gte('fecha', inicio).lte('fecha', fin).order('fecha').limit(10000),
 
     // Avances diarios del período (via fecha del avance)
@@ -93,7 +93,7 @@ function calcularPersonas(ordenes, fundidas, avances, ncs = []) {
       planeadas: 0, conformes: 0, nc: 0,
       moldeadas: 0, kgMoldeadas: 0, kgConformes: 0,
       ncCalidad: 0, kgNcCalidad: 0,
-      hornero: 0, vaceador: 0, auxiliar: 0,
+      hornero: 0, vaceador: 0, auxiliar: 0, pisa: 0, ladrilla: 0, pica: 0,
     }
     return personas[k]
   }
@@ -128,7 +128,10 @@ function calcularPersonas(ordenes, fundidas, avances, ncs = []) {
     for (const h of (f.horneros  || []).filter(Boolean)) { const pr = persona(h); if (pr) pr.hornero++ }
     for (const v of (f.vaceadores|| []).filter(Boolean)) { const pr = persona(v); if (pr) pr.vaceador++ }
     for (const a of (f.auxiliares|| []).filter(Boolean)) { const pr = persona(a); if (pr) pr.auxiliar++ }
-    ;[...(f.horneros||[]),...(f.vaceadores||[]),...(f.auxiliares||[])].filter(Boolean).forEach(n => persona(n))
+    // Cargos del horno (26/11/2026): pueden ser externos contratados por el día (texto libre)
+    for (const n of (f.pisadores        || []).filter(Boolean)) { const pr = persona(n); if (pr) pr.pisa++ }
+    for (const n of (f.reparadores_horno|| []).filter(Boolean)) { const pr = persona(n); if (pr) pr.ladrilla++ }
+    for (const n of (f.picadores        || []).filter(Boolean)) { const pr = persona(n); if (pr) pr.pica++ }
   }
 
   // No conformidades de Calidad: se restan de los kg del moldeador
@@ -155,7 +158,7 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances, ncs = 
     [`FEISEN — Informe Quincenal Fundición`],
     [`Período: ${periodo}`],
     [],
-    ['PERSONA','PLANEADAS','MOLDEADAS','KG MOLDEADAS','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','NC CALIDAD','KG NC CALIDAD','KG A PAGAR','FUNDIDAS (H/V/A)'],
+    ['PERSONA','PLANEADAS','MOLDEADAS','KG MOLDEADAS','CONFORMES','NC','% RENDIMIENTO','KG CONFORMES','NC CALIDAD','KG NC CALIDAD','KG A PAGAR','FUNDIDAS (H/V/A/Pis/Lad/Pic)'],
     ...personas.map(p => [
       p.nombre,
       p.planeadas||'',
@@ -168,7 +171,8 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances, ncs = 
       p.ncCalidad || '',
       p.kgNcCalidad > 0 ? +p.kgNcCalidad.toFixed(2) : '',
       p.kgAPagar > 0 ? +p.kgAPagar.toFixed(2) : '',
-      [p.hornero?`${p.hornero}H`:'', p.vaceador?`${p.vaceador}V`:'', p.auxiliar?`${p.auxiliar}A`:''].filter(Boolean).join(' ') || '',
+      [p.hornero?`${p.hornero}H`:'', p.vaceador?`${p.vaceador}V`:'', p.auxiliar?`${p.auxiliar}A`:'',
+       p.pisa?`${p.pisa}Pis`:'', p.ladrilla?`${p.ladrilla}Lad`:'', p.pica?`${p.pica}Pic`:''].filter(Boolean).join(' ') || '',
     ]),
     [],
     ['TOTALES',
@@ -238,18 +242,21 @@ function generarWorkbook(anio, mes, quincena, ordenes, fundidas, avances, ncs = 
   // Hoja 4: Fundidas
   const hFundidas = [
     [`FUNDIDAS — ${periodo}`], [],
-    ['FUNDIDA','FECHA','HORNEROS','VACEADORES','AUXILIARES'],
+    ['FUNDIDA','FECHA','HORNEROS','VACEADORES','AUXILIARES','PISAN EL HORNO','ARREGLAN / LADRILLAN','PICAN'],
     ...(fundidas||[]).map(f => [
       `FUN-${String(f.numero).padStart(4,'0')}`,
       fmtDate(f.fecha),
       (f.horneros ||[]).filter(Boolean).join(', '),
       (f.vaceadores||[]).filter(Boolean).join(', '),
       (f.auxiliares||[]).filter(Boolean).join(', '),
+      (f.pisadores||[]).filter(Boolean).join(', '),
+      (f.reparadores_horno||[]).filter(Boolean).join(', '),
+      (f.picadores||[]).filter(Boolean).join(', '),
     ]),
   ]
-  if (fundidas.length === 0) hFundidas.push(['Sin fundidas en este período','','','',''])
+  if (fundidas.length === 0) hFundidas.push(['Sin fundidas en este período','','','','','','',''])
   const wsFun = XLSX.utils.aoa_to_sheet(hFundidas)
-  wsFun['!cols'] = [14,12,30,30,30].map(w=>({wch:w}))
+  wsFun['!cols'] = [14,12,30,30,30,30,30,30].map(w=>({wch:w}))
   XLSX.utils.book_append_sheet(wb, wsFun, 'Fundidas')
 
   // Hoja 5: No conformidades de Calidad que se restan
@@ -464,7 +471,7 @@ export default function InformeNomina() {
                   <tbody className="divide-y divide-gray-50">
                     {personas.map(p => {
                       const rend = p.planeadas > 0 ? Math.round((p.conformes/p.planeadas)*100) : null
-                      const enFundidas = p.hornero + p.vaceador + p.auxiliar
+                      const enFundidas = p.hornero + p.vaceador + p.auxiliar + p.pisa + p.ladrilla + p.pica
                       return (
                         <tr key={p.nombre} className="hover:bg-gray-50/50">
                           <td className="px-4 py-3 font-semibold text-gray-800">{p.nombre}</td>
@@ -498,6 +505,9 @@ export default function InformeNomina() {
                                 {p.hornero  >0 && <span className="text-orange-500 font-semibold">{p.hornero}H</span>}
                                 {p.vaceador >0 && <span className="text-blue-500 font-semibold">{p.vaceador}V</span>}
                                 {p.auxiliar >0 && <span className="text-gray-500">{p.auxiliar}A</span>}
+                                {p.pisa     >0 && <span className="text-emerald-600 font-semibold">{p.pisa}Pis</span>}
+                                {p.ladrilla >0 && <span className="text-amber-700 font-semibold">{p.ladrilla}Lad</span>}
+                                {p.pica     >0 && <span className="text-purple-600 font-semibold">{p.pica}Pic</span>}
                               </div>
                             ) : '—'}
                           </td>
@@ -527,9 +537,9 @@ export default function InformeNomina() {
             )}
           </div>
 
-          {personas.some(p=>p.hornero+p.vaceador+p.auxiliar>0) && (
+          {personas.some(p=>p.hornero+p.vaceador+p.auxiliar+p.pisa+p.ladrilla+p.pica>0) && (
             <p className="text-xs text-gray-400 text-center mb-4">
-              H = Hornero · V = Vaceador · A = Auxiliar
+              H = Hornero · V = Vaceador · A = Auxiliar · Pis = Pisa el horno · Lad = Arregla / ladrilla · Pic = Pica
             </p>
           )}
 

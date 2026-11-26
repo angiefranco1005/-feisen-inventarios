@@ -223,6 +223,11 @@ export default function RegistrarFundida() {
   const [horneros,    setHorneros]    = useState([''])
   const [vaceadores,  setVaceadores]  = useState([''])
   const [auxiliares,  setAuxiliares]  = useState([''])
+  // Cargos del horno (26/11/2026): texto libre, puede ser gente externa contratada por el día
+  const [pisadores,   setPisadores]   = useState([''])
+  const [reparadores, setReparadores] = useState([''])
+  const [picadores,   setPicadores]   = useState([''])
+  const [horaCarga,   setHoraCarga]   = useState('')   // primera carga al caldero
   const [materiales,  setMateriales]  = useState(
     Object.fromEntries(MATERIALES.map(m => [m.key, '']))
   )
@@ -250,8 +255,9 @@ export default function RegistrarFundida() {
   }
 
   function limpiar() {
-    setFecha(hoyCol()); setHoraInicio(''); setHoraFin('')
+    setFecha(hoyCol()); setHoraInicio(''); setHoraFin(''); setHoraCarga('')
     setHorneros(['']); setVaceadores(['']); setAuxiliares([''])
+    setPisadores(['']); setReparadores(['']); setPicadores([''])
     setMateriales(Object.fromEntries(MATERIALES.map(m => [m.key, ''])))
     setObservaciones(''); setError('')
   }
@@ -271,11 +277,19 @@ export default function RegistrarFundida() {
     setError('')
 
     if (!fecha)       { setError('Ingresa la fecha.'); return }
-    if (!horaInicio)  { setError('Ingresa la hora de inicio.'); return }
-    const hornerosFiltrados   = horneros.filter(h => h.trim())
-    const vaceadoresFiltrados = vaceadores.filter(v => v.trim())
+    if (!horaInicio)  { setError('Ingresa la hora de encendido del horno.'); return }
+    if (!horaCarga)   { setError('Ingresa la hora en que salió la primera carga al caldero.'); return }
+    const limpiar = l => l.map(x => x.trim()).filter(Boolean)
+    const hornerosFiltrados   = limpiar(horneros)
+    const vaceadoresFiltrados = limpiar(vaceadores)
+    const pisadoresF   = limpiar(pisadores)
+    const reparadoresF = limpiar(reparadores)
+    const picadoresF   = limpiar(picadores)
     if (hornerosFiltrados.length === 0)   { setError('Ingresa al menos un hornero.'); return }
     if (vaceadoresFiltrados.length === 0) { setError('Ingresa al menos un vaceador.'); return }
+    if (pisadoresF.length === 0)   { setError('Ingresa quién pisó el horno.'); return }
+    if (reparadoresF.length === 0) { setError('Ingresa quién arregló o ladrilló el horno.'); return }
+    if (picadoresF.length === 0)   { setError('Ingresa quién picó.'); return }
 
     setGuardando(true)
     try {
@@ -314,6 +328,10 @@ export default function RegistrarFundida() {
         horneros:    hornerosFiltrados,
         vaceadores:  vaceadoresFiltrados,
         auxiliares:  auxiliares.filter(a => a.trim()),
+        pisadores:          pisadoresF,
+        reparadores_horno:  reparadoresF,
+        picadores:          picadoresF,
+        hora_primera_carga: horaCarga,
         observaciones: observaciones.trim() || null,
         usuario_id:  perfil.id,
       }
@@ -424,14 +442,18 @@ export default function RegistrarFundida() {
 
         {/* ── HORARIO ── */}
         <Bloque titulo="Horario" icono={Clock}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
             <div className="col-span-2 sm:col-span-1 min-w-0">
               <Etiqueta htmlFor="fun-fecha" requerido>Fecha</Etiqueta>
               <input id="fun-fecha" type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={claseInput} />
             </div>
             <div className="min-w-0">
-              <Etiqueta htmlFor="fun-hini" requerido>Hora inicio</Etiqueta>
+              <Etiqueta htmlFor="fun-hini" requerido>Encendido del horno</Etiqueta>
               <input id="fun-hini" type="time" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} className={claseInput} />
+            </div>
+            <div className="min-w-0">
+              <Etiqueta htmlFor="fun-hcarga" requerido>Primera carga al caldero</Etiqueta>
+              <input id="fun-hcarga" type="time" value={horaCarga} onChange={e => setHoraCarga(e.target.value)} className={claseInput} />
             </div>
             <div className="min-w-0">
               <Etiqueta htmlFor="fun-hfin" opcional>Hora fin</Etiqueta>
@@ -441,7 +463,7 @@ export default function RegistrarFundida() {
         </Bloque>
 
         {/* ── PERSONAL ── */}
-        <Bloque titulo="Personal" icono={Users} detalle="Toca un campo para ver nombres usados antes">
+        <Bloque titulo="Personal" icono={Users} detalle="Toca un campo para ver nombres usados antes. Puedes escribir personas externas contratadas por el día.">
           <div className="grid sm:grid-cols-2 gap-x-4 gap-y-4">
             <ListaPersonas
               label="Horneros" singular="Hornero" requerido
@@ -457,6 +479,21 @@ export default function RegistrarFundida() {
               label="Auxiliares" singular="Auxiliar"
               valores={auxiliares} onChange={setAuxiliares}
               storageKey="feisen_auxiliares" placeholder="Nombre del auxiliar"
+            />
+            <ListaPersonas
+              label="Pisan el horno" singular="Persona que pisa" requerido
+              valores={pisadores} onChange={setPisadores}
+              storageKey="feisen_pisadores" placeholder="Quién pisa el horno"
+            />
+            <ListaPersonas
+              label="Arreglan / ladrillan el horno" singular="Persona que arregla" requerido
+              valores={reparadores} onChange={setReparadores}
+              storageKey="feisen_reparadores_horno" placeholder="Quién arregla o ladrilla"
+            />
+            <ListaPersonas
+              label="Pican" singular="Persona que pica" requerido
+              valores={picadores} onChange={setPicadores}
+              storageKey="feisen_picadores" placeholder="Quién pica"
             />
           </div>
         </Bloque>
