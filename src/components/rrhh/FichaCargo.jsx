@@ -9,6 +9,7 @@ import {
 } from '../shared/iconos'
 import * as E from './estilos'
 import { Bloque, valoresIniciales, valoresParaGuardar } from './FichaComun'
+import ContratosCargo from './contratos/ContratosCargo'
 import {
   BUCKET_RRHH, AREAS, NIVELES_EDUCATIVOS, PERIODICIDADES, TIPOS_VINCULACION,
   nombreCompleto, iniciales, formatoPesos, urlsFirmadas, descendientes, abrirArchivoRRHH,
@@ -134,6 +135,8 @@ const SECCIONES = [
       ] },
     ],
   },
+  // Plantillas de contrato del cargo (una o varias por tipo de contrato) y generar contratos
+  { id: 'contratos', label: 'Contratos', icon: FileText, bloques: [] },
 ]
 
 export default function FichaCargo() {
@@ -388,6 +391,8 @@ export default function FichaCargo() {
           )}
 
           {/* Manual de funciones en PDF */}
+          {tab === 'contratos' && <ContratosCargo cargo={cargo} personas={personas} />}
+
           {tab === 'funciones' && (
             <div className={E.tarjeta}>
               <div className={E.cabTarjeta}>
