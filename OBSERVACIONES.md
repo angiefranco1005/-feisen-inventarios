@@ -3084,3 +3084,13 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Pendiente: el PDF de la ficha lista el material por proceso, así que el material sin proceso no sale ahí (sí suma en el costo).
 - `vite.config.js`: `maximumFileSizeToCacheInBytes` de 5 a 8 MB. El bundle llegó a 5,25 MB y el build fallaba al generar el service worker (Netlify no habría publicado). Pendiente de fondo: partir el bundle con carga diferida por módulo.
 - Probado en una copia aparte del repo (worktree en el scratchpad) porque otra sesión tenía en el árbol cambios a medias de RRHH que dejaban la demo en blanco.
+
+## 2026-11-26 · Desempeño: evaluación de jefes de área (plan anual editable)
+- El plan de jefes se armó en el chat/registro «Evaluación de jefes de área 2027» (artefacto con base propia) y se copió al ERP con `supabase/migraciones/2026-11-26_rrhh_plan_jefes_2027_datos.sql`. **Desde ahora se edita en el ERP** (Desempeño → Plan de jefes); el registro queda como historia de cómo se acordó.
+- Tablas: `desempeno_jefes_areas` (año, código, jefe = `empleado_id`, aporte, reglas, pendientes; una fila `es_comun` para las competencias comunes) y `desempeno_jefes_items` (KPI o competencia: fórmula, peso, línea base, meta, mínimo, ¿hay dato?, estado borrador/acordado/firmado…). Meta y mínimo son **texto** porque varias metas son hitos o están "por definir".
+- Nota = KPIs × 60 % + competencias × 40 %. Competencias con dos pesos: `peso` (trimestres con encuesta, jun. y dic.) y `peso_sin_encuesta` (mar. y sep.: autogestión 50 / documentación 50, liderazgo y equipo 0).
+- Ciclos `tipo='jefes'` por trimestre (`plan_anio`, `con_encuesta`): **copian** el plan al crearse; editar el plan no cambia ciclos ya creados. Entran solo las áreas con jefe asignado; evaluador "Gerencia general".
+- En la evaluación: KPI → resultado real (texto) + nota 1 a 5 a mano con la guía (debajo del mínimo 1-2, entre mínimo y meta 3, meta 4, supera 5). No se calcula sola porque las metas son texto. Competencia → se anota el % de la encuesta/visita y la nota = % ÷ 20.
+- `desempeno_evaluaciones.falta_grave`: deja las competencias del trimestre en 0 (regla de conducta del plan).
+- Ojo macOS: `datosPlanJefes.js` se llama así (no `planJefes.js`) porque choca con `PlanJefes.jsx` en un disco que no distingue mayúsculas.
+- Pendiente (2.ª etapa): encuestas confidenciales de liderazgo y trabajo en equipo dentro del ERP; hoy RRHH anota el % que salió.

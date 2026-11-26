@@ -11,6 +11,7 @@ import {
   ESTADOS_EVAL, POTENCIALES, CUADRANTES, COLOR_CUADRANTE, itemsParaEmpleado,
   resultadoFinal, porcentaje, etiquetaDe, nivelDesempeno,
 } from './desempenoCalculo'
+import { cargarPlan, itemsJefeEnPlan } from './datosPlanJefes'
 
 const fmt = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 2 }))
 
@@ -28,6 +29,7 @@ export default function CicloDesempeno() {
   const [fEstado,   setFEstado]   = useState('')
   const [fArea,     setFArea]     = useState('')
   const [agregar,   setAgregar]   = useState('')
+  const [plan,      setPlan]      = useState(null)   // ciclos de jefes: plan del año
 
   useEffect(() => { cargar() }, [cicloId])
 
@@ -40,6 +42,7 @@ export default function CicloDesempeno() {
     ])
     if (error) { setMsg({ tipo: 'error', texto: error.message }); setCargando(false); return }
     setCiclo(c); setEvals(evs || []); setEmpleados(emps || [])
+    if (c?.tipo === 'jefes' && c.plan_anio) setPlan(await cargarPlan(c.plan_anio).catch(() => []))
     setFotos(await urlsFirmadas((emps || []).map(e => e.foto_path)))
     setCargando(false)
   }
@@ -65,11 +68,14 @@ export default function CicloDesempeno() {
   const promedio = conResultado.length ? conResultado.reduce((t, e) => t + Number(resultadoFinal(e)), 0) / conResultado.length : null
   const distribucion = (escala || []).map(x => ({ ...x, n: conResultado.filter(e => Math.round(Number(resultadoFinal(e))) === x.valor).length }))
   const maxN = Math.max(1, ...distribucion.map(d => d.n))
-  const porArea = AREAS.map(a => {
+  const areasCiclo = ciclo.tipo === 'jefes' ? [...new Set(evals.map(e => e.area).filter(Boolean))] : AREAS
+  const porArea = areasCiclo.map(a => {
     const lista = conResultado.filter(e => e.area === a)
     return { area: a, n: lista.length, prom: lista.length ? lista.reduce((t, e) => t + Number(resultadoFinal(e)), 0) / lista.length : null }
   }).filter(x => x.n)
-  const fuera = empleados.filter(e => e.estado !== 'retirado' && !evals.some(ev => ev.empleado_id === e.id))
+  const esJefes = ciclo.tipo === 'jefes'
+  const fuera = empleados.filter(e => e.estado !== 'retirado' && !evals.some(ev => ev.empleado_id === e.id)
+    && (!esJefes || (plan && itemsJefeEnPlan(plan, e.id, ciclo.con_encuesta))))
 
   async function cambiarEstado() {
     const cerrar = !cerrado
@@ -86,9 +92,12 @@ export default function CicloDesempeno() {
       ? await supabase.from('cargos').select('id, nombre, competencias, evaluacion_criterios').eq('id', emp.cargo_id).maybeSingle()
       : { data: null }
     const jefe = empPorId.get(emp.jefe_id)
+    const dePlan = esJefes ? itemsJefeEnPlan(plan || [], emp.id, ciclo.con_encuesta) : null
     const { data, error } = await supabase.from('desempeno_evaluaciones').insert({
       ciclo_id: cicloId, empleado_id: emp.id, cargo_id: emp.cargo_id || null, cargo_nombre: cargo?.nombre || emp.cargo || null,
-      area: emp.area || null, evaluador: jefe ? nombreCompleto(jefe) : null, items: itemsParaEmpleado(cargo, ciclo),
+      area: dePlan ? dePlan.area.nombre : (emp.area || null),
+      evaluador: dePlan ? 'Gerencia general' : (jefe ? nombreCompleto(jefe) : null),
+      items: dePlan ? dePlan.items : itemsParaEmpleado(cargo, ciclo),
     }).select('id').single()
     if (error) { setMsg({ tipo: 'error', texto: error.message }); return }
     navigate(`/rrhh/desempeno/${cicloId}/${data.id}`)
@@ -132,7 +141,7 @@ export default function CicloDesempeno() {
         <div>
           <h1 className={E.tituloPagina}>{ciclo.nombre}</h1>
           <p className={E.subtituloPagina}>
-            Periodo {formatoFecha(ciclo.fecha_inicio)} – {formatoFecha(ciclo.fecha_fin)} · objetivos {ciclo.peso_objetivos}% / competencias {ciclo.peso_competencias}%
+            Periodo {formatoFecha(ciclo.fecha_inicio)} – {formatoFecha(ciclo.fecha_fin)} · {esJefes ? `jefes de área (plan ${ciclo.plan_anio}${ciclo.con_encuesta ? ', con encuesta' : ', sin encuesta'}) · KPIs` : 'objetivos'} {ciclo.peso_objetivos}% / competencias {ciclo.peso_competencias}%
             {ciclo.incluye_autoevaluacion && ' · con autoevaluación'} · {cerrado ? <span className="inline-flex items-center gap-1"><Lock size={12} strokeWidth={1.8} /> Cerrado</span> : <span className="text-green-700">Abierto</span>}
           </p>
         </div>
@@ -198,7 +207,7 @@ export default function CicloDesempeno() {
         <div className="flex gap-2">
           <select value={fArea} onChange={e => setFArea(e.target.value)} className={`${E.input} w-44`}>
             <option value="">Todas las áreas</option>
-            {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            {areasCiclo.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
           {vista === 'lista' && (
             <select value={fEstado} onChange={e => setFEstado(e.target.value)} className={`${E.input} w-40`}>
@@ -278,7 +287,7 @@ export default function CicloDesempeno() {
             <div className={E.cabTarjeta}><h2 className={E.tituloTarj}><UserPlus {...E.ICONO} className={E.iconoTitulo} /> Agregar persona al ciclo</h2></div>
             <div className="px-5 py-4 flex gap-2">
               <select value={agregar} onChange={e => setAgregar(e.target.value)} className={`${E.input} flex-1`}>
-                <option value="">{fuera.length ? 'Seleccionar…' : 'Todos los activos ya están'}</option>
+                <option value="">{fuera.length ? 'Seleccionar…' : esJefes ? 'Todos los jefes del plan ya están' : 'Todos los activos ya están'}</option>
                 {fuera.map(e => <option key={e.id} value={e.id}>{nombreCompleto(e)}</option>)}
               </select>
               <button onClick={agregarPersona} disabled={!agregar} className={E.btnPrimario}>Agregar</button>

@@ -6,7 +6,7 @@ import Alerta from '../../shared/Alerta'
 import { ArrowLeft, ChevronLeft, ChevronRight, Target, Sparkles, Scale, MessageSquare, ListChecks, Plus, X, CheckCircle2, Trash2 } from '../../shared/iconos'
 import * as E from '../estilos'
 import { nombreCompleto, formatoFecha, hoyISO } from '../catalogosRRHH'
-import { calcularResultado, resultadoFinal, porcentaje, etiquetaDe, nivelDesempeno, POTENCIALES, CUADRANTES, ESTADOS_EVAL } from './desempenoCalculo'
+import { calcularResultado, resultadoFinal, porcentaje, etiquetaDe, nivelDesempeno, POTENCIALES, CUADRANTES, ESTADOS_EVAL, notaDePorcentaje } from './desempenoCalculo'
 
 const fmt = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 2 }))
 
@@ -76,7 +76,7 @@ export default function EvaluacionPersona() {
     setCiclo(c); setEmp(em); setCargando(false)
   }
 
-  const resultado = useMemo(() => (ev && ciclo ? calcularResultado(ev.items, ciclo) : null), [ev, ciclo])
+  const resultado = useMemo(() => (ev && ciclo ? calcularResultado(ev.items, ciclo, { faltaGrave: !!ev.falta_grave }) : null), [ev, ciclo])
 
   if (cargando) return <Spinner />
   if (!ev || !ciclo) return (
@@ -90,6 +90,8 @@ export default function EvaluacionPersona() {
   const bloqueada = ciclo.estado === 'cerrado'
   const set = (k, v) => { setEv(x => ({ ...x, [k]: v })); setCambios(true) }
   const setItem = (i, campo, v) => set('items', ev.items.map((it, j) => (j === i ? { ...it, [campo]: v } : it)))
+  const setItemCampos = (i, campos) => set('items', ev.items.map((it, j) => (j === i ? { ...it, ...campos } : it)))
+  const esJefes = ciclo.tipo === 'jefes'
   const objetivos = ev.items.map((it, i) => ({ ...it, i })).filter(it => it.tipo === 'objetivo')
   const competencias = ev.items.map((it, i) => ({ ...it, i })).filter(it => it.tipo === 'competencia')
   const calibrado = ev.resultado_calibrado === '' || ev.resultado_calibrado === null ? null : Number(ev.resultado_calibrado)
@@ -98,7 +100,7 @@ export default function EvaluacionPersona() {
   const pos = orden.indexOf(evalId)
   const siguiente = pos >= 0 && pos < orden.length - 1 ? orden[pos + 1] : null
   const anterior = pos > 0 ? orden[pos - 1] : null
-  const sinNota = ev.items.filter(it => it.nota === null || it.nota === undefined || it.nota === '').length
+  const sinNota = ev.items.filter(it => (it.nota === null || it.nota === undefined || it.nota === '') && !(ev.falta_grave && it.tipo === 'competencia')).length
 
   async function guardar(completar, irA) {
     if (completar && sinNota) { setMsg({ tipo: 'error', texto: `Faltan ${sinNota} ${sinNota === 1 ? 'calificación' : 'calificaciones'} del evaluador para completar la evaluación.` }); return }
@@ -106,7 +108,7 @@ export default function EvaluacionPersona() {
     const campos = {
       items: ev.items, ...resultado,
       resultado_calibrado: calibrado, justificacion_calibracion: ev.justificacion_calibracion?.trim() || null,
-      potencial: ev.potencial || null, evaluador: ev.evaluador?.trim() || null,
+      potencial: ev.potencial || null, evaluador: ev.evaluador?.trim() || null, falta_grave: !!ev.falta_grave,
       fortalezas: ev.fortalezas?.trim() || null, oportunidades: ev.oportunidades?.trim() || null,
       comentario_colaborador: ev.comentario_colaborador?.trim() || null,
       plan_accion: ev.plan_accion.filter(p => (p.accion || '').trim()),
@@ -141,8 +143,57 @@ export default function EvaluacionPersona() {
     navigate(destino)
   }
 
+  // Ciclos de jefes: KPI con meta/mínimo y resultado real; competencia con el % de su encuesta o visita
+  const filaJefe = (it) => (
+    <div key={it.i} className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-feisen-texto">{it.nombre}</p>
+        <span className="text-xs text-feisen-gris-medio whitespace-nowrap">Peso {it.peso || 0}%</span>
+      </div>
+      {it.tipo === 'objetivo' ? (
+        <>
+          {it.formula && <p className="text-[11px] text-feisen-gris-medio mt-0.5 line-clamp-2" title={it.formula}>{it.formula}</p>}
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-feisen-texto-2">
+            {it.linea_base && <span>Base: {it.linea_base}</span>}
+            <span>Meta: <span className="text-feisen-texto">{it.meta || 'por definir'}</span></span>
+            {it.minimo && <span>Mínimo: {it.minimo}</span>}
+          </div>
+          <div className="mt-2 flex flex-col sm:flex-row sm:items-end gap-2 sm:gap-4">
+            <div className="flex-1">
+              <p className="text-[10px] text-feisen-gris-medio mb-0.5">Resultado real del trimestre</p>
+              <input value={it.real || ''} disabled={bloqueada} placeholder="Ej: 87 % · $2.340 M · 5 días"
+                onChange={e => setItem(it.i, 'real', e.target.value)} className={`${E.input} py-1.5 disabled:bg-feisen-fondo`} />
+            </div>
+            <div>
+              <p className="text-[10px] text-feisen-gris-medio mb-0.5">Nota</p>
+              <Calificacion valor={it.nota} escala={escala} disabled={bloqueada} onChange={v => setItem(it.i, 'nota', v)} />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-feisen-texto-2">
+            {it.quien_califica && <span>Califica: {it.quien_califica}</span>}
+            {it.meta && <span>Meta: {it.meta}</span>}
+          </div>
+          <div className="mt-2 flex items-end gap-3">
+            <div className="w-40">
+              <p className="text-[10px] text-feisen-gris-medio mb-0.5">Indicador (%)</p>
+              <input type="number" min="0" max="100" step="any" value={it.porcentaje ?? ''} disabled={bloqueada || ev.falta_grave} placeholder="0 a 100"
+                onChange={e => { const v = e.target.value === '' ? null : Number(e.target.value); setItemCampos(it.i, { porcentaje: v, nota: notaDePorcentaje(v) }) }}
+                className={`${E.input} py-1.5 disabled:bg-feisen-fondo`} />
+            </div>
+            <p className="text-xs text-feisen-texto-2 pb-2">Nota {fmt(it.nota)} de 5</p>
+          </div>
+        </>
+      )}
+      <input value={it.comentario || ''} disabled={bloqueada} placeholder={it.tipo === 'objetivo' ? 'Comentario o soporte del dato (opcional)' : 'Casos anotados o comentario (opcional)'}
+        onChange={e => setItem(it.i, 'comentario', e.target.value)} className={`${E.input} mt-2 py-1.5 text-xs disabled:bg-feisen-fondo`} />
+    </div>
+  )
+
   // Función de render (no componente): así los campos no se re-montan y no pierden el foco al escribir
-  const fila = (it) => (
+  const fila = (it) => esJefes ? filaJefe(it) : (
     <div key={it.i} className="py-3 first:pt-0 last:pb-0">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
         <div className="flex-1 min-w-0">
@@ -195,18 +246,26 @@ export default function EvaluacionPersona() {
         <div className="flex-1 min-w-0 w-full space-y-4">
           <Tarjeta titulo="Datos de la evaluación">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><label className={E.labelForm}>Evaluador (jefe inmediato)</label><input value={ev.evaluador || ''} disabled={bloqueada} onChange={e => set('evaluador', e.target.value)} className={`${E.input} disabled:bg-feisen-fondo`} /></div>
+              <div><label className={E.labelForm}>{esJefes ? 'Evaluador' : 'Evaluador (jefe inmediato)'}</label><input value={ev.evaluador || ''} disabled={bloqueada} onChange={e => set('evaluador', e.target.value)} className={`${E.input} disabled:bg-feisen-fondo`} /></div>
               <div><label className={E.labelForm}>Fecha de la evaluación</label><input type="date" value={ev.fecha_evaluacion || ''} disabled={bloqueada} onChange={e => set('fecha_evaluacion', e.target.value)} className={`${E.input} disabled:bg-feisen-fondo`} /></div>
             </div>
           </Tarjeta>
 
-          <Tarjeta titulo={`Objetivos del cargo (${ciclo.peso_objetivos}%)`} icon={Target}>
+          <Tarjeta titulo={esJefes ? `KPIs del área (${ciclo.peso_objetivos}%)` : `Objetivos del cargo (${ciclo.peso_objetivos}%)`} icon={Target}>
+            {esJefes && objetivos.length > 0 && <p className="text-[11px] text-feisen-gris-medio mb-3">Guía de nota: debajo del mínimo 1 o 2 · entre mínimo y meta 3 · en la meta 4 · por encima de la meta 5.</p>}
             {objetivos.length === 0
-              ? <p className="text-sm text-feisen-gris-medio">El cargo no tiene criterios de evaluación. Se definen en Organigrama → cargo → Evaluación de desempeño; mientras tanto, el resultado sale solo de las competencias.</p>
+              ? esJefes ? <p className="text-sm text-feisen-gris-medio">El área no tenía KPIs en el plan cuando se creó el ciclo.</p> : <p className="text-sm text-feisen-gris-medio">El cargo no tiene criterios de evaluación. Se definen en Organigrama → cargo → Evaluación de desempeño; mientras tanto, el resultado sale solo de las competencias.</p>
               : <div className="divide-y divide-feisen-borde-suave">{objetivos.map(fila)}</div>}
           </Tarjeta>
 
-          <Tarjeta titulo={`Competencias (${ciclo.peso_competencias}%)`} icon={Sparkles}>
+          <Tarjeta titulo={esJefes ? `Competencias comunes (${ciclo.peso_competencias}%)` : `Competencias (${ciclo.peso_competencias}%)`} icon={Sparkles}>
+            {esJefes && <p className="text-[11px] text-feisen-gris-medio mb-3">Anota el % que salió de la encuesta, la visita o la calificación (promedio ÷ 5 × 100). {ciclo.con_encuesta ? 'Trimestre con encuesta.' : 'Trimestre sin encuesta: liderazgo y trabajo en equipo no cuentan.'}</p>}
+            {esJefes && (
+              <label className={`flex items-start gap-2.5 text-sm cursor-pointer mb-3 rounded-lg border px-3 py-2 ${ev.falta_grave ? 'border-red-200 bg-red-50 text-red-800' : 'border-feisen-borde-suave text-feisen-texto'}`}>
+                <input type="checkbox" checked={!!ev.falta_grave} disabled={bloqueada} onChange={e => set('falta_grave', e.target.checked)} className="w-4 h-4 mt-0.5 accent-feisen-rojo" />
+                <span>Falta grave documentada en el trimestre<span className="block text-[11px] text-feisen-gris-medio">Respeto, honestidad o reglamento interno. Deja las competencias del trimestre en cero.</span></span>
+              </label>
+            )}
             {competencias.length === 0
               ? <p className="text-sm text-feisen-gris-medio">Sin competencias para evaluar.</p>
               : <div className="divide-y divide-feisen-borde-suave">{competencias.map(fila)}</div>}
@@ -282,8 +341,8 @@ export default function EvaluacionPersona() {
         <div className="w-full lg:w-72 flex-shrink-0 space-y-4 lg:sticky lg:top-6">
           <div className={E.tarjeta}>
             <div className="px-5 py-4 space-y-2 text-sm">
-              <div className="flex justify-between text-feisen-texto-2"><span>Objetivos</span><span>{fmt(resultado.resultado_objetivos)}</span></div>
-              <div className="flex justify-between text-feisen-texto-2"><span>Competencias</span><span>{fmt(resultado.resultado_competencias)}</span></div>
+              <div className="flex justify-between text-feisen-texto-2"><span>{esJefes ? 'KPIs' : 'Objetivos'}</span><span>{fmt(resultado.resultado_objetivos)}</span></div>
+              <div className="flex justify-between text-feisen-texto-2"><span>Competencias{ev.falta_grave ? ' (falta grave)' : ''}</span><span>{fmt(resultado.resultado_competencias)}</span></div>
               <div className="flex justify-between text-feisen-texto"><span>Resultado</span><span>{fmt(resultado.resultado)}</span></div>
               {calibrado !== null && <div className="flex justify-between text-feisen-texto"><span>Calibrado</span><span>{fmt(calibrado)}</span></div>}
               <div className="border-t border-feisen-borde-suave pt-2">

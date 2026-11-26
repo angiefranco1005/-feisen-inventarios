@@ -67,6 +67,7 @@ import TarifasDestajo           from './components/rrhh/nomina/TarifasDestajo'
 import Desempeno                from './components/rrhh/desempeno/Desempeno'
 import CicloDesempeno           from './components/rrhh/desempeno/CicloDesempeno'
 import EvaluacionPersona        from './components/rrhh/desempeno/EvaluacionPersona'
+import PlanJefes                from './components/rrhh/desempeno/PlanJefes'
 import EntregasDotacion         from './components/rrhh/dotacion/EntregasDotacion'
 import PlanillasProduccion      from './components/ensamble/PlanillasProduccion'
 import SerialesMaquina          from './components/ensamble/SerialesMaquina'
@@ -131,7 +132,7 @@ function AppRoutes() {
     '/rrhh/empleados': <ListaEmpleados />, '/rrhh/empleados/:id': <FichaEmpleado />, '/rrhh/organigrama': <Organigrama />, '/rrhh/organigrama/:id': <FichaCargo />,
     '/rrhh/novedades': <Novedades />, '/rrhh/calendario': <Calendario />, '/rrhh/nomina': <Nomina />, '/rrhh/nomina/tarifas': <TarifasDestajo />,
     '/rrhh/nomina/:periodoId': <PeriodoNomina />, '/rrhh/nomina/:periodoId/:liqId': <LiquidacionPersona />,
-    '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />, '/rrhh/dotacion': <EntregasDotacion />,
+    '/rrhh/desempeno': <Desempeno />, '/rrhh/desempeno/plan-jefes': <PlanJefes />, '/rrhh/desempeno/:cicloId': <CicloDesempeno />, '/rrhh/desempeno/:cicloId/:evalId': <EvaluacionPersona />, '/rrhh/dotacion': <EntregasDotacion />,
     '/finanzas/cartera': <PendientesFinanzas key="cobrar" tipo="cobrar" />,
     '/finanzas/por-pagar': <PendientesFinanzas key="pagar" tipo="pagar" />, '/finanzas/flujo': <FlujoCaja />, '/finanzas/eeff': <Eeff />, '/finanzas/impuestos': <Impuestos />,
     '/innovacion': <ProyectosInnovacion />, '/innovacion/:id': <FichaProyectoInnovacion />,
