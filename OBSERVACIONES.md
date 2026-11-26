@@ -2811,6 +2811,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   orden" (misma lógica de guardado). Las líneas ahora se identifican por `clave` (la misma pieza puede ir con dos
   moldeadores; la base lo permite). Si se vuelve al paso 1 y se recalcula, se agrupan de nuevo por pieza.
 - La pestaña "Piezas sueltas" ya no trae fila de ejemplo (se cargaría como pieza real).
+- **26/11 · Crear pieza nueva desde la orden de moldeo** (pedido del Jefe de Fundición: si sale a Productos pierde la
+  orden sin guardar). En "Agregar pieza": si la búsqueda no encuentra nada aparece "Crear «texto»", y siempre está
+  "¿Pieza nueva? Créala aquí". Panel lateral con nombre (en mayúsculas), peso de una pieza (obligatorio, para los kg del
+  moldeador) y cantidad opcional. Crea el item en bodega Fundición, categoría MATERIAL FUNDIDO HIERRO (la que usa la
+  plantilla), unidad "unidad", sin precio de costo (lo pone Almacén/Gerencia en Productos), y stock 0. No duplica: si ya
+  existe con el mismo nombre (sin importar mayúsculas/tildes) usa el existente; si está inactivo avisa. La RLS ya permitía
+  a JEFE_FUNDICION crear items de su bodega (`items_insert`), no se tocó la base. Probado en la demo: validación de peso,
+  creación + línea en la orden, nombre repetido sin duplicar, y guardar la orden con la pieza nueva.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

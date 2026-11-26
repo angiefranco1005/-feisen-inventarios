@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { BODEGA_FUNDICION_ID } from '../../utils/bodegasCatalogo'
-import { coincideBusqueda } from '../../utils/busqueda'
+import { BODEGA_FUNDICION_ID, CAT_FUNDIDO_HIERRO_ID } from '../../utils/bodegasCatalogo'
+import { coincideBusqueda, sinTildes } from '../../utils/busqueda'
 import {
   CheckCircle2, Plus, Trash2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Check,
   Search, AlertTriangle, RefreshCw, Factory, Package, FileDown, Upload, X,
 } from '../shared/iconos'
-import { EncabezadoPagina, Contador } from '../shared/ui'
+import { EncabezadoPagina, Contador, PanelLateral } from '../shared/ui'
 import { descargarPlantillaMoldeo, leerPlantillaMoldeo } from '../../utils/plantillaMoldeo'
 
 function hoyCol() {
@@ -74,7 +74,7 @@ function Stepper({ paso, onBack }) {
 
 // ── Selector de pieza desde inventario ───────────────────────────────────────
 // Busca por palabras sueltas sin importar tildes ("polea 8" encuentra "POLEA 8 X 2B")
-function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] }) {
+function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [], onCrear }) {
   const [busqueda, setBusqueda] = useState(value || '')
   const [abierto,  setAbierto]  = useState(false)
 
@@ -119,7 +119,13 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [] })
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
         <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 px-3 py-3 text-sm text-feisen-texto-2">
-          Ninguna pieza de fundición coincide. Prueba con otra palabra del nombre.
+          <p>Ninguna pieza de fundición coincide.</p>
+          {onCrear && (
+            <button type="button" onMouseDown={() => onCrear(busqueda.trim())}
+              className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-feisen-azul text-white px-3 min-h-[44px] text-sm font-semibold hover:opacity-90">
+              <Plus size={16} /> <span className="truncate">Crear «{busqueda.trim()}»</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -194,6 +200,10 @@ export default function CrearOrdenMoldeo() {
   // Plantilla de Excel subida: { archivo, lineas, avisos } (se muestra un aviso arriba del paso 2)
   const [plantillaCargada, setPlantillaCargada] = useState(null)
   const [subiendo,       setSubiendo]       = useState(false)
+  // Pieza nueva creada desde la orden (sin salir a Productos y sin perder lo planeado)
+  const [nueva,          setNueva]          = useState(null)   // { nombre, peso, cantidad } con el panel abierto
+  const [creandoPieza,   setCreandoPieza]   = useState(false)
+  const [errorNueva,     setErrorNueva]     = useState('')
   const inputArchivo = useRef(null)
   const [proximoNumero,  setProximoNumero]  = useState(null)
 
@@ -310,6 +320,65 @@ export default function CrearOrdenMoldeo() {
       asignado_a: '', origen: 'libre', stock_actual: stockActual,
     }].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
     setLibreItem(null); setLibreCant(''); setError('')
+  }
+
+  function abrirNueva(nombre = '') {
+    setErrorNueva('')
+    setNueva({ nombre: nombre.toUpperCase(), peso: '', cantidad: libreCant || '' })
+  }
+
+  // Crea el producto en la bodega Fundición, categoría Material fundido hierro (la misma que usa la
+  // plantilla), y lo agrega a la orden. Si ya existe con ese nombre (aunque esté inactivo o lo haya
+  // creado un intento anterior que falló a medias), no lo duplica: usa el existente.
+  async function crearPieza() {
+    const nombre = (nueva?.nombre || '').trim().replace(/\s+/g, ' ').toUpperCase()
+    const peso   = Number(String(nueva?.peso || '').replace(',', '.'))
+    const cant   = Number(nueva?.cantidad) || 0
+    if (!nombre)            { setErrorNueva('Escribe el nombre de la pieza.'); return }
+    if (!(peso > 0))        { setErrorNueva('Escribe el peso de una pieza en kg (sirve para los kilos del moldeador).'); return }
+    if (!fundBodegaId)      { setErrorNueva('No se encontró la bodega Fundición. Recarga la página.'); return }
+    setCreandoPieza(true); setErrorNueva('')
+    try {
+      const { data: mismos, error: eBus } = await supabase.from('items')
+        .select('id, nombre, peso_unitario, activo, categoria_id').eq('bodega_id', fundBodegaId).ilike('nombre', nombre)
+      if (eBus) throw eBus
+      const clave = sinTildes(nombre)
+      let item = (mismos || []).find(i => sinTildes(i.nombre) === clave)
+        || allItems.find(i => sinTildes(i.nombre) === clave)
+      if (item && item.activo === false) {
+        setErrorNueva(`Ya existe "${item.nombre}" pero está inactivo. Pide en Inventario › Productos que lo activen.`); return
+      }
+      if (!item) {
+        const { data: creado, error: eIns } = await supabase.from('items').insert({
+          nombre, bodega_id: fundBodegaId, categoria_id: CAT_FUNDIDO_HIERRO_ID, centro_costo: 'FUNDICIÓN',
+          unidad_medida: 'unidad', peso_unitario: peso, stock_minimo: 0, stock_maximo: 0,
+          updated_at: new Date().toISOString(),
+        }).select('id, nombre, peso_unitario').single()
+        if (eIns) throw eIns
+        item = creado
+        await supabase.from('stock').upsert(
+          { item_id: item.id, bodega_id: fundBodegaId, cantidad_actual: 0 }, { onConflict: 'item_id,bodega_id' })
+      }
+      const it = { id: item.id, nombre: item.nombre, peso_unitario: item.peso_unitario || peso }
+      setAllItems(prev => prev.some(i => i.id === it.id) ? prev
+        : [...prev, it].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+      if (piezas.some(p => p.item_id === it.id)) {
+        setNueva(null); setError(`"${it.nombre}" ya existe y ya está en la orden; cambia ahí la cantidad.`); return
+      } else if (cant > 0) {
+        setPiezas(prev => [...prev, {
+          item_id: it.id, nombre: it.nombre, peso_unitario: it.peso_unitario,
+          cantidad_planeada: cant, asignado_a: '', origen: 'libre', stock_actual: 0,
+        }].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
+        setLibreItem(null); setLibreCant('')
+      } else {
+        setLibreItem(it)
+      }
+      setNueva(null); setError('')
+    } catch (e) {
+      setErrorNueva('No se pudo crear la pieza: ' + (e.message || e) + '. Lo que llevas de la orden sigue aquí; intenta de nuevo.')
+    } finally {
+      setCreandoPieza(false)
+    }
   }
 
   // Cada línea se identifica por su `clave`: la pieza, o pieza + moldeador cuando viene de la plantilla
@@ -516,6 +585,54 @@ export default function CrearOrdenMoldeo() {
         </div>
       )}
 
+      {nueva && (
+        <PanelLateral etiqueta="Crear pieza nueva" onCerrar={() => !creandoPieza && setNueva(null)}
+          encabezado={<>
+            <h2 className="text-base font-semibold text-feisen-texto">Crear pieza nueva</h2>
+            <p className="text-xs text-feisen-texto-2 mt-0.5">Queda en Fundición › Material fundido hierro. La orden que llevas no se pierde.</p>
+          </>}>
+          <form onSubmit={e => { e.preventDefault(); crearPieza() }} className="space-y-4">
+            <label className="block">
+              <span className="block text-sm font-medium text-feisen-texto mb-1">Nombre de la pieza</span>
+              <input type="text" value={nueva.nombre} autoFocus
+                onChange={e => setNueva(n => ({ ...n, nombre: e.target.value.toUpperCase() }))}
+                placeholder="Ej. TAPA RODAMIENTO 40" className={claseInput} />
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-feisen-texto mb-1">Peso de una pieza (kg)</span>
+              <input type="text" inputMode="decimal" value={nueva.peso}
+                onChange={e => setNueva(n => ({ ...n, peso: e.target.value }))}
+                placeholder="Ej. 2,5" className={`${claseInput} tabular-nums`} />
+              <span className="block text-xs text-feisen-texto-2 mt-1">Con este peso se calculan los kilos del moldeador.</span>
+            </label>
+            <label className="block">
+              <span className="block text-sm font-medium text-feisen-texto mb-1">Cantidad a moldear en esta orden <span className="font-normal text-feisen-texto-2">(opcional)</span></span>
+              <input type="number" inputMode="numeric" min="1" value={nueva.cantidad}
+                onChange={e => setNueva(n => ({ ...n, cantidad: e.target.value }))}
+                placeholder="Ej. 10" className={`${claseInput} tabular-nums`} />
+              <span className="block text-xs text-feisen-texto-2 mt-1">Si la dejas vacía, la pieza queda elegida en el buscador.</span>
+            </label>
+            {errorNueva && (
+              <p role="alert" className="flex gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5" /> {errorNueva}
+              </p>
+            )}
+            <p className="text-xs text-feisen-texto-2">El precio de costo lo pone después Almacén o Gerencia en Inventario › Productos.</p>
+            <div className="flex gap-2 pt-1">
+              <button type="button" onClick={() => setNueva(null)} disabled={creandoPieza}
+                className="flex-1 border border-feisen-borde rounded-lg min-h-[44px] text-sm font-medium text-feisen-texto hover:bg-feisen-fondo disabled:opacity-50">
+                Cancelar
+              </button>
+              <button type="submit" disabled={creandoPieza}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-feisen-azul text-white rounded-lg min-h-[44px] text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                {creandoPieza ? <RefreshCw size={16} className="animate-spin" /> : <Plus size={16} />}
+                {creandoPieza ? 'Creando…' : 'Crear y agregar'}
+              </button>
+            </div>
+          </form>
+        </PanelLateral>
+      )}
+
       {plantillaCargada && paso === 2 && (
         <div role="status" className="bg-white border border-feisen-borde rounded-xl px-4 py-3 text-sm space-y-2">
           <div className="flex items-start gap-2">
@@ -680,6 +797,7 @@ export default function CrearOrdenMoldeo() {
                     items={allItems}
                     excluirIds={itemsEnOrden}
                     placeholder="Buscar pieza…"
+                    onCrear={abrirNueva}
                   />
                   <div className="flex gap-2">
                     <input type="number" inputMode="numeric" min="1" value={libreCant} onChange={e => setLibreCant(e.target.value)}
@@ -691,6 +809,10 @@ export default function CrearOrdenMoldeo() {
                       <Plus size={16} /> Agregar
                     </button>
                   </div>
+                  <button type="button" onClick={() => abrirNueva('')}
+                    className="text-sm font-medium text-feisen-azul hover:underline min-h-[44px] -mb-2">
+                    ¿Pieza nueva? Créala aquí
+                  </button>
                 </div>
               </Tarjeta>
 
