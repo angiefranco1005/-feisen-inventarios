@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { Download, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { cargarArbol } from '../utils/arbolCosteo'
 import { formatCOP, formatNumber } from '../utils/format'
 import { nombreCorto, tipoTitulo } from '../utils/nombres'
 import EtapasMaquina from '../inicio/EtapasMaquina'
 import { indexar, Panel } from '../ArbolTab'
-import TraerFundicion from './TraerFundicion'
 import HojaRuta from './HojaRuta'
 import HojaMateria from './HojaMateria'
 import HojaTiempos from './HojaTiempos'
@@ -39,7 +38,6 @@ export default function CosteoPasos() {
   const [buscar, setBuscar] = useState('')
   const [soloFalta, setSoloFalta] = useState(false)
   const [sel, setSel] = useState(null) // null = panel cerrado
-  const [traer, setTraer] = useState(false)
 
   useEffect(() => {
     supabase
@@ -161,11 +159,6 @@ export default function CosteoPasos() {
             Solo lo que falta{datos ? ` (${datos.cuenta[paso.id]})` : ''}
           </button>
           <span className="flex-1" />
-          {paso.id === 'despiece' && arbol && (
-            <button type="button" onClick={() => setTraer(true)} className="h-9 inline-flex items-center gap-1.5 rounded-md border border-feisen-borde px-3 text-sm text-feisen-azul hover:bg-feisen-azul-suave">
-              <Download size={14} /> Traer piezas de fundición
-            </button>
-          )}
           {arbol && paso.id !== 'tiempos' && (
             <button type="button" onClick={() => setSel({ tipo: 'raiz' })} className="h-9 rounded-md bg-feisen-rojo px-3 text-sm font-medium text-white hover:opacity-90">
               + Agregar pieza
@@ -221,18 +214,6 @@ export default function CosteoPasos() {
             </div>
           </aside>
         </>
-      )}
-
-      {traer && arbol && (
-        <TraerFundicion
-          arbol={arbol}
-          filas={datos?.filas || []}
-          onCerrar={() => setTraer(false)}
-          onListo={async () => {
-            setTraer(false)
-            await recargar()
-          }}
-        />
       )}
     </div>
   )

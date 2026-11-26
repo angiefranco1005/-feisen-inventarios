@@ -3055,3 +3055,7 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Angie sentía la pantalla de tiempos poco clara; escogió «desplegables por pieza» (sobre «barras de mayor a menor»).
 - `pasos/HojaTiempos.jsx`: arriba tres números (mano de obra de una máquina completa = Σ tiempo por pieza × cantidad acumulada de la pieza; operaciones con tiempo; lo que más demora). La plantilla quedó en un solo botón «Plantilla de Excel» con menú (Descargar / Subir). Abajo una tarjeta por pieza (cerrada al entrar; se abren todas si hay búsqueda o «Solo lo que falta»), con punto de estado y tiempo por pieza; adentro una línea por operación (punto, nombre, cargo en pantallas grandes, estado: «Faltan N tomas» / «N etapas sin tomar» / «Sin tomar», y tiempo); al abrirla, sus etapas con barra de peso (oculta en celular), tiempo por pieza, «faltan N», y los botones «Editar tiempos» / «Tomar a mano», costo de mano de obra y «Ver detalle». Se quitó la tabla grande de etapas. Externas: una línea gris «Externa · no lleva tiempo».
 - `CosteoPasos.jsx`: el botón «+ Agregar pieza» ya no sale en el paso 4 (las piezas se agregan en el despiece).
+
+## 2026-11-26 · Despiece: se quitó «Traer piezas de fundición»
+
+- Pedido de Angie. Se quitó el botón del paso 1 · Despiece y se borró `pasos/TraerFundicion.jsx` (copiaba al despiece las piezas que Fundición tiene en `bom_maquina_piezas` para la máquina). Si se necesita otra vez, está en el historial de git (commit anterior a este).
