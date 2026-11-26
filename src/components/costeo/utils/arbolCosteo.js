@@ -77,6 +77,8 @@ export async function cargarArbol(raizId, { conDetalle = false } = {}) {
     planos, // fichaId → nº de planos adjuntos
     manoObra: agrupar(mo.data, 'proceso_id', (a, b) => a.orden - b.orden || porFecha(a, b)),
     materiales: conDetalle ? agrupar(mt.data, 'proceso_id', porFecha) : {},
+    // Material de piezas sin operación (2026-11-26): va directo a la pieza (proceso_id null).
+    materialesSinProceso: conDetalle ? agrupar((mt.data || []).filter((m) => !m.proceso_id), 'ficha_id', porFecha) : {},
     tiempos: conDetalle
       ? agrupar(tr.data, 'proceso_id', (a, b) => String(a.fecha).localeCompare(String(b.fecha)) || porFecha(a, b))
       : {},

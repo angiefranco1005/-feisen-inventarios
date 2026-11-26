@@ -185,22 +185,16 @@ export default function HojaMateria({ arbol, filas, corto, buscar, soloFalta, on
                           <button type="button" onClick={() => quitar(m)} aria-label="Quitar material" className="w-9 h-9 grid place-items-center rounded-lg text-feisen-texto-2 hover:text-feisen-rojo hover:bg-feisen-rojo-suave"><Trash2 size={14} /></button>
                         </div>
                       ))}
-                      {!primerProceso ? (
-                        <p className="text-xs text-feisen-texto-2">
-                          {f.esConjunto ? 'Sin operaciones de ensamble.' : 'Primero ponle la hoja de ruta: el material entra en su primera operación.'}{' '}
-                          {!f.esConjunto && <Link to={`/costeo/pasos/ruta?maquina=${maquinaId}`} className="text-feisen-azul hover:underline">Ir al paso 2</Link>}
-                        </p>
-                      ) : (
-                        !ab && (
-                          <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId })} className={`mt-1 ${BTN} text-feisen-azul hover:bg-feisen-azul-suave`}>
-                            <Plus size={14} /> Material
-                          </button>
-                        )
+                      {!ab && (
+                        <button type="button" onClick={() => setAbierto({ fichaId: f.fichaId })} className={`mt-1 ${BTN} text-feisen-azul hover:bg-feisen-azul-suave`}>
+                          <Plus size={14} /> Material
+                        </button>
                       )}
-                      {ab && primerProceso && (
+                      {ab && (
                         <FormMaterial
                           key={ab.materialId || 'nuevo'}
                           material={editando}
+                          fichaId={f.fichaId}
                           proceso={primerProceso}
                           nombrePieza={corto(f.ficha?.nombre)}
                           onCerrar={() => setAbierto(null)}
@@ -305,7 +299,7 @@ function lectura(m) {
   return `usa ${formatNumber(m.cantidad, m.cantidad % 1 ? 2 : 0)} ${unidad === 'unidad' ? (Number(m.cantidad) === 1 ? 'unidad' : 'unidades') : unidad} por pieza`
 }
 
-function FormMaterial({ material, proceso, nombrePieza, onCerrar, onGuardado }) {
+function FormMaterial({ material, fichaId, proceso, nombrePieza, onCerrar, onGuardado }) {
   const [item, setItem] = useState(material?.item_id ? { id: material.item_id, ...material.items } : null)
   const [query, setQuery] = useState('')
   const [resultados, setResultados] = useState([])
@@ -339,7 +333,7 @@ function FormMaterial({ material, proceso, nombrePieza, onCerrar, onGuardado }) 
     const datos = { item_id: item.id, item_nombre_libre: null, cantidad, rendimiento: modo === 'salen' ? n : null }
     const { error: err } = material
       ? await supabase.from('costeo_materiales').update(datos).eq('id', material.id)
-      : await supabase.from('costeo_materiales').insert({ ficha_id: proceso.ficha_id, proceso_id: proceso.id, etapa: proceso.nombre, ...datos })
+      : await supabase.from('costeo_materiales').insert({ ficha_id: fichaId, proceso_id: proceso?.id ?? null, etapa: proceso?.nombre ?? null, ...datos })
     setGuardando(false)
     if (err) return setError('No se pudo guardar: ' + err.message)
     onGuardado()
@@ -423,7 +417,7 @@ function FormMaterial({ material, proceso, nombrePieza, onCerrar, onGuardado }) 
           )}
         </p>
       )}
-      <p className="mt-1 text-xs text-feisen-texto-2">Se registra en la operación «{proceso.nombre}».</p>
+      <p className="mt-1 text-xs text-feisen-texto-2">{proceso ? `Se registra en la operación «${proceso.nombre}».` : 'La pieza no tiene operaciones: el material queda directo en la pieza.'}</p>
       {error && <p className="mt-2 text-sm text-feisen-rojo">{error}</p>}
       <div className="mt-3 flex gap-2">
         <button type="submit" disabled={guardando} className={`${BTN} h-10 bg-feisen-azul text-white font-medium disabled:opacity-60`}>Guardar</button>

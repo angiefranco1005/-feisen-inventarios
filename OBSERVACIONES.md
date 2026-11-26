@@ -3074,3 +3074,13 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Se escriben dos tablas desde el navegador (primero Costeo, luego la ficha), no en una transacción: si falla la segunda, queda la fila de Costeo sin vincular y se puede elegir en «Equipo en Costeo».
 - Números: la app quita los puntos de miles y toma la coma como decimal (7,5 años); «7.5» se leería 75.
 - Demo local sin sesión: `vite.mant-demo.config.mjs` (Supabase en memoria, en el scratchpad de la sesión; no se sube).
+
+## 2026-11-26 · Costeo: piezas sin operación pero con materia prima
+
+- Angie: hay piezas que no tienen proceso pero sí materia prima. `costeo_materiales.proceso_id` ya era opcional y `costeo_resumen` suma el material por `ficha_id`, así que la base no cambió.
+- `utils/arbolCosteo.js`: nuevo `materialesSinProceso` (material de la pieza con `proceso_id` null, agrupado por ficha). `datosPasos.materialesDe` lo incluye.
+- `HojaMateria.jsx`: «+ Material» sale siempre; si la pieza no tiene operaciones, el material se guarda directo en la pieza (`proceso_id` null) y el formulario lo dice. Si tiene, sigue entrando en la primera operación.
+- `falta.despiece` y `falta.ruta` ya no cuentan una pieza sin operaciones que tenga materia prima. Despiece muestra «Solo materia prima» en vez de «Vacía»; Hojas de ruta, punto gris y «Sin pasos: solo lleva materia prima».
+- Pendiente: el PDF de la ficha lista el material por proceso, así que el material sin proceso no sale ahí (sí suma en el costo).
+- `vite.config.js`: `maximumFileSizeToCacheInBytes` de 5 a 8 MB. El bundle llegó a 5,25 MB y el build fallaba al generar el service worker (Netlify no habría publicado). Pendiente de fondo: partir el bundle con carga diferida por módulo.
+- Probado en una copia aparte del repo (worktree en el scratchpad) porque otra sesión tenía en el árbol cambios a medias de RRHH que dejaban la demo en blanco.

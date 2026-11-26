@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Copy, Pl
 import { supabase } from '../../../lib/supabase'
 import { formatNumber } from '../utils/format'
 import { tipoTitulo } from '../utils/nombres'
-import { falta, normalizar } from './datosPasos'
+import { falta, materialesDe, normalizar } from './datosPasos'
 import { IndicadorObservaciones } from '../Observaciones'
 import { IndicadorPlanos } from '../Planos'
 
@@ -258,7 +258,7 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
               const on = r.key === sel
               const grupo = r.esConjunto && !r.raiz
               const cuenta = grupo ? contarDentro(renglones, i, (x) => !x.esConjunto, (x) => procesosDe(x.fichaId).length > 0) : null
-              const estado = !procs.length ? (r.esConjunto ? 'vacio' : 'falta') : procs.some((p) => !p.externo && !p.cargo_id && !p.cargo_nombre) ? 'falta' : 'ok'
+              const estado = !procs.length ? (r.esConjunto || materialesDe(arbol, r.fichaId).length ? 'vacio' : 'falta') : procs.some((p) => !p.externo && !p.cargo_id && !p.cargo_nombre) ? 'falta' : 'ok'
               return (
                 <div key={r.key} className="flex items-center" style={{ paddingLeft: 8 + Math.min(r.nivel, 4) * 14 }}>
                   {grupo ? (
@@ -344,7 +344,7 @@ function Detalle({ r, procs, arbol, cat, abierto, setAbierto, ocupado, nombreEqu
         <IndicadorPlanos n={arbol.planos?.[r.fichaId]} />
       </div>
       <p className="text-xs text-feisen-texto-2 mt-0.5">
-        {procs.length ? `${procs.length} ${procs.length === 1 ? 'paso' : 'pasos'}` : r.esConjunto ? 'Sin pasos de ensamble' : 'Todavía no tiene ruta'}
+        {procs.length ? `${procs.length} ${procs.length === 1 ? 'paso' : 'pasos'}` : r.esConjunto ? 'Sin pasos de ensamble' : materialesDe(arbol, r.fichaId).length ? 'Sin pasos: solo lleva materia prima' : 'Todavía no tiene ruta'}
         {r.esConjunto && !r.raiz ? ' · aquí van las uniones entre sus piezas' : ''}
       </p>
 

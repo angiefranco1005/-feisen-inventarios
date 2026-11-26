@@ -287,7 +287,7 @@ function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onA
               ) : f.procesos.length ? (
                 <span className="text-feisen-texto-2">{f.procesos.length} {f.procesos.length === 1 ? 'proceso' : 'procesos'}</span>
               ) : (
-                <Chip tono="falta">Vacía</Chip>
+                materialesDe(arbol, f.fichaId).length ? <span className="text-feisen-texto-2">Solo materia prima</span> : <Chip tono="falta">Vacía</Chip>
               )}
             </td>
             <td className={`${TD} text-right tabular-nums ${Number(f.resumen.costo_total) ? 'text-feisen-texto' : 'text-feisen-gris-medio'}`}>{cop(Number(f.resumen.costo_total || 0) * f.cant)}</td>

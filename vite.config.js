@@ -26,7 +26,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         // El bundle ya pasó los 2 MB (el límite por defecto de precache), así que el build
         // fallaba silenciosamente al desplegar. Se sube el límite a 5 MB para darle espacio.
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 2026-11-26: el bundle llegó a 5,25 MB; pendiente partirlo con carga diferida (lazy) por módulo
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,

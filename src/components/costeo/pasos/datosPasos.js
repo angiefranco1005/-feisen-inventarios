@@ -43,14 +43,15 @@ export function filasDespiece(arbol) {
 
 // Materia prima propia de una ficha (de todos sus procesos).
 export function materialesDe(arbol, fichaId) {
-  return (arbol.procesos[fichaId] || []).flatMap((p) => arbol.materiales[p.id] || [])
+  return (arbol.procesos[fichaId] || []).flatMap((p) => arbol.materiales[p.id] || []).concat(arbol.materialesSinProceso?.[fichaId] || [])
 }
 
 // Reglas de "falta" por paso. Un conjunto (pieza con piezas adentro) no se exige en materia prima;
 // en ruta solo se le pide si no tiene piezas ni procesos (está vacío).
 export const falta = {
-  despiece: (f) => !f.esConjunto && f.procesos.length === 0,
-  ruta: (f) => !f.esConjunto && f.procesos.length === 0,
+  // Una pieza sin operaciones pero con materia prima (2026-11-26) está bien: no se pide ruta.
+  despiece: (f, arbol) => !f.esConjunto && f.procesos.length === 0 && !(arbol && materialesDe(arbol, f.fichaId).length),
+  ruta: (f, arbol) => !f.esConjunto && f.procesos.length === 0 && !(arbol && materialesDe(arbol, f.fichaId).length),
   materia: (f, arbol) => !f.esConjunto && materialesDe(arbol, f.fichaId).length === 0,
   // Tiempos va por proceso: falta si tiene personas por hora sin medir o si no tiene persona.
   // Las operaciones externas (las hace un tercero) no llevan tiempo.
@@ -72,8 +73,8 @@ export function filasProcesos(arbol, filas) {
 // Cuántos faltan en cada paso, para las pestañas.
 export function conteos(arbol, filas, procesos) {
   return {
-    despiece: filas.filter((f) => falta.despiece(f)).length,
-    ruta: filas.filter((f) => falta.ruta(f)).length,
+    despiece: filas.filter((f) => falta.despiece(f, arbol)).length,
+    ruta: filas.filter((f) => falta.ruta(f, arbol)).length,
     materia: filas.filter((f) => falta.materia(f, arbol)).length,
     tiempos: procesos.filter((p) => falta.tiempos(p.proceso, p.costo)).length,
   }
