@@ -10,7 +10,8 @@ import { porPiezaTexto } from '../utils/tiempos'
 import { indexar, Panel } from '../ArbolTab'
 import TraerFundicion from './TraerFundicion'
 import HojaRuta from './HojaRuta'
-import { PASOS, conteos, falta, filasDespiece, filasProcesos, materialesDe } from './datosPasos'
+import HojaMateria from './HojaMateria'
+import { PASOS, conteos, falta, filasDespiece, filasProcesos } from './datosPasos'
 
 // Costeo por pasos (opción B, estilo Airtable; Angie, 2026-11-25). Una pantalla por paso del costeo
 // (despiece → hojas de ruta → materia prima → tiempos) con una cuadrícula de toda la máquina y lo
@@ -350,41 +351,8 @@ function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onA
     return <HojaRuta arbol={arbol} filas={datos.filas} corto={corto} buscar={buscar} soloFalta={soloFalta} onCambio={onCambio} />
   }
 
-  // Materia prima
-  const conMaterial = hojas.filter((f) => !falta.materia(f, arbol)).length
-  return (
-    <Tabla
-      cabeza={['Pieza', 'Cant.', 'Material', 'Consumo por pieza', 'Materia prima', 'Estado']}
-      alinear={{ 1: 'right', 4: 'right' }}
-      vacio="Todas las piezas tienen su materia prima."
-      pie={[`${hojas.length} piezas`, '', '', '', cop(totalMP(datos.filas)), `${conMaterial} de ${hojas.length} con material`]}
-    >
-      {filas.map((f, i) => {
-        const mats = materialesDe(arbol, f.fichaId)
-        return (
-          <Fila key={f.key} n={i + 1} conjunto={f.esConjunto} onClick={abrir(f)}>
-            <td className={TD}>{nombre(f)}</td>
-            <td className={`${TD} text-right tabular-nums`}>{cant(f)}</td>
-            <td className={`${TD} text-feisen-texto-2`}>{mats.map((m) => m.items?.nombre || m.item_nombre_libre).join(', ') || '—'}</td>
-            <td className={`${TD} text-feisen-texto-2 tabular-nums`}>
-              {mats.length
-                ? mats
-                    .map((m) => (Number(m.rendimiento) > 0 ? `1 de cada ${formatNumber(m.rendimiento, m.rendimiento % 1 ? 2 : 0)}` : `${formatNumber(m.cantidad, 2)} ${m.items?.unidad_medida || ''}`.trim()))
-                    .join(' · ')
-                : '—'}
-            </td>
-            <td className={`${TD} text-right tabular-nums ${Number(f.resumen.total_mp) ? 'text-feisen-texto' : 'text-feisen-gris-medio'}`}>{f.esConjunto ? '—' : cop(Number(f.resumen.total_mp || 0) * f.cant)}</td>
-            <td className={TD}>{f.esConjunto ? <Chip tono="neutro">Conjunto</Chip> : mats.length ? <Chip tono="ok">Listo</Chip> : <Chip tono="falta">Sin material</Chip>}</td>
-          </Fila>
-        )
-      })}
-    </Tabla>
-  )
-}
-
-// Materia prima total de la máquina: suma de lo propio de cada pieza × su cantidad acumulada.
-function totalMP(filas) {
-  return filas.reduce((s, f) => s + Number(f.resumen.total_mp || 0) * f.cantTotal, 0)
+  // Paso 3: "¿cuántas salen de una unidad?" por pieza (2026-11-26). Ver HojaMateria.jsx.
+  return <HojaMateria arbol={arbol} filas={datos.filas} corto={corto} buscar={buscar} soloFalta={soloFalta} onCambio={onCambio} />
 }
 
 function Tabla({ cabeza, alinear = {}, vacio, pie, children }) {

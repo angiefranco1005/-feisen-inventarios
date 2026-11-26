@@ -2983,3 +2983,11 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Puente con el paso 4: al poner un cargo en una operación interna se crea su línea en `costeo_proceso_mano_obra` (con la última forma de pago y tarifa usada para ese cargo); si ya hay una sola línea con otro cargo, se cambia. Al pasarla a externa se borran las líneas sin mediciones.
 - Pendiente: el costo de una operación externa (precio del proveedor por pieza) todavía no entra en `costeo_procesos_resumen`. `cargos` solo lo pueden leer ADMIN y RRHH (RLS de RRHH): un usuario con `acceso_costeo` que no sea ADMIN verá la lista de cargos vacía.
 - Probado solo en la demo local con datos falsos (agregar, editar, máquina nueva, mover, externo con proveedor, copiar ruta, celular 375 px). No probado contra la base real en el navegador.
+
+## 2026-11-26 · Costeo paso 3 «Materia prima»: ¿cuántas salen de una unidad? (opción A)
+
+- Angie escogió la opción A entre tres (A rendimiento por unidad, B por medidas, C tabla rápida). Razón: el inventario compra lámina, ángulo y barra **por unidad** (ej. «LAMINA 3/16 (4.5 MM) 120X600» $788.454 la lámina) y el plasmista ya sabe cuántas piezas salen; el sobrante queda incluido.
+- Pantalla `pasos/HojaMateria.jsx` (en `/costeo/pasos/materia`): un renglón por pieza/conjunto con sus materiales y el costo por pieza (y × cantidad). «+ Material» busca en `items` (activos) y pregunta: «Salen varias de 1 unidad» (guarda `rendimiento` = n y `cantidad` = 1/n) o «Usa unidades completas» (`cantidad` = n, `rendimiento` null; para rodamientos, tornillos…). Muestra el cálculo antes de guardar (precio ÷ n o n × precio). Pie: piezas con material y materia prima total de la máquina (costo por pieza × cantidad acumulada).
+- Sin cambios de base: usa `costeo_materiales` como estaba (la vista ya calcula `cantidad × items.precio_costo`). Como el material necesita `proceso_id`, entra en la **primera operación de la ruta** de la pieza; sin ruta se muestra «Primero ponle la hoja de ruta» con enlace al paso 2.
+- `tipoTitulo` ahora deja unidades en minúscula («(2.5 MM)» → «(2.5 mm)»).
+- Pendiente (no pedido aún): ayuda por medidas (opción B) para piezas que todavía no se han cortado. Probado solo en la demo local; la demo no rehace el join con `items` al guardar, así que ahí el nombre del material no se actualiza (en la base real sí).

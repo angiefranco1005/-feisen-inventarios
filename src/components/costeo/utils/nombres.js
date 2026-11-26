@@ -13,6 +13,7 @@ export function tipoTitulo(s) {
     .map((w, i) => {
       if (SIGLAS.has(w.toUpperCase())) return w.toUpperCase()
       if (/\d/.test(w)) return w // medidas y referencias (1/8, 120X600, 350L) se dejan como vienen
+      if (/^\(?(mm|cm|kg|lts?)\)?$/i.test(w)) return w.toLowerCase() // unidades: "(2.5 MM)" → "(2.5 mm)"
       let l = w.toLowerCase()
       l = ACENTOS[l] || l
       if (i > 0 && MENORES.has(l)) return l
