@@ -2893,6 +2893,11 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   coke") en Registrar fundida, detalle de fundidas y Analítica. Revisado en la base: ninguna fundida alcanzó a
   descontar carbón (0 movimientos "Consumo horno fundición"), así que no hay movimientos que corregir. Caliza,
   ferromolido y slax sí apuntan al producto correcto de Fundición.
+- **26/11 · Buscador de Recogida.** Filtraba solo órdenes (y sin ignorar tildes: "boci" no encontraba "BOCÍN"); al
+  abrir la orden salían todas las piezas. Ahora usa `coincideBusqueda` (orden, fecha, pieza, moldeador) y dentro de la
+  orden muestra solo las piezas que coinciden ("Mostrando 1 de 37… · Ver todas"), en Por recoger y Completadas. El
+  guardado, los totales y las validaciones siguen cubriendo todas las piezas; si un error nombra una pieza oculta, se
+  muestran todas. Probado en la demo.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 

@@ -9,6 +9,7 @@ import {
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 import { useUnaVez } from '../../hooks/useUnaVez'
 import { MOTIVOS_NC_FUNDICION } from './indicadoresFundicion'
+import { coincideBusqueda } from '../../utils/busqueda'
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 // Kilos con formato colombiano (solo para mostrar; lo que se guarda no cambia)
@@ -31,6 +32,17 @@ function fmtFecha(f) {
   if (!f) return '—'
   const [y, m, d] = f.split('-')
   return `${d}/${m}/${y}`
+}
+
+// Búsqueda (palabras en cualquier orden, sin importar tildes: "boci" encuentra "BOCÍN").
+// Si lo buscado es la orden misma (número o fecha) se muestran todas sus piezas; si no,
+// solo las piezas cuyo nombre o moldeador coincide (se puede mezclar: "0012 bocin").
+function textoOrden(o) { return `${numOrden(o.numero)} ${fmtFecha(o.fecha)}` }
+function piezasQueCoinciden(o, consulta) {
+  const piezas = o.ordenes_moldeo_piezas || []
+  const q = String(consulta || '').trim()
+  if (!q || coincideBusqueda(textoOrden(o), q)) return piezas
+  return piezas.filter(p => coincideBusqueda(`${textoOrden(o)} ${p.items?.nombre || ''} ${p.asignado_a || ''}`, q))
 }
 
 async function generarNumero(perfil, prefix) {
@@ -74,6 +86,9 @@ export default function RecogidaFundida() {
   const [guardando,    setGuardando]    = useState(null)
   const [errores,      setErrores]      = useState({})
   const [exitoOrden,   setExitoOrden]   = useState(null)
+  // órdenes donde se pidió "Ver todas" las piezas pese a la búsqueda: { [ordenId]: textoBuscado }
+  // (vale solo para ese texto: si se cambia la búsqueda, se vuelve a filtrar)
+  const [verTodas,     setVerTodas]     = useState({})
 
   // fundida vinculada por orden: { [ordenId]: fundidaId }
   const [fundidaSel,   setFundidaSel]   = useState({})
@@ -190,6 +205,21 @@ export default function RecogidaFundida() {
     return inputs[ordenId]?.[piezaId]?.[campo] ?? ''
   }
 
+  // Piezas que se ven de una orden con la búsqueda actual (guardar SIEMPRE usa todas)
+  function piezasVisibles(orden, consulta) {
+    const q = String(consulta || '').trim()
+    if (q && verTodas[orden.id] === q) return orden.ordenes_moldeo_piezas || []
+    return piezasQueCoinciden(orden, q)
+  }
+
+  // Error de validación que nombra una pieza: si la búsqueda la está ocultando, se muestran
+  // todas las piezas de la orden para que se pueda corregir sin tener que borrar la búsqueda.
+  function errorDePieza(orden, pieza, msg) {
+    const oculta = pieza && !piezasVisibles(orden, busqueda).some(p => p.id === pieza.id)
+    if (oculta) setVerTodas(prev => ({ ...prev, [orden.id]: busqueda.trim() }))
+    setErrores(prev => ({ ...prev, [orden.id]: oculta ? `${msg} (Esa pieza estaba oculta por la búsqueda: ahora se muestran todas.)` : msg }))
+  }
+
   // Peso de una pieza: el del producto, o el que se escribe aquí cuando la pieza es nueva y no se
   // conocía antes de fundir (se guarda en el producto al registrar la recogida).
   function pesoDe(ordenId, p) {
@@ -232,12 +262,12 @@ export default function RecogidaFundida() {
       const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
       const plan = Number(p.cantidad_planeada || 0)
       if (conf < 0 || nc < 0) {
-        setErrores(prev => ({ ...prev, [orden.id]: 'Las cantidades no pueden ser negativas.' }))
+        errorDePieza(orden, p, `"${p.items?.nombre}": las cantidades no pueden ser negativas.`)
         return
       }
       // El motivo alimenta el KPI de piezas no conformes por motivo (2026-11-20)
       if (nc > 0 && !String(getField(orden.id, p.id, 'motivo') || '').trim()) {
-        setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": elige el motivo de ${nc === 1 ? 'la pieza no conforme' : `las ${nc} piezas no conformes`}.` }))
+        errorDePieza(orden, p, `"${p.items?.nombre}": elige el motivo de ${nc === 1 ? 'la pieza no conforme' : `las ${nc} piezas no conformes`}.`)
         return
       }
       // Si la suma supera lo planeado SÍ se permite (piezas de otras fundidas que solo
@@ -246,7 +276,7 @@ export default function RecogidaFundida() {
       if (plan > 0 && conf + nc < plan) {
         const aclar = String(getField(orden.id, p.id, 'faltante') || '').trim()
         if (aclar.length < 3) {
-          setErrores(prev => ({ ...prev, [orden.id]: `"${p.items?.nombre}": faltan ${plan - conf - nc} por contabilizar (conformes ${conf} + NC ${nc} de ${plan} planeadas). Escribe la aclaración de por qué no salió todo lo planeado.` }))
+          errorDePieza(orden, p, `"${p.items?.nombre}": faltan ${plan - conf - nc} por contabilizar (conformes ${conf} + NC ${nc} de ${plan} planeadas). Escribe la aclaración de por qué no salió todo lo planeado.`)
           return
         }
       }
@@ -277,7 +307,7 @@ export default function RecogidaFundida() {
       return cant > 0 && !(pesoDe(orden.id, p) > 0)
     })
     if (sinPeso) {
-      setErrores(prev => ({ ...prev, [orden.id]: `"${sinPeso.items?.nombre}" no tiene peso. Pesa una pieza y escribe su peso en kg.` }))
+      errorDePieza(orden, sinPeso, `"${sinPeso.items?.nombre}" no tiene peso. Pesa una pieza y escribe su peso en kg.`)
       return
     }
 
@@ -424,15 +454,7 @@ export default function RecogidaFundida() {
     }
   }
 
-  const filtradas = ordenes.filter(o => {
-    const q = busqueda.toLowerCase().trim()
-    if (!q) return true
-    return (
-      numOrden(o.numero).toLowerCase().includes(q) ||
-      fmtFecha(o.fecha).includes(q) ||
-      (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q))
-    )
-  })
+  const filtradas = ordenes.filter(o => piezasQueCoinciden(o, busqueda).length > 0 || coincideBusqueda(textoOrden(o), busqueda))
 
   const q = (tab === 'pendientes' ? busqueda : busquedaComp).trim()
 
@@ -477,17 +499,12 @@ export default function RecogidaFundida() {
 
       {/* ── Vista Completadas ── */}
       {tab === 'completadas' && !cargando && (() => {
-        const q = busquedaComp.toLowerCase().trim()
-        const filtComp = completadas.filter(o =>
-          !q ||
-          numOrden(o.numero).toLowerCase().includes(q) ||
-          fmtFecha(o.fecha).includes(q) ||
-          (o.ordenes_moldeo_piezas || []).some(p => p.items?.nombre?.toLowerCase().includes(q))
-        )
+        const q = busquedaComp.trim()
+        const filtComp = completadas.filter(o => piezasQueCoinciden(o, q).length > 0 || coincideBusqueda(textoOrden(o), q))
         return filtComp.length === 0 ? (
           <Vacio icono={CheckCircle2}
             titulo={q ? `Ninguna recogida coincide con "${busquedaComp.trim()}"` : 'Todavía no hay recogidas completadas'}
-            texto={q ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa o parte del nombre de la pieza.'
+            texto={q ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa, parte del nombre de la pieza o el moldeador.'
               : 'Cuando registres la recogida de una orden en "Por recoger", aparecerá aquí con sus kilos y la merma.'} />
         ) : (
           <div className="space-y-3">
@@ -499,6 +516,10 @@ export default function RecogidaFundida() {
               const totalConf = piezas.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
               const totalNC   = piezas.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
               const hayAsignados = piezas.some(p => p.asignado_a)
+              // Con búsqueda se listan solo las piezas que coinciden; los subtotales y el total
+              // siguen siendo de toda la orden / de todo el moldeador.
+              const visibles = piezasVisibles(orden, q)
+              const idsVisibles = new Set(visibles.map(p => p.id))
               // Agrupar por moldeador (si no hay asignados, un solo grupo sin título)
               const grupos = {}
               for (const p of piezas) {
@@ -518,8 +539,17 @@ export default function RecogidaFundida() {
                     </span>
                   </header>
 
+                  {q && piezasQueCoinciden(orden, q).length < piezas.length && (
+                    <div className="px-4 pb-1">
+                      <AvisoFiltroPiezas visibles={visibles.length} total={piezas.length} consulta={q}
+                        filtrando={verTodas[orden.id] !== q}
+                        onVerTodas={() => setVerTodas(prev => ({ ...prev, [orden.id]: q }))}
+                        onFiltrar={() => setVerTodas(prev => ({ ...prev, [orden.id]: undefined }))} />
+                    </div>
+                  )}
+
                   <div className="divide-y divide-feisen-borde-suave">
-                    {Object.entries(grupos).map(([persona, ps]) => {
+                    {Object.entries(grupos).filter(([, ps]) => ps.some(p => idsVisibles.has(p.id))).map(([persona, ps]) => {
                       const subConf = ps.reduce((s, p) => s + Number(p.cantidad_conforme || 0), 0)
                       const subNC   = ps.reduce((s, p) => s + Number(p.cantidad_nc || 0), 0)
                       const conPeso = ps.some(p => Number(p.items?.peso_unitario || 0) > 0)
@@ -537,7 +567,7 @@ export default function RecogidaFundida() {
                             </div>
                           )}
                           <ul className="divide-y divide-feisen-borde-suave">
-                            {ps.map(p => {
+                            {ps.filter(p => idsVisibles.has(p.id)).map(p => {
                               const conf = Number(p.cantidad_conforme || 0)
                               const nc   = Number(p.cantidad_nc || 0)
                               const peso = Number(p.items?.peso_unitario || 0)
@@ -604,7 +634,7 @@ export default function RecogidaFundida() {
       {tab === 'pendientes' && !cargando && filtradas.length === 0 && (
         <Vacio icono={PackageCheck}
           titulo={busqueda ? `Ninguna orden coincide con "${busqueda.trim()}"` : 'No hay órdenes por recoger'}
-          texto={busqueda ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa o parte del nombre de la pieza.'
+          texto={busqueda ? 'Prueba con el número de la orden (ORD-MOL-…), la fecha dd/mm/aaaa, parte del nombre de la pieza o el moldeador.'
             : 'Las órdenes de moldeo pendientes aparecen aquí para registrar lo que salió del vaciado. Crea una orden de moldeo y vuelve después de la fundida.'} />
       )}
 
@@ -616,6 +646,10 @@ export default function RecogidaFundida() {
             const totalMoldeado = piezas.reduce((s, p) => s + (avOrden[p.id] || 0), 0)
             const totalPlaneado = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
             const abierta = expandido === orden.id
+            // Piezas que se ven con la búsqueda; totales, validaciones y guardar usan TODAS
+            const visibles = piezasVisibles(orden, busqueda)
+            const qPend = busqueda.trim()
+            const filtrandoPiezas = qPend && visibles.length < piezas.length
 
             return (
               <article key={orden.id}
@@ -633,6 +667,11 @@ export default function RecogidaFundida() {
                       {fmtFecha(orden.fecha)} · {piezas.length} {piezas.length === 1 ? 'pieza' : 'piezas'} · {totalPlaneado} planeadas
                       {avancesRef[orden.id] && totalMoldeado > 0 && ` · ${totalMoldeado} moldeadas`}
                     </p>
+                    {filtrandoPiezas && (
+                      <p className="text-xs text-feisen-azul font-medium mt-0.5 tabular-nums">
+                        {visibles.length} {visibles.length === 1 ? 'pieza coincide' : 'piezas coinciden'} con «{qPend}»
+                      </p>
+                    )}
                   </div>
                   {abierta
                     ? <ChevronUp size={18} className="text-feisen-texto-2 shrink-0" />
@@ -677,7 +716,14 @@ export default function RecogidaFundida() {
                       {/* ── Piezas ── */}
                       <section className="space-y-2">
                         <TituloSeccion titulo="Piezas" detalle={`${piezas.length} ${piezas.length === 1 ? 'pieza' : 'piezas'} · ${totalPlaneado} planeadas`} />
-                        {piezas.map(p => {
+                        {qPend && piezasQueCoinciden(orden, qPend).length < piezas.length && (
+                          <AvisoFiltroPiezas visibles={visibles.length} total={piezas.length} consulta={qPend}
+                            filtrando={verTodas[orden.id] !== qPend}
+                            onVerTodas={() => setVerTodas(prev => ({ ...prev, [orden.id]: qPend }))}
+                            onFiltrar={() => setVerTodas(prev => ({ ...prev, [orden.id]: undefined }))}
+                            nota="Al registrar se guardan todas las piezas de la orden, también las ocultas." />
+                        )}
+                        {visibles.map(p => {
                           const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
                           const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
                           const plan = Number(p.cantidad_planeada || 0)
@@ -930,6 +976,24 @@ function TituloSeccion({ titulo, detalle }) {
     <div className="flex items-baseline justify-between gap-2 px-1">
       <h3 className="text-[11px] font-semibold uppercase tracking-wide text-feisen-texto-2">{titulo}</h3>
       {detalle && <span className="text-xs text-feisen-texto-2 tabular-nums">{detalle}</span>}
+    </div>
+  )
+}
+
+// Aviso cuando la búsqueda deja ver solo algunas piezas de una orden (con botón para ver todas)
+function AvisoFiltroPiezas({ visibles, total, consulta, filtrando, onVerTodas, onFiltrar, nota }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-feisen-azul-suave px-3 py-1.5 text-xs text-feisen-texto">
+      <span className="tabular-nums">
+        {filtrando
+          ? <>Mostrando {visibles} de {total} piezas que coinciden con «{consulta}»</>
+          : <>Mostrando las {total} piezas de la orden</>}
+      </span>
+      <button type="button" onClick={filtrando ? onVerTodas : onFiltrar}
+        className="font-semibold text-feisen-azul underline underline-offset-2 hover:opacity-80 min-h-[32px]">
+        {filtrando ? 'Ver todas' : `Solo las que coinciden con «${consulta}»`}
+      </button>
+      {nota && filtrando && <span className="basis-full text-feisen-texto-2">{nota}</span>}
     </div>
   )
 }
