@@ -9,6 +9,7 @@ import EtapasMaquina from '../inicio/EtapasMaquina'
 import { porPiezaTexto } from '../utils/tiempos'
 import { indexar, Panel } from '../ArbolTab'
 import TraerFundicion from './TraerFundicion'
+import HojaRuta from './HojaRuta'
 import { PASOS, conteos, falta, filasDespiece, filasProcesos, materialesDe } from './datosPasos'
 
 // Costeo por pasos (opción B, estilo Airtable; Angie, 2026-11-25). Una pantalla por paso del costeo
@@ -187,6 +188,7 @@ export default function CosteoPasos() {
             soloFalta={soloFalta}
             onAbrir={setSel}
             onAgregar={() => setSel({ tipo: 'raiz' })}
+            onCambio={recargar}
           />
         )}
       </div>
@@ -255,7 +257,7 @@ function Chip({ tono, children }) {
 const TH = 'px-3 py-2 text-left text-xs font-medium text-feisen-texto-2 border-r border-feisen-borde-suave last:border-r-0 whitespace-nowrap'
 const TD = 'px-3 py-2 border-r border-feisen-borde-suave last:border-r-0 align-middle'
 
-function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onAgregar }) {
+function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onAgregar, onCambio }) {
   const q = buscar.trim().toLowerCase()
   const coincide = (f) => !q || (f?.ficha?.nombre || '').toLowerCase().includes(q)
 
@@ -343,45 +345,9 @@ function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onA
     )
   }
 
+  // Paso 2: secuencia de fichas por pieza (2026-11-26). Ver HojaRuta.jsx.
   if (paso === 'ruta') {
-    const conRuta = hojas.filter((f) => f.procesos.length).length
-    return (
-      <Tabla
-        cabeza={['Pieza', 'Cant.', 'Ruta (en orden)', 'Centro de costo', 'Estado']}
-        alinear={{ 1: 'right' }}
-        vacio="Todas las piezas tienen su hoja de ruta."
-        pie={[`${hojas.length} piezas`, '', '', '', `${conRuta} de ${hojas.length} con ruta`]}
-      >
-        {filas.map((f, i) => {
-          const centros = [...new Set(f.procesos.map((p) => arbol.costos[p.id]?.centro_costo_usado).filter(Boolean))]
-          return (
-            <Fila key={f.key} n={i + 1} conjunto={f.esConjunto} onClick={abrir(f)}>
-              <td className={TD}>{nombre(f)}</td>
-              <td className={`${TD} text-right tabular-nums`}>{cant(f)}</td>
-              <td className={TD}>
-                {f.procesos.length ? (
-                  <span className="flex flex-wrap items-center gap-1 text-feisen-texto">
-                    {f.procesos.map((p, k) => (
-                      <span key={p.id} className="inline-flex items-center gap-1">
-                        {k > 0 && <span className="text-feisen-gris-medio" aria-hidden="true">→</span>}
-                        <span className="rounded bg-feisen-gris px-1.5 py-0.5 text-xs">{p.nombre}</span>
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="text-feisen-gris-medio">{f.esConjunto ? 'Sin procesos de ensamble' : '—'}</span>
-                )}
-              </td>
-              <td className={`${TD} text-feisen-texto-2`}>
-                {centros.map((c) => (c === 'Sin centro' ? <Chip key={c} tono="falta">Sin centro</Chip> : <span key={c} className="mr-2">{c}</span>))}
-                {!centros.length && '—'}
-              </td>
-              <td className={TD}>{f.esConjunto ? <Chip tono="neutro">Conjunto</Chip> : f.procesos.length ? <Chip tono="ok">{f.procesos.length} {f.procesos.length === 1 ? 'etapa' : 'etapas'}</Chip> : <Chip tono="falta">Sin ruta</Chip>}</td>
-            </Fila>
-          )
-        })}
-      </Tabla>
-    )
+    return <HojaRuta arbol={arbol} filas={datos.filas} corto={corto} buscar={buscar} soloFalta={soloFalta} onCambio={onCambio} />
   }
 
   // Materia prima

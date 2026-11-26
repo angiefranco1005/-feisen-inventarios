@@ -5,7 +5,7 @@
 
 export const PASOS = [
   { id: 'despiece', n: 1, nombre: 'Despiece', ayuda: 'Qué piezas lleva la máquina y cuántas. Es la base de los demás pasos.' },
-  { id: 'ruta', n: 2, nombre: 'Hojas de ruta', ayuda: 'Por qué procesos pasa cada pieza, en orden, y en qué centro de costo.' },
+  { id: 'ruta', n: 2, nombre: 'Hojas de ruta', ayuda: 'Por qué operaciones pasa cada pieza, en orden: en qué máquina, quién la hace y si es interna o externa.' },
   { id: 'materia', n: 3, nombre: 'Materia prima', ayuda: 'Cuánto material consume cada pieza, contando el desperdicio (rendimiento).' },
   { id: 'tiempos', n: 4, nombre: 'Tiempos', ayuda: 'Cuánto tarda cada proceso, medido con cronómetro, y a quién se le tomó.' },
 ]
