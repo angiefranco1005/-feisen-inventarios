@@ -10,6 +10,9 @@ import { falta, normalizar } from './datosPasos'
 // (cargo del organigrama) y si es interna o externa (con proveedor). Las operaciones se agregan con un
 // toque desde la biblioteca (costeo_operaciones), que trae esos datos llenos; la biblioteca aprende:
 // si una operación no tenía máquina o cargo y se lo pones, queda para la próxima.
+// Las máquinas salen de Mantenimiento (mant_equipos) y de las que ya tenga costeo; la operación guarda
+// el equipo de costeo (costeo_equipos_planta) y, al escoger uno de Mantenimiento sin enlace, se crea
+// su par en costeo y se enlaza (mant_equipos.costeo_equipo_id). Una máquina nueva se crea en los dos.
 // Al poner el cargo en una operación interna se crea su línea de mano de obra (costeo_proceso_mano_obra)
 // para que el paso 4 (tiempos) ya sepa a quién medir.
 
@@ -17,21 +20,29 @@ const BTN = 'h-9 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm'
 const CAMPO = 'h-10 w-full rounded-lg border border-feisen-borde bg-white px-2 text-sm text-feisen-texto'
 
 export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCambio }) {
-  const [cat, setCat] = useState(null) // { operaciones, equipos, cargos, proveedores }
+  const [cat, setCat] = useState(null) // { operaciones, equipos, mant, maquinas, cargos, proveedores }
   const [abierto, setAbierto] = useState(null) // { fichaId, modo: 'agregar' | 'editar' | 'copiar', procesoId? }
   const [error, setError] = useState('')
   const [ocupado, setOcupado] = useState(false)
 
   async function cargarCatalogos() {
-    const [op, eq, ca, pr] = await Promise.all([
+    const [op, eq, ca, pr, mt] = await Promise.all([
       supabase.from('costeo_operaciones').select('*').order('orden').order('nombre'),
       supabase.from('costeo_equipos_planta').select('id, nombre').order('nombre'),
       supabase.from('cargos').select('id, nombre, area, subarea').order('area').order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('mant_equipos').select('id, codigo, nombre, costeo_equipo_id').eq('activo', true).order('codigo'),
     ])
-    const e = op.error || eq.error || ca.error || pr.error
+    const e = op.error || eq.error || ca.error || pr.error || mt.error
     if (e) setError('No se pudieron cargar las listas: ' + e.message)
-    setCat({ operaciones: op.data || [], equipos: eq.data || [], cargos: ca.data || [], proveedores: pr.data || [] })
+    const equipos = eq.data || []
+    const mant = mt.data || []
+    // Lista única de máquinas: primero las de Mantenimiento, luego las de costeo sin par en Mantenimiento.
+    const maquinas = [
+      ...mant.map((m) => ({ key: 'm:' + m.id, label: `${m.codigo} · ${tipoTitulo(m.nombre)}`, costeoId: m.costeo_equipo_id || null })),
+      ...equipos.filter((x) => !mant.some((m) => m.costeo_equipo_id === x.id)).map((x) => ({ key: 'c:' + x.id, label: tipoTitulo(x.nombre), costeoId: x.id })),
+    ]
+    setCat({ operaciones: op.data || [], equipos, mant, maquinas, cargos: ca.data || [], proveedores: pr.data || [] })
   }
   useEffect(() => {
     cargarCatalogos()
@@ -50,8 +61,22 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
 
   const procesosDe = (fichaId) => [...(arbol.procesos[fichaId] || [])].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
   const nombreEquipo = (id) => {
-    const n = cat?.equipos.find((e) => e.id === id)?.nombre
+    if (!id || !cat) return null
+    const n = cat.mant.find((m) => m.costeo_equipo_id === id)?.nombre || cat.equipos.find((e) => e.id === id)?.nombre
     return n ? tipoTitulo(n) : null
+  }
+  const claveEquipo = (id) => (id ? cat?.maquinas.find((m) => m.costeoId === id)?.key || 'c:' + id : '')
+
+  // De la clave escogida (m:<mantenimiento> | c:<costeo>) al id de costeo_equipos_planta.
+  async function resolverEquipo(clave) {
+    if (!clave) return null
+    if (clave.startsWith('c:')) return clave.slice(2)
+    const m = cat.mant.find((x) => x.id === clave.slice(2))
+    if (!m) return null
+    if (m.costeo_equipo_id) return m.costeo_equipo_id
+    const [nuevo] = ok(await supabase.from('costeo_equipos_planta').insert({ nombre: m.nombre, centro_costo: 'Feisen' }).select())
+    ok(await supabase.from('mant_equipos').update({ costeo_equipo_id: nuevo.id }).eq('id', m.id))
+    return nuevo.id
   }
   const nombreProveedor = (id) => cat?.proveedores.find((p) => p.id === id)?.nombre
 
@@ -127,7 +152,8 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
 
   const guardar = (p, v) =>
     correr(async () => {
-      const cambios = { nombre: v.nombre.trim(), equipo_id: v.equipo_id || null, externo: v.externo, cargo_id: v.externo ? null : v.cargo_id || null, cargo_nombre: v.externo ? null : v.cargo_nombre || null, proveedor_id: v.externo ? v.proveedor_id || null : null }
+      const equipoId = v.externo ? null : await resolverEquipo(v.equipo)
+      const cambios = { nombre: v.nombre.trim(), equipo_id: equipoId, externo: v.externo, cargo_id: v.externo ? null : v.cargo_id || null, cargo_nombre: v.externo ? null : v.cargo_nombre || null, proveedor_id: v.externo ? v.proveedor_id || null : null }
       ok(await supabase.from('costeo_procesos').update(cambios).eq('id', p.id))
       await sincronizarPersona(p.id, cambios)
       await aprender(cambios)
@@ -161,10 +187,20 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
       setAbierto(null)
     })
 
+  // Máquina nueva: se crea en Mantenimiento (código consecutivo) y su par en costeo, enlazados.
   const crearEquipo = async (nombre) => {
-    const data = ok(await supabase.from('costeo_equipos_planta').insert({ nombre: nombre.trim().toUpperCase(), centro_costo: 'Feisen' }).select())
-    await cargarCatalogos()
-    return data?.[0]?.id
+    setError('')
+    try {
+      const n = nombre.trim().toUpperCase()
+      const sig = Math.max(0, ...cat.mant.map((m) => Number(m.codigo)).filter((x) => Number.isFinite(x))) + 1
+      const [eq] = ok(await supabase.from('costeo_equipos_planta').insert({ nombre: n, centro_costo: 'Feisen' }).select())
+      const [m] = ok(await supabase.from('mant_equipos').insert({ codigo: String(sig), nombre: n, costeo_equipo_id: eq.id, activo: true }).select())
+      await cargarCatalogos()
+      return 'm:' + m.id
+    } catch (e) {
+      setError('No se pudo crear la máquina: ' + (e.message || e))
+      return null
+    }
   }
 
   if (!filas.length) {
@@ -233,6 +269,7 @@ export default function HojaRuta({ arbol, filas, corto, buscar, soloFalta, onCam
               <Editor
                 key={editando.id}
                 p={editando}
+                claveEquipo={claveEquipo(editando.equipo_id)}
                 cat={cat}
                 ocupado={ocupado}
                 primero={procs[0]?.id === editando.id}
@@ -335,8 +372,8 @@ function CopiarRuta({ origenes, procesosDe, ocupado, onCopiar, onCerrar }) {
   )
 }
 
-function Editor({ p, cat, ocupado, primero, ultimo, onGuardar, onMover, onQuitar, onCrearEquipo, onCerrar }) {
-  const [v, setV] = useState({ nombre: p.nombre, equipo_id: p.equipo_id || '', externo: !!p.externo, cargo_id: p.cargo_id || '', cargo_nombre: p.cargo_nombre || '', proveedor_id: p.proveedor_id || '' })
+function Editor({ p, claveEquipo, cat, ocupado, primero, ultimo, onGuardar, onMover, onQuitar, onCrearEquipo, onCerrar }) {
+  const [v, setV] = useState({ nombre: p.nombre, equipo: claveEquipo, externo: !!p.externo, cargo_id: p.cargo_id || '', cargo_nombre: p.cargo_nombre || '', proveedor_id: p.proveedor_id || '' })
   const [nuevaMaq, setNuevaMaq] = useState(null) // null | texto
   const [buscarProv, setBuscarProv] = useState('')
   const set = (k) => (e) => setV((x) => ({ ...x, [k]: e.target.value }))
@@ -360,13 +397,15 @@ function Editor({ p, cat, ocupado, primero, ultimo, onGuardar, onMover, onQuitar
 
   async function escogerEquipo(e) {
     if (e.target.value === '__nueva') return setNuevaMaq('')
-    setV((x) => ({ ...x, equipo_id: e.target.value }))
+    setV((x) => ({ ...x, equipo: e.target.value }))
   }
   async function guardarMaquina() {
     if (!nuevaMaq?.trim()) return
-    const id = await onCrearEquipo(nuevaMaq)
-    if (id) setV((x) => ({ ...x, equipo_id: id }))
-    setNuevaMaq(null)
+    const clave = await onCrearEquipo(nuevaMaq)
+    if (clave) {
+      setV((x) => ({ ...x, equipo: clave }))
+      setNuevaMaq(null)
+    }
   }
 
   return (
@@ -405,12 +444,12 @@ function Editor({ p, cat, ocupado, primero, ultimo, onGuardar, onMover, onQuitar
         {!v.externo ? (
           <>
             <label className="block">
-              <span className="block text-xs text-feisen-texto-2 mb-1">Máquina</span>
+              <span className="block text-xs text-feisen-texto-2 mb-1">Máquina (de Mantenimiento)</span>
               {nuevaMaq === null ? (
-                <select value={v.equipo_id} onChange={escogerEquipo} className={CAMPO}>
+                <select value={v.equipo} onChange={escogerEquipo} className={CAMPO}>
                   <option value="">Sin máquina (manual)</option>
-                  {cat.equipos.map((e) => (
-                    <option key={e.id} value={e.id}>{tipoTitulo(e.nombre)}</option>
+                  {cat.maquinas.map((m) => (
+                    <option key={m.key} value={m.key}>{m.label}</option>
                   ))}
                   <option value="__nueva">+ Nueva máquina…</option>
                 </select>
