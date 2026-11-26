@@ -171,6 +171,7 @@ const MAPA = {
   Storefront: P.Storefront,
   Lightbulb: P.Lightbulb,
   Disc: P.Disc,
+  Hash: P.Hash,
 }
 
 const I = Object.fromEntries(Object.entries(MAPA).map(([n, c]) => [n, envolver(c, n)]))
@@ -191,5 +192,5 @@ export const {
   Users, Wallet, WhatsApp, Warehouse, Wrench, X, XCircle,
   Handshake, SealCheck, ArrowsLeftRight, Swap, TreeStructure, BookOpenText, Files, CalendarCheck,
   CalendarDots, Table, Money, ChartLine, Invoice, UsersThree, UserList, Engine, TrayArrowDown,
-  Timer, WarningOctagon, Toolbox, Bank, HandCoins, ArrowsDownUp, Percent, Star, Storefront, Lightbulb, Disc,
+  Timer, WarningOctagon, Toolbox, Bank, HandCoins, ArrowsDownUp, Percent, Star, Storefront, Lightbulb, Disc, Hash,
 } = I

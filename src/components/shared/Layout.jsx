@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc } from './iconos'
+import { LayoutDashboard, Package, ArrowUpDown, ShoppingCart, Settings, LogOut, Menu, X, KeyRound, RefreshCw, Sparkles, CalendarDays, Eye, Flame, Layers, Factory, FileSpreadsheet, PackageCheck, Download, Upload, ClipboardList, TrendingUp, Activity, Wrench, ShieldAlert, Boxes, FileText, Users, Warehouse, Truck, ChevronDown, ChevronRight, ClipboardCheck, Scale, Receipt, HardHat, Network, CalendarClock, Wallet, Target, FilePlus, ListChecks, Building2, Calculator, Cog, History, ArrowsLeftRight, Table, CalendarCheck, Swap, MoveRight, TreeStructure, Money, ChartLine, TrayArrowDown, Invoice, BookOpenText, BookOpen, Files, CalendarDots, Tag, Engine, UsersThree, SealCheck, Handshake, Toolbox, Bank, HandCoins, Percent, Storefront, Lightbulb, Disc, Hash } from './iconos'
 import { useUpdateAvailable } from '../../hooks/useUpdateAvailable'
 import { useEffect, useState } from 'react'
 import Modal from './Modal'
@@ -61,6 +61,7 @@ const NAV_ADMIN = [
   { to: '/of/calendario',                     icon: CalendarDots,    label: 'Calendario',         modulo: 'Ventas' },
   { to: '/of/productos',                      icon: Tag,         label: 'Productos OF',       modulo: 'Ventas' },
   { to: '/of/clientes',                       icon: Building2,       label: 'Clientes',           modulo: 'Ventas' },
+  { to: '/of/consecutivos',                   icon: Hash,            label: 'Consecutivos',       modulo: 'Ventas' },
   // Costeo (2026-11-26, Angie): un solo ítem. Las etapas (despiece, hojas de ruta, materia prima, tiempos)
   // se ven dentro de cada máquina; las bases (responsables, CIF, equipos) se abren desde el inicio de Costeo.
   { to: '/costeo',                            icon: Calculator,      label: 'Fichas de costeo',   modulo: 'Costeo' },

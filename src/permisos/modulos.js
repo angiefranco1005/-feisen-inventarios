@@ -57,9 +57,9 @@ export const MODULOS = [
     rutas: ['/mantenimiento'] },
 
   { clave: 'of',             grupo: 'Ventas', nombre: 'Órdenes de fabricación', detalle: 'Ve: despachos, sin cliente · Registra: crea y edita las suyas, despacha todas · Todo: edita todas', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
-    rutasNivel: { '/of/nueva': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra' },
+    rutasNivel: { '/of/nueva': 'registra', '/of/productos': 'registra', '/of/clientes': 'registra', '/of/consecutivos': 'registra' },
     // Sin Dashboard en el menú (2026-11-20): administración lo ve en su Inicio y la gerente de ventas en el suyo
-    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/productos', '/of/clientes'] },
+    rutas: ['/of/nueva', '/of/ordenes', '/of/resumen', '/of/calendario', '/of/productos', '/of/clientes', '/of/consecutivos'] },
 
   { clave: 'manuales',       grupo: 'Administración', nombre: 'Manuales de procedimiento', detalle: 'Ve: consulta lo aprobado · Registra: crea y ve solo sus propios documentos · Todo: ve todo, revisa y marca obsoletos (aprueba solo ADMIN)', niveles: ['ve', 'registra', 'todo'], rlsPorMatriz: true,
     rutas: ['/manuales'] },
