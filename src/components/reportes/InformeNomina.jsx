@@ -346,6 +346,15 @@ export default function InformeNomina() {
 
   const personas = resumen ? calcularPersonas(resumen.ordenes, resumen.fundidas, resumen.avances, resumen.ncs) : []
 
+  // Piezas nuevas que todavía no tienen peso (se pesan en la Recogida): sus kilos aún no cuentan
+  const piezasSinPeso = resumen ? [...new Set([
+    ...resumen.avances.filter(a => Number(a.cantidad_moldeada || 0) > 0 && !(Number(a.ordenes_moldeo_piezas?.items?.peso_unitario || 0) > 0))
+      .map(a => a.ordenes_moldeo_piezas?.items?.nombre),
+    ...resumen.ordenes.flatMap(o => o.ordenes_moldeo_piezas || [])
+      .filter(p => Number(p.cantidad_conforme || 0) > 0 && !(Number(p.items?.peso_unitario || 0) > 0))
+      .map(p => p.items?.nombre),
+  ].filter(Boolean))].sort() : []
+
   return (
     <div className="max-w-3xl mx-auto p-4 pb-20">
 
@@ -411,6 +420,13 @@ export default function InformeNomina() {
       {/* Preview */}
       {resumen && (
         <>
+          {piezasSinPeso.length > 0 && (
+            <div role="alert" className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm">
+              <p className="font-semibold">{piezasSinPeso.length === 1 ? 'Hay 1 pieza sin peso' : `Hay ${piezasSinPeso.length} piezas sin peso`}: sus kilos todavía no se cuentan</p>
+              <p className="mt-1">{piezasSinPeso.join(' · ')}</p>
+              <p className="mt-1 text-xs">El peso se pone en la Recogida (o en Inventario › Productos). Cuando quede puesto, vuelve a previsualizar y los kilos se recalculan.</p>
+            </div>
+          )}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-4">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
               <div>

@@ -190,6 +190,15 @@ export default function RecogidaFundida() {
     return inputs[ordenId]?.[piezaId]?.[campo] ?? ''
   }
 
+  // Peso de una pieza: el del producto, o el que se escribe aquí cuando la pieza es nueva y no se
+  // conocía antes de fundir (se guarda en el producto al registrar la recogida).
+  function pesoDe(ordenId, p) {
+    const guardado = Number(p.items?.peso_unitario || 0)
+    if (guardado > 0) return guardado
+    const escrito = Number(String(getField(ordenId, p.id, 'peso') || '').replace(',', '.'))
+    return escrito > 0 ? escrito : 0
+  }
+
   // Pre-rellenar conformes con el avance registrado
   function preRellenar(orden) {
     const avOrden = avancesRef[orden.id] || {}
@@ -209,8 +218,7 @@ export default function RecogidaFundida() {
   function calcKgPiezas(orden) {
     return (orden.ordenes_moldeo_piezas || []).reduce((s, p) => {
       const conf = Number(getField(orden.id, p.id, 'conforme') || 0)
-      const peso = Number(p.items?.peso_unitario || 0)
-      return s + conf * peso
+      return s + conf * pesoDe(orden.id, p)
     }, 0)
   }
 
@@ -262,8 +270,28 @@ export default function RecogidaFundida() {
       return
     }
 
+    // Piezas nuevas creadas sin peso: hay que pesarlas antes de recoger (los kg del moldeador y
+    // del vaceadero salen de ese peso)
+    const sinPeso = piezas.find(p => {
+      const cant = Number(getField(orden.id, p.id, 'conforme') || 0) + Number(getField(orden.id, p.id, 'nc') || 0)
+      return cant > 0 && !(pesoDe(orden.id, p) > 0)
+    })
+    if (sinPeso) {
+      setErrores(prev => ({ ...prev, [orden.id]: `"${sinPeso.items?.nombre}" no tiene peso. Pesa una pieza y escribe su peso en kg.` }))
+      return
+    }
+
     setGuardando(orden.id)
     try {
+      // 0. Guardar en el producto el peso de las piezas que no lo tenían (se puede repetir sin problema)
+      for (const p of piezas) {
+        if (Number(p.items?.peso_unitario || 0) > 0) continue
+        const peso = pesoDe(orden.id, p)
+        if (!(peso > 0)) continue
+        const { error: errPeso } = await supabase.from('items').update({ peso_unitario: peso, updated_at: new Date().toISOString() }).eq('id', p.item_id)
+        if (errPeso) throw errPeso
+        if (p.items) p.items.peso_unitario = peso
+      }
       const ref = numOrden(orden.numero)
       const ccFundicion = await nombreBodega(FUNDICION_BODEGA_ID, 'FUNDICIÓN') // nombre actual de la bodega
       // 1. Actualizar piezas con conformes/NC/motivo
@@ -351,8 +379,7 @@ export default function RecogidaFundida() {
       const kgManual = Number(vaceaderoKg[orden.id] || 0)
       const kgNC = piezas.reduce((s, p) => {
         const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-        const peso = Number(p.items?.peso_unitario || 0)
-        return s + nc * peso
+        return s + nc * pesoDe(orden.id, p)
       }, 0)
       const kgVacTotal = kgManual + kgNC
       const vacPrevio = kgVacTotal > 0 ? await movimientosDe(ref, 'entrada', [VACEADERO_ITEM_ID]) : []
@@ -632,8 +659,7 @@ export default function RecogidaFundida() {
                   const kgVacManual = Number(vaceaderoKg[orden.id] || 0)
                   const kgVacNC = piezas.reduce((s, p) => {
                     const nc   = Number(getField(orden.id, p.id, 'nc') || 0)
-                    const peso = Number(p.items?.peso_unitario || 0)
-                    return s + nc * peso
+                    return s + nc * pesoDe(orden.id, p)
                   }, 0)
                   const kgVacTotal = kgVacManual + kgVacNC
                   const totConf = piezas.reduce((s, p) => s + Number(getField(orden.id, p.id, 'conforme') || 0), 0)
@@ -664,6 +690,21 @@ export default function RecogidaFundida() {
                                   <p className="text-xs text-feisen-texto-2 mt-0.5">
                                     {[p.asignado_a && `Moldeador: ${p.asignado_a}`, p.items?.peso_unitario && `${kg(Number(p.items.peso_unitario), 2)} kg/ud`].filter(Boolean).join(' · ')}
                                   </p>
+                                  {!(Number(p.items?.peso_unitario || 0) > 0) && (
+                                    <label className="mt-2 block">
+                                      <span className="flex items-center gap-1 text-xs font-medium text-amber-700">
+                                        <AlertTriangle size={12} /> Pieza sin peso: pesa una y escríbelo
+                                      </span>
+                                      <span className="mt-1 flex items-center gap-2">
+                                        <input type="text" inputMode="decimal" placeholder="Ej. 2,5"
+                                          value={getField(orden.id, p.id, 'peso')}
+                                          onChange={e => setField(orden.id, p.id, 'peso', e.target.value.replace(/[^0-9.,]/g, ''))}
+                                          aria-label={`Peso en kg de una pieza de ${p.items?.nombre}`}
+                                          className={claseInput + ' min-h-[44px] w-28 tabular-nums'} />
+                                        <span className="text-sm text-feisen-texto-2 whitespace-nowrap">kg por pieza</span>
+                                      </span>
+                                    </label>
+                                  )}
                                 </div>
                                 <div className="text-right shrink-0 tabular-nums">
                                   <p className="text-lg font-semibold text-feisen-texto leading-tight">{p.cantidad_planeada}</p>
@@ -772,7 +813,7 @@ export default function RecogidaFundida() {
                           const fundida   = fundidas.find(f => f.id === fundidaSel[orden.id])
                           const kgEntrada = Number(fundida?.hierro_colado || 0)
                           const kgPiezas  = calcKgPiezas(orden)
-                          const hayPesos  = piezas.some(p => Number(p.items?.peso_unitario || 0) > 0)
+                          const hayPesos  = piezas.some(p => pesoDe(orden.id, p) > 0)
                           // Vaceadero = manual + piezas NC con peso
                           const kgVaceadero = kgVacManual + kgVacNC
                           // Merma real = hierro - piezas buenas - vaceadero

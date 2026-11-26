@@ -22,9 +22,10 @@ const kg  = n => Number(n || 0).toLocaleString('es-CO', { maximumFractionDigits:
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 min-h-[44px] text-sm bg-white focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 
-function Tarjeta({ titulo, detalle, accion, children, sinPadding = false }) {
+// sinRecorte: no recorta el contenido (para listas desplegables que deben salir sobre lo de abajo)
+function Tarjeta({ titulo, detalle, accion, children, sinPadding = false, sinRecorte = false }) {
   return (
-    <section className="bg-white border border-feisen-borde rounded-xl overflow-hidden">
+    <section className={`bg-white border border-feisen-borde rounded-xl ${sinRecorte ? '' : 'overflow-hidden'}`}>
       {titulo && (
         <div className="flex items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-3">
           <div className="min-w-0">
@@ -108,7 +109,7 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [], o
         className={`${claseInput} pl-9`}
       />
       {abierto && filtrados.length > 0 && (
-        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 max-h-60 overflow-y-auto overscroll-contain">
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-lg mt-1 max-h-[min(22rem,50vh)] overflow-y-auto overscroll-contain">
           {filtrados.slice(0, 200).map(i => (
             <button key={i.id} type="button" onMouseDown={() => elegir(i)}
               className="w-full text-left px-3 min-h-[44px] text-sm text-feisen-texto hover:bg-feisen-azul-suave border-b border-feisen-borde-suave last:border-0">
@@ -118,7 +119,7 @@ function SelectorPieza({ value, onChange, items, placeholder, excluirIds = [], o
         </div>
       )}
       {abierto && busqueda.trim() && filtrados.length === 0 && (
-        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-sm mt-1 px-3 py-3 text-sm text-feisen-texto-2">
+        <div className="absolute z-30 w-full bg-white border border-feisen-borde rounded-xl shadow-lg mt-1 px-3 py-3 text-sm text-feisen-texto-2">
           <p>Ninguna pieza de fundición coincide.</p>
           {onCrear && (
             <button type="button" onMouseDown={() => onCrear(busqueda.trim())}
@@ -335,7 +336,7 @@ export default function CrearOrdenMoldeo() {
     const peso   = Number(String(nueva?.peso || '').replace(',', '.'))
     const cant   = Number(nueva?.cantidad) || 0
     if (!nombre)            { setErrorNueva('Escribe el nombre de la pieza.'); return }
-    if (!(peso > 0))        { setErrorNueva('Escribe el peso de una pieza en kg (sirve para los kilos del moldeador).'); return }
+    if (String(nueva?.peso || '').trim() && !(peso > 0)) { setErrorNueva('El peso debe ser un número mayor que cero, o déjalo vacío.'); return }
     if (!fundBodegaId)      { setErrorNueva('No se encontró la bodega Fundición. Recarga la página.'); return }
     setCreandoPieza(true); setErrorNueva('')
     try {
@@ -351,7 +352,7 @@ export default function CrearOrdenMoldeo() {
       if (!item) {
         const { data: creado, error: eIns } = await supabase.from('items').insert({
           nombre, bodega_id: fundBodegaId, categoria_id: CAT_FUNDIDO_HIERRO_ID, centro_costo: 'FUNDICIÓN',
-          unidad_medida: 'unidad', peso_unitario: peso, stock_minimo: 0, stock_maximo: 0,
+          unidad_medida: 'unidad', peso_unitario: peso > 0 ? peso : null, stock_minimo: 0, stock_maximo: 0,
           updated_at: new Date().toISOString(),
         }).select('id, nombre, peso_unitario').single()
         if (eIns) throw eIns
@@ -359,7 +360,7 @@ export default function CrearOrdenMoldeo() {
         await supabase.from('stock').upsert(
           { item_id: item.id, bodega_id: fundBodegaId, cantidad_actual: 0 }, { onConflict: 'item_id,bodega_id' })
       }
-      const it = { id: item.id, nombre: item.nombre, peso_unitario: item.peso_unitario || peso }
+      const it = { id: item.id, nombre: item.nombre, peso_unitario: Number(item.peso_unitario) || 0 }
       setAllItems(prev => prev.some(i => i.id === it.id) ? prev
         : [...prev, it].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')))
       if (piezas.some(p => p.item_id === it.id)) {
@@ -599,11 +600,11 @@ export default function CrearOrdenMoldeo() {
                 placeholder="Ej. TAPA RODAMIENTO 40" className={claseInput} />
             </label>
             <label className="block">
-              <span className="block text-sm font-medium text-feisen-texto mb-1">Peso de una pieza (kg)</span>
+              <span className="block text-sm font-medium text-feisen-texto mb-1">Peso de una pieza (kg) <span className="font-normal text-feisen-texto-2">(opcional)</span></span>
               <input type="text" inputMode="decimal" value={nueva.peso}
                 onChange={e => setNueva(n => ({ ...n, peso: e.target.value }))}
                 placeholder="Ej. 2,5" className={`${claseInput} tabular-nums`} />
-              <span className="block text-xs text-feisen-texto-2 mt-1">Con este peso se calculan los kilos del moldeador.</span>
+              <span className="block text-xs text-feisen-texto-2 mt-1">Si aún no lo sabes, déjalo vacío: se pide en la Recogida, cuando la pieza ya esté fundida. Con ese peso se calculan los kilos del moldeador.</span>
             </label>
             <label className="block">
               <span className="block text-sm font-medium text-feisen-texto mb-1">Cantidad a moldear en esta orden <span className="font-normal text-feisen-texto-2">(opcional)</span></span>
@@ -766,6 +767,7 @@ export default function CrearOrdenMoldeo() {
                                 </span>
                               )}
                               {cant > 0 && p.peso_unitario > 0 && <span className="text-feisen-texto-2 tabular-nums">{kg(cant * p.peso_unitario)} kg</span>}
+                              {!(p.peso_unitario > 0) && <span className="text-amber-700">Sin peso · se pesa en la Recogida</span>}
                             </p>
                           </div>
                           <button type="button" onClick={() => quitarPieza(claveDe(p))} aria-label={`Quitar ${p.nombre}`}
@@ -789,7 +791,7 @@ export default function CrearOrdenMoldeo() {
 
             <div className="space-y-5 lg:sticky lg:top-6">
               {/* ── Agregar pieza adicional ─────────────────────────────── */}
-              <Tarjeta titulo="Agregar pieza" detalle="Del inventario de fundición, por fuera del BOM.">
+              <Tarjeta sinRecorte titulo="Agregar pieza" detalle="Del inventario de fundición, por fuera del BOM.">
                 <div className="space-y-2">
                   <SelectorPieza
                     value={libreItem?.nombre || ''}

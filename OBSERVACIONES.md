@@ -2819,6 +2819,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   existe con el mismo nombre (sin importar mayúsculas/tildes) usa el existente; si está inactivo avisa. La RLS ya permitía
   a JEFE_FUNDICION crear items de su bodega (`items_insert`), no se tocó la base. Probado en la demo: validación de peso,
   creación + línea en la orden, nombre repetido sin duplicar, y guardar la orden con la pieza nueva.
+- **26/11 · El peso de la pieza nueva puede ir después** (a veces solo se sabe ya fundida). Al crearla el peso es
+  opcional; en la orden sale "Sin peso · se pesa en la Recogida". En Recogida, una pieza sin peso muestra el campo
+  "kg por pieza" y no deja registrar conformes/NC de esa pieza sin escribirlo; al registrar, primero guarda el peso en
+  el producto (`items.peso_unitario`, la RLS ya lo permite al Jefe de Fundición) y con él calcula kg de piezas y
+  vaceadero. Todos los kg (avance, recogida, nómina, NC de Calidad) leen el peso del producto en vivo, así que se
+  corrigen solos. La nómina avisa en amarillo qué piezas con avance o conformes siguen sin peso. Probado en la demo
+  (`?sinpeso=1` deja sin peso una pieza de la primera orden por recoger): bloquea sin peso, guarda el peso y recoge. El
+  aviso de nómina no se pudo ver en la demo (el mock no trae la pieza dentro del avance).
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 
