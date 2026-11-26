@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { cargarArbol, recorrerArbol } from '../utils/arbolCosteo'
 import { formatCOP, formatNumber } from '../utils/format'
@@ -145,9 +144,6 @@ export default function DiagramaMaquina() {
           <h1 className="text-2xl font-semibold text-feisen-texto tracking-tight">{tipoTitulo(raiz.nombre)}</h1>
           <p className="text-sm text-feisen-texto-2 mt-0.5">Diagrama de operaciones: cada pieza con sus procesos en orden, hasta la máquina terminada.</p>
         </div>
-        <Link to={`/costeo/fichas/${id}`} className="h-10 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm text-feisen-azul hover:bg-feisen-azul-suave">
-          Abrir ficha <ArrowRight size={14} />
-        </Link>
       </div>
       <div className="mb-4">
         <EtapasMaquina maquinaId={id} activa="diagrama" />

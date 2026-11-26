@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Download, Search, X } from 'lucide-react'
+import { Download, Search, X } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
 import { cargarArbol } from '../utils/arbolCosteo'
 import { formatCOP, formatNumber } from '../utils/format'
 import { nombreCorto, tipoTitulo } from '../utils/nombres'
 import EtapasMaquina from '../inicio/EtapasMaquina'
-import { porPiezaTexto } from '../utils/tiempos'
 import { indexar, Panel } from '../ArbolTab'
 import TraerFundicion from './TraerFundicion'
 import HojaRuta from './HojaRuta'
 import HojaMateria from './HojaMateria'
+import HojaTiempos from './HojaTiempos'
 import { IndicadorObservaciones } from '../Observaciones'
 import { PASOS, conteos, falta, filasDespiece, filasProcesos } from './datosPasos'
 
@@ -131,11 +131,6 @@ export default function CosteoPasos() {
             Paso {paso.n} · {paso.nombre}: {paso.ayuda}
           </p>
         </div>
-        {maquinaId && (
-          <Link to={`/costeo/fichas/${maquinaId}`} className="h-10 inline-flex items-center gap-1.5 rounded-lg px-3 text-sm text-feisen-azul hover:bg-feisen-azul-suave">
-            Abrir ficha <ArrowRight size={14} />
-          </Link>
-        )}
       </div>
       {maquinaId && (
         <div className="mb-4">
@@ -275,36 +270,9 @@ function Cuadricula({ paso, arbol, datos, corto, buscar, soloFalta, onAbrir, onA
     )
   }
 
+  // Paso 4: tiempos por etapas con plantilla de Excel (2026-11-26). Ver HojaTiempos.jsx.
   if (paso === 'tiempos') {
-    const filas = datos.procesos.filter((p) => coincide(p.fila || { ficha: arbol.fichas[arbol.raizId] }) && (!soloFalta || falta.tiempos(p.proceso, p.costo)))
-    const sinTiempo = datos.procesos.filter((p) => falta.tiempos(p.proceso, p.costo)).length
-    return (
-      <Tabla
-        cabeza={['Pieza', 'Proceso', 'Personas', 'Mediciones', 'Tiempo por pieza', 'Mano de obra', 'Estado']}
-        alinear={{ 3: 'right', 5: 'right' }}
-        vacio={soloFalta ? 'Todos los procesos tienen su tiempo medido.' : 'Todavía no hay procesos. Agrégalos en Hojas de ruta.'}
-        pie={[`${datos.procesos.length} procesos`, '', '', '', '', '', `${sinTiempo} por medir`]}
-      >
-        {filas.map((p, i) => {
-          const personas = arbol.manoObra[p.proceso.id] || []
-          const med = arbol.tiempos[p.proceso.id] || []
-          const horas = med.reduce((s, t) => s + Number(t.horas || 0) * Number(t.num_operarios || 1), 0)
-          const piezas = med.reduce((s, t) => s + Number(t.unidades || 0), 0)
-          const sinPersona = Number(p.costo.lineas_mano_obra || 0) === 0
-          return (
-            <Fila key={p.key} n={i + 1} onClick={() => onAbrir({ tipo: 'proceso', id: p.proceso.id })}>
-              <td className={`${TD} text-feisen-texto-2`}>{p.fila ? corto(p.fila.ficha?.nombre) : 'Máquina (ensamble)'}</td>
-              <td className={`${TD} font-medium text-feisen-texto`}>{p.proceso.nombre}</td>
-              <td className={`${TD} text-feisen-texto-2`}>{personas.map((x) => x.nombre).join(', ') || '—'}</td>
-              <td className={`${TD} text-right tabular-nums`}>{med.length || '—'}</td>
-              <td className={`${TD} tabular-nums`}>{piezas > 0 ? porPiezaTexto(horas, piezas) : '—'}</td>
-              <td className={`${TD} text-right tabular-nums`}>{Number(p.costo.total_mod) > 0 ? cop(p.costo.total_mod) : '—'}</td>
-              <td className={TD}>{sinPersona ? <Chip tono="falta">Sin persona</Chip> : falta.tiempos(p.proceso, p.costo) ? <Chip tono="falta">Falta medir</Chip> : <Chip tono="ok">Medido</Chip>}</td>
-            </Fila>
-          )
-        })}
-      </Tabla>
-    )
+    return <HojaTiempos arbol={arbol} procesos={datos.procesos} corto={corto} buscar={buscar} soloFalta={soloFalta} onAbrir={onAbrir} onCambio={onCambio} />
   }
 
   const filas = datos.filas.filter((f) => coincide(f) && (!soloFalta || falta[paso](f, arbol)))

@@ -7,7 +7,7 @@ export const PASOS = [
   { id: 'despiece', n: 1, nombre: 'Despiece', ayuda: 'Qué piezas lleva la máquina y cuántas. Es la base de los demás pasos.' },
   { id: 'ruta', n: 2, nombre: 'Hojas de ruta', ayuda: 'Por qué operaciones pasa cada pieza, en orden: en qué máquina, quién la hace y si es interna o externa.' },
   { id: 'materia', n: 3, nombre: 'Materia prima', ayuda: 'Qué material del inventario gasta cada pieza: cuántas salen de una lámina, barra o unidad.' },
-  { id: 'tiempos', n: 4, nombre: 'Tiempos', ayuda: 'Cuánto tarda cada proceso, medido con cronómetro, y a quién se le tomó.' },
+  { id: 'tiempos', n: 4, nombre: 'Tiempos', ayuda: 'Cuánto tarda cada operación, etapa por etapa, con la plantilla de Excel.' },
 ]
 
 // Filas del despiece en orden de árbol: cada enlace (pieza dentro de su contenedor) con su nivel.
@@ -53,7 +53,8 @@ export const falta = {
   ruta: (f) => !f.esConjunto && f.procesos.length === 0,
   materia: (f, arbol) => !f.esConjunto && materialesDe(arbol, f.fichaId).length === 0,
   // Tiempos va por proceso: falta si tiene personas por hora sin medir o si no tiene persona.
-  tiempos: (p, costo) => Number(costo?.lineas_sin_tiempo) > 0 || Number(costo?.lineas_mano_obra || 0) === 0,
+  // Las operaciones externas (las hace un tercero) no llevan tiempo.
+  tiempos: (p, costo) => !p.externo && (Number(costo?.lineas_sin_tiempo) > 0 || Number(costo?.lineas_mano_obra || 0) === 0),
 }
 
 // Procesos de toda la máquina en orden de árbol, con la fila (pieza) a la que pertenecen.

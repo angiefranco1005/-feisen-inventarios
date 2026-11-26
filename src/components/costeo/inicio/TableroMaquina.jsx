@@ -60,9 +60,6 @@ export default function TableroMaquina() {
               {m.ventas ? `${new Intl.NumberFormat('es-CO').format(m.unidades)} vendidas ${periodo} · ${formatCOP(m.valorVentas)} en ventas` : 'Sin ventas vinculadas en Odoo'}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link to={`/costeo/fichas/${m.fichaId}`} className="h-10 px-3 inline-flex items-center rounded-lg border border-feisen-borde bg-white text-sm font-medium text-feisen-texto hover:bg-feisen-fondo">Abrir ficha</Link>
-          </div>
         </div>
 
         <EtapasMaquina maquinaId={m.fichaId} activa="resumen" />
