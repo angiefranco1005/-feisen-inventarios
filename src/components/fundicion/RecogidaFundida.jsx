@@ -9,7 +9,7 @@ import {
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
 import { useUnaVez } from '../../hooks/useUnaVez'
 import { MOTIVOS_NC_FUNDICION } from './indicadoresFundicion'
-import { coincideBusqueda } from '../../utils/busqueda'
+import { coincideBusqueda, sinTildes } from '../../utils/busqueda'
 
 const claseInput = 'w-full border border-feisen-borde rounded-lg px-3 py-2.5 bg-white text-feisen-texto focus:outline-none focus:border-feisen-azul focus:ring-2 focus:ring-feisen-azul-suave'
 // Kilos con formato colombiano (solo para mostrar; lo que se guarda no cambia)
@@ -37,6 +37,9 @@ function fmtFecha(f) {
 // Búsqueda (palabras en cualquier orden, sin importar tildes: "boci" encuentra "BOCÍN").
 // Si lo buscado es la orden misma (número o fecha) se muestran todas sus piezas; si no,
 // solo las piezas cuyo nombre o moldeador coincide (se puede mezclar: "0012 bocin").
+// Moldeador comparable (sin tildes, mayúsculas ni espacios de más); '' = sin moldeador
+const claveMol = p => sinTildes(String(p.asignado_a || '').replace(/\s+/g, ' ').trim())
+
 function textoOrden(o) { return `${numOrden(o.numero)} ${fmtFecha(o.fecha)}` }
 function piezasQueCoinciden(o, consulta) {
   const piezas = o.ordenes_moldeo_piezas || []
@@ -89,6 +92,7 @@ export default function RecogidaFundida() {
   // órdenes donde se pidió "Ver todas" las piezas pese a la búsqueda: { [ordenId]: textoBuscado }
   // (vale solo para ese texto: si se cambia la búsqueda, se vuelve a filtrar)
   const [verTodas,     setVerTodas]     = useState({})
+  const [filtroMol,    setFiltroMol]    = useState({})  // { [ordenId]: clave del moldeador } en Por recoger ('' / ausente = todos)
 
   // fundida vinculada por orden: { [ordenId]: fundidaId }
   const [fundidaSel,   setFundidaSel]   = useState({})
@@ -206,18 +210,22 @@ export default function RecogidaFundida() {
   }
 
   // Piezas que se ven de una orden con la búsqueda actual (guardar SIEMPRE usa todas)
-  function piezasVisibles(orden, consulta) {
+  function piezasVisibles(orden, consulta, conMoldeador = false) {
     const q = String(consulta || '').trim()
-    if (q && verTodas[orden.id] === q) return orden.ordenes_moldeo_piezas || []
-    return piezasQueCoinciden(orden, q)
+    const base = (q && verTodas[orden.id] === q) ? (orden.ordenes_moldeo_piezas || []) : piezasQueCoinciden(orden, q)
+    const mol = conMoldeador ? filtroMol[orden.id] : undefined
+    return mol === undefined ? base : base.filter(p => claveMol(p) === mol)
   }
 
   // Error de validación que nombra una pieza: si la búsqueda la está ocultando, se muestran
   // todas las piezas de la orden para que se pueda corregir sin tener que borrar la búsqueda.
   function errorDePieza(orden, pieza, msg) {
-    const oculta = pieza && !piezasVisibles(orden, busqueda).some(p => p.id === pieza.id)
-    if (oculta) setVerTodas(prev => ({ ...prev, [orden.id]: busqueda.trim() }))
-    setErrores(prev => ({ ...prev, [orden.id]: oculta ? `${msg} (Esa pieza estaba oculta por la búsqueda: ahora se muestran todas.)` : msg }))
+    const oculta = pieza && !piezasVisibles(orden, busqueda, true).some(p => p.id === pieza.id)
+    if (oculta) {
+      setVerTodas(prev => ({ ...prev, [orden.id]: busqueda.trim() }))
+      setFiltroMol(prev => { const c = { ...prev }; delete c[orden.id]; return c })
+    }
+    setErrores(prev => ({ ...prev, [orden.id]: oculta ? `${msg} (Esa pieza estaba oculta por el filtro: ahora se muestran todas.)` : msg }))
   }
 
   // Peso de una pieza: el del producto, o el que se escribe aquí cuando la pieza es nueva y no se
@@ -647,7 +655,7 @@ export default function RecogidaFundida() {
             const totalPlaneado = piezas.reduce((s, p) => s + Number(p.cantidad_planeada || 0), 0)
             const abierta = expandido === orden.id
             // Piezas que se ven con la búsqueda; totales, validaciones y guardar usan TODAS
-            const visibles = piezasVisibles(orden, busqueda)
+            const visibles = piezasVisibles(orden, busqueda, true)
             const qPend = busqueda.trim()
             const filtrandoPiezas = qPend && visibles.length < piezas.length
 
@@ -722,6 +730,43 @@ export default function RecogidaFundida() {
                             onVerTodas={() => setVerTodas(prev => ({ ...prev, [orden.id]: qPend }))}
                             onFiltrar={() => setVerTodas(prev => ({ ...prev, [orden.id]: undefined }))}
                             nota="Al registrar se guardan todas las piezas de la orden, también las ocultas." />
+                        )}
+                        {(() => {
+                          // Filtro por moldeador (solo cambia lo que se ve; registrar guarda todas las piezas)
+                          const mols = []
+                          for (const p of piezas) {
+                            const k = claveMol(p)
+                            const m = mols.find(x => x.k === k)
+                            if (m) m.n++; else mols.push({ k, nombre: (p.asignado_a || '').trim() || 'Sin moldeador', n: 1 })
+                          }
+                          if (mols.length < 2) return null
+                          mols.sort((a, b) => (a.k === '') - (b.k === '') || a.nombre.localeCompare(b.nombre, 'es'))
+                          const sel = filtroMol[orden.id]
+                          const chip = (k, texto, n) => {
+                            const activo = sel === k
+                            return (
+                              <button key={k ?? '_todos'} type="button" aria-pressed={activo}
+                                onClick={() => setFiltroMol(prev => { const c = { ...prev }; if (k === undefined) delete c[orden.id]; else c[orden.id] = k; return c })}
+                                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 min-h-[36px] text-sm font-medium transition-colors
+                                  ${activo ? 'bg-feisen-azul border-feisen-azul text-white' : 'bg-white border-feisen-borde text-feisen-texto hover:bg-feisen-fondo'}`}>
+                                {texto} <span className={`tabular-nums text-xs ${activo ? 'text-white/80' : 'text-feisen-texto-2'}`}>{n}</span>
+                              </button>
+                            )
+                          }
+                          return (
+                            <div className="space-y-1">
+                              <div role="group" aria-label="Ver piezas de un moldeador" className="flex gap-2 overflow-x-auto overscroll-contain pb-1">
+                                {chip(undefined, 'Todos', piezas.length)}
+                                {mols.map(m => chip(m.k, m.nombre, m.n))}
+                              </div>
+                              {sel !== undefined && (
+                                <p className="text-xs text-feisen-texto-2">Al registrar se guardan todas las piezas de la orden, también las de otros moldeadores.</p>
+                              )}
+                            </div>
+                          )
+                        })()}
+                        {visibles.length === 0 && (
+                          <p className="text-sm text-feisen-texto-2 bg-feisen-fondo rounded-lg px-3 py-3">Ninguna pieza de este moldeador coincide con la búsqueda.</p>
                         )}
                         {visibles.map(p => {
                           const conf = Number(getField(orden.id, p.id, 'conforme') || 0)

@@ -2898,6 +2898,9 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   orden muestra solo las piezas que coinciden ("Mostrando 1 de 37… · Ver todas"), en Por recoger y Completadas. El
   guardado, los totales y las validaciones siguen cubriendo todas las piezas; si un error nombra una pieza oculta, se
   muestran todas. Probado en la demo.
+- **26/11 · Recogida: filtro por moldeador** dentro de la orden (Por recoger): botones Todos / cada moldeador con su
+  número de piezas; se combina con el buscador. Solo cambia lo que se ve: registrar guarda y valida todas las piezas;
+  si un error nombra una pieza oculta, se quitan búsqueda y filtro de esa orden. Probado en la demo.
 - Probado: lectura con la plantilla real (5 ANDAMIO COLGANTE → 10 de cada pieza con su moldeador, avisos, versión vieja,
   archivo ajeno, plantilla vacía) y en la demo: subir → paso 2 → guardar crea la orden con máquina y 4 líneas.
 
