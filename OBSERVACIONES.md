@@ -3121,3 +3121,7 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   (artículo de Equipmaster) a la OF «0000». Una de las dos salidas (0130 o 0131) descontó un motor que no salió.
 - **Historial:** el detalle de un movimiento de motores mostraba solo el serial de la primera fila (MOV-AF-0017 tiene 3
   filas y 3 seriales). Ahora muestra «Seriales motor · N» con todos y el serial en cada línea de producto.
+- **Búsqueda sin ceros a la izquierda (2026-11-27):** Angie no encontraba MOV-EP-0130 en el Historial (el movimiento existe:
+  18/11, «GASOLINA 7 HP GOODYEAR», destino «Otro»). `coincideBusqueda` (`utils/busqueda.js`, la usan ~30 pantallas) ahora
+  también compara quitando los ceros a la izquierda de los números, así «MOV-EP-130», «130» o «PED-209» encuentran el
+  número completo. Solo agrega coincidencias, no quita ninguna.
