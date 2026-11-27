@@ -1053,6 +1053,8 @@ export default function Historial() {
     const esSalida = p.tipo === 'salida'
     const valorTotal = lineas.reduce((s, l) => s + (l.precio_costo_snapshot || 0) * (l.cantidad || 0), 0)
     const bodegas = [p.bodegas_origen?.nombre, p.bodegas_destino?.nombre].filter(Boolean)
+    // Motores: una fila por serial con el mismo N°. Antes solo se veía el serial de la primera (2026-11-27)
+    const seriales = [...new Set(lineas.map(l => l.serial_motor).filter(Boolean))]
     const revertibles = lineas.filter(l => !l.revertido && !l.revertido_en)
     const menuPorLinea = esAdmin && lineas.length > 1 // con una sola línea bastan los botones de arriba
     const dato = (t, v) => v ? <div key={t}><dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t}</dt><dd className="text-sm text-feisen-texto mt-0.5 break-words">{v}</dd></div> : null
@@ -1082,7 +1084,9 @@ export default function Historial() {
           {dato('N° OF / orden', p.numero_of)}
           {dato('Pedido', p.pedidos?.numero)}
           {dato(p.proveedor === 'Producción interna' ? 'Colada' : 'Notas', p.referencia)}
-          {dato('Serial motor', p.serial_motor)}
+          {dato(seriales.length > 1 ? `Seriales motor · ${seriales.length}` : 'Serial motor', seriales.length > 1
+            ? <ul className="space-y-0.5 font-mono text-[13px]">{seriales.map(sr => <li key={sr}>{sr}</li>)}</ul>
+            : seriales[0])}
           {esAdmin && valorTotal > 0 && dato('Valor', cop(valorTotal))}
         </dl>
 
@@ -1128,6 +1132,7 @@ export default function Historial() {
                       <p className="flex flex-wrap gap-1.5 mt-0.5">
                         {editados.has(m.id) && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-amber-50 text-amber-700">Editado</span>}
                         {esReversion && <span className="text-[11px] font-medium px-1.5 py-px rounded-md bg-feisen-rojo-suave text-feisen-rojo">Reversión</span>}
+                        {seriales.length > 1 && m.serial_motor && <span className="text-xs text-feisen-texto-2 font-mono">Serial {m.serial_motor}</span>}
                         {esAdmin && m.precio_costo_snapshot > 0 && <span className="text-xs text-gray-400 tabular-nums">{cop(m.precio_costo_snapshot * m.cantidad)}</span>}
                       </p>
                     </div>

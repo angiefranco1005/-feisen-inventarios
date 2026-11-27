@@ -3107,3 +3107,17 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 ## 2026-11-27 · Calidad: se ve quién reportó cada no conformidad
 
 - El dato ya se guardaba (`detectado_por` = quien la crea; las 5 NC lo tienen), pero solo salía en una línea pequeña al final del detalle. Ahora la fila de la lista dice «Reportó: Nombre», el detalle tiene la celda «Reportado por» con fecha y hora de creación, y la búsqueda encuentra por ese nombre.
+
+## 2026-11-27 · Motores: no se registra dos veces la salida del mismo serial
+- **Caso:** el 20/11 MOV-EP-0131 (6:59) y MOV-EP-0133 (7:02) sacaron el mismo motor (serial 215326050159, Good Year 7 HP) a la
+  OF 577, con MOV-EP-0132 en medio: no fue doble clic, se volvió a registrar. El bloqueo de 60 s no lo cubre y, como el
+  serial se escribió a mano (el producto tiene más existencia que seriales cargados), la salida no revisaba si ya había
+  salido. Angie borró la 0133.
+- **Arreglo:** `avisoSerialesYaDespachados()` en `shared/seriales.jsx`, llamado en la salida de motores de
+  `RegistrarMovimiento.jsx`: si algún serial tiene fila `despachado` en `motor_seriales` (con **cualquier** producto) y no
+  tiene otra `disponible` (un motor devuelto sí puede volver a salir), no deja guardar y dice cuándo, con qué movimiento
+  y a qué OF salió. Es solo de pantalla (no hay regla en la base).
+- **Pendiente de revisar con Efraín:** ese mismo serial también salió el 18/11 con MOV-EP-0130 como «GASOLINA 7 HP GOODYEAR»
+  (artículo de Equipmaster) a la OF «0000». Una de las dos salidas (0130 o 0131) descontó un motor que no salió.
+- **Historial:** el detalle de un movimiento de motores mostraba solo el serial de la primera fila (MOV-AF-0017 tiene 3
+  filas y 3 seriales). Ahora muestra «Seriales motor · N» con todos y el serial en cada línea de producto.

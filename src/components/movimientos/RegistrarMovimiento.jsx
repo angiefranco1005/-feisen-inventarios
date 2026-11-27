@@ -10,7 +10,7 @@ import Spinner from '../shared/Spinner'
 import FirmaCanvas from '../shared/FirmaCanvas'
 import { coincideBusqueda } from '../../utils/busqueda'
 import { EncabezadoPagina, ChipBodega, Segmentado, Contador, useAviso, useAtajoBuscar } from '../shared/ui'
-import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, CamposSerial, MAX_SERIALES } from '../shared/seriales'
+import { esBodegaMotores, ajustarSeriales, problemaSeriales, serialesYaEnBodega, avisoSerialesYaDespachados, CamposSerial, MAX_SERIALES } from '../shared/seriales'
 import { useUnaVez } from '../../hooks/useUnaVez'
 
 const TIPOS     = { ADMIN: ['entrada', 'salida'], LOGISTICA: ['entrada', 'salida'], ALMACENISTA: ['entrada', 'salida'] }
@@ -202,6 +202,10 @@ export default function RegistrarMovimiento() {
       const problema = problemaSeriales(seriales)
       if (problema) return falla(problema)
       if (form.tipo === 'salida' && !form.numero_of.trim()) return falla('Escribe la OF (orden de fabricación) a la que va el motor.')
+      if (form.tipo === 'salida') {
+        const yaSalio = await avisoSerialesYaDespachados(seriales)
+        if (yaSalio) return falla(yaSalio)
+      }
       if (form.tipo === 'entrada') {
         const repetidos = await serialesYaEnBodega(form.item_id, seriales)
         if (repetidos.length) return falla(`Ya hay en bodega un motor con el serial ${repetidos.join(', ')}. Revisa la placa.`)

@@ -35,6 +35,32 @@ export async function serialesYaEnBodega(itemId, lista) {
   return lista.map(s => s.trim()).filter(s => enBodega.has(s.toUpperCase()))
 }
 
+// ¿Alguno de estos seriales ya salió de la bodega, con cualquier producto? (2026-11-27)
+// Evita registrar dos veces la salida del mismo motor: el 20/11 MOV-EP-0131 y 0133 sacaron el
+// mismo serial a la OF 577 con 3 minutos de diferencia (escrito a mano, sin lista).
+// Devuelve un texto para el aviso, o null si ninguno ha salido.
+export async function avisoSerialesYaDespachados(lista) {
+  const limpios = [...new Set(lista.map(s => s.trim()).filter(Boolean))]
+  if (!limpios.length) return null
+  const variantes = [...new Set(limpios.flatMap(s => [s, s.toUpperCase(), s.toLowerCase()]))]
+  let { data } = await supabase.from('motor_seriales')
+    .select('serial, numero_of, despachado_en, salida_mov_id, items(nombre)')
+    .eq('estado', 'despachado').in('serial', variantes)
+  // Un motor que salió y volvió a entrar (devolución) tiene otra fila 'disponible': ese sí puede salir
+  const { data: dispon } = await supabase.from('motor_seriales').select('serial').eq('estado', 'disponible').in('serial', variantes)
+  const enBodega = new Set((dispon || []).map(r => r.serial.trim().toUpperCase()))
+  data = (data || []).filter(r => !enBodega.has(r.serial.trim().toUpperCase()))
+  if (!data.length) return null
+  const ids = data.map(d => d.salida_mov_id).filter(Boolean)
+  const { data: movs } = ids.length ? await supabase.from('movimientos').select('id, numero').in('id', ids) : { data: [] }
+  const numero = Object.fromEntries((movs || []).map(m => [m.id, m.numero]))
+  const d = data[0]
+  const fecha = d.despachado_en ? new Date(d.despachado_en).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', timeZone: 'America/Bogota' }) : null
+  const detalle = [fecha && `el ${fecha}`, numero[d.salida_mov_id] && `con ${numero[d.salida_mov_id]}`, d.numero_of && `(OF ${d.numero_of})`, d.items?.nombre && `como ${d.items.nombre}`].filter(Boolean).join(' ')
+  const otros = data.length > 1 ? ` y ${data.length - 1} serial(es) más también salieron` : ''
+  return `El motor con serial ${d.serial} ya salió ${detalle}${otros}. No se registra otra vez: si fue un error, corrige primero esa salida en el Historial.`
+}
+
 // La lista de seriales (motor_seriales) la mantiene la base desde el 5/11/2026: el trigger
 // trg_motor_seriales_insert registra cada entrada y salida de MOTORES con serial. La app solo valida.
 
