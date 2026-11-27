@@ -295,7 +295,8 @@ export default function NoConformidades() {
       nc.item_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
       nc.moldeador?.toLowerCase().includes(busqueda.toLowerCase()) ||
       nc.referencia_orden?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      nc.tipo_defecto?.toLowerCase().includes(busqueda.toLowerCase())
+      nc.tipo_defecto?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      nc.detectado_por?.nombre?.toLowerCase().includes(busqueda.toLowerCase())
     return matchEstado && matchBusq
   })
 
@@ -332,7 +333,7 @@ export default function NoConformidades() {
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por N° NC, pieza, responsable, orden..."
+            placeholder="Buscar por N° NC, pieza, responsable, quién reportó, orden..."
             className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-feisen-azul bg-white" />
         </div>
         <div className="flex gap-2">
@@ -372,9 +373,13 @@ export default function NoConformidades() {
                 <span className="font-mono text-xs text-gray-500 w-24 shrink-0">{nc.numero}</span>
                 <span className="text-xs text-gray-400 w-20 shrink-0">{fecha}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${est.color}`}>{est.label}</span>
-                <span className="text-sm font-semibold text-gray-800 flex-1 truncate">
-                  {nc.item_nombre || nc.items?.nombre || 'Sin pieza'}
-                  {nc.cantidad_afectada && <span className="ml-1.5 text-xs text-feisen-rojo font-bold">× {nc.cantidad_afectada}</span>}
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-gray-800 truncate">
+                    {nc.item_nombre || nc.items?.nombre || 'Sin pieza'}
+                    {nc.cantidad_afectada && <span className="ml-1.5 text-xs text-feisen-rojo font-bold">× {nc.cantidad_afectada}</span>}
+                  </span>
+                  {/* Quién la reportó (2026-11-27: Angie no veía quién creaba cada reporte) */}
+                  <span className="block text-xs text-gray-500 truncate">Reportó: {nc.detectado_por?.nombre || '—'}</span>
                 </span>
                 {nc.tipo_defecto && (
                   <span className="text-xs text-gray-400 hidden sm:block shrink-0 max-w-36 truncate">{nc.tipo_defecto}</span>
@@ -419,17 +424,17 @@ export default function NoConformidades() {
                       <p className="text-xs text-gray-400 font-medium mb-0.5">{esMec(nc.bodega_id) ? 'Operario' : 'Moldeador'}</p>
                       <p className="font-semibold text-orange-600">{nc.moldeador || '—'}</p>
                     </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-medium mb-0.5">Reportado por</p>
+                      <p className="font-semibold text-gray-800">{nc.detectado_por?.nombre || '—'}</p>
+                      <p className="text-xs text-gray-400">{nc.created_at ? new Date(nc.created_at).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' }) : ''}</p>
+                    </div>
                   </div>
                   {nc.descripcion && (
                     <div>
                       <p className="text-xs text-gray-400 font-medium mb-0.5">Descripción</p>
                       <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-3 py-2">{nc.descripcion}</p>
                     </div>
-                  )}
-                  {nc.detectado_por && (
-                    <p className="text-xs text-gray-400">
-                      Reportado por <span className="font-semibold text-gray-600">{nc['detectado_por']?.nombre || '—'}</span>
-                    </p>
                   )}
                   {/* Resolución (si está cerrada) */}
                   {nc.estado === 'cerrado' && (

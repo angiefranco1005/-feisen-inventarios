@@ -3103,3 +3103,7 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - Pendiente: no se pudo reproducir con usuarios reales (pide iniciar sesión). Con la guarda, la próxima vez se verá el mensaje exacto en lugar del blanco.
 - **Causa real del blanco (Costeo › Despiece):** `CosteoPasos.jsx` usaba `materialesDe` sin importarlo de `datosPasos.js` (llegó con «materia prima en piezas sin operación», 2026-11-26). Solo fallaba con una pieza sin piezas ni procesos, por eso no salió con datos vacíos; el mensaje de la guarda lo mostró: «Can't find variable: materialesDe». Se agregó el import.
 - Revisión de todo `src` con un escaneo de nombres sin declarar (Babel, `scope.globals`): no hay otro import faltante. El escaneo sí detecta la versión anterior de `CosteoPasos.jsx`. Conviene repetirlo cuando varias sesiones tocan los mismos módulos.
+
+## 2026-11-27 · Calidad: se ve quién reportó cada no conformidad
+
+- El dato ya se guardaba (`detectado_por` = quien la crea; las 5 NC lo tienen), pero solo salía en una línea pequeña al final del detalle. Ahora la fila de la lista dice «Reportó: Nombre», el detalle tiene la celda «Reportado por» con fecha y hora de creación, y la búsqueda encuentra por ese nombre.
