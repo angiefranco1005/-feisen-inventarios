@@ -3125,3 +3125,14 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
   18/11, «GASOLINA 7 HP GOODYEAR», destino «Otro»). `coincideBusqueda` (`utils/busqueda.js`, la usan ~30 pantallas) ahora
   también compara quitando los ceros a la izquierda de los números, así «MOV-EP-130», «130» o «PED-209» encuentran el
   número completo. Solo agrega coincidencias, no quita ninguna.
+
+## 2026-11-27 · Motores Good Year 7 HP: cruce ERP contra Odoo (faltan 2 motores)
+- Búsqueda de solo lectura en Odoo Feisen y FC (notas «REF MOTOR» de facturas y texto de las líneas, desde 1/8/2026) con
+  `buscar-serial-odoo` redesplegada un momento y vuelta a desactivar (410). Ninguna de las dos empresas usa remisiones de
+  inventario (`stock.move` de salida: 0) ni lotes: el serial solo está en la nota de la factura.
+- Facturados en Odoo **sin salida en el ERP** (después del conteo INV-FIS-0007 del 1/9): **OF 506** Néstor Bravo, CF6296
+  (5/11), GY 7 HP SN 215326050239 (en el ERP solo salió el Megapack diésel de esa OF) y **OF 254** Comercial Motobombas,
+  CF6110 (22/9), GY SN 215326050218 (la OF no tiene ninguna salida de motor). Son los dos candidatos para los 2 que faltan.
+- Dudosos: OF 404 Equipmaster, CF6221 (27/10) «motor en préstamo REF 215326050122» (sin salida en el ERP); OF 502, CF6299,
+  nota con un tercer serial «21532605011» (en el ERP salieron 2); OF 155, CF6039 (31/8, antes del conteo) SN 215326050039.
+- Al revés: la salida MOV-EP-0064 (OF 282) descontó 6 GY 7 HP y la factura CF6147 trae 4 seriales GY 7 HP.
