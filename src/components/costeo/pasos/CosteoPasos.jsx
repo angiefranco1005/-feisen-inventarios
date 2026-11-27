@@ -11,7 +11,7 @@ import HojaRuta from './HojaRuta'
 import HojaMateria from './HojaMateria'
 import HojaTiempos from './HojaTiempos'
 import { IndicadorObservaciones } from '../Observaciones'
-import { PASOS, conteos, falta, filasDespiece, filasProcesos } from './datosPasos'
+import { PASOS, conteos, falta, filasDespiece, filasProcesos, materialesDe } from './datosPasos'
 
 // Costeo por pasos (opción B, estilo Airtable; Angie, 2026-11-25). Una pantalla por paso del costeo
 // (despiece → hojas de ruta → materia prima → tiempos) con una cuadrícula de toda la máquina y lo
