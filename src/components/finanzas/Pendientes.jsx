@@ -41,7 +41,7 @@ export default function Pendientes({ tipo }) {
 
   const calc = useMemo(() => {
     if (!datos) return null
-    const docs = Object.entries(datos).flatMap(([emp, d]) => (d.docs || [])
+    const docs = Object.entries(datos).flatMap(([emp, d]) => (d?.docs || [])
       .filter(x => x.tipo === tipo)
       .map(x => ({ ...x, emp, atraso: x.vence ? diasEntre(x.vence, hoy) : 0 })))
     const porEdad = Object.fromEntries(EDADES.map(e => [e.id, 0]))

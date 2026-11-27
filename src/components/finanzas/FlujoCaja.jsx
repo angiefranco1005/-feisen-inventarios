@@ -23,7 +23,7 @@ export default function FlujoCaja() {
 
   const calc = useMemo(() => {
     if (!datos) return null
-    const bancos = Object.entries(datos).flatMap(([emp, d]) => (d.bancos || []).map(b => ({ ...b, emp, omitido: BANCOS_OMITIDOS.includes(emp) })))
+    const bancos = Object.entries(datos).flatMap(([emp, d]) => (d?.bancos || []).map(b => ({ ...b, emp, omitido: BANCOS_OMITIDOS.includes(emp) })))
     const saldoBancos = bancos.filter(b => !b.omitido).reduce((s, b) => s + b.saldo, 0)
     const filas = [
       { id: 'vencido', texto: 'Ya vencido', detalle: 'antes de hoy', cobros: 0, pagos: 0 },
@@ -33,7 +33,7 @@ export default function FlujoCaja() {
       }),
       { id: 'despues', texto: 'Después', detalle: `desde el ${fechaCorta(sumarDias(hoy, SEMANAS * 7))}`, cobros: 0, pagos: 0 },
     ]
-    for (const d of Object.values(datos).flatMap(x => x.docs || [])) {
+    for (const d of Object.values(datos).flatMap(x => x?.docs || [])) {
       const dias = d.vence ? diasEntre(hoy, d.vence) : 0
       const fila = dias < 0 ? filas[0] : dias >= SEMANAS * 7 ? filas[filas.length - 1] : filas[1 + Math.floor(dias / 7)]
       if (d.tipo === 'cobrar') fila.cobros += d.saldo

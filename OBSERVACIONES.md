@@ -3094,3 +3094,10 @@ Pedido de Angie: lo que sale de la fundición de aluminio (poleas de la coquilla
 - `desempeno_evaluaciones.falta_grave`: deja las competencias del trimestre en 0 (regla de conducta del plan).
 - Ojo macOS: `datosPlanJefes.js` se llama así (no `planJefes.js`) porque choca con `PlanJefes.jsx` en un disco que no distingue mayúsculas.
 - Pendiente (2.ª etapa): encuestas confidenciales de liderazgo y trabajo en equipo dentro del ERP; hoy RRHH anota el % que salió.
+
+## 2026-11-27 · ERP en blanco: guarda de errores por pantalla
+
+- La app no tenía *error boundary*: si cualquier pantalla fallaba al dibujarse, React desmontaba todo y el ERP quedaba en blanco (menú incluido).
+- Nuevo `src/components/shared/ErrorPantalla.jsx`: en `Layout` envuelve el contenido con `key` = ruta (el menú sigue vivo y al cambiar de pantalla se limpia) y en `App.jsx` envuelve toda la app. Muestra el mensaje del error con «Recargar» e «Ir al inicio», y lo deja en la consola.
+- Causa encontrada recorriendo todas las rutas en la vista previa: Finanzas › Cartera / Por pagar / Flujo leían `d.docs` / `d.bancos` sin revisar que la empresa trajera datos (`null`) → `Cannot read properties of null`. Ahora `d?.docs` / `d?.bancos`.
+- Pendiente: no se pudo reproducir con usuarios reales (pide iniciar sesión). Con la guarda, la próxima vez se verá el mensaje exacto en lugar del blanco.

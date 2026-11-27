@@ -4,6 +4,7 @@ import LoginPage from './components/auth/LoginPage'
 import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Layout from './components/shared/Layout'
 import Spinner from './components/shared/Spinner'
+import ErrorPantalla from './components/shared/ErrorPantalla'
 
 import InicioGerencia     from './components/admin/inicio/InicioGerencia'
 import InicioVentas       from './components/of/InicioVentas'
@@ -180,10 +181,12 @@ function SinModulos() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorPantalla>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorPantalla>
   )
 }
